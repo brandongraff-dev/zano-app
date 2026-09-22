@@ -1,0 +1,178 @@
+# XcodeGen project definition — https://github.com/yonaskolb/XcodeGen
+#
+# The .xcodeproj is NOT committed (see .gitignore). Generate it on a Mac with:
+#   brew install xcodegen && xcodegen generate
+# Never hand-edit the generated .xcodeproj's settings — change this file and regenerate, or your
+# change is silently lost next time someone else regenerates.
+#
+# Status: written from Windows without Xcode to verify against. The extension-target
+# NSExtensionPointIdentifier values below are believed correct from Apple's documented Screen
+# Time / WidgetKit APIs but are UNVERIFIED — cross-check each one against a freshly-generated
+# Xcode template of that extension type the first time this is opened on a Mac. See
+# docs/setup/mac-setup.md step 3.
+
+name: ZANO
+
+options:
+  bundleIdPrefix: com.zano.app
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"          # iPhone only for v1 — see docs/spec.md §12
+    ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+    SWIFT_STRICT_CONCURRENCY: complete
+
+packages:
+  Core:
+    path: Core
+
+targets:
+  ZANO:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/ZANO
+    dependencies:
+      - package: Core
+      - target: ZANOWidgets
+        embed: true
+      - target: ZANOShieldConfig
+        embed: true
+      - target: ZANOShieldAction
+        embed: true
+      - target: ZANOMonitor
+        embed: true
+      - target: ZANOReport
+        embed: true
+    info:
+      path: App/ZANO/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSLocationWhenInUseUsageDescription: "ZANO uses your location to verify gym visits so you can earn your apps back."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "ZANO uses background location to verify gym visits even when the app isn't open."
+        NSHealthShareUsageDescription: "ZANO reads workouts, steps, and sleep to verify goals automatically, without you having to log them."
+        NSHealthUpdateUsageDescription: "ZANO may save workouts you start from inside the app."
+        NFCReaderUsageDescription: "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock."
+        NSCameraUsageDescription: "ZANO uses your camera to estimate protein from meal photos."
+        NSMotionUsageDescription: "ZANO uses motion data to verify workouts and prevent goal spoofing."
+    entitlements:
+      path: App/ZANO/ZANO.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+        com.apple.developer.family-controls: true
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+        com.apple.developer.nfc.readersession.formats:
+          - NDEF
+        aps-environment: development
+
+  ZANOWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ZANOWidgets
+    info:
+      path: Extensions/ZANOWidgets/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Extensions/ZANOWidgets/ZANOWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+
+  ZANOShieldConfig:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ZANOShieldConfig
+    info:
+      path: Extensions/ZANOShieldConfig/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettingsUI.shield-configuration-service
+          NSExtensionPrincipalClass: ShieldConfigurationExtension
+    entitlements:
+      path: Extensions/ZANOShieldConfig/ZANOShieldConfig.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+        com.apple.developer.family-controls: true
+
+  ZANOShieldAction:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ZANOShieldAction
+    info:
+      path: Extensions/ZANOShieldAction/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettingsUI.shield-action-service
+          NSExtensionPrincipalClass: ShieldActionExtension
+    entitlements:
+      path: Extensions/ZANOShieldAction/ZANOShieldAction.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+        com.apple.developer.family-controls: true
+
+  ZANOMonitor:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ZANOMonitor
+    info:
+      path: Extensions/ZANOMonitor/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.deviceactivity.monitor-extension
+          NSExtensionPrincipalClass: DeviceActivityMonitorExtension
+    entitlements:
+      path: Extensions/ZANOMonitor/ZANOMonitor.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+        com.apple.developer.family-controls: true
+
+  ZANOReport:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ZANOReport
+    info:
+      path: Extensions/ZANOReport/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.deviceactivity.report-extension
+          # No NSExtensionPrincipalClass: like WidgetKit, this extension point uses the @main
+          # declarative entry point (see Extensions/ZANOReport), not the older NSObject-subclass
+          # + principal-class pattern used by ShieldConfig/ShieldAction/Monitor below. Verify on Mac.
+    entitlements:
+      path: Extensions/ZANOReport/ZANOReport.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+        com.apple.developer.family-controls: true
+
+schemes:
+  ZANO:
+    build:
+      targets:
+        ZANO: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - Core

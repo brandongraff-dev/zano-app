@@ -1,0 +1,51 @@
+# --- Xcode / Swift ---
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+
+# XcodeGen regenerates the project from project.yml — never commit the generated project
+# (run `xcodegen generate` after cloning; see docs/setup/mac-setup.md)
+
+# --- Fastlane ---
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# --- Secrets / env ---
+.env
+.env.*
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+**/GoogleService-Info.plist
+**/secrets.yml
+
+# --- Supabase ---
+backend/supabase/.branches
+backend/supabase/.temp
+
+# --- Reference repos (cloned for reading only, see docs/references/README.md) ---
+docs/references/*
+!docs/references/README.md
+
+# --- ML service (Python, v3) ---
+ml-service/__pycache__/
+ml-service/.venv/
+*.pyc
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

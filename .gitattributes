@@ -1,0 +1,15 @@
+# This repo moves between Windows (no Mac yet) and macOS (Xcode) sessions — normalize line endings
+# so diffs stay clean regardless of which OS touched a file.
+* text=auto eol=lf
+
+*.swift text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+
+# Xcode project files (once generated locally, never committed anyway — see .gitignore) can be
+# binary-ish; leave untouched if they ever do get committed by mistake.
+*.pbxproj -text

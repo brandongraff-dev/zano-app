@@ -1,0 +1,137 @@
+// RingCluster.swift
+// Core / UI / Components
+//
+// Lays out several `GoalRing`s together, per docs/spec.md §15's core component list and the P1
+// mockup in §16 ("three progress rings labeled Workout, Protein (72/150g), Focus (25/50 min)").
+// All text is caller-composed (see GoalRing.swift's header note on copy discipline).
+
+import SwiftUI
+
+/// One ring's worth of display data for a `RingCluster`. A plain value type (not tied to `Goal`
+/// or any SwiftData model) so this component stays usable anywhere a screen wants to show a set
+/// of rings — Today's goal rings, a Recap's weekly goal-completion rings, a widget preview, etc.
+public struct RingClusterItem: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    /// Fully-composed label shown under the ring (e.g. `"Workout"`, `"Protein"`).
+    public let title: String
+    /// Completion fraction, `0...1` (unclamped values are clamped by the underlying `GoalRing`).
+    public let progress: Double
+    /// Ring tint — typically `Theme.Colors.Ring.color(for:)`.
+    public let color: Color
+    /// Fully-composed value string shown under the title (e.g. `"72/150g"`, `"25/50 min"`).
+    /// Optional — omit for a bare ring + title.
+    public let valueText: String?
+    /// SF Symbol shown in the ring's center. When `nil`, the ring center is empty (useful when
+    /// `valueText` is long and better shown below the ring instead of inside it).
+    public let centerIcon: String?
+
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        progress: Double,
+        color: Color,
+        valueText: String? = nil,
+        centerIcon: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.progress = progress
+        self.color = color
+        self.valueText = valueText
+        self.centerIcon = centerIcon
+    }
+}
+
+/// A row (or wrapping grid) of labeled `GoalRing`s. This is *not* a single concentric multi-ring
+/// (Apple Activity–style); spec §16's P1 mockup shows the day's goals as separate side-by-side
+/// rings, each with its own label and value, so that's the layout modeled here.
+public struct RingCluster: View {
+
+    /// How items are arranged.
+    public enum Layout: Sendable {
+        /// A single horizontal row (scrolls if it overflows). Best for 2–4 items — the common
+        /// case on Today.
+        case row
+        /// An adaptive grid that wraps to multiple rows. Best for longer lists (e.g. a Progress
+        /// screen showing every active goal, or a Recap's full weekly set).
+        case grid
+    }
+
+    private let items: [RingClusterItem]
+    private let ringSize: GoalRing.Size
+    private let layout: Layout
+
+    /// - Parameters:
+    ///   - items: The rings to display, in order.
+    ///   - ringSize: Size preset applied to every ring in the cluster. Defaults to `.medium`.
+    ///   - layout: `.row` or `.grid`. Defaults to `.row`.
+    public init(
+        items: [RingClusterItem],
+        ringSize: GoalRing.Size = .medium,
+        layout: Layout = .row
+    ) {
+        self.items = items
+        self.ringSize = ringSize
+        self.layout = layout
+    }
+
+    public var body: some View {
+        switch layout {
+        case .row:
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: Theme.Spacing.lg) {
+                    ForEach(items) { item in
+                        RingClusterCell(item: item, size: ringSize)
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.xxs)
+            }
+        case .grid:
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: ringSize.diameter + Theme.Spacing.xl), spacing: Theme.Spacing.lg)],
+                spacing: Theme.Spacing.lg
+            ) {
+                ForEach(items) { item in
+                    RingClusterCell(item: item, size: ringSize)
+                }
+            }
+        }
+    }
+}
+
+/// A single labeled ring cell shared by both `RingCluster` layouts.
+private struct RingClusterCell: View {
+    let item: RingClusterItem
+    let size: GoalRing.Size
+
+    /// Written as an explicit if/return rather than `item.centerIcon.map { .icon(...) } ?? .none`
+    /// to avoid any ambiguity between `Optional.none` and `GoalRingCenter.none` at the call site.
+    private var centerContent: GoalRingCenter {
+        if let icon = item.centerIcon {
+            return .icon(systemName: icon)
+        }
+        return .none
+    }
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.xs) {
+            GoalRing(
+                progress: item.progress,
+                color: item.color,
+                size: size,
+                center: centerContent
+            )
+            Text(item.title)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(1)
+            if let valueText = item.valueText {
+                Text(valueText)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: max(size.diameter, 64))
+    }
+}

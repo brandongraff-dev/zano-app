@@ -1,0 +1,20 @@
+# ZANO ML Service — dependencies
+#
+# Pin major versions only. Plain Python 3.11+.
+
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.7,<3.0
+
+# app/features.py, app/train_risk_model.py — spec.md §9.2 ("gradient-boosted trees (LightGBM).
+# Cold start: logistic regression on onboarding answers + population priors") / §9.9 (nightly
+# user_day feature materialization). train_risk_model.py is a skeleton (not wired to a live
+# Supabase connection or scheduled anywhere yet — see its module docstring), but these are real
+# dependencies of code that ships in this service today, not aspirational pins.
+pandas>=2.2,<3.0
+scikit-learn>=1.5,<2.0
+lightgbm>=4.3,<5.0
+
+# Test-only, but kept in the same file for a single-venv skeleton service.
+pytest>=8.0,<9.0
+httpx>=0.27,<1.0

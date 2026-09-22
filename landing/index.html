@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZANO — The app that won't let you open TikTok until you hit the gym.</title>
+  <meta name="description" content="ZANO locks distracting apps until you earn them back by training, hitting your protein, focusing, or hydrating. Tap in. Earn it. Join the waitlist." />
+
+  <!-- Open Graph / share preview -->
+  <meta property="og:title" content="ZANO — Tap in. Earn it." />
+  <meta property="og:description" content="The app that won't let you open TikTok until you hit the gym." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
+
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="wrap site-header__inner">
+      <span class="logo">ZANO</span>
+      <span class="kicker kicker--nav">Tap in. Earn it.</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap">
+        <p class="kicker">Tap in. Earn it.</p>
+        <h1 class="hero__headline">
+          The app that won&rsquo;t let you open TikTok<br class="br-desktop" />
+          until you hit the gym.
+        </h1>
+        <p class="hero__sub">
+          Your phone works for your goals instead of against them. Distracting apps stay locked
+          until you earn them back by doing the things you actually want to do: train, hit your
+          protein, focus, sleep, hydrate.
+        </p>
+
+        <form id="waitlist-form" class="waitlist-form" novalidate>
+          <div class="waitlist-form__row">
+            <label class="sr-only" for="email">Email address</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              class="waitlist-form__input"
+              placeholder="you@example.com"
+              autocomplete="email"
+              required
+            />
+            <!-- Honeypot — hidden from real users via CSS, bots tend to fill every field -->
+            <input
+              id="company"
+              name="company"
+              type="text"
+              class="hp-field"
+              tabindex="-1"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn-primary" id="waitlist-submit">
+              <span class="btn-primary__label">Join the waitlist</span>
+            </button>
+          </div>
+          <p id="waitlist-status" class="waitlist-form__status" role="status" aria-live="polite"></p>
+        </form>
+
+        <p class="hero__note">No spam. One email when we open the doors.</p>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="how" id="how">
+      <div class="wrap">
+        <h2 class="section-title">No willpower required.</h2>
+        <div class="how__grid">
+          <div class="how__card">
+            <span class="how__ring how__ring--workout" aria-hidden="true"></span>
+            <h3>Locked</h3>
+            <p>TikTok, Instagram, YouTube &mdash; shielded the moment you open ZANO. No manual
+              blocking, no toggling off when you feel weak.</p>
+          </div>
+          <div class="how__card">
+            <span class="how__ring how__ring--focus" aria-hidden="true"></span>
+            <h3>Earn it</h3>
+            <p>Verified goals unlock time: a gym session (geofence), a focus block, hitting your
+              protein or water target. Real verification, not an honor system.</p>
+          </div>
+          <div class="how__card">
+            <span class="how__ring how__ring--water" aria-hidden="true"></span>
+            <h3>Unlocked</h3>
+            <p>Apps open the second a goal verifies &mdash; instantly, offline. No logging when it
+              can be avoided.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What it's not -->
+    <section class="not">
+      <div class="wrap">
+        <h2 class="section-title">What ZANO isn&rsquo;t.</h2>
+        <ul class="not__list">
+          <li>Not a calorie counter. Never restrictive goals &mdash; only additive ones.</li>
+          <li>Not a prison. Emergency unlock always exists. Calls always work.</li>
+          <li>Not a chatbot. It just knows you.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Second CTA -->
+    <section class="cta">
+      <div class="wrap">
+        <h2 class="section-title">Be first in when we open the doors.</h2>
+        <p class="cta__sub">We&rsquo;re building in public. Get the waitlist email, then the invite.</p>
+        <a href="#waitlist-form" class="btn-primary btn-primary--ghost">Join the waitlist</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap site-footer__inner">
+      <span>&copy; <span id="year"></span> ZANO</span>
+      <span class="site-footer__muted">Locked in.</span>
+    </div>
+  </footer>
+
+  <script type="module">
+    // ---------------------------------------------------------------------
+    // Supabase wiring — anon key only, straight from the browser. Safe to
+    // expose: Row Level Security on waitlist_signups (see
+    // backend/supabase/migrations/0003_waitlist.sql) restricts the anon
+    // role to INSERT only, so this key can never read, update, or delete
+    // signups even if someone copies it out of the page source.
+    //
+    // Fill these in once a Supabase project exists — see landing/README.md.
+    // ---------------------------------------------------------------------
+    const SUPABASE_URL = "REPLACE_WITH_SUPABASE_PROJECT_URL"; // e.g. https://xxxxxxxx.supabase.co
+    const SUPABASE_ANON_KEY = "REPLACE_WITH_SUPABASE_ANON_KEY";
+
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    const form = document.getElementById("waitlist-form");
+    const statusEl = document.getElementById("waitlist-status");
+    const submitBtn = document.getElementById("waitlist-submit");
+
+    function setStatus(message, kind) {
+      statusEl.textContent = message;
+      statusEl.className = "waitlist-form__status" + (kind ? " waitlist-form__status--" + kind : "");
+    }
+
+    function isConfigured() {
+      return (
+        SUPABASE_URL &&
+        SUPABASE_ANON_KEY &&
+        !SUPABASE_URL.startsWith("REPLACE_WITH_") &&
+        !SUPABASE_ANON_KEY.startsWith("REPLACE_WITH_")
+      );
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      // Honeypot tripped — silently pretend it worked, don't tell the bot why.
+      const honeypot = document.getElementById("company").value.trim();
+      if (honeypot) {
+        setStatus("You're on the list.", "success");
+        form.reset();
+        return;
+      }
+
+      const email = document.getElementById("email").value.trim();
+      if (!email) {
+        setStatus("Enter an email address.", "error");
+        return;
+      }
+
+      if (!isConfigured()) {
+        // No Supabase project wired up yet (see landing/README.md) — fail
+        // loudly in the console for whoever's testing, calmly for the visitor.
+        console.error(
+          "ZANO waitlist: SUPABASE_URL / SUPABASE_ANON_KEY are still placeholders. " +
+          "See landing/README.md to wire up a real Supabase project."
+        );
+        setStatus("Waitlist isn't live yet — check back soon.", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.classList.add("is-loading");
+      setStatus("Joining…", "pending");
+
+      try {
+        const { createClient } = await import(
+          "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+        );
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const params = new URLSearchParams(window.location.search);
+        const source = params.get("source") || params.get("ref") || "landing";
+
+        const { error } = await supabase
+          .from("waitlist_signups")
+          .insert({ email, source });
+
+        if (error) {
+          // Postgres unique_violation on waitlist_signups.email
+          if (error.code === "23505") {
+            setStatus("You're already on the list.", "success");
+            form.reset();
+          } else {
+            console.error("ZANO waitlist insert failed:", error);
+            setStatus("Something went wrong. Try again in a moment.", "error");
+          }
+        } else {
+          setStatus("You're in. We'll email you when the doors open.", "success");
+          form.reset();
+        }
+      } catch (err) {
+        console.error("ZANO waitlist: unexpected error", err);
+        setStatus("Something went wrong. Try again in a moment.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove("is-loading");
+      }
+    });
+  </script>
+</body>
+</html>

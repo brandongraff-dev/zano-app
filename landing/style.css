@@ -1,0 +1,423 @@
+/* ZANO waitlist landing page
+   Tokens mirror docs/spec.md §15 (Design System & UI Direction) — dark, confident,
+   game-progress energy. One accent only: acid green. */
+
+:root {
+  --bg: #0a0a0b;
+  --surface: #141416;
+  --surface-2: #1c1c1f;
+  --text: #f5f5f7;
+  --muted: #8e8e93;
+  --accent: #b8ff3c; /* earned / unlock — the only accent color on this page */
+  --accent-ink: #0a0a0b; /* text color placed on top of accent-filled surfaces */
+  --danger: #ff453a;
+  --warning: #ffb020;
+
+  --ring-workout: var(--accent);
+  --ring-protein: #ff7a00;
+  --ring-focus: #5e5ce6;
+  --ring-water: #32ade6;
+
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --font-display: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+
+  --max-width: 1040px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+.wrap {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding-left: var(--space-5);
+  padding-right: var(--space-5);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Header                                                              */
+/* ------------------------------------------------------------------ */
+
+.site-header {
+  border-bottom: 1px solid rgba(245, 245, 247, 0.08);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+}
+
+.logo {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: 15px;
+}
+
+.kicker {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 14px;
+  margin: 0 0 var(--space-3);
+}
+
+.kicker--nav {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero                                                                 */
+/* ------------------------------------------------------------------ */
+
+.hero {
+  padding-top: clamp(48px, 8vw, 96px);
+  padding-bottom: clamp(40px, 6vw, 72px);
+}
+
+.hero__headline {
+  margin: 0 0 var(--space-5);
+  font-size: clamp(32px, 6vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  max-width: 18ch;
+}
+
+.br-desktop {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .br-desktop {
+    display: inline;
+  }
+}
+
+.hero__sub {
+  color: var(--muted);
+  font-size: clamp(16px, 2vw, 19px);
+  max-width: 56ch;
+  margin: 0 0 var(--space-6);
+}
+
+.hero__note {
+  color: var(--muted);
+  font-size: 13px;
+  margin: var(--space-3) 0 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Waitlist form                                                       */
+/* ------------------------------------------------------------------ */
+
+.waitlist-form {
+  max-width: 520px;
+}
+
+.waitlist-form__row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.waitlist-form__input {
+  flex: 1 1 240px;
+  background: var(--surface);
+  border: 1px solid rgba(245, 245, 247, 0.12);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 14px var(--space-4);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.waitlist-form__input::placeholder {
+  color: var(--muted);
+}
+
+.waitlist-form__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(184, 255, 60, 0.18);
+}
+
+/* Honeypot: present in the DOM for bots, invisible and unreachable for people */
+.hp-field {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: -9999px;
+}
+
+.btn-primary {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 14px var(--space-5);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 150ms ease, opacity 150ms ease;
+  white-space: nowrap;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(184, 255, 60, 0.25);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-primary.is-loading .btn-primary__label::after {
+  content: "…";
+}
+
+.btn-primary--ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btn-primary--ghost:hover {
+  box-shadow: 0 8px 24px rgba(184, 255, 60, 0.12);
+}
+
+.waitlist-form__status {
+  min-height: 1.4em;
+  margin: var(--space-3) 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.waitlist-form__status--success {
+  color: var(--accent);
+}
+
+.waitlist-form__status--error {
+  color: var(--danger);
+}
+
+.waitlist-form__status--pending {
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* How it works                                                        */
+/* ------------------------------------------------------------------ */
+
+.section-title {
+  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-5);
+}
+
+.how {
+  padding: clamp(40px, 6vw, 72px) 0;
+  border-top: 1px solid rgba(245, 245, 247, 0.08);
+}
+
+.how__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@media (min-width: 720px) {
+  .how__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.how__card {
+  background: var(--surface);
+  border: 1px solid rgba(245, 245, 247, 0.06);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+}
+
+.how__card h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.how__card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.how__ring {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 4px solid var(--surface-2);
+  position: relative;
+}
+
+.how__ring::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  border-top-color: currentColor;
+  border-right-color: currentColor;
+}
+
+.how__ring--workout {
+  color: var(--ring-workout);
+}
+
+.how__ring--focus {
+  color: var(--ring-focus);
+}
+
+.how__ring--water {
+  color: var(--ring-water);
+}
+
+/* ------------------------------------------------------------------ */
+/* What it's not                                                       */
+/* ------------------------------------------------------------------ */
+
+.not {
+  padding: clamp(32px, 5vw, 56px) 0;
+  border-top: 1px solid rgba(245, 245, 247, 0.08);
+}
+
+.not__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 60ch;
+}
+
+.not__list li {
+  color: var(--muted);
+  font-size: 15px;
+  padding-left: var(--space-5);
+  position: relative;
+}
+
+.not__list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ------------------------------------------------------------------ */
+/* CTA                                                                  */
+/* ------------------------------------------------------------------ */
+
+.cta {
+  padding: clamp(48px, 7vw, 88px) 0;
+  border-top: 1px solid rgba(245, 245, 247, 0.08);
+  text-align: center;
+}
+
+.cta__sub {
+  color: var(--muted);
+  margin: 0 0 var(--space-5);
+}
+
+.cta .section-title {
+  max-width: 20ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Footer                                                               */
+/* ------------------------------------------------------------------ */
+
+.site-footer {
+  border-top: 1px solid rgba(245, 245, 247, 0.08);
+}
+
+.site-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-5);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.site-footer__muted {
+  color: var(--muted);
+}

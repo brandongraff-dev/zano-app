@@ -165,6 +165,71 @@ targets:
           - group.com.zano.app
         com.apple.developer.family-controls: true
 
+  # v3 / speculative scope — docs/spec.md §5.21 ("Apple Watch": complication with rings; start
+  # focus/lock from the wrist; workout detection more reliable with HR; haptic "verified" tap on
+  # gym dwell) and §11's architecture diagram, which lists "ZANOWatch (watchOS app, v3)" as a
+  # sibling of ZANO/ZANOWidgets/etc. Source is a deliberately minimal skeleton — see
+  # Watch/ZANOWatch/ — matching the "confirms the target is wired, nothing more" spirit of the
+  # Session-0 extension placeholders (e.g. Extensions/ZANOReport/ZANOReportExtension.swift).
+  #
+  # UNVERIFIED — written on Windows with no Mac/Xcode to generate against or diff. Cross-check
+  # every key below against a freshly-generated Xcode "Watch App" target template the first time
+  # this is opened on a Mac, same as this file's top-of-file note already asks for the
+  # NSExtensionPointIdentifier values above. Known gaps deliberately left for a follow-up pass,
+  # not fixed here because they would require touching a target/file this run was not scoped to
+  # (see this task's knownIssues in the session report for the fuller version):
+  #   1. NOT yet embedded as ZANO's companion. XcodeGen only wires "Embed Watch Content" by
+  #      adding `- target: ZANOWatch` / `embed: true` to the *ZANO* target's `dependencies:` list
+  #      — there is no equivalent field on the watch target itself, and this run's scope was
+  #      explicitly limited to appending this target without touching any existing target block
+  #      (ZANO's included). Add that one line to ZANO's `dependencies:` before this will actually
+  #      install as a paired companion app; until then `xcodegen generate` produces ZANOWatch as
+  #      a standalone, unembedded target.
+  #   2. Does NOT depend on `package: Core`. Core/Package.swift's `platforms:` list currently
+  #      declares only `.iOS(.v17)` (no `.watchOS`), so Swift Package Manager cannot resolve Core
+  #      for a watchOS target yet — adding the dependency here first would fail `xcodegen
+  #      generate`/build. Watch/ZANOWatch's Swift files are plain SwiftUI with no Core types for
+  #      the same reason; they can't yet read Goal/Streak/Theme/etc.
+  #   3. `WKCompanionAppBundleIdentifier` below is set to `com.zano.app`, matching the bundle-ID
+  #      scheme recorded in docs/sessions/00-repo-and-stack-setup.md's "Known issues" (itself
+  #      already flagged there as a choice, not confirmed against an actual Xcode-resolved bundle
+  #      ID). If ZANO's real resolved PRODUCT_BUNDLE_IDENTIFIER ever turns out to differ, this
+  #      value must be updated to match exactly, or Xcode will refuse to pair the two apps.
+  ZANOWatch:
+    type: application
+    platform: watchOS
+    # watchOS 10 shipped alongside iOS 17, matching this file's existing
+    # `IPHONEOS_DEPLOYMENT_TARGET: "17.0"` baseline in `settings.base` above — bump the two
+    # together later rather than letting the watch target drift ahead of the phone app alone.
+    # "A recent watchOS version" could also reasonably mean whatever is newest at generate time;
+    # left at 10.0 for internal consistency until a Mac session confirms the real target SDK.
+    deploymentTarget: "10.0"
+    sources:
+      - path: Watch/ZANOWatch
+    settings:
+      base:
+        # Explicit override: this project's default bundle-id derivation (bundleIdPrefix + target
+        # name) would produce "com.zano.app.ZANOWatch", not the ".watchkitapp" convention given
+        # for this task.
+        PRODUCT_BUNDLE_IDENTIFIER: com.zano.app.watchkitapp
+        # Overrides the project-wide `settings.base.TARGETED_DEVICE_FAMILY: "1"` (iPhone-only, see
+        # top of this file) for this target only — "4" is Apple Watch's device-family value.
+        TARGETED_DEVICE_FAMILY: "4"
+    info:
+      path: Watch/ZANOWatch/Info.plist
+      properties:
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.zano.app
+        NSHealthShareUsageDescription: "ZANO reads your heart rate and workouts on your wrist to verify gym visits and focus sessions in real time."
+        NSHealthUpdateUsageDescription: "ZANO may save workouts you start from your wrist."
+    entitlements:
+      path: Watch/ZANOWatch/ZANOWatch.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+
 schemes:
   ZANO:
     build:

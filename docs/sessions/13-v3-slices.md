@@ -40,8 +40,17 @@ deferred.
   spirit — this is the most speculative slice in the repo.
 - **Real ML pipeline groundwork** — see `12-ml-service.md`, same batch.
 
-## Known issues (preliminary — confirm against the batch's own harden output once notified)
+## Known issues
 
+- **Found and fixed post-hoc:** the Sunrise Alarm UI files (`AlarmRingingView`,
+  `SunriseAlarmSetupView`, `BedtimeGateSetupView`) called a `Copy.alarmRinging`/`.sunriseAlarm`/
+  `.bedtimeGate` umbrella namespace that didn't exist — the manager-side agent had been instructed
+  to build a flat `SunriseAlarmCopy` enum instead, without visibility into the umbrella convention
+  established elsewhere in the same wave. Resolved: `Core/Sources/Core/Copy/SunriseAlarmScreenCopy.swift`
+  now provides the ~70 keys the UI actually calls, cross-checked against each file's own
+  documented key list, delegating to `SunriseAlarmCopy` for safety-critical wording rather than
+  duplicating it. This is the kind of seam the harden pass is meant to catch — worth treating as a
+  reminder to spot-check cross-agent naming conventions specifically, not just per-file correctness.
 - `project.yml`'s `ZANOWatch` target is explicitly flagged by its own author as not yet wired as
   ZANO's companion app (`embed`-ing a watch target is a different mechanism than the app-extension
   `embed: true` pattern used elsewhere in this file) — read the inline comment block in

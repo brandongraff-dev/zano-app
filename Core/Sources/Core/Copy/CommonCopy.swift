@@ -25,5 +25,13 @@ extension Copy {
         /// does, without a second `extension Copy { enum common { ... } }` declaration colliding
         /// with this one later.
         public static let cancel = "Cancel"
+
+        /// Generic failure alert title/message, for a screen that has nothing more specific to say
+        /// about why an action failed (e.g. `CosmeticsShopView.swift`'s `.noSignedInUser`/
+        /// `.unknownItem`/`.storeFailure` catch-all). Added here, not a one-off in that file, per
+        /// this same rationale: a second screen with the same generic-failure need should reuse
+        /// this rather than invent its own wording.
+        public static let somethingWentWrongTitle = "Something went wrong"
+        public static let somethingWentWrongMessage = "Please try again."
     }
 }

@@ -4,9 +4,8 @@
 - **Spec sections:** §5.4 (Ghost Mode), §5.8 (gym leaderboard), §5.9 (seasons/ranks), §5.10
   (Bedtime Gate & Sunrise Alarm), §5.12 (Auto-Focus), §5.17 (Trophy Case & cosmetics), §5.18
   (Travel Mode), §5.21 (Apple Watch)
-- **Status:** In Progress — a background follow-up batch (11 build agents + 2 harden agents) is
-  landing these now; this doc will be finalized once its completion notification arrives. Written
-  now, honestly marked in-progress, rather than waiting silently.
+- **Status:** Scaffolded — Unverified. The background follow-up batch (11 build agents + 2 harden
+  agents) has landed and its harden-pass fixes are committed (2026-09-22, commit `27edf3e`).
 
 ## Why this batch exists
 

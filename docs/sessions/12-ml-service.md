@@ -2,9 +2,8 @@
 
 - **Branch:** `main`
 - **Spec sections:** §9.2 (slip prediction), §9.3 (nudge optimizer), §9.9 (data pipeline)
-- **Status:** In Progress — this doc will be finalized once the in-flight follow-up batch's
-  `ml-real-pipeline` agent + its harden pass are confirmed complete. What's below is accurate as of
-  2026-09-22 but not the final word.
+- **Status:** Scaffolded — Unverified. The follow-up batch's `ml-real-pipeline` agent and harden
+  pass are confirmed complete and committed (2026-09-22).
 
 ## What's confirmed done (Foundation phase, 2026-09-22)
 
@@ -17,7 +16,7 @@
   Windows, unlike everything Swift) — this is the one piece of Session 1-11's work that got
   genuine automated verification rather than static review.
 
-## What's landing now (follow-up batch, not yet confirmed complete)
+## What's landed (follow-up batch, confirmed complete)
 
 - `backend/supabase/migrations/0004_ml_feature_job.sql` — materializes a `user_day` feature table
   per §9.9 and registers a nightly pg_cron job.

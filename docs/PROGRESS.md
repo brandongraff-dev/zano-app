@@ -41,8 +41,8 @@ conversation. Every agent updates their own row after every coding task — see 
 | 9 | Streak logic: freezes, Never Miss Twice, Plan B, Comeback; adaptive engine v1 (rules) | `main` | §5.5, §5.6, §8, §9.1 | Scaffolded — Unverified | 2026-09-22 | [09-retention.md](sessions/09-retention.md) |
 | 10 | Earn Mode (Time Bank), Dynamic Island earn meter, partial unlock tiers | `main` | §5.2, §5.11 | Scaffolded — Unverified | 2026-09-22 | [10-earn-mode.md](sessions/10-earn-mode.md) |
 | 11 | Squads, duels, nudges, referral, share cards, Locked-Out moment | `main` | §5.7, §5.16, §9.3 | Scaffolded — Unverified | 2026-09-22 | [11-social.md](sessions/11-social.md) |
-| 12 | ML service: slip risk + nudge bandit; pg_cron feature job | `main` | §9.2, §9.3, §9.9 | In Progress (skeleton + tests passing; real feature job/training pipeline landing now) | 2026-09-22 | [12-ml-service.md](sessions/12-ml-service.md) |
-| 13 | Watch app, gym leaderboard, seasons/ranks, cosmetics | `main` | §5.8, §5.9, §5.17, §5.21 | In Progress (build agents landing now, not yet hardened/consolidated) | 2026-09-22 | [13-v3-slices.md](sessions/13-v3-slices.md) |
+| 12 | ML service: slip risk + nudge bandit; pg_cron feature job | `main` | §9.2, §9.3, §9.9 | Scaffolded — Unverified (nudge bandit itself still needs real delivered/acted data, see session doc) | 2026-09-22 | [12-ml-service.md](sessions/12-ml-service.md) |
+| 13 | Watch app, gym leaderboard, seasons/ranks, cosmetics | `main` | §5.8, §5.9, §5.17, §5.21 | Scaffolded — Unverified (Watch is a minimal skeleton, least mature slice in the repo) | 2026-09-22 | [13-v3-slices.md](sessions/13-v3-slices.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.

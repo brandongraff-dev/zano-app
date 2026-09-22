@@ -14,6 +14,21 @@
 //   (`LockEngine/EmergencyUnlock.swift`) already covers it — see `autoArmBedtimeLock`'s doc
 //   comment.
 //
+// IMPORTANT — real-consumer reconciliation (see `SunriseAlarmManager.swift`'s own header
+// `decisions` note, same task, in full): `App/ZANO/Features/SunriseAlarm/BedtimeGateSetupView.swift`
+// already exists (an earlier wave's session, not this task's to edit) and already reads/writes
+// bedtime + the wind-down toggle through **`SunriseAlarmManager.Settings`** — one settings row
+// shared with the wake-alarm half, not a second `BedtimeGateManager`-owned settings row (that
+// view's own header: "This screen owns exactly the bedtime + wind-down-reminder half of the
+// shared `SunriseAlarmManager.Settings` row"). `BedtimeGateManager` never appears in that file (or
+// in `SunriseAlarmSetupView.swift`/`AlarmRingingView.swift`) at all — this engine's job (arming,
+// the wind-down Live Activity, pickup anti-cheat) is autonomous background behavior those screens
+// don't call directly, exactly matching this task's brief. So this file reads `bedtime`/
+// `windDownReminderEnabled`/`enabled` from `SunriseAlarmManager.shared.currentSettings()` (this
+// same task's other file) instead of maintaining a second, competing settings blob for the same
+// two fields — `BedtimeGateAdvancedSettings` below covers only what that shared row has no field
+// for (which `LockSet`/goals/mode to actually arm; neither setup screen has a lock-set picker).
+//
 // This file's own read of `LockEngineManager.swift`/`NFCTagMapper.swift`/`SunriseKeyIntent.swift`
 // (this task's required reading) shapes two decisions:
 //   - `LockEngineManager.startLock(lockSetID:mode:requiredGoalIDs:trigger:)` is called exactly per
@@ -25,11 +40,11 @@
 //   - `SunriseKeyIntent.perform()` (`Intents/SunriseKeyIntent.swift`, not owned by this task)
 //     already arms the day's lock itself after a Tag dismiss, calling `LockEngineManager.
 //     startLock` directly with its own "if no lock is already active" guard. `armDayLockAfterWake`
-//     below applies the exact same idempotency guard, so `SunriseAlarmManager`'s other three
-//     dismiss variants (Steps/Focus/Squad, this task's own file) get the identical "arm once,
-//     never double-arm" behavior that Tag dismiss already has, without duplicating
-//     `SunriseKeyIntent`'s logic — this is that logic's one other legitimate call site, not a
-//     second competing implementation of it.
+//     below applies the exact same idempotency guard, so `SunriseAlarmManager`'s other dismiss
+//     variants (Steps/Focus/Squad, this task's own file) get the identical "arm once, never
+//     double-arm" behavior that Tag dismiss already has, without duplicating `SunriseKeyIntent`'s
+//     logic — this is that logic's one other legitimate call site, not a second competing
+//     implementation of it.
 //
 // Cross-module integration points (same shape/convention as `GymDwellActivityAttributes`'s,
 // `FocusActivityAttributes`'s, and `EarnMeterActivityManager`'s own documented TODOs — real,
@@ -40,8 +55,7 @@
 //     "fires even if the app isn't running" trigger for this feature. Until that one call is
 //     wired, `evaluateOnForeground(now:)` below is the honest fallback this file *can* build:
 //     called from app launch/foreground (also not this task's file to wire — `App/ZANO/ZANOApp.swift`
-//     — but a one-line, well-precedented call, matching `ShieldCopy`'s own "the deep link exists,
-//     the `onOpenURL` handler is a TODO" pattern), it catches up on a bedtime that passed while the
+//     — but a one-line, well-precedented call), it catches up on a bedtime that passed while the
 //     app was closed.
 //   - Real "no pickups after bedtime" detection (`DeviceActivityEvent` device-wide threshold, or
 //     `ZANOMonitor.eventDidReachThreshold(_:activity:)`) is Extensions/ZANOMonitor territory too.
@@ -54,33 +68,18 @@ import Foundation
 import SwiftData
 import ActivityKit
 import DeviceActivity
+import UserNotifications
 import os
 
-// MARK: - Settings
+// MARK: - Advanced settings (what `SunriseAlarmManager.Settings` has no field for — see header)
 
-/// User-configurable Bedtime Gate settings (spec §5.10). Persisted as a small JSON blob in the
-/// App Group's shared `UserDefaults` suite under this file's own key — the same storage pattern
-/// `NFCTagMapper.swift` and `SquadManager.swift`'s shared-freeze state already establish for
-/// "device-local configuration with nothing in `Core/Sources/Core/Models`/§13's frozen Data Model
-/// table to mirror it" (bedtime settings appear nowhere in spec §13's table, and adding a column
-/// there is Session 1's Models file to extend, not this task's to guess at — flagged in
-/// knownIssues). Deliberately **not** added to `Store/SharedDefaults.swift`: that file is owned by
-/// a different session, and per its own header comment it's a flat "one value per key" mirror for
-/// state an extension needs to render *instantly* — this is multi-field configuration read only by
-/// this manager and (indirectly) by whichever future settings screen edits it.
-public struct BedtimeGateSettings: Codable, Sendable, Equatable {
-    /// Whether the Bedtime Gate is turned on at all. `false` by default — this is an opt-in
-    /// feature the user turns on during Sunrise Alarm/Bedtime setup, never a silent default lock.
-    public var enabled: Bool
-    /// Local wall-clock hour (0–23) the lock auto-arms.
-    public var bedtimeHour: Int
-    /// Local wall-clock minute (0–59).
-    public var bedtimeMinute: Int
-    /// Spec §5.10: "Optional wind-down Live Activity." On by default once the Gate itself is
-    /// enabled — it's the softer, advance-notice half of the feature.
-    public var windDownEnabled: Bool
-    /// Minutes of advance notice — spec §5.10's own example is "10 min".
-    public var windDownLeadMinutes: Int
+/// Which `LockSet`/goals/mode the Bedtime Gate arms. Neither `BedtimeGateSetupView` nor
+/// `SunriseAlarmSetupView` (App layer, not owned by this task) exposes a picker for any of these —
+/// they stay sensible internal defaults (the user's default `LockSet`, every active goal, `.full`
+/// mode) unless a future settings screen adds one. Persisted the same App-Group-`UserDefaults`-blob
+/// way `NFCTagMapper.swift`/`SunriseAlarmManager.swift` (this same task) already do, for the same
+/// documented reason (spec §13's frozen Data Model table has no row for this either).
+public struct BedtimeGateAdvancedSettings: Codable, Sendable, Equatable {
     /// Which `LockSet` to arm at bedtime. `nil` means "the user's default `LockSet`" (resolved via
     /// `LockSetManager.shared.defaultLockSet(for:)` at arm time, never re-guessed here).
     public var lockSetID: UUID?
@@ -89,32 +88,16 @@ public struct BedtimeGateSettings: Codable, Sendable, Equatable {
     /// `SunriseKeyIntent`'s own default for its own auto-armed lock.
     public var requiredGoalIDs: [UUID]?
     /// `.full` (hard block until goals earned) vs `.earn` (Time Bank). Spec §5.10 describes the
-    /// Bedtime Gate as a hard lock ("phone becomes a clock") — `.full` is the correct default; kept
-    /// configurable rather than hardcoded so a future Earn-Mode-at-night variant isn't blocked on
-    /// changing this struct's shape.
+    /// Bedtime Gate as a hard lock ("phone becomes a clock") — `.full` is the correct default.
     public var mode: LockMode
 
-    public init(
-        enabled: Bool = false,
-        bedtimeHour: Int = 22,
-        bedtimeMinute: Int = 30,
-        windDownEnabled: Bool = true,
-        windDownLeadMinutes: Int = 10,
-        lockSetID: UUID? = nil,
-        requiredGoalIDs: [UUID]? = nil,
-        mode: LockMode = .full
-    ) {
-        self.enabled = enabled
-        self.bedtimeHour = bedtimeHour
-        self.bedtimeMinute = bedtimeMinute
-        self.windDownEnabled = windDownEnabled
-        self.windDownLeadMinutes = windDownLeadMinutes
+    public init(lockSetID: UUID? = nil, requiredGoalIDs: [UUID]? = nil, mode: LockMode = .full) {
         self.lockSetID = lockSetID
         self.requiredGoalIDs = requiredGoalIDs
         self.mode = mode
     }
 
-    public static let `default` = BedtimeGateSettings()
+    public static let `default` = BedtimeGateAdvancedSettings()
 }
 
 // MARK: - Errors
@@ -142,16 +125,17 @@ extension DeviceActivityName {
 
 // MARK: - BedtimeGateManager
 
-/// Owns Bedtime Gate settings, the recurring bedtime schedule, the wind-down Live Activity, and
-/// the "arm the day's lock automatically" call both the bedtime side (`autoArmBedtimeLock`) and
-/// the Sunrise Alarm's dismiss flow (`armDayLockAfterWake`, called from `SunriseAlarmManager`,
-/// this same task) share.
+/// Owns the Bedtime Gate's recurring schedule, wind-down Live Activity, pickup anti-cheat, and the
+/// "arm the day's lock automatically" call both the bedtime side (`autoArmBedtimeLock`) and the
+/// Sunrise Alarm's dismiss flow (`armDayLockAfterWake`, called from `SunriseAlarmManager`, this
+/// same task) share. Bedtime/wind-down *preferences* live in `SunriseAlarmManager.Settings` (see
+/// header); this file reads them from there rather than owning a competing copy.
 ///
 /// `@MainActor`, matching `LockEngineManager`/`FocusSessionVerifier`/`EarnMeterActivityManager`'s
 /// identical reasoning: this type owns a `DeviceActivityCenter` and an ActivityKit `Activity`,
 /// both Apple APIs whose own sample code always drives them from the main actor, and every real
-/// call site (SwiftUI settings screens, `SunriseAlarmManager`'s own `@MainActor` methods, and —
-/// once wired — `ZANOMonitor`) is already on/happy to hop to the main actor.
+/// call site (`SunriseAlarmManager`'s own `@MainActor` methods, and — once wired — `ZANOMonitor`)
+/// is already on/happy to hop to the main actor.
 @MainActor
 public final class BedtimeGateManager {
     public static let shared = BedtimeGateManager()
@@ -160,6 +144,10 @@ public final class BedtimeGateManager {
     private let context: ModelContext
     private let activityCenter: DeviceActivityCenter
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "BedtimeGateManager")
+
+    /// Spec §5.10's own example: "Bedtime lock in 10 min." Not exposed in either setup screen, so
+    /// kept as a constant rather than a settings field — nothing to configure yet.
+    private static let windDownLeadMinutes = 10
 
     private var windDownActivity: Activity<BedtimeWindDownActivityAttributes>?
 
@@ -172,52 +160,44 @@ public final class BedtimeGateManager {
         self.activityCenter = activityCenter
     }
 
-    // MARK: - Settings persistence
+    // MARK: - Advanced settings persistence
 
-    public func settings() -> BedtimeGateSettings {
+    public func advancedSettings() -> BedtimeGateAdvancedSettings {
         guard
-            let data = Self.defaults.data(forKey: Self.settingsKey),
-            let decoded = try? JSONDecoder().decode(BedtimeGateSettings.self, from: data)
+            let data = Self.defaults.data(forKey: Self.advancedSettingsKey),
+            let decoded = try? JSONDecoder().decode(BedtimeGateAdvancedSettings.self, from: data)
         else {
             return .default
         }
         return decoded
     }
 
-    /// Persists new settings and, if enabled, re-registers the recurring `DeviceActivity`
-    /// schedule so a bedtime-time change takes effect for tonight rather than tomorrow's stale
-    /// registration. Never throws: `DeviceActivityCenter.startMonitoring` failing here is
-    /// best-effort exactly like `LockEngineManager.armScheduleMonitoring`'s own non-fatal
-    /// handling — the settings themselves are still saved and `evaluateOnForeground`'s catch-up
-    /// path still works without the recurring registration.
-    public func updateSettings(_ newSettings: BedtimeGateSettings) {
+    public func updateAdvancedSettings(_ newSettings: BedtimeGateAdvancedSettings) {
         guard let data = try? JSONEncoder().encode(newSettings) else { return }
-        Self.defaults.set(data, forKey: Self.settingsKey)
-
-        if newSettings.enabled {
-            do { try rearmDailySchedule(settings: newSettings) }
-            catch {
-                logger.error("updateSettings: DeviceActivity re-registration failed: \(String(describing: error), privacy: .public)")
-            }
-        } else {
-            activityCenter.stopMonitoring([.zanoBedtimeGate])
-        }
+        Self.defaults.set(data, forKey: Self.advancedSettingsKey)
     }
 
     // MARK: - Recurring schedule (see header comment: the correct, not-yet-wired trigger path)
 
-    /// Registers (or replaces) a repeating daily `DeviceActivitySchedule` starting at the
-    /// configured bedtime, mirroring `LockEngineManager.armScheduleMonitoring`'s exact
-    /// `DeviceActivitySchedule` construction shape (same `DateComponents` pattern, this file's
-    /// only real point of uncertainty about the live `DeviceActivity` API surface being the same
-    /// one that file already flags — see this task's knownIssues) with two differences: the
+    /// Registers (or replaces) a repeating daily `DeviceActivitySchedule` starting at
+    /// `SunriseAlarmManager.Settings.bedtime`, mirroring `LockEngineManager.armScheduleMonitoring`'s
+    /// exact `DeviceActivitySchedule` construction shape (same `DateComponents` pattern, this
+    /// file's only real point of uncertainty about the live `DeviceActivity` API surface being the
+    /// same one that file already flags — see this task's knownIssues) with two differences: the
     /// interval starts at bedtime rather than "now," and `repeats: true` since this needs to fire
-    /// every night, not once.
-    public func rearmDailySchedule(settings: BedtimeGateSettings? = nil) throws {
-        let settings = settings ?? self.settings()
+    /// every night, not once. Called from `SunriseAlarmManager.saveSettings(_:)` whenever the
+    /// shared settings row changes, so a bedtime edit takes effect for tonight.
+    public func rearmDailySchedule() async throws {
+        let settings = await SunriseAlarmManager.shared.currentSettings()
+        guard settings.enabled else {
+            activityCenter.stopMonitoring([.zanoBedtimeGate])
+            await cancelWindDownNotification()
+            return
+        }
+        let components = Calendar.current.dateComponents([.hour, .minute], from: settings.bedtime)
         var start = DateComponents()
-        start.hour = settings.bedtimeHour
-        start.minute = settings.bedtimeMinute
+        start.hour = components.hour ?? 22
+        start.minute = components.minute ?? 30
         start.second = 0
         var end = DateComponents()
         end.hour = 23
@@ -225,11 +205,50 @@ public final class BedtimeGateManager {
         end.second = 59
         let schedule = DeviceActivitySchedule(intervalStart: start, intervalEnd: end, repeats: true)
         try activityCenter.startMonitoring(.zanoBedtimeGate, during: schedule)
+
+        if settings.windDownReminderEnabled {
+            await scheduleWindDownNotification(bedtime: settings.bedtime)
+        } else {
+            await cancelWindDownNotification()
+        }
     }
 
     public func disableDailySchedule() {
         activityCenter.stopMonitoring([.zanoBedtimeGate])
+        Task { await cancelWindDownNotification() }
     }
+
+    /// A daily-repeating local notification at `bedtime` minus `windDownLeadMinutes` (spec §5.10:
+    /// "Bedtime lock in 10 min") — the reliable, OS-level companion to the wind-down Live Activity
+    /// above: a Live Activity can only be *started* by running code, which can't happen from a
+    /// killed/backgrounded app with no push infrastructure, but a `UNCalendarNotificationTrigger`
+    /// with `repeats: true` fires from the OS every night regardless. `evaluateOnForeground`'s
+    /// `startWindDownIfNeeded` still starts the richer Live Activity whenever the app happens to
+    /// be open for the window; this notification is what reaches the user the rest of the time.
+    private func scheduleWindDownNotification(bedtime: Date) async {
+        let center = UNUserNotificationCenter.current()
+        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        center.removePendingNotificationRequests(withIdentifiers: [Self.windDownNotificationIdentifier])
+
+        guard let windDownTime = Calendar.current.date(byAdding: .minute, value: -Self.windDownLeadMinutes, to: bedtime) else { return }
+        let copy = SunriseAlarmCopy.windDownNotification(minutesUntilBedtime: Self.windDownLeadMinutes)
+
+        let content = UNMutableNotificationContent()
+        content.title = copy.title
+        content.body = copy.body
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents([.hour, .minute], from: windDownTime)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        let request = UNNotificationRequest(identifier: Self.windDownNotificationIdentifier, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    private func cancelWindDownNotification() async {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.windDownNotificationIdentifier])
+    }
+
+    private static let windDownNotificationIdentifier = "zano.bedtimeGate.windDown"
 
     // MARK: - Foreground catch-up (the honest fallback while the DeviceActivityMonitor wiring is a TODO)
 
@@ -239,13 +258,13 @@ public final class BedtimeGateManager {
     /// `intervalDidStart` callback would have done, just running late (only as late as the next
     /// time the app is opened, which is an honest, documented degradation, not silent breakage).
     public func evaluateOnForeground(now: Date = .now) async {
-        let settings = settings()
+        let settings = await SunriseAlarmManager.shared.currentSettings()
         guard settings.enabled else { return }
 
-        if settings.windDownEnabled, isWithinWindDownWindow(settings: settings, now: now) {
-            await startWindDownIfNeeded(settings: settings, now: now)
+        if settings.windDownReminderEnabled, isWithinWindDownWindow(bedtime: settings.bedtime, now: now) {
+            await startWindDownIfNeeded(bedtime: settings.bedtime, now: now)
         }
-        if isPastBedtimeToday(settings: settings, now: now) {
+        if isPastBedtimeToday(bedtime: settings.bedtime, now: now) {
             _ = try? await autoArmBedtimeLock(trigger: .schedule, now: now)
         }
     }
@@ -268,7 +287,7 @@ public final class BedtimeGateManager {
     ///   existing session).
     @discardableResult
     public func autoArmBedtimeLock(trigger: LockTrigger = .schedule, now: Date = .now) async throws -> UUID? {
-        let settings = settings()
+        let settings = await SunriseAlarmManager.shared.currentSettings()
         guard settings.enabled else { return nil }
         guard !hasArmedToday(asOf: now) else { return nil }
 
@@ -280,12 +299,13 @@ public final class BedtimeGateManager {
             return nil
         }
 
-        let lockSetID = try await resolveLockSetID(settings: settings, userID: user.id)
-        let requiredGoalIDs = try settings.requiredGoalIDs ?? IntentSupport.activeGoalIDs(for: user.id, in: context)
+        let advanced = advancedSettings()
+        let lockSetID = try await resolveLockSetID(advanced: advanced, userID: user.id)
+        let requiredGoalIDs = try advanced.requiredGoalIDs ?? IntentSupport.activeGoalIDs(for: user.id, in: context)
 
         let sessionID = try await LockEngineManager.shared.startLock(
             lockSetID: lockSetID,
-            mode: settings.mode,
+            mode: advanced.mode,
             requiredGoalIDs: requiredGoalIDs,
             trigger: trigger
         )
@@ -299,25 +319,25 @@ public final class BedtimeGateManager {
     // MARK: - Day-lock arming after wake (spec §5.10 step 4: "the day's lock arms automatically" —
     // the call site the task brief names explicitly: "call BedtimeGateManager/LockEngineManager")
 
-    /// The `SunriseAlarmManager` (this same task) call site for its Steps/Focus/Squad dismiss
-    /// variants — the exact "arm the day's lock, but only if nothing already has" behavior
-    /// `SunriseKeyIntent.perform()` (not owned by this task) already implements inline for its own
-    /// Tag-dismiss path. Kept here, not duplicated in `SunriseAlarmManager`, so both call sites
-    /// share one implementation of "how does a verified morning dismiss arm today's lock."
+    /// The `SunriseAlarmManager` (this same task) call site for its dismiss variants — the exact
+    /// "arm the day's lock, but only if nothing already has" behavior `SunriseKeyIntent.perform()`
+    /// (not owned by this task) already implements inline for its own Tag-dismiss path. Kept here,
+    /// not duplicated in `SunriseAlarmManager`, so both call sites share one implementation.
     ///
     /// - Returns: the new `LockSession.id`, or `nil` if a lock is already active (nothing to arm)
     ///   or no `User`/`LockSet` can be resolved.
     @discardableResult
-    public func armDayLockAfterWake(requiredGoalIDs: [UUID]? = nil, mode: LockMode = .full, now: Date = .now) async -> UUID? {
+    public func armDayLockAfterWake(requiredGoalIDs: [UUID]? = nil, mode: LockMode? = nil, now: Date = .now) async -> UUID? {
         guard let user = try? fetchCurrentUser() else { return nil }
         guard (try? IntentSupport.activeLockSession(for: user.id, in: context)) == nil else { return nil }
 
-        guard let lockSetID = try? await resolveLockSetID(settings: settings(), userID: user.id) else { return nil }
-        let goalIDs = (try? requiredGoalIDs ?? IntentSupport.activeGoalIDs(for: user.id, in: context)) ?? []
+        let advanced = advancedSettings()
+        guard let lockSetID = try? await resolveLockSetID(advanced: advanced, userID: user.id) else { return nil }
+        let goalIDs = (try? requiredGoalIDs ?? advanced.requiredGoalIDs ?? IntentSupport.activeGoalIDs(for: user.id, in: context)) ?? []
 
         let sessionID = try? await LockEngineManager.shared.startLock(
             lockSetID: lockSetID,
-            mode: mode,
+            mode: mode ?? advanced.mode,
             requiredGoalIDs: goalIDs,
             trigger: .auto
         )
@@ -330,11 +350,9 @@ public final class BedtimeGateManager {
 
     // MARK: - Wind-down Live Activity (spec §5.10: "Bedtime lock in 10 min")
 
-    public func startWindDownIfNeeded(settings: BedtimeGateSettings? = nil, now: Date = .now) async {
-        let settings = settings ?? self.settings()
-        guard settings.enabled, settings.windDownEnabled else { return }
+    public func startWindDownIfNeeded(bedtime: Date, now: Date = .now) async {
         guard windDownActivity == nil else {
-            await updateWindDownActivity(settings: settings, now: now)
+            await updateWindDownActivity(bedtime: bedtime, now: now)
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
@@ -342,8 +360,8 @@ public final class BedtimeGateManager {
             return
         }
 
-        let minutesRemaining = minutesUntilBedtime(settings: settings, now: now)
-        let attributes = BedtimeWindDownActivityAttributes(bedtimeLabel: Self.bedtimeLabel(settings: settings))
+        let minutesRemaining = minutesUntilBedtime(bedtime: bedtime, now: now)
+        let attributes = BedtimeWindDownActivityAttributes(bedtimeLabel: Self.bedtimeLabel(bedtime: bedtime))
         let content = ActivityContent(
             state: BedtimeWindDownActivityAttributes.ContentState(minutesUntilBedtime: minutesRemaining, isLocked: false),
             staleDate: nil
@@ -356,10 +374,9 @@ public final class BedtimeGateManager {
         }
     }
 
-    public func updateWindDownActivity(settings: BedtimeGateSettings? = nil, now: Date = .now) async {
+    public func updateWindDownActivity(bedtime: Date, now: Date = .now) async {
         guard let windDownActivity else { return }
-        let settings = settings ?? self.settings()
-        let minutesRemaining = minutesUntilBedtime(settings: settings, now: now)
+        let minutesRemaining = minutesUntilBedtime(bedtime: bedtime, now: now)
         let content = ActivityContent(
             state: BedtimeWindDownActivityAttributes.ContentState(minutesUntilBedtime: max(0, minutesRemaining), isLocked: false),
             staleDate: nil
@@ -394,9 +411,9 @@ public final class BedtimeGateManager {
     /// user-entered log; flagged in this task's knownIssues as a case this enum should probably
     /// grow (`Models/GoalEvent.swift` is a different session's file to extend).
     public func recordPickupIfAfterBedtime(at date: Date = .now) async {
-        let settings = settings()
+        let settings = await SunriseAlarmManager.shared.currentSettings()
         guard settings.enabled else { return }
-        guard let nightStart = bedtimeAnchor(settings: settings, coveringPickupAt: date) else { return }
+        guard let nightStart = bedtimeAnchor(bedtime: settings.bedtime, coveringPickupAt: date) else { return }
         guard date >= nightStart else { return }
 
         guard let user = try? fetchCurrentUser() else { return }
@@ -421,41 +438,47 @@ public final class BedtimeGateManager {
         logger.notice("Sleep goal broken by a pickup after bedtime.")
     }
 
+    /// Mirrors `LockEngineManager.isGoalVerified`/`StreakEngine`'s documented `#Predicate`-
+    /// conservatism tradeoff: only the `Date` field goes into the predicate (this session has no
+    /// Mac/Swift toolchain to compile-verify how SwiftData's `#Predicate` macro handles a custom
+    /// `Codable` enum's equality or optional-relationship chaining on this SDK version); `kind`,
+    /// `goal`, and `source` are filtered in plain Swift after the fetch.
     private func hasPickupMissLogged(goalID: UUID, forNightOf nightStart: Date) -> Bool {
         guard let nightEnd = Calendar.current.date(byAdding: .day, value: 1, to: nightStart) else { return false }
         let descriptor = FetchDescriptor<GoalEvent>(
-            predicate: #Predicate<GoalEvent> { $0.kind == .miss && $0.ts >= nightStart && $0.ts < nightEnd }
+            predicate: #Predicate<GoalEvent> { $0.ts >= nightStart && $0.ts < nightEnd }
         )
         guard let events = try? context.fetch(descriptor) else { return false }
         return events.contains {
-            $0.goal?.id == goalID && $0.source == .manual
+            $0.kind == .miss && $0.goal?.id == goalID && $0.source == .manual
         }
     }
 
     // MARK: - Time helpers
 
-    private func bedtimeDate(settings: BedtimeGateSettings, on date: Date, calendar: Calendar = .current) -> Date? {
+    private func bedtimeDate(bedtime: Date, on date: Date, calendar: Calendar = .current) -> Date? {
+        let bedComponents = calendar.dateComponents([.hour, .minute], from: bedtime)
         var components = calendar.dateComponents([.year, .month, .day], from: date)
-        components.hour = settings.bedtimeHour
-        components.minute = settings.bedtimeMinute
+        components.hour = bedComponents.hour
+        components.minute = bedComponents.minute
         components.second = 0
         return calendar.date(from: components)
     }
 
-    private func isPastBedtimeToday(settings: BedtimeGateSettings, now: Date) -> Bool {
-        guard let bedtime = bedtimeDate(settings: settings, on: now) else { return false }
-        return now >= bedtime
+    private func isPastBedtimeToday(bedtime: Date, now: Date) -> Bool {
+        guard let anchor = bedtimeDate(bedtime: bedtime, on: now) else { return false }
+        return now >= anchor
     }
 
-    private func isWithinWindDownWindow(settings: BedtimeGateSettings, now: Date) -> Bool {
-        guard let bedtime = bedtimeDate(settings: settings, on: now) else { return false }
-        let windDownStart = bedtime.addingTimeInterval(-Double(settings.windDownLeadMinutes) * 60)
-        return now >= windDownStart && now < bedtime
+    private func isWithinWindDownWindow(bedtime: Date, now: Date) -> Bool {
+        guard let anchor = bedtimeDate(bedtime: bedtime, on: now) else { return false }
+        let windDownStart = anchor.addingTimeInterval(-Double(Self.windDownLeadMinutes) * 60)
+        return now >= windDownStart && now < anchor
     }
 
-    private func minutesUntilBedtime(settings: BedtimeGateSettings, now: Date) -> Int {
-        guard let bedtime = bedtimeDate(settings: settings, on: now) else { return 0 }
-        return max(0, Int((bedtime.timeIntervalSince(now) / 60).rounded(.up)))
+    private func minutesUntilBedtime(bedtime: Date, now: Date) -> Int {
+        guard let anchor = bedtimeDate(bedtime: bedtime, on: now) else { return 0 }
+        return max(0, Int((anchor.timeIntervalSince(now) / 60).rounded(.up)))
     }
 
     /// The most recent bedtime at/before `date`, treating the "night" as starting at bedtime and
@@ -463,22 +486,17 @@ public final class BedtimeGateManager {
     /// that actually governs it, whether that bedtime was earlier tonight or (for a pickup in the
     /// small hours) yesterday evening. `nil` when `date` is more than 24h after any resolvable
     /// bedtime, which never happens for a real "just picked up the phone" call.
-    private func bedtimeAnchor(settings: BedtimeGateSettings, coveringPickupAt date: Date, calendar: Calendar = .current) -> Date? {
-        guard let todayBedtime = bedtimeDate(settings: settings, on: date, calendar: calendar) else { return nil }
+    private func bedtimeAnchor(bedtime: Date, coveringPickupAt date: Date, calendar: Calendar = .current) -> Date? {
+        guard let todayBedtime = bedtimeDate(bedtime: bedtime, on: date, calendar: calendar) else { return nil }
         if date >= todayBedtime { return todayBedtime }
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: date) else { return nil }
-        return bedtimeDate(settings: settings, on: yesterday, calendar: calendar)
+        return bedtimeDate(bedtime: bedtime, on: yesterday, calendar: calendar)
     }
 
-    private static func bedtimeLabel(settings: BedtimeGateSettings) -> String {
+    private static func bedtimeLabel(bedtime: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
-        var components = DateComponents()
-        components.hour = settings.bedtimeHour
-        components.minute = settings.bedtimeMinute
-        let calendar = Calendar.current
-        let date = calendar.date(from: components) ?? .now
-        return formatter.string(from: date)
+        return formatter.string(from: bedtime)
     }
 
     private static let dayFormatter: DateFormatter = {
@@ -491,15 +509,15 @@ public final class BedtimeGateManager {
 
     // MARK: - Resolving what to arm
 
-    private func resolveLockSetID(settings: BedtimeGateSettings, userID: UUID) async throws -> UUID {
-        if let lockSetID = settings.lockSetID { return lockSetID }
+    private func resolveLockSetID(advanced: BedtimeGateAdvancedSettings, userID: UUID) async throws -> UUID {
+        if let lockSetID = advanced.lockSetID { return lockSetID }
         if let defaultSet = try await LockSetManager.shared.defaultLockSet(for: userID) {
             return defaultSet.id
         }
         throw BedtimeGateError.noLockSetAvailable
     }
 
-    // MARK: - "Armed today" idempotency (own App Group UserDefaults key — see settings' doc comment)
+    // MARK: - "Armed today" idempotency (own App Group UserDefaults key)
 
     private func hasArmedToday(asOf date: Date, calendar: Calendar = .current) -> Bool {
         guard let stored = Self.defaults.object(forKey: Self.lastArmedDayKey) as? Date else { return false }
@@ -523,11 +541,11 @@ public final class BedtimeGateManager {
 
     // MARK: - Storage
 
-    /// Mirrors `NFCTagMapper`/`SquadManager`'s identical `nonisolated(unsafe)` App Group
-    /// `UserDefaults` fallback pattern (see either file's doc comment for the full rationale).
+    /// Mirrors `NFCTagMapper`/`SquadManager`/`SunriseAlarmManager`'s identical
+    /// `nonisolated(unsafe)` App Group `UserDefaults` fallback pattern.
     nonisolated(unsafe) private static let defaults: UserDefaults =
         UserDefaults(suiteName: AppGroup.identifier) ?? .standard
 
-    private static let settingsKey = "core.bedtimeGate.settings.v1"
+    private static let advancedSettingsKey = "core.bedtimeGate.advancedSettings.v1"
     private static let lastArmedDayKey = "core.bedtimeGate.lastArmedDay.v1"
 }

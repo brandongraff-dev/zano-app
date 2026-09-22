@@ -57,7 +57,7 @@ public enum SunriseAlarmCopy {
     /// "iOS 17–18 fallback: scheduled local notifications... ≤30s each, chained"). `index` is
     /// `0` for the first alert, increasing with every 30-second step — later steps read more
     /// urgent, capping out rather than escalating forever.
-    public static func ringingNotification(escalationIndex index: Int, variant: SunriseDismissVariant) -> (title: String, body: String) {
+    public static func ringingNotification(escalationIndex index: Int, variant: SunriseAlarmManager.DismissVariant) -> (title: String, body: String) {
         let title = index == 0 ? "Wake up" : (index < 4 ? "Still asleep?" : "ZANO alarm — get up")
         let body: String
         switch variant {
@@ -76,9 +76,9 @@ public enum SunriseAlarmCopy {
     /// The alert shown by the system alarm UI itself for the AlarmKit tier (iOS 26+, spec §5.10).
     /// AlarmKit's own presentation renders this, so it stays short and does not repeat escalation
     /// language the notification-chain fallback needs (the system alert is already unmissable).
-    public static func alarmKitAlertTitle(variant: SunriseDismissVariant) -> String { "Wake up" }
+    public static func alarmKitAlertTitle(variant: SunriseAlarmManager.DismissVariant) -> String { "Wake up" }
 
-    public static func alarmKitStopButtonLabel(variant: SunriseDismissVariant) -> String {
+    public static func alarmKitStopButtonLabel(variant: SunriseAlarmManager.DismissVariant) -> String {
         switch variant {
         case .tag, .squad: "I'm up"
         case .steps: "Walking"
@@ -88,11 +88,15 @@ public enum SunriseAlarmCopy {
 
     public static let alarmKitSnoozeButtonLabel = "Snooze"
 
+    /// The notification-fallback tier's action button label (`UNNotificationAction`) — shown when
+    /// the user long-presses/expands a ringing notification.
+    public static let notificationOpenActionLabel = "Open ZANO"
+
     // MARK: - Live Activity (17–18 fallback tier — spec §5.10: "plus a Live Activity")
 
-    public static func ringingActivityTitle(variant: SunriseDismissVariant) -> String { "ZANO alarm" }
+    public static func ringingActivityTitle(variant: SunriseAlarmManager.DismissVariant) -> String { "ZANO alarm" }
 
-    public static func ringingActivitySubtitle(variant: SunriseDismissVariant) -> String {
+    public static func ringingActivitySubtitle(variant: SunriseAlarmManager.DismissVariant) -> String {
         switch variant {
         case .tag: "Tap the Sunrise Tag to stop it"
         case .steps: "Keep walking to stop it"
@@ -103,7 +107,7 @@ public enum SunriseAlarmCopy {
 
     // MARK: - Dismiss confirmations
 
-    public static func dismissedConfirmation(variant: SunriseDismissVariant) -> String {
+    public static func dismissedConfirmation(variant: SunriseAlarmManager.DismissVariant) -> String {
         switch variant {
         case .tag: "Morning verified. Locked in for the day."
         case .steps: "Steps counted. Morning verified — locked in for the day."
@@ -181,7 +185,7 @@ public enum SunriseAlarmCopy {
 
     // MARK: - Settings summary lines
 
-    public static func dismissVariantSummary(_ variant: SunriseDismissVariant) -> String {
+    public static func dismissVariantSummary(_ variant: SunriseAlarmManager.DismissVariant) -> String {
         switch variant {
         case .tag: "Tap your Sunrise Tag to turn off the alarm."
         case .steps: "Walk to turn off the alarm — no tag needed yet."

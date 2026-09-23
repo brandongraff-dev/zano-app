@@ -95,11 +95,11 @@ public struct LogProteinIntent: AppIntent {
 
     private func recentIdenticalNFCTap(goalID: UUID, grams: Double, in context: ModelContext) throws -> Bool {
         let cutoff = Date.now.addingTimeInterval(-120)
-        let descriptor = FetchDescriptor<GoalEvent>(
-            predicate: #Predicate { event in
-                event.goal?.id == goalID && event.source == GoalEventSource.nfc && event.value == grams && event.ts >= cutoff
-            }
-        )
-        return try context.fetchCount(descriptor) > 0
+        // Kept deliberately simple: the original four-clause #Predicate (optional chaining, an enum
+        // compare and a Double compare) made the Swift type checker time out. Narrow by date in the
+        // store, then apply the remaining clauses in memory.
+        let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.ts >= cutoff })
+        let recent = try context.fetch(descriptor)
+        return recent.contains { $0.goal?.id == goalID && $0.source == .nfc && $0.value == grams }
     }
 }

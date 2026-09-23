@@ -258,13 +258,13 @@ public struct LockSetEntity: AppEntity {
 public struct LockSetQuery: EntityQuery, EnumerableEntityQuery {
     public init() {}
 
-    public func entities(for identifiers: [UUID]) async throws -> [LockSetEntity] {
+    @MainActor public func entities(for identifiers: [UUID]) async throws -> [LockSetEntity] {
         let context = await IntentSupport.makeContext()
         let descriptor = FetchDescriptor<LockSet>(predicate: #Predicate { identifiers.contains($0.id) })
         return try context.fetch(descriptor).map { LockSetEntity(id: $0.id, name: $0.name) }
     }
 
-    public func allEntities() async throws -> [LockSetEntity] {
+    @MainActor public func allEntities() async throws -> [LockSetEntity] {
         let context = await IntentSupport.makeContext()
         let descriptor = FetchDescriptor<LockSet>(sortBy: [SortDescriptor(\.name)])
         return try context.fetch(descriptor).map { LockSetEntity(id: $0.id, name: $0.name) }
@@ -298,13 +298,13 @@ public struct GoalEntity: AppEntity {
 public struct GoalQuery: EntityQuery, EnumerableEntityQuery {
     public init() {}
 
-    public func entities(for identifiers: [UUID]) async throws -> [GoalEntity] {
+    @MainActor public func entities(for identifiers: [UUID]) async throws -> [GoalEntity] {
         let context = await IntentSupport.makeContext()
         let descriptor = FetchDescriptor<Goal>(predicate: #Predicate { identifiers.contains($0.id) })
         return try context.fetch(descriptor).map { GoalEntity(id: $0.id, title: $0.title) }
     }
 
-    public func allEntities() async throws -> [GoalEntity] {
+    @MainActor public func allEntities() async throws -> [GoalEntity] {
         let context = await IntentSupport.makeContext()
         let descriptor = FetchDescriptor<Goal>(
             predicate: #Predicate { $0.active },
@@ -344,13 +344,13 @@ public struct MealEntity: AppEntity {
 public struct MealQuery: EntityQuery, EnumerableEntityQuery {
     public init() {}
 
-    public func entities(for identifiers: [UUID]) async throws -> [MealEntity] {
+    @MainActor public func entities(for identifiers: [UUID]) async throws -> [MealEntity] {
         let context = await IntentSupport.makeContext()
         let descriptor = FetchDescriptor<Meal>(predicate: #Predicate { identifiers.contains($0.id) })
         return try context.fetch(descriptor).map { MealEntity(id: $0.id, label: Self.label(for: $0)) }
     }
 
-    public func allEntities() async throws -> [MealEntity] {
+    @MainActor public func allEntities() async throws -> [MealEntity] {
         let context = await IntentSupport.makeContext()
         var descriptor = FetchDescriptor<Meal>(predicate: #Predicate { $0.confirmed })
         descriptor.sortBy = [SortDescriptor(\.ts, order: .reverse)]

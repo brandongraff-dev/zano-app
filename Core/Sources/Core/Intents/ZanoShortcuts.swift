@@ -18,7 +18,7 @@
 import AppIntents
 
 public struct ZanoShortcuts: AppShortcutsProvider {
-    public static var shortcutTileColor: ShortcutTileColor { .green }
+    public static var shortcutTileColor: ShortcutTileColor { .lime }
 
     public static var appShortcuts: [AppShortcut] {
         AppShortcut(

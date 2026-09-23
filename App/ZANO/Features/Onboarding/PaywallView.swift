@@ -81,7 +81,10 @@ struct PaywallView: View {
         reduceMotion || hasRevealed
     }
 
-    var body: some View {
+    // `body` was one ~25-modifier chain, which the Swift type checker gave up on ("unable to
+    // type-check this expression in reasonable time"). Split into three stages; behavior is
+    // identical.
+    private var layout: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 headline
@@ -117,6 +120,10 @@ struct PaywallView: View {
             pinnedBar
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var withFeedback: some View {
+        layout
         // A tick when the user changes plan — not when the annual default is first selected on load.
         .sensoryFeedback(.selection, trigger: viewModel.selectedPackageID) { oldValue, newValue in
             oldValue != nil && newValue != nil
@@ -126,6 +133,10 @@ struct PaywallView: View {
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: viewModel.loadState)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: viewModel.selectedPackageID)
+    }
+
+    var body: some View {
+        withFeedback
         .task {
             viewModel.coachVoice = flowState.coachVoice
             await viewModel.load()

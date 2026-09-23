@@ -66,10 +66,12 @@ public struct EndFocusIntent: AppIntent {
             properties: ["session_id": sessionID, "verified": verified]
         )
 
-        return .result(
-            dialog: verified
-                ? "Focus session verified. Nice work."
-                : "Session ended early — it didn't reach the planned time, so it wasn't verified."
-        )
+        let dialog: IntentDialog
+        if verified {
+            dialog = "Focus session verified. Nice work."
+        } else {
+            dialog = "Session ended early — it didn't reach the planned time, so it wasn't verified."
+        }
+        return .result(dialog: dialog)
     }
 }

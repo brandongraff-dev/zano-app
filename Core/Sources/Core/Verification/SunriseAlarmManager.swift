@@ -550,12 +550,14 @@ public final class SunriseAlarmManager {
             ),
             staleDate: nil
         )
-        await ringingActivity.update(content)
+        nonisolated(unsafe) let activity = ringingActivity
+        await activity.update(content)
     }
 
     private func endRingingActivity(now: Date) async {
-        guard let activity = ringingActivity else { return }
+        guard let liveActivity = ringingActivity else { return }
         ringingActivity = nil
+        nonisolated(unsafe) let activity = liveActivity
         let fireDate = loadDailyState()?.fireDate ?? now
         let variant = (await currentSettings()).dismissVariant
         let content = ActivityContent(

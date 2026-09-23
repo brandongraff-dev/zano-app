@@ -163,7 +163,8 @@ public final class CalendarAwareness {
     @discardableResult
     public func optIn() async throws -> Bool {
         calendarDefaults.set(true, forKey: Self.optedInKey)
-        let granted = try await eventStore.requestFullAccessToEvents()
+        nonisolated(unsafe) let store = eventStore
+        let granted = try await store.requestFullAccessToEvents()
         logger.notice("Calendar Awareness opt-in: access \(granted ? "granted" : "declined", privacy: .public).")
         return granted
     }

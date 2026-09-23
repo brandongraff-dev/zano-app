@@ -337,7 +337,8 @@ public final class FocusSessionVerifier {
 
     /// Pushes the current countdown/pause state to `session`'s Live Activity, if it has one.
     private func updateActivity(for session: RunningSession, asOf now: Date, isPaused: Bool) async {
-        guard let activity = session.activity else { return }
+        guard let liveActivity = session.activity else { return }
+        nonisolated(unsafe) let activity = liveActivity
 
         let plannedSeconds = TimeInterval(session.plannedMinutes * 60)
         let remaining = remainingSeconds(elapsedSeconds: session.elapsedActiveSeconds(asOf: now), plannedSeconds: plannedSeconds)
@@ -352,7 +353,8 @@ public final class FocusSessionVerifier {
     /// Ends `session`'s Live Activity (if any) showing its final countdown value, with a short
     /// grace period before the system may dismiss it (`activityDismissalGracePeriod`).
     private func endActivity(for session: RunningSession, elapsedSeconds: TimeInterval, asOf now: Date) async {
-        guard let activity = session.activity else { return }
+        guard let liveActivity = session.activity else { return }
+        nonisolated(unsafe) let activity = liveActivity
 
         let plannedSeconds = TimeInterval(session.plannedMinutes * 60)
         let remaining = remainingSeconds(elapsedSeconds: elapsedSeconds, plannedSeconds: plannedSeconds)

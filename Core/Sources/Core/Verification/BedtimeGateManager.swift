@@ -375,18 +375,20 @@ public final class BedtimeGateManager {
     }
 
     public func updateWindDownActivity(bedtime: Date, now: Date = .now) async {
-        guard let windDownActivity else { return }
+        guard let liveActivity = windDownActivity else { return }
+        nonisolated(unsafe) let activity = liveActivity
         let minutesRemaining = minutesUntilBedtime(bedtime: bedtime, now: now)
         let content = ActivityContent(
             state: BedtimeWindDownActivityAttributes.ContentState(minutesUntilBedtime: max(0, minutesRemaining), isLocked: false),
             staleDate: nil
         )
-        await windDownActivity.update(content)
+        await activity.update(content)
     }
 
     public func endWindDownActivity(isLocked: Bool, now: Date = .now) async {
-        guard let activity = windDownActivity else { return }
+        guard let liveActivity = windDownActivity else { return }
         windDownActivity = nil
+        nonisolated(unsafe) let activity = liveActivity
         let content = ActivityContent(
             state: BedtimeWindDownActivityAttributes.ContentState(minutesUntilBedtime: 0, isLocked: isLocked),
             staleDate: nil

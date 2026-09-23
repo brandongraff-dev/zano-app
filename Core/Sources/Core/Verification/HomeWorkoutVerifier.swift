@@ -345,7 +345,8 @@ actor HomeWorkoutQueryState {
                     continuation.resume(returning: [])
                     return
                 }
-                continuation.resume(returning: activities)
+                nonisolated(unsafe) let unsafeActivities = activities
+                continuation.resume(returning: unsafeActivities)
             }
         }
         guard !activities.isEmpty else { return .notVerified }

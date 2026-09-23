@@ -34,7 +34,7 @@ public protocol SyncBackend: Sendable {
     /// Implementations should be all-or-nothing for `events`: either every event in the batch was
     /// durably accepted by the backend (so `SyncEngine` marks all of them `synced`), or this
     /// throws and none are marked synced, so the same batch is retried on the next `flush()`.
-    func push(_ events: [OutboxEvent]) async throws
+    func push(_ events: [OutboxEventSnapshot]) async throws
 }
 
 /// A `SyncBackend` that can also pull server-side changes — additive to `SyncBackend` itself (see
@@ -256,7 +256,7 @@ public actor SyncEngine {
             let batch = try context.fetch(descriptor)
             guard !batch.isEmpty else { break }
 
-            try await backend.push(batch)
+            try await backend.push(batch.map(OutboxEventSnapshot.init))
 
             for event in batch {
                 event.synced = true

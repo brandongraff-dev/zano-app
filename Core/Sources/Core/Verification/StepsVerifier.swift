@@ -394,8 +394,10 @@ actor StepsObserverState {
     /// not `Sendable`) — carried here unchanged, not newly introduced by this file; see
     /// knownIssues.
     private func effectiveTarget(for goal: Goal) async -> Double? {
-        let plan = await AdaptiveGoalEngine.shared.dailyPlan(for: goal, on: .now)
-        return plan.plannedValue ?? goal.targetValue
+        // Only a UUID goes in and a plain Double? comes out — no @Model crosses the actor boundary.
+        let goalID = goal.id
+        let fallback = goal.targetValue
+        return await AdaptiveGoalEngine.shared.effectiveTarget(forGoalID: goalID, on: .now) ?? fallback
     }
 
     // MARK: - SwiftData

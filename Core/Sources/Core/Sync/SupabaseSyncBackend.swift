@@ -208,7 +208,7 @@ public struct SupabaseSyncBackend: SyncPullBackend {
     /// rather than threading `push`'s response into a pull, to match `SyncEngine`'s existing
     /// two-entry-point design (`flush()` on outbox-drain, `pullAndMerge()` on launch/silent-push —
     /// spec §11) rather than coupling their timing together.
-    public func push(_ events: [OutboxEvent]) async throws {
+    public func push(_ events: [OutboxEventSnapshot]) async throws {
         guard !events.isEmpty else { return }
 
         let response = try await performSyncRequest(events: events, since: nil)
@@ -233,7 +233,7 @@ public struct SupabaseSyncBackend: SyncPullBackend {
 
     // MARK: - Request
 
-    private func performSyncRequest(events: [OutboxEvent], since: Date?) async throws -> ParsedSyncResponse {
+    private func performSyncRequest(events: [OutboxEventSnapshot], since: Date?) async throws -> ParsedSyncResponse {
         let token: String
         do {
             token = try await tokenProvider.supabaseAccessToken()
@@ -293,7 +293,7 @@ public struct SupabaseSyncBackend: SyncPullBackend {
     /// re-embeds each `OutboxEvent.payload` as a JSON *object* (decoded via `JSONSerialization`,
     /// not passed through as `Data`/base64) — see this file's header for why a naive `Codable`
     /// encode of `[OutboxEvent]` would silently violate the wire contract here.
-    static func makeRequestBody(events: [OutboxEvent], since: Date?) throws -> Data {
+    static func makeRequestBody(events: [OutboxEventSnapshot], since: Date?) throws -> Data {
         var wireEvents: [[String: Any]] = []
         wireEvents.reserveCapacity(events.count)
         for event in events {

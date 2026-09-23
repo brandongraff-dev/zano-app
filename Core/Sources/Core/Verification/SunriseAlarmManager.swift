@@ -399,13 +399,27 @@ public final class SunriseAlarmManager {
 
     private func cancelPendingNotifications() async {
         let center = UNUserNotificationCenter.current()
-        let pendingIDs = await center.pendingNotificationRequests().map(\.identifier)
-            .filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
-        center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
+        // The async `pendingNotificationRequests()` / `deliveredNotifications()` return arrays of
+        // non-Sendable UIKit-era objects, which Swift 6 refuses to send out of the center's
+        // isolation. The callback forms let us map to plain `[String]` identifiers inside the
+        // callback, so only Sendable values ever cross.
+        let pendingIDs: [String] = await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests.map(\.identifier))
+            }
+        }
+        center.removePendingNotificationRequests(
+            withIdentifiers: pendingIDs.filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
+        )
 
-        let deliveredIDs = await center.deliveredNotifications().map(\.identifier)
-            .filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
-        center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+        let deliveredIDs: [String] = await withCheckedContinuation { continuation in
+            center.getDeliveredNotifications { notifications in
+                continuation.resume(returning: notifications.map { $0.request.identifier })
+            }
+        }
+        center.removeDeliveredNotifications(
+            withIdentifiers: deliveredIDs.filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
+        )
     }
 
     /// Registers the "Open ZANO" notification action + category this file's notifications use.

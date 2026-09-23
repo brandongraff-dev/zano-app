@@ -104,6 +104,25 @@ public final class AdaptiveGoalEngine {
         self.modelContainer = modelContainer
     }
 
+    // MARK: - Sendable-friendly entry point
+
+    /// Today's effective target for the goal with `goalID` — the adaptive engine's `plannedValue`,
+    /// falling back to the goal's own `targetValue` — resolved entirely inside this engine's own
+    /// `ModelContext`.
+    ///
+    /// Exists so callers running outside the main actor (e.g. `StepsVerifier`'s background
+    /// HealthKit actor) never pass a live SwiftData `@Model` (`Goal`, not `Sendable`) or receive one
+    /// (`DailyPlan`) across an isolation boundary: only a `UUID` goes in and a plain `Double?`
+    /// comes out. It also avoids building a `DailyPlan` whose `goal` relationship points at an
+    /// object owned by a different `ModelContext`.
+    public func effectiveTarget(forGoalID goalID: UUID, on date: Date = .now) async -> Double? {
+        var descriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == goalID })
+        descriptor.fetchLimit = 1
+        guard let goal = try? context.fetch(descriptor).first else { return nil }
+        let plan = await dailyPlan(for: goal, on: date)
+        return plan.plannedValue ?? goal.targetValue
+    }
+
     // MARK: - CONTRACTS: dailyPlan
 
     /// Returns today's (or `date`'s) `DailyPlan` for `goal`, creating and persisting one if it

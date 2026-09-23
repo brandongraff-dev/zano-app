@@ -118,3 +118,37 @@ extension OutboxEvent {
         return decoder
     }
 }
+
+/// An immutable, `Sendable` copy of an `OutboxEvent`'s wire-relevant fields.
+///
+/// `OutboxEvent` is a SwiftData `@Model` (a non-`Sendable` reference type bound to `SyncEngine`'s
+/// `ModelContext`), so it cannot be handed to a `SyncBackend` running outside that actor without
+/// risking a data race. `SyncEngine.flush()` snapshots each batch into these value types, sends the
+/// snapshots, and only then flips `synced` on the original models — the backend never touches a
+/// live model. (The `synced` flag is deliberately omitted: it is `SyncEngine`'s bookkeeping, not
+/// part of the wire contract.)
+public struct OutboxEventSnapshot: Sendable, Hashable {
+    public let id: UUID
+    public let entityName: String
+    public let entityID: UUID
+    public let payload: Data
+    public let createdAt: Date
+
+    public init(id: UUID, entityName: String, entityID: UUID, payload: Data, createdAt: Date) {
+        self.id = id
+        self.entityName = entityName
+        self.entityID = entityID
+        self.payload = payload
+        self.createdAt = createdAt
+    }
+
+    public init(_ event: OutboxEvent) {
+        self.init(
+            id: event.id,
+            entityName: event.entityName,
+            entityID: event.entityID,
+            payload: event.payload,
+            createdAt: event.createdAt
+        )
+    }
+}

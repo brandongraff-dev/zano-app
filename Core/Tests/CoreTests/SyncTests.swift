@@ -76,7 +76,7 @@ private actor FakeSyncBackend: SyncBackend {
         self.gate = gate
     }
 
-    func push(_ events: [OutboxEvent]) async throws {
+    func push(_ events: [OutboxEventSnapshot]) async throws {
         pushCallCount += 1
         pushedEventIDs.append(events.map(\.id))
 

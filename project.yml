@@ -242,6 +242,15 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOReport
+    settings:
+      base:
+        # Swift 5 language mode for this one placeholder extension only. CI showed Apple's
+        # `DeviceActivityReportScene` protocol requirements are not Swift 6 strict-concurrency clean
+        # (main-actor `content` vs. nonisolated requirement; non-Sendable
+        # `DeviceActivityResults` passed to `makeConfiguration`). Revisit when the real on-device
+        # usage report is built (spec §5.15) or when Apple's SDK catches up.
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
     info:
       path: Extensions/ZANOReport/Info.plist
       properties:

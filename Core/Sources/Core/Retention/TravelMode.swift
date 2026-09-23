@@ -104,34 +104,34 @@ public final class TravelMode {
     /// A sample this far from the learned home anchor counts as "a new city," not a longer commute
     /// or a same-metro errand. ~100 miles: comfortably past a typical metro area, well short of
     /// actually needing to be a different country.
-    public static let newCityDistanceThresholdMeters: CLLocationDistance = 160_000
+    nonisolated public static let newCityDistanceThresholdMeters: CLLocationDistance = 160_000
 
     /// Samples within this radius of the learned home anchor are "at home": they refine the anchor
     /// and reset the away streak. Deliberately much smaller than
     /// `newCityDistanceThresholdMeters` so there's a wide neutral band between "home" and "new
     /// city" that does neither — a day trip 60 km out shouldn't quietly widen what counts as home,
     /// nor should it count toward a travel suggestion.
-    public static let homeAnchorRadiusMeters: CLLocationDistance = 50_000
+    nonisolated public static let homeAnchorRadiusMeters: CLLocationDistance = 50_000
 
     /// How many "at home" samples the running home-anchor average is confident after — below this,
     /// a far-away sample is ignored rather than treated as "away" (protects a brand-new install,
     /// or a user who hasn't been home long enough yet to learn where home is, from a false
     /// suggestion on day one).
-    public static let homeAnchorMinimumSamples = 3
+    nonisolated public static let homeAnchorMinimumSamples = 3
 
     /// Caps the running average's effective sample weight so a home anchor that's been stable for
     /// months doesn't become permanently frozen — without this, sample #500's influence on the mean
     /// would be 1/500th, and a genuine permanent relocation could never out-vote years of history.
     /// Capping the weight keeps the anchor able to drift again after roughly this many "at home"
     /// samples following a sustained move, while still being very stable short-term.
-    public static let homeAnchorMaxWeight = 60
+    nonisolated public static let homeAnchorMaxWeight = 60
 
     /// A single stray coarse fix (a bad cell-tower handoff, a layover) shouldn't flip the
     /// suggestion on by itself — the away signal must hold for this many consecutive qualifying
     /// samples. Not also time-windowed: `startMonitoringSignificantLocationChanges()` already only
     /// fires on genuine location changes, spaced naturally apart, so a same-direction second
     /// sample is itself already meaningful corroboration.
-    public static let sustainedSampleCount = 2
+    nonisolated public static let sustainedSampleCount = 2
 
     /// Spec §5.18's "walking/steps/focus," mapped onto the real `GoalType` catalog
     /// (`Core/Sources/Core/Models/Goal.swift`, read for this task, not redefined here): "walking"

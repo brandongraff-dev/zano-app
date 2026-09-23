@@ -13,12 +13,15 @@ is the single source of truth for *how we work*. If they conflict, stop and ask 
 
 ## Current environment status (keep this block updated — it changes what's actually doable)
 
-- **No Mac available yet.** The app itself cannot be built, run, or tested until one is available
-  (or CI does it — see below). Work that doesn't need Xcode (docs, Supabase/SQL, Core Swift Package
-  *source*, CI config, ML service) can proceed now; anything requiring `xcodebuild`, the Simulator,
-  or a real device is blocked. See `docs/setup/windows-workflow.md` for exactly what's safe to do.
-- **GitHub: ready.** Repo is local-only until the user adds a remote and pushes — don't push without
-  being asked.
+- **No Mac locally, but GitHub Actions macOS runners ARE the compiler.** The repo is pushed and CI
+  (`.github/workflows/ci.yml`) runs `xcodegen generate` + `xcodebuild` against the iOS Simulator SDK
+  on every push, so real compiler feedback exists. This is the primary loop: push → read the
+  deduplicated error list from `gh run view <id> --log` → fix → push. Anything needing the
+  Simulator UI, a real device, FamilyControls/DeviceActivity/NFC/HealthKit workouts is still blocked
+  locally (and several of those don't work in the Simulator at all — spec §27).
+- **GitHub: pushed.** Private repo `brandongraff-dev/zano-app`, `gh` is authenticated on this
+  machine. Pushing to `main` is authorized for the CI loop; don't force-push or change visibility
+  without being asked.
 - **Apple Developer Program: not enrolled yet.** This blocks the Family Controls entitlement request
   (4 requests needed — main app + 3 extensions, see `docs/spec.md` §24) and any TestFlight/App Store
   submission. Local device testing works via the **Family Controls (Development)** capability without
@@ -63,9 +66,10 @@ is the single source of truth for *how we work*. If they conflict, stop and ask 
 - `xcodebuild -scheme ZANO -destination 'platform=iOS' build`
 - FamilyControls, DeviceActivity, Core NFC, and HealthKit workouts do **not** work in the Simulator.
   Use a real device for anything touching those. Budget device time every session that touches them.
-- `swift test --package-path Core` runs Core's unit tests — this is the one thing that's fully
-  testable without a Mac's Xcode GUI (still needs a Swift toolchain, which Windows doesn't have
-  either, so for now these run in CI or on the Mac, not locally).
+- Do NOT use `swift test --package-path Core` (it builds for the macOS host, where iOS-only
+  frameworks like ActivityKit don't exist — CI proved this). Core's tests run with
+  `cd Core && xcodebuild test -scheme Core -destination 'id=<iPhone simulator UDID>'`; CI does this.
+  Windows has no Swift toolchain, so tests and builds run in CI, not locally.
 - Family Controls entitlement request status: **not yet filed** (Apple Developer Program enrollment
   pending). Update this line the day requests are filed, and again when approved.
 

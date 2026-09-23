@@ -157,7 +157,7 @@ public final class TimeBankEngine {
     public func remainingMinutes(for date: Date) async -> Int {
         guard let user = try? fetchCurrentUser() else { return 0 }
         guard let bank = try? fetchTimeBank(userID: user.id, date: date) else { return 0 }
-        return bank?.remainingMin ?? 0
+        return bank.remainingMin
     }
 
     // MARK: - Goal-type convenience (spec §5.2 exact values)

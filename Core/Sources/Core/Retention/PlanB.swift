@@ -42,6 +42,7 @@ import Foundation
 /// helpers (`ShieldCopy`, `CoachVoiceTone`, `SharedDefaults`) rather than CONTRACTS' engine
 /// pattern, since CONTRACTS does not give this file a fixed public shape to match the way it does
 /// `AdaptiveGoalEngine`.
+@MainActor
 public enum PlanB {
 
     // MARK: - v1 constants (spec §5.5)

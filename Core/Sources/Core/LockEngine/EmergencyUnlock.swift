@@ -80,7 +80,7 @@ public final class EmergencyUnlock {
     /// Set if `completeHold` fails (`phase == .failed`). `nil` otherwise.
     public private(set) var lastError: Error?
 
-    private var tickTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var tickTask: Task<Void, Never>?
 
     public init(sessionID: UUID, appliesStreakPenalty: Bool = true) {
         self.sessionID = sessionID

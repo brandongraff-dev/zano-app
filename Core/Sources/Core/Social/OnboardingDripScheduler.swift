@@ -262,7 +262,7 @@ public final class OnboardingDripScheduler {
     /// (`"com.zano.app.widget.home"`) and `.../LockScreenWidget/ZANOLockScreenWidget.swift`
     /// (`"com.zano.app.widget.lockscreen"`) declare — see this file's header comment for why these
     /// are duplicated literals rather than a shared constant.
-    private static let knownWidgetKinds: Set<String> = [
+    nonisolated private static let knownWidgetKinds: Set<String> = [
         "com.zano.app.widget.home",
         "com.zano.app.widget.lockscreen",
     ]

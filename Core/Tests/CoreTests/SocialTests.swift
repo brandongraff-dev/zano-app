@@ -624,7 +624,9 @@ struct DuelManagerTests {
         let duel = try await manager.createDuel(challengerID: a, opponentID: b, startDate: start)
         _ = try await manager.respond(duelID: duel.id, userID: b, accept: true)
 
-        await manager.applyVerifiedGoalEvent(userID: a, verifiedAt: start.addingTimeInterval(-1))
+        // `createDuel` snaps the start to local midnight of `start`'s day, so a goal verified one
+        // second earlier the SAME day legitimately counts. Two days earlier is outside in any zone.
+        await manager.applyVerifiedGoalEvent(userID: a, verifiedAt: start.addingTimeInterval(-2 * 86_400))
 
         let after = try await manager.duel(id: duel.id)
         #expect(after?.aPoints == 0)

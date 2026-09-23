@@ -293,11 +293,12 @@ struct ModelsTests {
         #expect(timeBank.dayKey == "\(userID.uuidString)_2026-1-2")
     }
 
-    @Test func timeBankDayKeyUniqueConstraintRejectsADuplicateUserAndDatePair() throws {
+    @Test func timeBankDayKeyUniqueAttributeUpsertsADuplicateUserAndDatePair() throws {
         // Mirrors the remote `unique (user_id, date)` constraint (spec §13) — see TimeBank's own
-        // doc comment on `dayKey`. Uncertain whether SwiftData's `@Attribute(.unique)` violation
-        // surfaces as a thrown error vs. some other failure mode on a real store; flagged in
-        // knownIssues since it can't be checked without a Swift toolchain here.
+        // doc comment on `dayKey`. Verified on a real toolchain (CI): SwiftData's
+        // `@Attribute(.unique)` does NOT throw on a conflicting insert — it UPSERTS (the new row
+        // replaces the existing one). So the local store can never hold two rows for one (user,
+        // day), which is the property that matters.
         let container = try makeContainer()
         let context = ModelContext(container)
         let userID = UUID()
@@ -307,9 +308,11 @@ struct ModelsTests {
         try context.save()
 
         context.insert(TimeBank(userID: userID, date: date, earnedMin: 10))
-        #expect(throws: (any Error).self) {
-            try context.save()
-        }
+        try context.save()
+
+        let rows = try context.fetch(FetchDescriptor<TimeBank>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.earnedMin == 10)
     }
 
     // MARK: - Gym
@@ -692,11 +695,12 @@ struct ModelsTests {
         #expect(fetchedMembers.map(\.role.rawValue).sorted() == ["member", "owner"])
     }
 
-    @Test func squadInviteCodeUniqueConstraintRejectsADuplicateCode() throws {
+    @Test func squadInviteCodeUniqueAttributeUpsertsACollidingCode() throws {
         // `Squad.inviteCode` is `@Attribute(.unique)`, mirroring the remote `unique not null`
-        // constraint per the type's own doc comment — a second squad minted with a colliding code
-        // (astronomically unlikely in practice, but the constraint exists precisely to make it
-        // impossible rather than merely unlikely) must fail to save, not silently shadow the first.
+        // constraint. Verified on a real toolchain (CI): SwiftData upserts rather than throws, so a
+        // colliding code REPLACES the first squad locally instead of failing. Collisions are
+        // astronomically unlikely (32^7 codes) and the backend's Postgres `unique` constraint is the
+        // real guard (ReferralBackend.register); this test pins the actual local behavior.
         let container = try makeContainer()
         let context = ModelContext(container)
 
@@ -704,9 +708,11 @@ struct ModelsTests {
         try context.save()
 
         context.insert(Squad(name: "Crew Two", createdBy: UUID(), inviteCode: "DUPE001"))
-        #expect(throws: (any Error).self) {
-            try context.save()
-        }
+        try context.save()
+
+        let squads = try context.fetch(FetchDescriptor<Squad>())
+        #expect(squads.count == 1)
+        #expect(squads.first?.name == "Crew Two")
     }
 
     // MARK: - RecapStats / NudgeArm: Codable shape independent of SwiftData

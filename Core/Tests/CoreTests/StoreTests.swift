@@ -216,7 +216,9 @@ struct StoreTests {
 
     // MARK: - ModelContainer+AppGroup: on-disk path without the App Group entitlement
 
-    @Test func appGroupStoreURLThrowsWithoutTheAppGroupEntitlement() {
+    @Test(.enabled(if: FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier) == nil,
+                   "the iOS Simulator vends an App Group container even to unsigned test hosts, so this only applies where none exists"))
+    func appGroupStoreURLThrowsWithoutTheAppGroupEntitlement() {
         // A bare `swift test` process has no com.apple.security.application-groups entitlement, so
         // `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` should return nil —
         // exactly the condition `ModelContainerError.appGroupContainerUnavailable` documents.

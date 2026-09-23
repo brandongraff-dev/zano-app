@@ -104,6 +104,15 @@ public final class AdaptiveGoalEngine {
         self.modelContainer = modelContainer
     }
 
+    /// `goal` as seen by this engine's own `ModelContext`, falling back to the passed object only
+    /// if it isn't in the store yet.
+    private func inOwnContext(_ goal: Goal) -> Goal {
+        let goalID = goal.id
+        var descriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == goalID })
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor).first) ?? goal
+    }
+
     // MARK: - Sendable-friendly entry point
 
     /// Today's effective target for the goal with `goalID` — the adaptive engine's `plannedValue`,
@@ -146,6 +155,11 @@ public final class AdaptiveGoalEngine {
     ///     per `DailyPlan.swift`'s own doc comment ("callers should normalize... before
     ///     querying/saving").
     public func dailyPlan(for goal: Goal, on date: Date) async -> DailyPlan {
+        // Callers (views, verifiers, tests) hand in Goal objects owned by *their* ModelContext. A
+        // DailyPlan inserted into ours must relate to a Goal in ours, otherwise the relationship can
+        // fail to resolve and later `plan.goal?.id == goal.id` lookups silently miss it (CI: every plan
+        // looked like "no history", so the weekly cap and step baseline never saw prior plans).
+        let goal = inOwnContext(goal)
         let calendar = Calendar.current
         let day = calendar.startOfDay(for: date)
 

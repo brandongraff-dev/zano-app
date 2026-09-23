@@ -178,7 +178,11 @@ struct SyncTests {
         )
 
         #expect(firstEventID != secondEventID)
-        #expect(try await SyncEngine.shared.pendingCount() == 2)
+        // Not `pendingCount() == 2`: SyncEngine.shared is process-wide, and other suites' managers
+        // (DuelManager, NudgeSender, ...) enqueue into whichever container is configured at that
+        // moment, so a global count is racy under parallel suites. Check our two events are present.
+        let storedIDs = Set(try ModelContext(container).fetch(FetchDescriptor<OutboxEvent>()).map(\.id))
+        #expect(storedIDs.isSuperset(of: [firstEventID, secondEventID]))
     }
 
     // MARK: - Flush: success path

@@ -37,22 +37,26 @@ enum ZANOCircularMetric: String, AppEnum {
     case water
     case streak
 
+    // EXCEPTION to "user-facing copy lives in Core/Copy": the AppIntents build-time metadata
+    // extractor (appintentsmetadataprocessor) evaluates these declarations statically and rejects
+    // anything that is not a string literal ("LocalizedStringResource must be initialized directly
+    // ... or a String literal"). Keep these in sync with WidgetCopy.lockScreenConfigTitle /
+    // metricProtein / metricWater / metricStreak by hand.
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
-        TypeDisplayRepresentation(name: LocalizedStringResource(stringLiteral: WidgetCopy.lockScreenConfigTitle))
+        TypeDisplayRepresentation(name: "ZANO Stat")
     }
 
     static let caseDisplayRepresentations: [ZANOCircularMetric: DisplayRepresentation] = [
-        .protein: DisplayRepresentation(title: LocalizedStringResource(stringLiteral: WidgetCopy.metricProtein)),
-        .water: DisplayRepresentation(title: LocalizedStringResource(stringLiteral: WidgetCopy.metricWater)),
-        .streak: DisplayRepresentation(title: LocalizedStringResource(stringLiteral: WidgetCopy.metricStreak))
+        .protein: DisplayRepresentation(title: "Protein"),
+        .water: DisplayRepresentation(title: "Water"),
+        .streak: DisplayRepresentation(title: "Streak")
     ]
 }
 
 struct ZANOLockScreenMetricIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose Stat"
-    static let description = IntentDescription(
-        LocalizedStringResource(stringLiteral: WidgetCopy.lockScreenConfigDescription)
-    )
+    // Literal for the same metadata-extractor reason as above (WidgetCopy.lockScreenConfigDescription).
+    static let description = IntentDescription("Choose which stat this Lock Screen widget shows.")
 
     @Parameter(title: "Stat", default: .streak)
     var metric: ZANOCircularMetric

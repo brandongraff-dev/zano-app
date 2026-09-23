@@ -37,6 +37,29 @@ targets:
     type: application
     platform: iOS
     sources:
+      # Assets.xcassets (App/ZANO/Assets.xcassets: AppIcon.appiconset + AccentColor.colorset) is
+      # deliberately NOT listed as a second `sources:` entry — the line below already picks it up.
+      # Reasoning, from XcodeGen's own source-type semantics (checked against the XcodeGen repo's
+      # Docs/ProjectSpec.md and SourceGenerator.swift, but NOT against a real `xcodegen generate`
+      # run — no Mac exists yet; see docs/setup/mac-setup.md step 2 for the first real check):
+      #   * A `- path: App/ZANO` entry with no `type:` is `type: group` (XcodeGen's documented
+      #     default for a directory whose name has no file extension) — a recursive GROUP source,
+      #     NOT an Xcode "folder reference" (`type: folder`), even though it is easy to read it
+      #     as one. It matters: a group source is re-scanned from disk on every
+      #     `xcodegen generate`, so a subfolder added since the last run is picked up then.
+      #   * During that recursive scan XcodeGen treats a directory that is an Xcode "file wrapper"
+      #     (`Xcode.isDirectoryFileWrapper` — a directory whose extension maps to a known Xcode
+      #     file type; `.xcassets` -> `folder.assetcatalog` is one) as a single file reference
+      #     added to the Resources build phase, instead of recursing into it. So the new
+      #     `Assets.xcassets` folder is included automatically as one asset-catalog entry.
+      #   * A second explicit entry `- path: App/ZANO/Assets.xcassets` would overlap the recursive
+      #     scan above. XcodeGen has no documented duplicate-source-path handling (its
+      #     `fileReferencesByPath` cache reuses the file reference, but nothing guarantees it also
+      #     de-duplicates the build-phase membership), so an overlap risks a duplicate
+      #     "Copy Bundle Resources" entry for the catalog — and nobody can catch that until a Mac
+      #     regenerates. Redundant-but-maybe-harmful is the less safe choice; do nothing extra.
+      # If a Mac run of `xcodegen generate` ever shows Assets.xcassets missing from the ZANO
+      # target's Copy Bundle Resources phase, only then add a second entry (and drop this comment).
       - path: App/ZANO
     dependencies:
       - package: Core
@@ -63,6 +86,38 @@ targets:
         NFCReaderUsageDescription: "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock."
         NSCameraUsageDescription: "ZANO uses your camera to estimate protein from meal photos."
         NSMotionUsageDescription: "ZANO uses motion data to verify workouts and prevent goal spoofing."
+        # Background execution the verifiers depend on. Without these declared, iOS never launches
+        # or wakes the app for the events below and the verifiers silently never fire:
+        #   location            - GymVerifier (Core/Sources/Core/Verification/GymVerifier.swift):
+        #                         CLMonitor geofence + dwell tracking, and GymAutoDetect's visit
+        #                         monitoring, keep working with the app backgrounded/suspended.
+        #   fetch               - periodic background refresh (BGAppRefreshTask / legacy fetch).
+        #   remote-notification - silent pushes (aps-environment is already in the entitlements).
+        #   processing          - BGProcessingTask work (e.g. sync outbox flush, recap jobs).
+        # NOTE: HealthKit has no UIBackgroundModes value. StepsVerifier's HKObserverQuery +
+        # enableBackgroundDelivery wakes the app through the
+        # `com.apple.developer.healthkit.background-delivery` entitlement instead — added to the
+        # entitlements block below for exactly that reason.
+        # NOTE: nothing calls BGTaskScheduler.register yet (grep'd Core/ and App/). The moment
+        # something does, its task identifiers must ALSO be listed under a
+        # `BGTaskSchedulerPermittedIdentifiers` array in this Info block, or the registration
+        # traps at launch. Not added here because there are no identifiers to list yet.
+        UIBackgroundModes:
+          - location
+          - fetch
+          - remote-notification
+          - processing
+        # Registers the `zano://` URL scheme (added in the 2026-09-23 wiring-wave review).
+        # `ZANOApp`'s `.onOpenURL` -> `AppRouter.handle(url:)` already routes `zano://tag/<uuid>`
+        # (NFC tag URLs, spec §6/§14), `zano://goals` / `zano://emergency` (ShieldAction
+        # notification taps, `ShieldCopy.DeepLink`) and `zano://today` / `zano://focus/end`
+        # (Live Activity / widget links) — but iOS only delivers those URLs to the app when the
+        # scheme is declared here, so before this every one of them was a silent no-op.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.zano.app
+            CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - zano
     entitlements:
       path: App/ZANO/ZANO.entitlements
       properties:
@@ -71,9 +126,40 @@ targets:
         com.apple.developer.family-controls: true
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        # Required (iOS 15+) for HKHealthStore.enableBackgroundDelivery(for:frequency:...), which
+        # StepsVerifier.startObserving calls. Without it that call fails with an entitlement error
+        # (logged, not thrown, by StepsVerifier) and step goals only verify while the app is alive.
+        # Part of the HealthKit capability in Xcode ("Background Delivery" checkbox) — needs to be
+        # ticked/confirmed on the App ID in the Apple Developer portal when signing is set up
+        # (docs/setup/apple-developer.md). UNVERIFIED key spelling — cross-check against the
+        # entitlements file Xcode writes when that checkbox is ticked.
+        com.apple.developer.healthkit.background-delivery: true
         com.apple.developer.nfc.readersession.formats:
           - NDEF
         aps-environment: development
+    settings:
+      base:
+        # Icon + accent come from App/ZANO/Assets.xcassets (AppIcon.appiconset, AccentColor.colorset).
+        # XcodeGen's own iOS-application preset already defaults ASSETCATALOG_COMPILER_APPICON_NAME
+        # to AppIcon; it is set explicitly anyway so the wiring is visible here instead of implicit.
+        # GLOBAL_ACCENT_COLOR_NAME is NOT a XcodeGen default — without it the catalog's
+        # AccentColor.colorset is not applied as the app's tint (spec §15: #B8FF3C, ONE accent).
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # Pinned explicitly (added in the 2026-09-23 wiring-wave review). Without it XcodeGen derives
+        # `bundleIdPrefix + "." + target name` = "com.zano.app.ZANO" for this target, which breaks
+        # two things that already assume the bare "com.zano.app": (1) ZANOWatch below declares
+        # `WKCompanionAppBundleIdentifier: com.zano.app` and its own id `com.zano.app.watchkitapp` —
+        # a watch app's id must be prefixed by, and its companion key must equal, the iPhone app's
+        # id, so the phone <-> watch pairing (and with it every WatchSyncManager message) could never
+        # work against "com.zano.app.ZANO"; (2) docs/sessions/00-repo-and-stack-setup.md and
+        # docs/setup/apple-developer.md record `com.zano.app` as THE app id (register it, file the
+        # Family Controls request for it). The extensions keep their derived ids
+        # (`com.zano.app.ZANOWidgets`, `.ZANOShieldConfig`, ...): those are correctly prefixed by this
+        # id, so they install fine. NOTE they are not the `.widgets`/`.shieldconfig`/... suffixes
+        # docs/sessions/00 mentions; whichever spelling is registered in the Apple developer portal
+        # must match what is generated here, so reconcile before registering (UNVERIFIED — no Mac).
+        PRODUCT_BUNDLE_IDENTIFIER: com.zano.app
 
   ZANOWidgets:
     type: app-extension
@@ -230,6 +316,41 @@ targets:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
 
+  # UI-test bundle for the ZANO app. Appended after ZANOWatch — no existing target block above was
+  # touched to add it (same discipline as the ZANOWatch addition). Mirrors what Xcode's own
+  # "UI Testing Bundle" target template produces: product type `bundle.ui-testing`, a dependency
+  # on the app under test, and an auto-generated Info.plist.
+  #
+  # How it is wired, per XcodeGen (Docs/ProjectSpec.md + PBXProjGenerator.swift; UNVERIFIED by an
+  # actual `xcodegen generate` run — no Mac yet):
+  #   * `dependencies: - target: ZANO` is all that is needed to make ZANO the "Target Application":
+  #     for a `bundle.ui-testing` target XcodeGen sets TEST_TARGET_NAME to the first dependency
+  #     whose target type is an application, and writes the matching `TestTargetID` into the
+  #     project's TargetAttributes. Do not also set TEST_TARGET_NAME by hand.
+  #   * `GENERATE_INFOPLIST_FILE: YES` is set explicitly because XcodeGen's `bundle.ui-testing`
+  #     setting preset does not set it, and a test bundle with neither an `info:` block nor this
+  #     setting fails to code-sign ("target does not have an Info.plist file"). Xcode 13+'s own
+  #     template sets it the same way.
+  #   * Bundle id is left to XcodeGen's default derivation (bundleIdPrefix + target name =
+  #     com.zano.app.ZANOUITests); a UI-test bundle's id has no external meaning.
+  #   * No `package: Core` dependency: UI tests drive the app from the outside via XCUIApplication
+  #     and never link the app's code, and Core's own unit tests live in the Core package itself.
+  #   * Signing: a UI-test runner is a separate signed product, so on a real device it needs the
+  #     same development team as ZANO. Nothing sets DEVELOPMENT_TEAM anywhere in this file yet
+  #     (see docs/setup/apple-developer.md); Simulator runs need no team.
+  # Scenarios come later — ZANOUITests/ZANOUITests.swift is one launch smoke test that proves the
+  # target exists, compiles, and can start the app.
+  ZANOUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ZANOUITests
+    dependencies:
+      - target: ZANO
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"      # quoted like ENABLE_USER_SCRIPT_SANDBOXING above, so YAML doesn't turn it into a bool
+
 schemes:
   ZANO:
     build:
@@ -240,4 +361,15 @@ schemes:
     test:
       config: Debug
       targets:
-        - Core
+        # Was a bare `- Core`. XcodeGen reads a plain string here as a LOCAL project-target name
+        # (Docs/ProjectSpec.md "Testable Target Reference": `local: {target-name}`), and Core is a
+        # Swift package, not a project target — SpecValidation.validationError(for:
+        # TestableTargetReference) returns `invalidSchemeTarget` for a `.local` reference with no
+        # matching target, which would abort `xcodegen generate` before it wrote any project. A
+        # local package's test target is referenced with the documented `package:` form instead:
+        # `package: {local-swift-package-name}/{target-name}` — package `Core` (top-level
+        # `packages:` above), test target `CoreTests` (Core/Package.swift). UNVERIFIED on a real
+        # generate run; if `xcodegen generate` still rejects this scheme, this is the first place
+        # to look.
+        - package: Core/CoreTests
+        - ZANOUITests

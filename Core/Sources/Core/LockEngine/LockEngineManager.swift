@@ -17,6 +17,7 @@
 // comment).
 
 import Foundation
+import Observation
 import SwiftData
 import FamilyControls
 import ManagedSettings
@@ -145,9 +146,22 @@ extension DeviceActivityName {
 /// themselves commonly `@MainActor`-perform their side effects) is already on the main actor. This
 /// is this file's one cross-cutting architectural assumption not spelled out in CONTRACTS — see
 /// `decisions` in this task's report for the same note.
+///
+/// `@Observable` (added when the app shell was wired, `App/ZANO/ContentView.swift`) purely so
+/// `lastUnlockedSessionID` below is trackable by SwiftUI — the same `@MainActor @Observable
+/// public final class` shape `Verification/SunriseAlarmManager.swift` already uses. Every other
+/// stored property here is a `let`, which the macro leaves untouched.
 @MainActor
+@Observable
 public final class LockEngineManager {
     public static let shared = LockEngineManager()
+
+    /// The `LockSession.id` of the lock that most recently ended, by *any* `UnlockKind` — the
+    /// listener decides what a given kind deserves (the app shell only celebrates `.earned`, per
+    /// spec §16 P3). `nil` until the first `endLock` of this process's lifetime. In-process only:
+    /// a lock ended from another process (a widget/extension intent) never sets this on the app's
+    /// own instance, so this is a live-UI signal, not a source of truth — `LockSession` rows are.
+    public private(set) var lastUnlockedSessionID: UUID?
 
     private let modelContainer: ModelContainer
     private let context: ModelContext
@@ -261,6 +275,7 @@ public final class LockEngineManager {
             activityCenter.stopMonitoring([.zanoLockSession(sessionID)])
         }
         clearActiveLockMirror(endedSessionID: sessionID)
+        lastUnlockedSessionID = sessionID
     }
 
     /// `true` once every id in the session's `requiredGoalIDs` has a verified completion

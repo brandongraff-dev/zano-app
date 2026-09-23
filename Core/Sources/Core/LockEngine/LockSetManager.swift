@@ -38,6 +38,12 @@ public enum LockSetManagerError: Error, Sendable, LocalizedError {
     /// (same folder) — this device's local store is expected to hold exactly one `User` row
     /// (`Models/User.swift`) before any lock set can be created.
     case noSignedInUser
+    /// `createLockSet(name:selection:makeDefault:)` refused: the user is on the Free tier (spec §21
+    /// "Free: ... 1 lock set") and already has as many lock sets as
+    /// `TierGating.canCreateAnotherLockSet(currentCount:)` allows. Never thrown for a Pro user
+    /// (unlimited). A caller such as `LockSetupView` should route this to the paywall rather than
+    /// show a generic save-failed alert — see this task's knownIssues.
+    case freeTierLockSetLimitReached
 
     public var errorDescription: String? {
         switch self {
@@ -49,6 +55,8 @@ public enum LockSetManagerError: Error, Sendable, LocalizedError {
             "Refusing to delete LockSet \(id): it's the only LockSet this user has left."
         case .noSignedInUser:
             "No local User row exists yet."
+        case .freeTierLockSetLimitReached:
+            "You've reached the lock set limit on the Free plan. Upgrade to Pro for unlimited lock sets."
         }
     }
 }
@@ -86,8 +94,11 @@ public final class LockSetManager {
     ///   (`try JSONEncoder().encode(selection)`). Pass `nil` to create an empty lock set the user
     ///   fills in later from the app picker.
     /// - Returns: the new `LockSet.id`.
-    /// - Throws: `LockSetManagerError.nameEmpty`, `.noSignedInUser`, or whatever
-    ///   `ModelContext.save()` throws.
+    /// - Throws: `LockSetManagerError.nameEmpty`, `.noSignedInUser`,
+    ///   `.freeTierLockSetLimitReached` (spec §21 tier gate — checked via
+    ///   `TierGating.canCreateAnotherLockSet(currentCount:)` against the user's existing lock set
+    ///   count; a user's first lock set is always allowed), or whatever `ModelContext.save()`
+    ///   throws.
     @discardableResult
     public func createLockSet(
         name: String,
@@ -97,7 +108,11 @@ public final class LockSetManager {
         let trimmed = try validated(name: name)
         let user = try fetchCurrentUser()
         let blob = try selection.map { try JSONEncoder().encode($0) }
-        let isFirstLockSet = try await lockSets(for: user.id).isEmpty
+        let existingCount = try await lockSets(for: user.id).count
+        guard await TierGating.canCreateAnotherLockSet(currentCount: existingCount) else {
+            throw LockSetManagerError.freeTierLockSetLimitReached
+        }
+        let isFirstLockSet = existingCount == 0
         let shouldDefault = makeDefault || isFirstLockSet
 
         let lockSet = LockSet(userID: user.id, name: trimmed, appTokensBlob: blob, isDefault: shouldDefault)

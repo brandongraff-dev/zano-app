@@ -127,7 +127,7 @@ struct AdaptiveGoalEngineThresholdTests {
         var description: String { name }
     }
 
-    private static let thresholdScenarios: [ThresholdScenario] = [
+    nonisolated static let thresholdScenarios: [ThresholdScenario] = [
         ThresholdScenario(
             name: "7-day rate 4/7 ≈ 57.1% (just under 60%) lowers one step",
             completedWithinTenDayWindow: [0, 1, 2, 3],

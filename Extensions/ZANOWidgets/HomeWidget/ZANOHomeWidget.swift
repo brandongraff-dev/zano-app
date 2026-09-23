@@ -45,24 +45,22 @@ struct ZANOHomeWidgetProvider: TimelineProvider {
             completion(ZANOHomeWidgetEntry(date: .now, snapshot: .placeholder))
             return
         }
-        Task {
-            let snapshot = ZANOWidgetDataStore.loadSnapshot()
-            completion(ZANOHomeWidgetEntry(date: .now, snapshot: snapshot))
-        }
+        // `loadSnapshot()` is a synchronous App Group read, so no Task is needed (and wrapping
+        // WidgetKit's non-Sendable `completion` in one is a Swift 6 data-race error).
+        let snapshot = ZANOWidgetDataStore.loadSnapshot()
+        completion(ZANOHomeWidgetEntry(date: .now, snapshot: snapshot))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ZANOHomeWidgetEntry>) -> Void) {
-        Task {
-            let snapshot = ZANOWidgetDataStore.loadSnapshot()
-            let entry = ZANOHomeWidgetEntry(date: .now, snapshot: snapshot)
-            // Goal/lock/Time Bank state only changes when an App Intent runs (which itself
-            // triggers a timeline reload, per spec §27) or at most once a minute from natural
-            // elapsed-time drift (e.g. "next lock in Nm"), so a 15-minute safety-net refresh
-            // (DeviceActivity's own minimum granularity, spec §27) is a reasonable ceiling.
-            let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: .now)
-                ?? Date.now.addingTimeInterval(15 * 60)
-            completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
-        }
+        let snapshot = ZANOWidgetDataStore.loadSnapshot()
+        let entry = ZANOHomeWidgetEntry(date: .now, snapshot: snapshot)
+        // Goal/lock/Time Bank state only changes when an App Intent runs (which itself
+        // triggers a timeline reload, per spec §27) or at most once a minute from natural
+        // elapsed-time drift (e.g. "next lock in Nm"), so a 15-minute safety-net refresh
+        // (DeviceActivity's own minimum granularity, spec §27) is a reasonable ceiling.
+        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: .now)
+            ?? Date.now.addingTimeInterval(15 * 60)
+        completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 }
 

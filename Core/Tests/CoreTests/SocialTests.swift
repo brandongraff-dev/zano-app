@@ -167,8 +167,8 @@ struct NudgeSenderTests {
         #expect(second.delivered)
         #expect(
             !third.delivered,
-            "spec §8 rule 7: \"Max 2 proactive pushes/day\" — a 3rd nudge the same calendar day " +
-            "must be suppressed, not delivered"
+            Comment(rawValue: "spec §8 rule 7: \"Max 2 proactive pushes/day\" — a 3rd nudge the same calendar day " +
+            "must be suppressed, not delivered")
         )
         // Every attempt still writes a distinct row — spec §9.3's bandit needs to see suppressed
         // attempts, not just delivered ones (see NudgeSendOutcome's doc comment).
@@ -230,8 +230,8 @@ struct NudgeSenderTests {
         let nextDayOutcome = try await sender.send(arm: sampleArm(), on: day2)
         #expect(
             nextDayOutcome.delivered,
-            "the 2/day cap is evaluated per local calendar day, so a nudge on the following day " +
-            "must not be suppressed by yesterday's count"
+            Comment(rawValue: "the 2/day cap is evaluated per local calendar day, so a nudge on the following day " +
+            "must not be suppressed by yesterday's count")
         )
     }
 
@@ -488,8 +488,8 @@ struct DuelManagerTests {
 
         #expect(
             updated.aPoints == 2,
-            "only verified .complete/.planB events inside [startDate, now] score — CLAUDE.md's " +
-            "additive-goals rule means a duel point is only ever a real, verified completion"
+            Comment(rawValue: "only verified .complete/.planB events inside [startDate, now] score — CLAUDE.md's " +
+            "additive-goals rule means a duel point is only ever a real, verified completion")
         )
         #expect(updated.bPoints == 0, "this device can only ever compute its own signed-in user's side locally")
     }
@@ -809,9 +809,9 @@ struct ReferralManagerTests {
         #expect(result.refereeFreezeGranted)
         #expect(
             result.referrerFreezeGranted,
-            "spec §4 v2: \"invite a friend → both get a streak freeze\" — the referrer's grant " +
+            Comment(rawValue: "spec §4 v2: \"invite a friend → both get a streak freeze\" — the referrer's grant " +
             "flag must round-trip even though this device applies its own half locally and the " +
-            "referrer's half is credited server-side (see ReferralManager's header comment)"
+            "referrer's half is credited server-side (see ReferralManager's header comment)")
         )
 
         // This device's own (the referee's) half must actually be credited locally — not just
@@ -819,8 +819,8 @@ struct ReferralManagerTests {
         let freezesLeft = try fetchFreezesLeft(in: container, userID: userID)
         #expect(
             freezesLeft == 2,
-            "Streak.init defaults freezesLeft to 1; redeeming a valid code that grants the " +
-            "referee a freeze should credit exactly one more"
+            Comment(rawValue: "Streak.init defaults freezesLeft to 1; redeeming a valid code that grants the " +
+            "referee a freeze should credit exactly one more")
         )
         #expect(try fetchReferredBy(in: container, userID: userID) == referrerID)
     }

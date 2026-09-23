@@ -30,7 +30,7 @@ struct ZANOLockToggleControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.zano.app.control.lockToggle") {
             ControlWidgetToggle(
-                LocalizedStringResource(stringLiteral: WidgetCopy.controlLockToggleTitle),
+                WidgetCopy.controlLockToggleTitle,
                 isOn: SharedDefaults.activeLockSessionID != nil,
                 action: ZANOSetLockStateIntent()
             ) { isLocked in

@@ -123,7 +123,7 @@ public final class PaywallViewModel {
 
     private let revenueCat: RevenueCatManager
     private let modelContainer: ModelContainer
-    private lazy var modelContext = ModelContext(modelContainer)
+    @ObservationIgnored private lazy var modelContext = ModelContext(modelContainer)
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "PaywallViewModel")
 
     /// - Parameters:

@@ -82,8 +82,8 @@ import os
 /// file scope (not inside the `#if canImport(AlarmKit)` block below) because `AppIntent` itself
 /// ships independently of AlarmKit — this type compiles and is inert on every iOS version.
 public struct SunriseAlarmOpenAppIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Open ZANO"
-    public static var openAppWhenRun: Bool = true
+    public static let title: LocalizedStringResource = "Open ZANO"
+    public static let openAppWhenRun: Bool = true
 
     public init() {}
 
@@ -180,7 +180,7 @@ public final class SunriseAlarmManager {
             self.enabled = enabled
         }
 
-        fileprivate static func defaultTime(hour: Int, minute: Int) -> Date {
+        public static func defaultTime(hour: Int, minute: Int) -> Date {
             var components = Calendar.current.dateComponents([.year, .month, .day], from: .now)
             components.hour = hour
             components.minute = minute

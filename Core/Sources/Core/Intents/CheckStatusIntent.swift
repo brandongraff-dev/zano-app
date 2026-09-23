@@ -31,7 +31,7 @@ public struct CheckStatusIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     public init() {}
 

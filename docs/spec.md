@@ -318,8 +318,8 @@ Target: 10–14 screens, under 3 minutes, paywall at peak motivation. Every scre
 9. **Wake-up moment** — Compute: "At 5h/day, that's ~76 days a year on your phone." Then: "Earning even 2h back = 30 days a year." Animated counter.
 10. **Plan reveal** — "Your Lock-In Plan": locked apps, goals, schedule, starting difficulty (deliberately below stated target). Looks bespoke. "Built for you in 2:14."
 11. **Commitment** — "Hold to commit" 2-second press with haptics. Records `committed_at`.
-12. **Permission priming** — Notifications (one screen: "We'll only nudge when it matters"). Location and Health are requested later, at gym setup, not here.
-13. **Paywall** — Free trial (7 days) with "we'll remind you 2 days before it ends." Annual highlighted. Clear "Continue with limited free" option below (1 goal, 1 lock set). See §21.
+12. **Paywall (hard)** — Sits directly after Commitment, at peak motivation. Free trial (7 days) with "we'll remind you 2 days before it ends." Annual highlighted. **There is no free path: the app cannot be used without starting the trial or subscribing** (decision 2026-09-23, replaces the earlier "Continue with limited free" option). Must show a restore-purchases link and a dated trial timeline. See §21.
+13. **Permission priming** — Notifications (one screen: "We'll only nudge when it matters"). Moved after the paywall (decision 2026-09-23) so nothing sits between the peak and the payment ask. Location and Health are requested later, at gym setup, not here.
 14. **First win** — "Start your first lock now. 10-minute focus to unlock." Immediate loop completion. Streak = Day 1. Confetti. Prompt to add the Home Screen widget with an animated guide.
 
 Post-onboarding drip (Day 0–3 pushes): widget added? gym saved? NFC tag ordered/created? first squad invite?
@@ -562,7 +562,7 @@ Use image generation for **direction**, not final pixels. Generate 4–6 variant
 > iPhone screen "Your Lock-In Plan" shown as a bespoke card: locked apps row with icons, goals list (Gym 3x/week, Protein 150g, Focus 50 min), schedule "Locks at 7:00 AM", difficulty tag "Starting easy on purpose", a hold-to-commit button at the bottom with a progress outline. [style paragraph]
 
 **P5 — Paywall**
-> iPhone paywall for a discipline app: headline "Earn your phone back", three benefit rows with icons (Unlimited goals & lock sets, Adaptive plan that learns you, Squads & duels), annual plan card highlighted "$39.99/yr · 7 days free", monthly option smaller, note "We'll remind you before your trial ends", subtle "Continue with limited free" text link. [style paragraph]
+> iPhone paywall for a discipline app: headline "Earn your phone back", three benefit rows with icons (Unlimited goals & lock sets, Adaptive plan that learns you, Squads & duels), annual plan card highlighted "$39.99/yr · 7 days free", monthly option smaller, note "We'll remind you before your trial ends", a restore-purchases text link (no free-path link: hard paywall, decision 2026-09-23). [style paragraph]
 
 **P6 — Widgets**
 > Apple Home Screen with a medium widget for a discipline app: three small rings and three buttons "+25g", "+500ml", "Start Focus"; and a small widget showing "Locked · 2 goals left · 14🔥". Also show a Lock Screen with circular ring widgets. [style paragraph]
@@ -738,9 +738,10 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 ## 21. Monetization & Paywall
 
-**Tiers**
-- **Free:** 1 goal, 1 lock set, manual/NFC lock, basic widget, 1 streak freeze/week.
-- **Pro:** unlimited goals & lock sets, schedules, adaptive plan, Earn Mode, protein photo AI, recaps, squads/duels, 3 freezes, cosmetics.
+**Model: hard paywall (decision 2026-09-23).** There is no free tier. Every user starts the 7-day trial or subscribes before reaching the app; the earlier Free tier (1 goal, 1 lock set, ...) and the "Continue with limited free" path are removed.
+- **Subscriber (trial or paid):** unlimited goals & lock sets, schedules, adaptive plan, Earn Mode, protein photo AI, recaps, squads/duels, 3 freezes, cosmetics.
+- **Safety interaction — a lapsed subscription must never trap the user.** If a subscription ends or is refunded while a lock is active, shields must be released (or at minimum the emergency unlock must keep working with no entitlement check). Never leave someone locked out of their phone because of a billing state. Enforced in `LockEngine`, not just in UI.
+- **App Review:** hard paywalls with a free trial are allowed; reviewers must be able to reach the app via a demo account or sandbox purchase (see `docs/setup/app-review-notes.md`). A free path is not required.
 - Price tests (RevenueCat/Superwall): $6.99/mo, $39.99/yr (highlight), $59.99 lifetime (test only). Start higher than feels comfortable; lower if conversion is weak.
 - 7-day trial with pre-expiry reminder (trust + fewer refunds). Test 3-day vs 7-day.
 
@@ -748,7 +749,7 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 **Never sell:** unlocks, streak restores, or anything that lets money bypass the goal. The moment you do, the product's promise breaks.
 
-**Paywall copy rules:** benefits in the user's words from onboarding; show the plan they built; social proof; clear free path; no dark patterns.
+**Paywall copy rules:** benefits in the user's words from onboarding; show the plan they built; social proof; a clear dated trial timeline (today / reminder / charge date) and a visible restore-purchases link; no dark patterns (no fake countdowns, no "now or never" post-close discount screens, no guilt copy). Hard paywall is not a dark pattern as long as the terms are shown up front.
 
 ---
 

@@ -24,7 +24,7 @@ public struct LogWaterIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Milliliters", description: "Milliliters of water.", default: 750)
     public var milliliters: Int

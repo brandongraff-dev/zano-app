@@ -35,7 +35,7 @@ import os
 /// visually-ambiguous set removed (`0`/`O`, `1`/`I`/`L`) so a code read aloud, hand-typed, or
 /// shown on a Share Card (docs/spec.md §5.14) doesn't get miskeyed.
 private let referralCodeAlphabet: [Character] = Array("ABCDEFGHJKMNPQRSTUVWXYZ23456789")
-private let referralCodeLength = 7
+public let referralCodeLength = 7
 
 // MARK: - Errors
 

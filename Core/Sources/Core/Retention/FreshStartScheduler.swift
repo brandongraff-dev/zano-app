@@ -173,7 +173,7 @@ public final class FreshStartScheduler {
     /// depending on the user's Region setting) — spec's holiday list and "the 1st"/"Mondays" rules
     /// are Gregorian-calendar concepts, and computing them against e.g. a Buddhist or Hebrew
     /// calendar identifier would silently produce the wrong dates. `.current` time zone only.
-    private static let defaultCalendar: Calendar = {
+    nonisolated public static let defaultCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         return calendar

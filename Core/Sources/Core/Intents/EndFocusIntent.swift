@@ -37,7 +37,7 @@ public struct EndFocusIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     /// The `UUID` `StartFocusIntent`/`FocusSessionVerifier.startSession` returned, as a string
     /// (AppIntents' native `@Parameter` types don't include a raw `UUID` — see this task's

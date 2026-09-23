@@ -27,7 +27,7 @@ public enum LockModeOption: String, AppEnum, Sendable {
         TypeDisplayRepresentation(name: "Lock Mode")
     }
 
-    public static var caseDisplayRepresentations: [LockModeOption: DisplayRepresentation] = [
+    public static let caseDisplayRepresentations: [LockModeOption: DisplayRepresentation] = [
         .full: DisplayRepresentation(
             title: "Full Lock",
             subtitle: "Apps stay shielded until every required goal is verified."
@@ -57,7 +57,7 @@ public struct StartLockIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     /// Which saved `LockSet` to apply. Defaults to the user's default lock set
     /// (`LockSet.isDefault`, spec §13) when left unspecified — the common case for the "Lock in

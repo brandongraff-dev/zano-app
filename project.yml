@@ -166,6 +166,8 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOWidgets
+    dependencies:
+      - package: Core
     info:
       path: Extensions/ZANOWidgets/Info.plist
       properties:
@@ -182,6 +184,8 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOShieldConfig
+    dependencies:
+      - package: Core
     info:
       path: Extensions/ZANOShieldConfig/Info.plist
       properties:
@@ -200,6 +204,8 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOShieldAction
+    dependencies:
+      - package: Core
     info:
       path: Extensions/ZANOShieldAction/Info.plist
       properties:

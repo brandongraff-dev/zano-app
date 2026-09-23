@@ -23,7 +23,7 @@ public struct OpenTodayIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = true
+    public static let openAppWhenRun: Bool = true
 
     public init() {}
 

@@ -26,7 +26,7 @@ public struct QuickRepeatMealIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Meal", description: "Which remembered meal to log again.")
     public var meal: MealEntity

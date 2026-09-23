@@ -30,7 +30,7 @@ public enum EndLockReason: String, AppEnum, Sendable {
         TypeDisplayRepresentation(name: "Unlock Reason")
     }
 
-    public static var caseDisplayRepresentations: [EndLockReason: DisplayRepresentation] = [
+    public static let caseDisplayRepresentations: [EndLockReason: DisplayRepresentation] = [
         .goalsComplete: DisplayRepresentation(title: "Goals Complete"),
         .scheduleEnd: DisplayRepresentation(title: "Schedule Ended"),
     ]
@@ -53,7 +53,7 @@ public struct EndLockIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Reason", default: .goalsComplete)
     public var reason: EndLockReason

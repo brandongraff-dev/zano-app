@@ -36,7 +36,7 @@ public struct SunriseKeyIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Tag ID", description: "The scanned Sunrise Tag's identifier.")
     public var tagId: String

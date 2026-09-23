@@ -30,7 +30,7 @@ public struct LogProteinIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Grams", description: "Grams of protein.", default: 25)
     public var grams: Double

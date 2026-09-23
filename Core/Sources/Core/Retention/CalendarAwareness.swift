@@ -92,7 +92,7 @@ public final class CalendarAwareness {
     /// holidays, birthdays) are excluded from the count: they don't represent the back-to-back-
     /// meetings crunch spec means by "packed," and counting them would flag a day as packed for a
     /// reason that has nothing to do with how little free time the user actually has.
-    public static let packedDayEventThreshold = 5
+    nonisolated public static let packedDayEventThreshold = 5
 
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "CalendarAwareness")
 

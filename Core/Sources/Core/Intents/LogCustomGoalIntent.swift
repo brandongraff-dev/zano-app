@@ -27,7 +27,7 @@ public struct LogCustomGoalIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Goal", description: "Which custom goal to log.")
     public var goal: GoalEntity

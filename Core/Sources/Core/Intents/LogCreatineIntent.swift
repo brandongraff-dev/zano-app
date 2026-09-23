@@ -28,7 +28,7 @@ public struct LogCreatineIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Source", default: .manual)
     public var source: GoalLogSource

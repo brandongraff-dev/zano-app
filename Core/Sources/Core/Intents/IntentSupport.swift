@@ -204,7 +204,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
         TypeDisplayRepresentation(name: "Log Source")
     }
 
-    public static var caseDisplayRepresentations: [GoalLogSource: DisplayRepresentation] = [
+    public static let caseDisplayRepresentations: [GoalLogSource: DisplayRepresentation] = [
         .nfc: DisplayRepresentation(title: "NFC Tap"),
         .widget: DisplayRepresentation(title: "Widget"),
         .manual: DisplayRepresentation(title: "Manual"),
@@ -248,7 +248,7 @@ public struct LockSetEntity: AppEntity {
         TypeDisplayRepresentation(name: "Lock Set")
     }
 
-    public static var defaultQuery = LockSetQuery()
+    public static let defaultQuery = LockSetQuery()
 }
 
 /// `EntityQuery` backing `LockSetEntity`. Written from training knowledge of the AppIntents
@@ -292,7 +292,7 @@ public struct GoalEntity: AppEntity {
         TypeDisplayRepresentation(name: "Goal")
     }
 
-    public static var defaultQuery = GoalQuery()
+    public static let defaultQuery = GoalQuery()
 }
 
 public struct GoalQuery: EntityQuery, EnumerableEntityQuery {
@@ -338,7 +338,7 @@ public struct MealEntity: AppEntity {
         TypeDisplayRepresentation(name: "Meal")
     }
 
-    public static var defaultQuery = MealQuery()
+    public static let defaultQuery = MealQuery()
 }
 
 public struct MealQuery: EntityQuery, EnumerableEntityQuery {

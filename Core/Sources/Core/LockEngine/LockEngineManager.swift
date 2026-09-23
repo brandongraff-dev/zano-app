@@ -119,7 +119,7 @@ extension ManagedSettingsStore.Name {
     /// active (spec §2, §11). A named store (rather than the default, unnamed one) keeps ZANO's
     /// managed settings scoped to this one purpose, so `clearAllSettings()` can fully reset the
     /// shield without risk of touching settings some other store/feature might set later.
-    public static let zanoLock = Self("com.zano.app.lockEngine")
+    public nonisolated(unsafe) static let zanoLock = Self("com.zano.app.lockEngine")
 }
 
 extension DeviceActivityName {

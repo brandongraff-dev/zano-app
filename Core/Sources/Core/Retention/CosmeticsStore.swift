@@ -234,7 +234,7 @@ public final class CosmeticsStore {
     // MARK: Dependencies
 
     private let modelContainer: ModelContainer
-    private lazy var context = ModelContext(modelContainer)
+    @ObservationIgnored private lazy var context = ModelContext(modelContainer)
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "CosmeticsStore")
 
     /// Separate App-Group `UserDefaults` instance — see this file's header ("Why cosmetic

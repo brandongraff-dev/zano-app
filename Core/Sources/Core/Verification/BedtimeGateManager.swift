@@ -120,7 +120,7 @@ public enum BedtimeGateError: Error, Sendable, LocalizedError {
 extension DeviceActivityName {
     /// The recurring daily `DeviceActivityCenter` registration for the Bedtime Gate's auto-arm —
     /// see this file's header comment for the `ZANOMonitor` wiring this name is meant for.
-    static let zanoBedtimeGate = DeviceActivityName("com.zano.app.bedtimeGate")
+    nonisolated(unsafe) static let zanoBedtimeGate = DeviceActivityName("com.zano.app.bedtimeGate")
 }
 
 // MARK: - BedtimeGateManager

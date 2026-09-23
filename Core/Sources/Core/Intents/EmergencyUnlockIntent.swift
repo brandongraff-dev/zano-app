@@ -37,9 +37,9 @@ public struct EmergencyUnlockIntent: AppIntent {
 
     /// Kept out of Siri/Shortcuts suggestions and search — see the file header. Still callable
     /// directly by the in-app hold-to-confirm view and by a shield notification action.
-    public static var isDiscoverable: Bool = false
+    public static let isDiscoverable: Bool = false
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     public init() {}
 

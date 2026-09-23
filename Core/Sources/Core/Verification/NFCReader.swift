@@ -235,8 +235,7 @@ public final class NFCReader: NSObject {
 // trust is backed by `queue: .main` above rather than being a bare assumption. Without it, Swift 6
 // strict concurrency refuses to let a `@MainActor` type conform to a non-isolated ObjC protocol
 // with non-`nonisolated` method bodies.
-@preconcurrency
-extension NFCReader: NFCNDEFReaderSessionDelegate {
+extension NFCReader: @preconcurrency NFCNDEFReaderSessionDelegate {
     public func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
         for message in messages {
             for record in message.records {

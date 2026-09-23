@@ -26,7 +26,7 @@ public struct StartFocusIntent: AppIntent {
         )
     }
 
-    public static var openAppWhenRun: Bool = false
+    public static let openAppWhenRun: Bool = false
 
     /// Matches the 25/50/90-minute presets from spec §3, defaulting to 25. Any positive value is
     /// accepted — the presets are a UI convenience (App-owned), not a hard constraint here.

@@ -78,11 +78,24 @@ struct ZANOApp: App {
         // may be waiting on the phone to wake it)"). Safe to call repeatedly and on a device with
         // no watch support; returns immediately (the work runs on the main actor afterwards).
         WatchSyncManager.shared.activate()
+
+        // CI screenshot gallery (ScreenshotGallery.swift). Inert unless `-ZANOScreen <name>` is passed,
+        // which no user launch ever does.
+        if let name = ScreenshotMode.screen { ScreenshotMode.prepare(screen: name) }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if let name = ScreenshotMode.screen {
+            ScreenshotHost(name: name)
+        } else {
+            ContentView()
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootContent
                 // `AppRouter` is a singleton (see its header for why); views read it from the
                 // environment rather than reaching for the global.
                 .environment(AppRouter.shared)

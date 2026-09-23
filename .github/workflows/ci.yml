@@ -97,11 +97,39 @@ jobs:
           xcrun simctl install "$SIM_ID" "$APP"
           xcrun simctl launch "$SIM_ID" com.zano.app || echo "LAUNCH FAILED"
           sleep 8
-          xcrun simctl io "$SIM_ID" screenshot shots/01-first-launch.png
+          xcrun simctl io "$SIM_ID" screenshot shots/00-plain-launch.png
+          # One launch per screen: -ZANOScreen <name> is read by ScreenshotGallery.swift, which seeds
+          # demo data and renders that screen through the real code paths.
+          SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7
+                   onboarding-8 onboarding-9 onboarding-10 onboarding-11 onboarding-12 onboarding-13 onboarding-14
+                   paywall tab-today tab-lock tab-fuel tab-progress tab-settings
+                   locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing"
+          for SCREEN in $SCREENS; do
+            xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
+            xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"
+            sleep 5
+            xcrun simctl io "$SIM_ID" screenshot "shots/$SCREEN.png"
+          done
           xcrun simctl spawn "$SIM_ID" log show --style compact --last 3m \
             --predicate 'process == "ZANO"' > shots/app.log 2>&1 || true
           cp ~/Library/Logs/DiagnosticReports/ZANO* shots/ 2>/dev/null || true
           ls -la shots
+
+      # The simulator build itself, for interactive use (e.g. upload the zip to Appetize.io and click
+      # through it in a browser). Not a device build: it cannot be installed on a real iPhone.
+      - name: Package simulator build
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          cd build/DerivedData/Build/Products/Debug-iphonesimulator
+          zip -r -q "$GITHUB_WORKSPACE/ZANO-simulator.zip" ZANO.app
+
+      - name: Upload simulator build
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZANO-simulator-build
+          path: ZANO-simulator.zip
+          if-no-files-found: ignore
 
       - name: Upload screenshots
         if: always()

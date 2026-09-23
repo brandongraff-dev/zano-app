@@ -54,7 +54,16 @@ struct OnboardingContainerView: View {
     /// view compiles and behaves standalone (e.g. in `#Preview`).
     var onFinished: () -> Void = {}
 
-    @State private var flowState = OnboardingFlowState()
+    @State private var flowState: OnboardingFlowState
+
+    /// `initialScreen` exists so the CI screenshot gallery (`ScreenshotGallery.swift`) can photograph
+    /// any of the 14 screens directly; every real caller leaves it at the first screen.
+    init(onFinished: @escaping () -> Void = {}, initialScreen: Int = OnboardingFlowState.firstScreen) {
+        self.onFinished = onFinished
+        let state = OnboardingFlowState()
+        state.currentScreen = initialScreen
+        _flowState = State(initialValue: state)
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {

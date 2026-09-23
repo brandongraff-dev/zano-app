@@ -28,19 +28,59 @@ jobs:
         run: xcodegen generate
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Build Core package tests
-        run: swift test --package-path Core
-
-      - name: Build ZANO app (Simulator, compile check only)
         run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          swift --version
+
+      # Everything here targets the iOS Simulator SDK. `swift test --package-path Core` was the
+      # original step and cannot work: it builds for the macOS host, where iOS-only frameworks
+      # (ActivityKit, FamilyControls, ...) do not exist. Core declares platforms: [.iOS(.v17)].
+      #
+      # Failures are NOT hidden: no `|| true`. Full logs are uploaded, and the summary step prints
+      # a deduplicated error list so a failing run can be diagnosed from `gh run view --log`.
+      - name: Build ZANO app (iOS Simulator; compiles Core and every extension target)
+        id: build
+        run: |
+          set -o pipefail
           xcodebuild -project ZANO.xcodeproj -scheme ZANO \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
-            build | xcpretty || true
-        # Not fatal yet: extension-target Info.plist/entitlement values are unverified (see
-        # project.yml header comment) until the first real Mac session fixes them. Remove the
-        # `|| true` once Session 0 is confirmed green on a real Mac build — see docs/PROGRESS.md.
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log
+
+      - name: Run Core unit tests (iOS Simulator)
+        id: tests
+        if: always()
+        working-directory: Core
+        run: |
+          set -o pipefail
+          SIM_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
+          echo "Using simulator $SIM_ID"
+          xcodebuild test -scheme Core \
+            -destination "id=$SIM_ID" \
+            -derivedDataPath ../build/DerivedDataTests \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../test.log
+
+      - name: Summarize errors (deduplicated)
+        if: always()
+        run: |
+          for f in build.log test.log; do
+            [ -f "$f" ] || continue
+            echo "=================== $f: unique errors ==================="
+            grep -E "error:" "$f" | sed -E 's|^.*/zano-app/zano-app/||' | sort -u | head -150
+            echo "--- total 'error:' lines: $(grep -cE 'error:' "$f")  unique: $(grep -E 'error:' "$f" | sort -u | wc -l)"
+          done
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build.log
+            test.log
+          if-no-files-found: ignore
 
   testflight:
     # Gated off by default — this job now runs a real lane (fastlane/Fastfile's `beta`), but every

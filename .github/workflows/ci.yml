@@ -62,6 +62,55 @@ jobs:
             -derivedDataPath ../build/DerivedDataTests \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../test.log
 
+      # Boots a simulator, installs the freshly built app, launches it and photographs the result.
+      # continue-on-error: a launch crash or a missing screen must never mask the build/test result.
+      # Everything lands in shots/ (screenshots, the app's own log, any crash reports) so a failed
+      # launch is diagnosable without a Mac.
+      - name: Screenshot tour (iOS Simulator)
+        id: shots
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          mkdir -p shots
+          APP=$(find build/DerivedData/Build/Products -maxdepth 3 -name "ZANO.app" | head -1)
+          echo "APP=$APP"
+          SIM_ID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['devices']
+          def ver(k):
+              import re
+              m = re.search(r'iOS-(\d+)-(\d+)', k)
+              return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          runtimes = sorted((k for k in data if 'iOS' in k), key=ver, reverse=True)
+          for k in runtimes:
+              phones = [d for d in data[k] if d['name'].startswith('iPhone')]
+              pro = [d for d in phones if d['name'].endswith(' Pro')]
+              pick = (pro or phones)
+              if pick:
+                  print(pick[0]['udid']); break
+          ")
+          echo "Simulator: $SIM_ID"
+          xcrun simctl list devices | grep "$SIM_ID" || true
+          xcrun simctl boot "$SIM_ID" || true
+          xcrun simctl bootstatus "$SIM_ID" -b
+          xcrun simctl status_bar "$SIM_ID" override --time "9:41" --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$SIM_ID" "$APP"
+          xcrun simctl launch "$SIM_ID" com.zano.app || echo "LAUNCH FAILED"
+          sleep 8
+          xcrun simctl io "$SIM_ID" screenshot shots/01-first-launch.png
+          xcrun simctl spawn "$SIM_ID" log show --style compact --last 3m \
+            --predicate 'process == "ZANO"' > shots/app.log 2>&1 || true
+          cp ~/Library/Logs/DiagnosticReports/ZANO* shots/ 2>/dev/null || true
+          ls -la shots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots
+          if-no-files-found: ignore
+
       - name: Summarize errors (deduplicated)
         if: always()
         run: |

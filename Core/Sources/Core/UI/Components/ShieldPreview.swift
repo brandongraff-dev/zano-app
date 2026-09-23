@@ -22,6 +22,23 @@
 // unlock path. Never trap the user." `emergencyActionTitle`/`emergencyAction` are non-optional by
 // design below, so it is impossible to construct a `ShieldPreview` without one — the compiler
 // enforces the safety rule, not just a convention.
+//
+// Design-quality pass (docs/design/{better-ui DEP-06,typography-color T10/C,composition-audit 5.6,
+// competitive-research 3.3}). This is the app's most-seen surface (every blocked-app attempt), and
+// it was a flat black rectangle with a 96pt grey circle and a 22pt title:
+//
+//   * It has a backdrop: a faint static `danger` glow from the top (`zanoBackdrop`), so the screen
+//     reads as "blocked" from across the room. Static — no animated blur or radius.
+//   * The headline is a focal message (`titleLarge`, 28pt), and it wraps instead of truncating. A
+//     subline that opens with a number ("1 goal left · Streak 14") leads with that number as a
+//     numeral — the one sec finding is that the *count* is what changes behaviour, not persuasive
+//     prose (competitive-research 3.3) — with the rest as a quiet unit line.
+//   * The lock badge label was `text` on `danger` (#F5F5F7 on #FF453A: 3.13:1, fails AA); it is
+//     `onFill` now (5.8:1). The glyph disc has a lit edge instead of a bare 1.08:1 fill.
+//   * The Emergency affordance is the control the "never trap the user" rule most depends on, and
+//     it was the smallest, dimmest text on the screen (13pt `muted`). It is `body` in
+//     `textSecondary` (still low-emphasis, per the P2 mockup's "small text"), with a full 44x44pt
+//     target and a press state.
 
 import SwiftUI
 
@@ -107,15 +124,14 @@ public struct ShieldPreview: View {
 
             VStack(spacing: Theme.Spacing.xs) {
                 Text(headline)
-                    .font(Theme.Typography.title)
+                    .zanoText(.titleLarge)
                     .foregroundStyle(Theme.Colors.text)
                     .multilineTextAlignment(.center)
+                    // Wrap, never truncate: the headline is the message.
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let subline {
-                    Text(subline)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .multilineTextAlignment(.center)
+                    sublineView(subline)
                 }
             }
             .padding(.horizontal, Theme.Spacing.xl)
@@ -125,32 +141,44 @@ public struct ShieldPreview: View {
 
             Spacer(minLength: Theme.Spacing.xl)
 
-            VStack(spacing: Theme.Spacing.md) {
+            VStack(spacing: Theme.Spacing.xs) {
                 if let primaryActionTitle, let primaryAction {
                     PrimaryButton(title: primaryActionTitle, action: primaryAction)
                 }
 
                 Button(action: emergencyAction) {
                     Text(emergencyActionTitle)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .underline()
-                        // The visual (intentionally small/low-emphasis text) stays exactly as
-                        // designed; only the tappable area grows to HIG's 44×44pt minimum —
-                        // this is the one button the "never trap the user" safety rule (file
-                        // header) most depends on being easy to hit. See
-                        // `docs/design/ui-stress-test-findings.md` §3.9.
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        // The visual (intentionally low-emphasis text) stays exactly as designed;
+                        // the tappable area is a full 44x44pt — this is the one button the "never
+                        // trap the user" safety rule (file header) most depends on being easy to
+                        // hit. See `docs/design/ui-stress-test-findings.md` §3.9.
+                        .minTapTarget()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle(scale: 0.96))
             }
             .padding(.horizontal, Theme.Spacing.xl)
             .padding(.bottom, Theme.Spacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.Colors.background)
+        .zanoBackdrop(glow: Theme.Colors.danger, intensity: 0.12)
         .onAppear { hasAppeared = true }
+    }
+
+    /// A subline that opens with a number leads with it as a numeral ("1" big, "goal left · Streak
+    /// 14" quiet); any other subline is plain paragraph text.
+    @ViewBuilder
+    private func sublineView(_ subline: String) -> some View {
+        if NumeralText.hasNumeral(subline) {
+            NumeralText(subline, size: .medium)
+        } else {
+            Text(subline)
+                .zanoText(.paragraph)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+        }
     }
 
     /// Under Reduce Motion, every element below fades on the *same* short curve with no delay —
@@ -160,13 +188,19 @@ public struct ShieldPreview: View {
     private var reducedMotionReveal: Animation { .easeInOut(duration: 0.15) }
 
     private var iconBadge: some View {
-        ZStack(alignment: .bottomTrailing) {
+        let diameter = Theme.Metrics.iconBadgeLarge
+        let lockDiameter = diameter * 0.38
+
+        return ZStack(alignment: .bottomTrailing) {
             Circle()
                 .fill(Theme.Colors.surface2)
-                .frame(width: 96, height: 96)
+                .overlay(
+                    Circle().strokeBorder(Theme.Colors.edgeGradient(), lineWidth: Theme.Metrics.edgeWidth)
+                )
+                .frame(width: diameter, height: diameter)
                 .overlay(
                     Image(systemName: glyph.systemImage)
-                        .font(.system(size: 36, weight: .medium))
+                        .font(.system(size: diameter * 0.4, weight: .medium))
                         .foregroundStyle(Theme.Colors.muted)
                 )
                 .scaleEffect(reduceMotion || hasAppeared ? 1 : 0.8)
@@ -175,13 +209,16 @@ public struct ShieldPreview: View {
 
             Circle()
                 .fill(Theme.Colors.danger)
-                .frame(width: 34, height: 34)
+                .frame(width: lockDiameter, height: lockDiameter)
                 .overlay(
+                    // `onFill`, not `text`: #F5F5F7 on danger is 3.13:1 (fails AA); `background` is
+                    // 5.8:1.
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Theme.Colors.text)
+                        .font(.system(size: lockDiameter * 0.44, weight: .bold))
+                        .foregroundStyle(Theme.Colors.onFill)
                 )
-                .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))
+                // A cut-out ring in the page colour separates the badge from the disc behind it.
+                .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: Theme.Spacing.xxs))
                 // The lock "lands" on the badge a beat after it — delayed by 150ms under normal
                 // motion; under Reduce Motion this collapses to the same un-delayed cross-fade as
                 // everything else, not a staggered arrival.
@@ -192,5 +229,19 @@ public struct ShieldPreview: View {
                     value: hasAppeared
                 )
         }
+        .accessibilityHidden(true)
     }
+}
+
+#Preview("ShieldPreview") {
+    ShieldPreview(
+        glyph: ShieldPreviewGlyph(systemImage: "play.tv.fill", caption: "TikTok"),
+        headline: "TikTok unlocks after your workout",
+        subline: "1 goal left · Streak 14",
+        primaryActionTitle: "Show my goals",
+        primaryAction: {},
+        emergencyActionTitle: "Emergency",
+        emergencyAction: {}
+    )
+    .preferredColorScheme(.dark)
 }

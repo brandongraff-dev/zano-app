@@ -32,7 +32,9 @@ extension Copy {
 
         // Protein Gap Planner (spec §5.20)
         public static let gapPlannerTitle = "Protein Gap Planner"
-        public static func gapPlannerSubtitle(gapGrams: Int) -> String { "You're \(gapGrams)g behind today" }
+        /// Additive framing (spec §24 disordered-eating-safe copy): grams still to reach, never a
+        /// deficit word like "behind".
+        public static func gapPlannerSubtitle(gapGrams: Int) -> String { "\(gapGrams)g to go today" }
         public static let gapOptionStapleTitle = "From your kitchen"
         public static let gapOptionRestaurantTitle = "Nearby restaurant"
         public static let gapOptionRestaurantDetail = "Find something high-protein close by"
@@ -49,7 +51,7 @@ extension Copy {
 
         // Barcode scan (VisionKit DataScannerViewController)
         public static let barcodeScanButtonLabel = "Scan barcode"
-        public static let barcodeScanTitle = "Scan Barcode"
+        public static let barcodeScanTitle = "Scan barcode"
         public static let barcodeScanInstructions = "Point your camera at a barcode"
         public static let barcodeManualEntryTitle = "Enter barcode manually"
         public static let barcodeManualEntryFieldLabel = "Barcode number"
@@ -65,15 +67,16 @@ extension Copy {
         public static let barcodeLogButtonLabel = "Log this"
         public static let barcodeRetryButtonLabel = "Try again"
         public static let barcodeErrorInvalidBarcode = "That doesn't look like a valid barcode."
-        public static let barcodeErrorProductNotFound = "Couldn't find that product."
-        public static let barcodeErrorNoNutritionData = "That product has no protein data on file."
+        public static let barcodeErrorProductNotFound =
+            "Couldn't find that product. Try scanning again or log the protein by hand."
+        public static let barcodeErrorNoNutritionData = "No protein data for this product. Log it by hand."
         public static let barcodeErrorTransport = "Couldn't reach the product database — try again."
 
         // Kitchen Staples (spec §5.20, §10)
         public static let kitchenStaplesSectionTitle = "Kitchen Staples"
-        public static let kitchenStaplesEmptyMessage = "Save a few go-to high-protein foods so the gap planner can suggest them first."
+        public static let kitchenStaplesEmptyMessage = "Save a few high-protein foods you eat often so the gap planner can suggest them first."
         public static let kitchenStapleAddButtonLabel = "Add"
-        public static let kitchenStapleAddSheetTitle = "Add Kitchen Staple"
+        public static let kitchenStapleAddSheetTitle = "Add a kitchen staple"
         public static let kitchenStapleNameFieldLabel = "Name"
         public static let kitchenStapleProteinFieldLabel = "Protein (g)"
         public static let kitchenStapleSaveFailedTitle = "Couldn't save that staple"

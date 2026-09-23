@@ -31,6 +31,14 @@
 // stored property, doc comments), never plain `body` — `View`'s own required `var body: some
 // View` already owns that exact name on this type, and a second, differently-typed member called
 // `body` is an invalid redeclaration, not just a style nit.
+//
+// Design-quality pass (docs/design/{better-ui HIT-01,better-layout 3.2,typography-color C7}): both
+// of this card's controls were below the 44pt target — the dismiss × was ~23pt (a bare 11pt glyph
+// with 6pt of padding) and the CTA was 13pt accent text with no shape (~16pt). The × keeps its small
+// visual and grows only its target; the CTA is a bordered secondary capsule, 44pt tall. The card is
+// a `zanoCard` (real edge, not a 1.06:1 hairline), the video badge is a neutral `IconBadge` (accent
+// means earned/CTA, not decoration), and the container is `.contain` rather than `.combine` so
+// VoiceOver can reach the two buttons instead of reading one merged label with no actions.
 
 import SwiftUI
 
@@ -85,25 +93,23 @@ public struct FounderSeriesCard: View {
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
             iconBadge
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                Text(headline)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(headline)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                        .multilineTextAlignment(.leading)
 
-                Text(bodyText)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(3)
+                    Text(bodyText)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(3)
+                }
 
                 if let ctaLabel, let onTapCTA {
-                    Button(action: onTapCTA) {
-                        Text(ctaLabel)
-                            .font(Theme.Typography.captionEmphasized)
-                            .foregroundStyle(Theme.Colors.accent)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 2)
+                    ctaButton(label: ctaLabel, action: onTapCTA)
                 }
             }
 
@@ -112,40 +118,55 @@ public struct FounderSeriesCard: View {
             dismissButton
         }
         .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                .strokeBorder(Theme.Colors.hairline, lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard()
+        // `.contain`, not `.combine`: this card holds two real controls (the CTA and the dismiss ×),
+        // and `.combine` would merge them into one static element, leaving VoiceOver no way to
+        // reach either.
+        .accessibilityElement(children: .contain)
     }
 
-    /// A simple video/camera glyph — "founder content" in this product's own framing (§25's
+    /// A video/camera glyph — "founder content" in this product's own framing (§25's
     /// unboxing/UGC/gym-mirror-video language) leans on video, not a literal headshot photo this
     /// component has no image asset for. `Image(systemName:)` degrades to a blank glyph (never a
     /// crash) if the symbol name is ever wrong on a given OS version — same acknowledged-but-
-    /// nonfatal risk `GhostProgressBanner.swift`'s own `iconBadge` flags for its own SF Symbol.
+    /// nonfatal risk `GhostProgressBanner.swift`'s own `iconBadge` flags for its own SF Symbol. A
+    /// neutral (`text`) badge, not accent: the glyph carries no state, and accent means earned.
     private var iconBadge: some View {
-        ZStack {
-            Circle()
-                .fill(Theme.Colors.accent.opacity(0.16))
-            Image(systemName: "video.fill")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.Colors.accent)
-        }
-        .frame(width: 40, height: 40)
-        .accessibilityHidden(true)
+        IconBadge(systemName: "video.fill", tint: Theme.Colors.text, size: .medium)
     }
 
+    /// The card's one action, as a real (secondary) control instead of 13pt accent text with a
+    /// ~16pt target: a bordered `surface2` capsule, 44pt tall (better-layout 3.2).
+    private func ctaButton(label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.text)
+                .padding(.horizontal, Theme.Spacing.md)
+                .frame(minHeight: Theme.Metrics.minTapTarget)
+                .background(Theme.Colors.surface2, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle(scale: 0.96))
+    }
+
+    /// A small × that keeps its small visual but has a full 44x44pt target (it was ~23pt). The glyph
+    /// stays where it was: the target grows around it and is pulled back with a matching negative
+    /// padding, so the card's layout does not change.
     private var dismissButton: some View {
         Button(action: onDismiss) {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .semibold))
+                .font(Theme.Typography.icon(.xsmall, weight: .bold))
                 .foregroundStyle(Theme.Colors.muted)
-                .padding(6)
+                .frame(width: Theme.Spacing.lg, height: Theme.Spacing.lg)
                 .background(Theme.Colors.surface2, in: Circle())
+                .minTapTarget()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.92))
+        // 44pt target around a 24pt visual: pull the 10pt of extra target back out of the layout.
+        .padding(-(Theme.Metrics.minTapTarget - Theme.Spacing.lg) / 2)
         .accessibilityLabel(dismissAccessibilityLabel)
     }
 }

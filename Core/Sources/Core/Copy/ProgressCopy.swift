@@ -18,10 +18,10 @@ import Foundation
 extension Copy {
     public enum progress {
         public static let screenTitle = "Progress"
-        public static let timeReclaimedTitle = "Time Reclaimed"
+        public static let timeReclaimedTitle = "Time reclaimed"
 
         public static let streakSectionTitle = "Streak"
-        public static func streakBestLabel(best: Int) -> String { "Best: \(best)" }
+        public static func streakBestLabel(best: Int) -> String { "Best: \(best) \(best == 1 ? "day" : "days")" }
         public static func streakFreezesLabel(freezesLeft: Int) -> String {
             "\(freezesLeft) freeze\(freezesLeft == 1 ? "" : "s") left"
         }
@@ -29,7 +29,7 @@ extension Copy {
         public static let badgesSectionTitle = "Trophy Case"
         public static let badgesEmptyMessage = "Complete goals to start earning badges."
 
-        public static let recapSectionTitle = "This Week"
+        public static let recapSectionTitle = "This week"
         public static let recapEmptyMessage = "Your first weekly recap shows up once a full week of data is in."
 
         public static func weekLabel(weekStart: Date) -> String {
@@ -43,10 +43,12 @@ extension Copy {
         public static func timeReclaimedLabel(duration: String) -> String { "\(duration) reclaimed" }
         public static func bestDayLabel(day: String) -> String { "Best day: \(day)" }
 
+        /// Says what moved ("Up 2 ranks"), not a bare number, and uses "slipped" rather than
+        /// "Down" — the only loss word in Progress (docs/spec.md §8 rule 9).
         public static func rankMovementLabel(delta: Int) -> String {
-            if delta > 0 { return "Up \(delta)" }
-            if delta < 0 { return "Down \(-delta)" }
-            return "No change"
+            if delta > 0 { return "Up \(delta) \(delta == 1 ? "rank" : "ranks")" }
+            if delta < 0 { return "Slipped \(-delta) \(delta == -1 ? "rank" : "ranks")" }
+            return "Holding steady"
         }
 
         public static let unknownGoalLabel = "A goal"

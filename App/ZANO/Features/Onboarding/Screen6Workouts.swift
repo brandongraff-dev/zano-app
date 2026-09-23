@@ -1,45 +1,66 @@
 // Screen6Workouts.swift
 // App / Features / Onboarding
 //
-// Owned by this session. docs/spec.md §7.6 (screen 6, Q4): "Current vs target workouts/week — Two
-// steppers." `targetWorkoutsPerWeek` is deliberately >= 1 (see OnboardingFlowState.swift) — an
-// additive-goals-only product (spec §3, §24) has no "target: 0 workouts" answer.
+// docs/spec.md §7.6 (screen 6, Q4): "Current vs target workouts/week - Two steppers."
+// `targetWorkoutsPerWeek` is deliberately >= 1 (see OnboardingFlowState.swift): an additive-goals-only
+// product (spec §3, §24) has no "target: 0 workouts" answer. No validation gate: both fields have
+// sensible defaults and any in-range combination is a valid answer (including target == current, or
+// target < current - the adaptive engine, spec §9.1, reconciles the actual daily bar later; this
+// screen just records stated intent).
 //
-// ASSUMED API — see Screen3MainGoal.swift's header for the full note. New keys beyond that file's
-// list: none — `q4Title`, `q4Subtitle`, `q4CurrentLabel`, `q4TargetLabel`,
-// `q4WorkoutsPerWeekValue` are already listed there.
+// DESIGN PASS 2 (docs/design/*, 2026-09-23; nothing here has been rendered). Findings applied:
+//   - The two system `Stepper`s (~94x32pt) are 44pt round minus/plus buttons flanking a numeral
+//     (better-ui HIT-07: the system stepper is the input for onboarding's Q4). The value is a
+//     `NumeralText(.large)`: 44pt digits with "x/week" as a small baseline unit (it was one 44pt
+//     string, unit and all), rolling with `.numericText` on change.
+//   - It is ONE card with two counters, "Right now" above "My goal", joined by a hairline with a small
+//     arrow. Two identical sibling cards read as two unrelated inputs; the connector makes it a
+//     from -> to story (spec: "current vs target"). The card is the shared `zanoCard`.
+//   - Each answer keeps its visible consequence (competitive-research §3.5): a 7-segment "week" bar
+//     under the value. "Right now" lights N segments in `muted`; "My goal" lights the same segments in
+//     `muted` and the growth beyond them in `accent`, so the gap between today and the goal is
+//     literally drawn. Where the goal is below the current pace the bar just shows the goal count (no
+//     shame framing, spec §8 rule 9). The segments are counts, not weekdays, and unlabeled on purpose:
+//     workouts/week is not "which days".
+//   - The labels are the shared `eyebrow` style (caps with tracking), the buttons the shared
+//     `PressableStyle` (0.94: a small control shrinks more than a card), the empty segments the shared
+//     `track` token. One `.selection` haptic per change. Gated on Reduce Motion.
+//   - Accessibility: each counter is one adjustable element (label + value + increment/decrement), the
+//     way a system stepper reads, so VoiceOver users swipe up/down instead of hunting two tiny
+//     buttons. The visual buttons are hidden from the accessibility tree. Trade-off: Voice Control
+//     users have no spoken "tap minus" target (that would need new Copy keys, not editable here); the
+//     adjustable action is still reachable via Voice Control's and Switch Control's action menus.
 
 import SwiftUI
 import Core
 
-/// Screen 6 of 14 (spec §7.6) — Q4, two independent steppers (current, target workouts/week). No
-/// validation gate: both fields have sensible defaults and any in-range combination is a valid
-/// answer (including target == current, or target < current — the adaptive engine, spec §9.1,
-/// reconciles the actual daily bar later; this screen just records stated intent).
+/// Screen 6 of 14 (spec §7.6) - Q4, two independent counters (current, target workouts/week).
 struct Screen6Workouts: View {
     @Bindable var flowState: OnboardingFlowState
 
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.q4Title, subtitle: Copy.onboarding.q4Subtitle) {
-            VStack(spacing: Theme.Spacing.md) {
-                stepperRow(
+            VStack(spacing: 0) {
+                WorkoutsCounterRow(
                     label: Copy.onboarding.q4CurrentLabel,
                     value: $flowState.currentWorkoutsPerWeek,
-                    range: 0...7
+                    range: 0...7,
+                    baseline: nil
                 )
-                stepperRow(
+
+                connector
+
+                WorkoutsCounterRow(
                     label: Copy.onboarding.q4TargetLabel,
                     value: $flowState.targetWorkoutsPerWeek,
-                    range: 1...7
+                    range: 1...7,
+                    baseline: flowState.currentWorkoutsPerWeek
                 )
             }
+            .zanoCard()
         }
-        .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: Copy.common.continueButtonLabel) {
-                flowState.advance()
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
+        .onboardingPinnedContinue(title: Copy.common.continueButtonLabel) {
+            flowState.advance()
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -50,23 +71,117 @@ struct Screen6Workouts: View {
         }
     }
 
-    private func stepperRow(label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(label)
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.muted)
-            Stepper(value: value, in: range) {
-                Text(Copy.onboarding.q4WorkoutsPerWeekValue(value.wrappedValue))
-                    .font(Theme.Typography.numeralMedium())
-                    .foregroundStyle(Theme.Colors.text)
+    /// A hairline with a small "from -> to" arrow riding on it. The badge is 24pt (`Spacing.lg`), so
+    /// its 12pt radius sits inside the rows' 16pt padding and never touches a bar or a label.
+    private var connector: some View {
+        Rectangle()
+            .fill(Theme.Colors.hairline)
+            .frame(height: Theme.Metrics.edgeWidth)
+            .overlay {
+                Image(systemName: "arrow.down")
+                    .font(Theme.Typography.icon(.xsmall, weight: .bold))
+                    .foregroundStyle(Theme.Colors.muted)
+                    .frame(width: Theme.Spacing.lg, height: Theme.Spacing.lg)
+                    .background(Theme.Colors.surface2, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
             }
+            .accessibilityHidden(true)
+    }
+}
+
+/// One counter: label, big value with minus/plus, and a 7-segment week bar. It has no surface of its
+/// own; `Screen6Workouts` wraps both counters in one card.
+private struct WorkoutsCounterRow: View {
+    let label: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    /// When non-nil, segments up to `min(value, baseline)` are drawn as "already doing this" (muted)
+    /// and any segments beyond that up to `value` as growth (accent). When nil, every lit segment is
+    /// muted (this row *is* the baseline).
+    let baseline: Int?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let segmentCount = 7
+
+    private var valueText: String { Copy.onboarding.q4WorkoutsPerWeekValue(value) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(label)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+
+            HStack(spacing: Theme.Spacing.sm) {
+                NumeralText(valueText, size: .large)
+                Spacer(minLength: 0)
+                roundButton(symbol: "minus", isEnabled: value > range.lowerBound) {
+                    value -= 1
+                }
+                roundButton(symbol: "plus", isEnabled: value < range.upperBound) {
+                    value += 1
+                }
+            }
+
+            weekBar
         }
         .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: value)
+        // The goal row's bar also changes when the "right now" row moves (its muted/accent split
+        // depends on the baseline), so it animates on that too.
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: baseline)
+        .sensoryFeedback(.selection, trigger: value)
+        // One adjustable element, like a system stepper. The visual buttons are decoration for
+        // sighted touch users and are ignored here.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(Text(valueText))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                if value < range.upperBound { value += 1 }
+            case .decrement:
+                if value > range.lowerBound { value -= 1 }
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    private var weekBar: some View {
+        let shared = min(value, baseline ?? value)
+        return HStack(spacing: Theme.Spacing.xxs) {
+            ForEach(0..<segmentCount, id: \.self) { index in
+                Capsule()
+                    .fill(segmentColor(index: index, shared: shared))
+                    .frame(height: Theme.Spacing.xs)
+            }
+        }
+    }
+
+    private func segmentColor(index: Int, shared: Int) -> Color {
+        if index < shared { return Theme.Colors.muted }
+        if index < value { return Theme.Colors.accent }
+        return Theme.Colors.track
+    }
+
+    private func roundButton(symbol: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(Theme.Typography.icon(.medium, weight: .bold))
+                .foregroundStyle(Theme.Colors.text)
+                .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
+                .background(Theme.Colors.surface2, in: Circle())
+                .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.35)
     }
 }
 
 #Preview {
     Screen6Workouts(flowState: OnboardingFlowState())
+        .preferredColorScheme(.dark)
 }

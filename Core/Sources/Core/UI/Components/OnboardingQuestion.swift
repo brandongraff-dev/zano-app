@@ -11,6 +11,18 @@
 // directly onto this view). All text is caller-composed (from `Core/Sources/Core/Copy`), matching
 // every other `Core/UI/Components` file's "no hardcoded copy" convention (see e.g. `GoalRow.swift`'s
 // header note) — this file never imports `Copy` itself.
+//
+// Design-quality pass (docs/design/{typography-color T4,better-layout,better-interface}):
+//
+//   * The question is the screen. It was set in `title` (22pt bold) — the same tier as a card
+//     heading — so on a screen whose entire job is one question the type had no more presence than
+//     a settings row. It is `titleLarge` (28pt bold, -0.2 tracking) now, still well under the
+//     `display` tier reserved for full-bleed hero screens (hook, celebration).
+//   * The subtitle is paragraph copy, not a caption: 15pt in `textSecondary` (11.8:1 rather than
+//     `muted`'s 6.1:1, since it is read, not scanned) with +3pt leading so a two-line subtitle does
+//     not collide with the options beneath it.
+//   * The title is a heading for VoiceOver, and the scroll view does not rubber-band when its content
+//     already fits (a two-option question has nowhere to scroll to).
 
 import SwiftUI
 
@@ -47,17 +59,23 @@ public struct OnboardingQuestion<Content: View>: View {
             .padding(.bottom, Theme.Spacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text(title)
-                .font(Theme.Typography.title)
+                .zanoText(.titleLarge)
                 .foregroundStyle(Theme.Colors.text)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
             if let subtitle {
                 Text(subtitle)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.muted)
+                    .zanoText(.paragraph)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -67,14 +85,9 @@ public struct OnboardingQuestion<Content: View>: View {
 #Preview {
     OnboardingQuestion(title: "What's your main goal?", subtitle: "We'll build your plan around this.") {
         VStack(spacing: Theme.Spacing.sm) {
-            ForEach(0..<3) { index in
-                Text("Option \(index + 1)")
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(Theme.Spacing.md)
-                    .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            }
+            SelectableCard(title: "Get to the gym", subtitle: "Build a workout habit", icon: "dumbbell.fill", isSelected: true, action: {})
+            SelectableCard(title: "Eat enough protein", icon: "fork.knife", isSelected: false, action: {})
+            SelectableCard(title: "Focus without my phone", icon: "timer", isSelected: false, action: {})
         }
     }
     .background(Theme.Colors.background.ignoresSafeArea())

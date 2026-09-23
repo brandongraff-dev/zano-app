@@ -6,6 +6,16 @@
 // system dynamic type, tinting, and dark-mode rendering correctly. `count` is numeric data (not
 // copy), so it's safe to render directly per CLAUDE.md's no-hardcoded-copy rule; any surrounding
 // sentence ("14-day streak") is the caller's job via `Core/Sources/Core/Copy`.
+//
+// Design-quality pass (docs/design/{better-ui,typography-color}-findings):
+//
+//   * Glyph and digits share a baseline and an optical size. The 13pt flame beside 17pt digits sat
+//     below the digits' cap height on a centre-aligned stack (ALN-03); the flame is now the 17pt
+//     icon tier and the row is baseline-aligned, so they read as one mark.
+//   * The count is a `NumeralText`, so it scales with Dynamic Type (a fixed 17pt numeral never did)
+//     and rolls like an odometer when the streak grows.
+//   * The pill has an edge. `surface2` on a `surface` card is 1.08:1, so the capsule dissolved into
+//     the card it sits on; a hairline outlines it on every background.
 
 import SwiftUI
 
@@ -37,7 +47,7 @@ public struct StreakPill: View {
     }
 
     public var body: some View {
-        HStack(spacing: Theme.Spacing.xxs) {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xxs) {
             Group {
                 if reduceMotion {
                     // Reduce Motion: no `.symbolEffect` at all — the flame/snowflake swap still
@@ -52,19 +62,21 @@ public struct StreakPill: View {
                         .symbolEffect(.bounce, value: bounceTrigger)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(Theme.Typography.icon(.medium))
             .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.accent)
 
-            Text("\(count)")
-                .font(Theme.Typography.numeralSmall())
-                .foregroundStyle(Theme.Colors.text)
+            NumeralText("\(count)", size: .small)
         }
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xxs)
         .background(Theme.Colors.surface2, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelOverride ?? defaultAccessibilityLabel)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isFrozen)
+        // The odometer roll needs an animation context to interpolate in; `NumeralText` supplies the
+        // `.numericText` transition, this supplies the transaction (and nothing under Reduce Motion).
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: count)
         .onChange(of: count) { oldValue, newValue in
             guard newValue > oldValue else { return }
             bounceTrigger += 1
@@ -83,4 +95,15 @@ public struct StreakPill: View {
     private var defaultAccessibilityLabel: String {
         isFrozen ? "\(count), frozen" : "\(count)"
     }
+}
+
+#Preview("StreakPill") {
+    HStack(spacing: Theme.Spacing.md) {
+        StreakPill(count: 14)
+        StreakPill(count: 3, isFrozen: true)
+        StreakPill(count: 365)
+    }
+    .padding(Theme.Spacing.lg)
+    .background(Theme.Colors.background)
+    .preferredColorScheme(.dark)
 }

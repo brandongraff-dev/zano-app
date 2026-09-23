@@ -17,10 +17,21 @@
 // prose this view renders, `comparison.headline`, is composed by `GhostMode`, not here — see that
 // file's header comment for why it (not `Core/Sources/Core/Copy`) owns that composition in this
 // task's scope. Everything else this view draws — the you-vs-ghost scoreboard — is rendered as
-// bare numerals plus filled/outline person glyphs, never spelled-out words, the same "numeric
-// data, not copy" precedent `StreakPill` documents at its own declaration. The only English word
-// this file could possibly introduce is `title`, and that's an optional value the *caller*
-// supplies (like `RecapCard.rankLabel`/`LockStatusCard.detailLine`), never a literal baked in here.
+// bare numerals plus a full-strength vs. faded runner glyph, never spelled-out words, the same
+// "numeric data, not copy" precedent `StreakPill` documents at its own declaration. The only
+// English word this file could possibly introduce is `title`, and that's an optional value the
+// *caller* supplies (like `RecapCard.rankLabel`/`LockStatusCard.detailLine`), never a literal baked
+// in here.
+//
+// Design-quality pass (docs/design/{better-ui,composition-audit}-findings):
+//
+//   * The whole card is the target and presses as one (padding and surface moved inside the
+//     `Button`, `PressableStyle` replaces the private copy of the same style this file carried).
+//   * The scoreboard says what it is: the *same* runner glyph at full strength for you and faded for
+//     the ghost, instead of a filled vs outline person that read as "logged in / logged out"
+//     (ICO-08). It is what the feature is — racing a past self.
+//   * The badge is an `IconBadge` (on-hue wash, 44pt), the eyebrow is the shared eyebrow style, and
+//     the scores are `NumeralText` (scales with Dynamic Type, odometer roll).
 
 import SwiftUI
 
@@ -66,39 +77,44 @@ public struct GhostProgressBanner: View {
     }
 
     public var body: some View {
-        content
-            .padding(Theme.Spacing.md)
-            .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: comparison)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(composedAccessibilityLabel)
-    }
-
-    private var content: some View {
         Group {
             if let action {
-                Button(action: action) { rowBody }
-                    .buttonStyle(RowPressStyle())
+                Button(action: action) { card }
+                    .buttonStyle(PressableStyle())
             } else {
-                rowBody
+                card
             }
         }
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: comparison)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(composedAccessibilityLabel)
+        .accessibilityAddTraits(action != nil ? .isButton : [])
+    }
+
+    private var card: some View {
+        rowBody
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard()
     }
 
     private var rowBody: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            iconBadge
+            // `flag.checkered` — a race/finish-line glyph for "race your past self" (spec §5.4's
+            // own framing). A wrong name degrades to a blank glyph in `Image(systemName:)` rather
+            // than crashing, so the worst case is a missing icon, not a broken build/runtime.
+            IconBadge(systemName: "flag.checkered", tint: tint, size: .medium)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 if let title {
                     Text(title)
-                        .font(Theme.Typography.captionEmphasized)
+                        .zanoText(.eyebrow)
                         .foregroundStyle(Theme.Colors.muted)
-                        .textCase(.uppercase)
                 }
                 Text(comparison.headline)
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.text)
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineLimit(3)
             }
@@ -111,54 +127,36 @@ public struct GhostProgressBanner: View {
 
             if action != nil {
                 Image(systemName: "chevron.forward")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Theme.Typography.icon(.small))
                     .foregroundStyle(Theme.Colors.muted)
+                    .frame(minHeight: Theme.Metrics.iconBadgeMedium)
             }
         }
         .contentShape(Rectangle())
     }
 
-    /// `"flag.checkered"` — a race/finish-line glyph for "race your past self" (spec §5.4's own
-    /// framing). Assumption flagged in `knownIssues`: there's no Mac here to render-check this SF
-    /// Symbol name exists on every targeted iOS version; a wrong name degrades to a blank glyph in
-    /// `Image(systemName:)` rather than crashing, so the worst case is a missing icon, not a
-    /// broken build/runtime.
-    private var iconBadge: some View {
-        ZStack {
-            Circle()
-                .fill(tint.opacity(0.16))
-            Image(systemName: "flag.checkered")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(tint)
-        }
-        .frame(width: 40, height: 40)
-    }
-
-    /// Bare numerals distinguished by a filled ("you") vs. outline ("ghost") person glyph — no
+    /// Bare numerals distinguished by a full-strength ("you") vs. faded ("ghost") runner — no
     /// spelled-out words, per this file's copy-discipline note above.
     private var scoreboard: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            scoreItem(icon: "person.fill", value: comparison.currentCompletedCount, tint: Theme.Colors.text)
+            scoreItem(value: comparison.currentCompletedCount, tint: Theme.Colors.text, glyphOpacity: 1)
             Rectangle()
                 .fill(Theme.Colors.hairline)
-                .frame(width: 1, height: 24)
-            scoreItem(icon: "person", value: comparison.ghostCompletedCount, tint: Theme.Colors.muted)
+                .frame(width: Theme.Metrics.edgeWidth, height: Theme.Spacing.lg)
+            scoreItem(value: comparison.ghostCompletedCount, tint: Theme.Colors.muted, glyphOpacity: 0.45)
         }
     }
 
-    private func scoreItem(icon: String, value: Int, tint: Color) -> some View {
-        VStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+    private func scoreItem(value: Int, tint: Color, glyphOpacity: Double) -> some View {
+        VStack(spacing: Theme.Spacing.xxs) {
+            Image(systemName: "figure.run")
+                .font(Theme.Typography.icon(.xsmall))
                 .foregroundStyle(tint)
-            Text("\(value)")
-                .font(Theme.Typography.numeralSmall())
-                .foregroundStyle(tint)
-                // A plain `Text("\(value)")` swap pops instantly on its own; `.numericText` is a
-                // built-in "odometer" roll that honors Reduce Motion automatically (no extra
-                // gating code needed here) and rides the same `.animation(value: comparison)`
-                // already applied above (docs/design/apple-design-review.md §4).
-                .contentTransition(.numericText(value: Double(value)))
+                .opacity(glyphOpacity)
+            // A plain `Text("\(value)")` swap pops instantly on its own; `NumeralText`'s
+            // `.numericText` is a built-in "odometer" roll that rides the same
+            // `.animation(value: comparison)` applied above (docs/design/apple-design-review.md §4).
+            NumeralText("\(value)", size: .small, color: tint)
         }
     }
 
@@ -171,23 +169,5 @@ public struct GhostProgressBanner: View {
             return Text("\(title). \(comparison.headline)")
         }
         return Text(comparison.headline)
-    }
-}
-
-/// Gives this banner's tappable variant visible touch-down feedback — `.buttonStyle(.plain)`
-/// alone suppresses SwiftUI's default press state almost entirely, a direct miss against HIG's
-/// "Response" principle (react on pointer-down, not on release). Duplicated (not shared) in
-/// `GoalRow.swift`, the only other row-style tappable component in this wave's safe set — with
-/// just two call sites, CLAUDE.md's "three similar call sites beat a premature protocol" argues
-/// against carving out a new shared file for this alone (docs/design/apple-design-review.md
-/// §6.3).
-private struct RowPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

@@ -1,70 +1,41 @@
 // OnboardingContainerView.swift
 // App / Features / Onboarding
 //
-// Owned by: this session's task ("Screens 9-14 + OnboardingContainerView"). Do not edit from
-// another session — CLAUDE.md "Stay strictly inside your assigned file list."
-//
 // docs/spec.md §7 (Onboarding Flow, screen by screen) lists all 14 screens; §17 Session 6
 // (`feat/onboarding`) owns "Onboarding (14 screens) + permission priming + RevenueCat paywall +
-// first-win flow" as one unit. This file is the single root that wires every screen — 1-8 and the
-// shared `OnboardingFlowState` (owned by a sibling agent this same batch, `OnboardingFlowState.
-// swift` — read in full, never edited) plus 9-14 (this session's own files, `Screen9WakeUp.swift`
-// through `Screen14FirstWin.swift`) — into one sequential flow, per this task's brief:
-// "OnboardingContainerView wiring all 14 in order."
+// first-win flow" as one unit. This file is the single root that wires every screen into one
+// sequential flow, plus the shared chrome and the small design toolkit (`OnboardingKit`, below)
+// that screens 8-14 build on.
 //
-// ============================================================================================
-// VERIFIED — `OnboardingFlowState` (`App/ZANO/Features/Onboarding/OnboardingFlowState.swift`,
-// sibling-owned; this file quotes its real, on-disk shape rather than an assumption, since that
-// file landed on disk while this task was in progress — every property/method name below was
-// read directly off it, not guessed):
+// `OnboardingFlowState` (`OnboardingFlowState.swift`, read here, never edited) is the shared state:
+// `currentScreen` (1...14), the Q1-Q6 answers, `advance()`/`goBack()`, `progressFraction`,
+// `recordCommitment(at:)`. Every screen takes `@Bindable var flowState: OnboardingFlowState` and
+// advances itself via `flowState.advance()`; this container never drives navigation from the
+// outside beyond the back button.
 //
-//     @MainActor @Observable final class OnboardingFlowState {
-//         static let firstScreen = 1; static let lastScreen = 14
-//         var currentScreen: Int                       // 1...14, drives this container's switch
-//         var mainGoal: MainGoal?                       // Q1 (screen 3)
-//         var selectedApps = FamilyActivitySelection()  // Q2 (screen 4)
-//         var dailyPhoneTimeHours: Double = 5            // Q3 (screen 5), slider 1...10
-//         var currentWorkoutsPerWeek: Int = 0            // Q4 (screen 6)
-//         var targetWorkoutsPerWeek: Int = 3             // Q4 (screen 6)
-//         var fallOffPattern: FallOffPattern?            // Q5 (screen 7)
-//         var coachVoice: CoachVoice = .hype             // Q6 (screen 8) — Core's own type, reused
-//         private(set) var committedAt: Date?            // screen 11: recordCommitment(at:)
-//         func advance()                                 // currentScreen += 1, clamped at lastScreen
-//         func goBack()                                  // currentScreen -= 1, clamped at firstScreen
-//         var progressFraction: Double                   // currentScreen / lastScreen
-//         func recordCommitment(at date: Date = .now)
-//         var estimatedDaysPerYearOnPhone: Double         // dailyPhoneTimeHours * 365 / 24
-//     }
-//     enum MainGoal: String, CaseIterable, Sendable, Hashable {
-//         case gymConsistency, protein, stopDoomscrolling, lockInWorkSchool, allOfIt
-//         var displayLabel: String { ... }  // App-target-only exception to Copy-routing — see
-//     }                                     // that file's own doc comment for why.
-//     enum FallOffPattern: String, CaseIterable, Sendable, Hashable {
-//         case weekends, evenings, whenStressed, afterGoodDays, travel
-//         var displayLabel: String { ... }
-//     }
+// Design pass (docs/design/*, 2026-09-23 — better-ui, better-layout, typography-color,
+// composition-audit, competitive-research, 2026-ios-trends), applied to this file:
+//   - One header row instead of two: [back 44pt][progress bar]. Saves ~48pt per screen
+//     (better-layout 7.6) and the back target is 44pt (better-ui HIT-01).
+//   - The header is hidden on screen 1 (the full-bleed hook, spec §7.1) and on screen 14 (the live
+//     first-win lock: a Back there used to return to the paywall mid-session — better-layout 7.6).
+//     The "Step N of 14" accessibility element is NOT hidden with it: on those two screens it is
+//     kept as a 1pt invisible marker, so VoiceOver still announces where the user is and the UI-test
+//     harness (`ZANOUITests`, which detects onboarding and waits on steps 1 and 14 through that
+//     label) keeps working.
+//   - The progress track is the shared `Theme.Colors.track` (it was a `surface2` fill at 1.16:1,
+//     invisible) and its fill carries the static accent glow that spec §16 asks of active elements.
+//   - Screen exit is softer than entry (opacity plus a small drift instead of a second full-width
+//     slide), and a plain cross-fade under Reduce Motion (better-ui MOT-07/MOT-08).
+//   - `OnboardingKit` is now a thin layer over the Wave A Core/UI system (`Theme.Colors.hairline`/
+//     `track`, `zanoText`, `zanoCard`, `zanoActionBar`, `IconBadge`, `PressableStyle`, `HeroGlow`
+//     tokens) instead of a private copy of it: the two `text`-opacity tones, the card recipe, the
+//     action bar and the press style it used to define are gone. What is left is only what Core
+//     does not have — a glow with an anchor, a 96pt display numeral, a centered-or-scroll layout
+//     and the coach-voice glyph map.
 //
-// `MainGoal`/`FallOffPattern` are App-target types — Core (and therefore any `Copy.onboarding.*`
-// function this session assumes) cannot take either as a parameter. Every screen in this session
-// that needs one of their labels resolves `.displayLabel` on the App side first and only passes
-// the resulting `String` across the Core boundary (see `Screen10PlanReveal.swift`).
-//
-// Every screen (1-14) takes `@Bindable var flowState: OnboardingFlowState` and advances itself via
-// `flowState.advance()`; this container never drives navigation from the outside beyond back-button
-// chrome (`flowState.goBack()`, `OnboardingScaffold` below).
-//
-// ============================================================================================
-// Screen 13 note — a genuine cross-agent duplication, resolved here: this session's own task asked
-// for "a paywall placeholder screen with a clear extension point for the real RevenueCat wiring"
-// (`Screen13Paywall.swift`, built and kept — see that file's own updated header). While this task
-// was in progress, a separate "Monetization/Paywall" task this same batch independently built a
-// full, real `PaywallView.swift` backed by `Core/Sources/Core/Monetization/PaywallViewModel.swift`
-// (real RevenueCat offerings, purchase/restore flow, a `PaywallCard` component, `Copy.paywall.*`) —
-// strictly more complete than this session's own placeholder. Since only one screen 13 can be
-// wired, this container routes to the real `PaywallView`, not `Screen13Paywall`. Flagged for the
-// orchestrator in this task's `knownIssues`/`decisions`; `Screen13Paywall.swift` is left on disk,
-// fully working, as delivered per this session's literal assignment, but is dead code as wired.
-// ============================================================================================
+// Screen 13 note: `Screen13Paywall.swift` is a thin forwarder to `PaywallView`, so there is one
+// paywall structure, not two diverging ones (competitive-research §2.3).
 
 import SwiftUI
 import SwiftData
@@ -72,21 +43,19 @@ import Core
 
 /// Root of the 14-screen onboarding flow (docs/spec.md §7). Owns the one shared
 /// `OnboardingFlowState` for the whole flow and renders whichever screen
-/// `flowState.currentScreen` names, with a consistent progress-bar/back-button chrome
-/// (`OnboardingScaffold`, below) wrapping every screen.
+/// `flowState.currentScreen` names, wrapped in `OnboardingScaffold`'s chrome.
 ///
 /// Expected to be hosted by whatever decides onboarding should show at all (e.g. `ContentView`,
 /// or a future "has this device finished onboarding?" gate) — that decision, and what happens
-/// after `onFinished` fires, belong to that caller, not this file. This container's only two
-/// jobs are (1) own `flowState` for the whole flow's lifetime, and (2) route between screens.
+/// after `onFinished` fires, belong to that caller, not this file.
 @MainActor
 struct OnboardingContainerView: View {
     /// Called once, after Screen 14's widget-add prompt is dismissed. Defaults to a no-op so this
-    /// view compiles and behaves standalone (e.g. in `#Preview`); a real host wires it to record
-    /// "onboarding complete" and swap to the app's main tab UI.
+    /// view compiles and behaves standalone (e.g. in `#Preview`).
     var onFinished: () -> Void = {}
 
     @State private var flowState = OnboardingFlowState()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         OnboardingScaffold(flowState: flowState) {
@@ -94,7 +63,10 @@ struct OnboardingContainerView: View {
                 .id(flowState.currentScreen)
                 .transition(screenTransition)
         }
-        .animation(Theme.Motion.springStandard, value: flowState.currentScreen)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springStandard,
+            value: flowState.currentScreen
+        )
     }
 
     @ViewBuilder
@@ -117,80 +89,244 @@ struct OnboardingContainerView: View {
         }
     }
 
+    /// Enter from the trailing edge; leave softly (fade plus a small drift) so the outgoing screen
+    /// doesn't slide a second full width across the incoming one. Reduce Motion: cross-fade only.
     private var screenTransition: AnyTransition {
-        .asymmetric(
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
+            removal: .opacity.combined(with: .offset(x: -Theme.Spacing.sm))
         )
     }
 }
 
 // MARK: - Shared chrome
 
-/// Consistent top progress bar + back button wrapped around every onboarding screen, per
-/// docs/spec.md §7's framing ("Target: 10-14 screens, under 3 minutes") — a visible progress bar
-/// is what makes a 14-screen flow feel short rather than endless. `internal` (default access), not
-/// `private`, so `Screen9WakeUp.swift`...`Screen14FirstWin.swift` can reuse it too instead of each
-/// re-implementing the same header.
+/// Consistent back button + progress bar wrapped around screens 2-13, per docs/spec.md §7's
+/// framing ("under 3 minutes") — a visible progress bar is what makes a 14-screen flow feel short.
+/// `internal` (not `private`) so the per-screen `#Preview`s can wrap themselves in the same chrome.
 @MainActor
 struct OnboardingScaffold<Content: View>: View {
     @Bindable var flowState: OnboardingFlowState
     @ViewBuilder var content: () -> Content
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Screen 1 is the full-bleed hook and screen 14 is the live first-win lock; both own the whole
+    /// screen (better-layout 7.6).
+    private var showsChrome: Bool {
+        flowState.currentScreen != OnboardingFlowState.firstScreen
+            && flowState.currentScreen != OnboardingFlowState.lastScreen
+    }
+
+    private var progressLabel: String {
+        Copy.onboarding.progressAccessibilityLabel(
+            screen: flowState.currentScreen,
+            total: OnboardingFlowState.lastScreen
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            header
+            if showsChrome {
+                header
+                    .transition(.opacity)
+            }
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .overlay(alignment: .top) {
+            if !showsChrome {
+                // The header is gone; its "Step N of 14" element is not. 1pt, invisible, no layout.
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(progressLabel)
+            }
         }
         .background(Theme.Colors.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
     }
 
+    /// [back 44pt][progress bar]. The back glyph is centered in its 44pt target, which puts the
+    /// chevron's visible edge on the same 16pt margin the cards below use; the bar's trailing edge
+    /// is on that margin too.
     private var header: some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            HStack {
-                if flowState.currentScreen > OnboardingFlowState.firstScreen {
-                    Button {
-                        flowState.goBack()
-                    } label: {
-                        Image(systemName: "chevron.backward")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Theme.Colors.muted)
-                            .frame(width: 32, height: 32)
-                    }
-                    .accessibilityLabel(Copy.onboarding.backButtonAccessibilityLabel)
-                } else {
-                    Color.clear.frame(width: 32, height: 32)
-                }
-                Spacer()
+        HStack(spacing: Theme.Spacing.xxs) {
+            Button {
+                flowState.goBack()
+            } label: {
+                Image(systemName: "chevron.backward")
+                    .font(Theme.Typography.icon(.medium))
+                    .foregroundStyle(Theme.Colors.muted)
+                    .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.pressable(scale: 0.92))
+            .accessibilityLabel(Copy.onboarding.backButtonAccessibilityLabel)
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Theme.Colors.surface2)
-                    Capsule()
-                        .fill(Theme.Colors.accent)
-                        .frame(width: proxy.size.width * flowState.progressFraction)
-                        .animation(Theme.Motion.ringFill, value: flowState.progressFraction)
-                }
-            }
-            .frame(height: 4)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                Copy.onboarding.progressAccessibilityLabel(
-                    screen: flowState.currentScreen,
-                    total: OnboardingFlowState.lastScreen
-                )
-            )
+            progressBar
+                .padding(.trailing, Theme.Spacing.md)
         }
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.top, Theme.Spacing.sm)
+        .frame(height: Theme.Metrics.minTapTarget)
+    }
+
+    private var progressBar: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Theme.Colors.track)
+                Capsule()
+                    .fill(Theme.Colors.accent)
+                    .frame(width: max(0, proxy.size.width * flowState.progressFraction))
+                    // Static glow on the active fill (spec §16 "inner glow on active elements");
+                    // never animated in radius.
+                    .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 5)
+                    .animation(
+                        reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill,
+                        value: flowState.progressFraction
+                    )
+            }
+        }
+        .frame(height: OnboardingKit.progressBarHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(progressLabel)
     }
 }
 
-// MARK: - Shared helpers (used by this session's Screen9...Screen14 files)
+// MARK: - OnboardingKit (shared by screens 8-14)
+
+/// The small design toolkit screens 8-14 share: only what `Core/UI` does not already provide. A
+/// caseless enum used purely as a namespace so the names can't collide with anything a neighbouring
+/// screen defines. Everything here is built from `Theme` tokens and Core components.
+enum OnboardingKit {
+    static let progressBarHeight: CGFloat = 6
+
+    /// The glyph for each coach voice, shared by the voice picker, the plan build beat and the
+    /// mock notification (same vocabulary `CosmeticsShopView` already uses for coach packs).
+    static func icon(for voice: CoachVoice) -> String {
+        switch voice {
+        case .hype: "megaphone.fill"
+        case .toughLove: "flame.fill"
+        case .chill: "leaf.fill"
+        case .data: "chart.bar.fill"
+        }
+    }
+
+    // MARK: Glow
+
+    /// A static radial wash behind a "moment" screen — the flat `#0A0A0B` rectangles the audits
+    /// called out. This is `HeroGlow` with an anchor (`HeroGlow` only washes down from the top;
+    /// the wake-up reclaim wants one rising from the bottom and the commitment ring one behind its
+    /// centre). Static on purpose (never animate blur or glow radius: Reduce Motion guidance).
+    /// `tint` is a semantic color (accent = earned/brand, danger = loss), never decoration.
+    struct Glow: View {
+        var tint: Color = Theme.Colors.accent
+        var opacity: Double = 0.12
+        var anchor: UnitPoint = .top
+
+        var body: some View {
+            RadialGradient(
+                colors: [tint.opacity(opacity), tint.opacity(opacity * 0.4), tint.opacity(0)],
+                center: anchor,
+                startRadius: 0,
+                endRadius: 380
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    // MARK: Type
+
+    /// Small uppercase label with tracking (`Theme.Typography.Style.eyebrow`).
+    struct Eyebrow: View {
+        let text: String
+        var color: Color = Theme.Colors.muted
+
+        var body: some View {
+            Text(text)
+                .zanoText(.eyebrow)
+                .foregroundStyle(color)
+        }
+    }
+
+    /// The hero headline tier (`Theme.Typography.Style.display`: Large Title, rounded bold,
+    /// -0.4 tracking). Scales with Dynamic Type up to the first accessibility size, then holds so a
+    /// two-line headline can't push the CTA off a small phone.
+    struct DisplayTitle: View {
+        let text: String
+        var alignment: TextAlignment = .center
+
+        var body: some View {
+            Text(text)
+                .zanoText(.display)
+                .foregroundStyle(Theme.Colors.text)
+                .multilineTextAlignment(alignment)
+                .fixedSize(horizontal: false, vertical: true)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        }
+    }
+
+    /// The display numeral for the emotional peaks (the wake-up math, the first streak). One tier
+    /// above `Theme.Typography.numeralHero` (72pt): these are the loudest thing on their screens
+    /// and there is no second number competing for the ring. Same face as the numeral tokens
+    /// (`Theme.Typography.numeral(size:weight:)`), scales with Dynamic Type and shrinks rather
+    /// than clips.
+    struct HeroNumeral: View {
+        enum Tier: Sendable { case hero, large }
+
+        let text: String
+        var color: Color = Theme.Colors.text
+        var tier: Tier = .hero
+
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 96
+        @ScaledMetric(relativeTo: .largeTitle) private var largeSize: CGFloat = 64
+
+        var body: some View {
+            Text(text)
+                .font(Theme.Typography.numeral(size: min(tier == .hero ? heroSize : largeSize, 140), weight: .heavy))
+                .tracking(-1.5)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .contentTransition(reduceMotion ? .identity : .numericText(countsDown: false))
+        }
+    }
+
+    // MARK: Layout
+
+    /// Content centered vertically when it fits, scrolling when it doesn't (large Dynamic Type,
+    /// small phones), instead of a fixed `Spacer` stack that clips.
+    struct CenteredScroll<Content: View>: View {
+        @ViewBuilder var content: () -> Content
+
+        var body: some View {
+            GeometryReader { proxy in
+                ScrollView {
+                    content()
+                        .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+    }
+}
+
+extension View {
+    /// Pins `bar` to the bottom of the screen as the onboarding action bar — Core's
+    /// `zanoActionBar` (`StickyActionBar`: 16pt gutters, a background fade instead of a blurred
+    /// material strip) with the bar's views stacked `Theme.Spacing.xs` apart. One position and one
+    /// width for every onboarding CTA (better-layout 4.3, 7.5).
+    func onboardingKitActionBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        let stacked = VStack(spacing: Theme.Spacing.xs) { bar() }
+        return zanoActionBar { stacked }
+    }
+}
+
+// MARK: - Shared helpers (used by Screen10PlanReveal, Screen11Commitment, Screen14FirstWin)
 
 /// Fetch-or-create the device's one local `User` row (per `Models/User.swift`'s own doc comment:
 /// exactly one exists locally, the signed-in-or-anonymous owner of this device). Onboarding is the

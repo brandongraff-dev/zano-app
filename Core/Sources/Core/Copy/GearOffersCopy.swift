@@ -48,9 +48,11 @@ extension Copy {
 
         // MARK: Sunrise Alarm → Tag Pack (§25.6 bullet 2: "Sunrise Alarm setup prompting a tag pack")
 
-        public static let sunriseTagPackHeadline = "Set up your Sunrise Tag"
+        // Headline states the benefit, not an instruction: it sits above a purchase button, and
+        // "Set up your Sunrise Tag" over "Get a Tag Pack" read as two different asks.
+        public static let sunriseTagPackHeadline = "Turn off your alarm with one real tap"
         public static let sunriseTagPackBody =
-            "Stick a Sunrise Tag to your mirror so dismissing the alarm is one real tap — not the fallback."
+            "Stick a Sunrise Tag on your bathroom mirror, and turning off the alarm means getting up to tap it."
         public static let sunriseTagPackCTA = "Get a Tag Pack"
 
         // MARK: Reorder protein (§25.6 bullet 3: "reorder prompts when a tub is likely empty")
@@ -63,7 +65,7 @@ extension Copy {
             "About \(estimatedScoopsUsed) scoops logged"
         }
         public static let reorderProteinBody = "Your tub is probably getting low. Reorder before you run out."
-        public static let reorderProteinCTA = "Reorder Protein"
+        public static let reorderProteinCTA = "Reorder protein"
 
         // MARK: Earned Card shipping (§25.6 bullet 4: "earned-card shipping prompts at milestones";
         // §25.3's three tiers)
@@ -72,7 +74,7 @@ extension Copy {
             "Your \(tierName) Lock Card is earned"
         }
         public static func earnedCardBody(tierName: String) -> String {
-            "You hit the streak that earns a \(tierName) Lock Card — free, engraved, and on us. Confirm your shipping address."
+            "You hit the streak that earns a \(tierName) Lock Card. Free for subscribers. Confirm your shipping address."
         }
         public static let earnedCardCTA = "Confirm shipping"
 

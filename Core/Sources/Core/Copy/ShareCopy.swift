@@ -21,7 +21,7 @@ import Foundation
 
 extension Copy {
     public enum lockedOut {
-        public static let screenTitle = "Locked Out"
+        public static let screenTitle = "Locked out"
 
         /// The spec-literal line itself, e.g. "My phone won't let me open TikTok until I hit the
         /// gym." Both parameters are caller-resolved short phrases that already fall back to `nil`
@@ -37,15 +37,20 @@ extension Copy {
         }
 
         public static func statLine(attemptCount: Int, windowMinutes: Int) -> String {
-            "\(attemptCount) tries in the last \(windowMinutes) minutes"
+            "\(attemptCount) \(attemptCount == 1 ? "try" : "tries") in the last \(windowMinutes) minutes"
         }
 
+        /// A share card is public, so it never prints a zero streak ("Streak 0"): with no streak it
+        /// is just the goals clause. Streak reads "14-day streak", the same form as everywhere else.
         public static func highlightLine(goalsRemaining: Int, streak: Int) -> String {
             let goalsClause = goalsRemaining == 1 ? "1 goal left" : "\(goalsRemaining) goals left"
-            return "\(goalsClause) · Streak \(streak)"
+            guard streak > 0 else { return goalsClause }
+            return "\(goalsClause) · \(streak)-day streak"
         }
 
-        public static let acknowledgementLine = "Turns friction into content. Might as well share it."
+        /// Was "Turns friction into content. Might as well share it." — that leaked the growth
+        /// strategy (spec §5.16's rationale) onto the screen the user sees at their most frustrated.
+        public static let acknowledgementLine = "Still locked. Share it and keep yourself honest."
         public static let dismissButtonTitle = "Not now"
     }
 }
@@ -57,11 +62,11 @@ extension Copy {
         // Shared across every ShareCard export (LockedOutMomentView, WeeklyRecapShareView).
         public static let shareButtonTitle = "Share this"
         public static let preparingShareTitle = "Preparing…"
-        public static let shareFailedRetryLabel = "Couldn't prepare image — tap to try again"
+        public static let shareFailedRetryLabel = "Couldn't prepare the image. Try again."
         public static let footerWordmark = "ZANO"
 
         // WeeklyRecapShareView.swift only.
-        public static let weeklyRecapScreenTitle = "Your Week"
+        public static let weeklyRecapScreenTitle = "Your week"
 
         public static func weeklyRecapTitle(weekNumber: Int, rankTierLabel: String?) -> String {
             guard let rankTierLabel else { return "Week \(weekNumber)" }

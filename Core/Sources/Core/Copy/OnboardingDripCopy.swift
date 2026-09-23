@@ -35,11 +35,11 @@ extension Copy {
             case .hype:
                 ("Add your widget — 2 taps", "See your streak and Today's Plan right on your Home Screen. Let's set it up!")
             case .toughLove:
-                ("Still no widget", "You skipped it during setup. Add it now — it's the whole point of a Home Screen.")
+                ("Put your plan on your Home Screen", "You committed to your plan. The widget keeps it in front of you. Two taps.")
             case .chill:
-                ("No rush, but...", "Adding the ZANO widget makes checking in way easier. Whenever you've got a sec.")
+                ("No rush, but...", "Adding the ZANO widget makes checking in way easier. Two taps, if you feel like it.")
             case .data:
-                ("Widget: not installed", "Users with the widget open ZANO 2x more often. Takes under a minute to add.")
+                ("Widget: not installed", "Two taps to add it. Shows goals and streak on your Home Screen.")
             }
         }
 
@@ -50,9 +50,9 @@ extension Copy {
             case .hype:
                 ("Save your gym — let's go!", "Set your gym so ZANO can verify workouts automatically. No more manual logging.")
             case .toughLove:
-                ("You haven't saved a gym yet", "Verification needs to know where you train. Set it up — 30 seconds.")
+                ("Save your gym", "Workouts verify from your gym's location. Save it once — 30 seconds.")
             case .chill:
-                ("Set your gym whenever", "Once it's saved, workouts verify themselves — one less thing to think about.")
+                ("Save your gym when you can", "Once it's saved, workouts verify themselves — one less thing to think about.")
             case .data:
                 ("Gym: not set", "Workout goals need a saved gym to auto-verify. 0 saved so far.")
             }
@@ -63,13 +63,13 @@ extension Copy {
         public static func nfcTagNotCreated(tone: NudgeTone) -> (title: String, body: String) {
             switch tone {
             case .hype:
-                ("Map your first NFC tag!", "Stick a tag on your bottle or desk — tap it, and ZANO just knows. Set one up.")
+                ("Add your first NFC tag!", "Stick a tag on your bottle or desk — tap it, and ZANO just knows. Add one now.")
             case .toughLove:
-                ("No tags mapped yet", "A tapped tag beats a typed log every time. Set one up.")
+                ("No tags added yet", "A tapped tag beats a typed log every time. Add one.")
             case .chill:
-                ("Tags make logging easier", "Whenever you're ready, map an NFC tag to skip typing things in.")
+                ("Tags make logging easier", "Add an NFC tag when you're ready and skip typing things in.")
             case .data:
-                ("NFC tags mapped: 0", "Tag taps log faster than manual entry. Map your first one.")
+                ("NFC tags added: 0", "Tag taps log faster than manual entry. Add your first one.")
             }
         }
 
@@ -80,11 +80,11 @@ extension Copy {
             case .hype:
                 ("Bring a friend into this!", "Squads make it way more fun — invite someone or join one now.")
             case .toughLove:
-                ("You're doing this alone", "Squads keep you honest. Get one going.")
+                ("Squads keep you honest", "Start one, or join a friend's.")
             case .chill:
-                ("No pressure, but a squad helps", "Whenever you feel like it — a squad makes showing up easier.")
+                ("No pressure, but a squad helps", "A squad makes showing up easier. Start or join one if you feel like it.")
             case .data:
-                ("Squad: none", "Users in a squad complete goals more consistently. Join or start one.")
+                ("Squad: none", "Squads share a weekly ring. Join or start one.")
             }
         }
     }

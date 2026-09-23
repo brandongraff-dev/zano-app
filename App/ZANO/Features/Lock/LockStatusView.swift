@@ -8,20 +8,49 @@
 // guarantee that applies to every lock/shield surface (CLAUDE.md: "Any lock/shield feature must
 // always keep an emergency-unlock path. Never trap the user.").
 //
-// No `NavigationStack` of its own: this view is pushed from `TodayView`'s `LockStatusCard` tap via
-// `navigationDestination`, and may also become its own tab root later (spec §15's tab bar) — either
-// host already supplies navigation chrome, so nesting a second `NavigationStack` here would be
-// wrong in the pushed case. `.navigationTitle`/`.navigationBarTitleDisplayMode` below work in both
-// hosts.
+// Design pass (2026-09-23, docs/design/composition-audit.md §5.1, better-layout 1.3/7.3/3.9,
+// better-ui MOT-05/BRK-02/DEP-02, typography-color T3/C1, 2026-ios-trends §3.3):
 //
-// Engine calls (`LockEngineManager`, `TimeBankEngine`) follow this task's SYSTEM CONTRACTS shape
-// exactly; none of those files exist on disk in this session (parallel work), and nothing here has
-// been compiled (no Mac/Swift toolchain available). See this task's "decisions"/"knownIssues".
+// - It no longer opens with the card the user just tapped on Today. The top of the screen is a
+//   Lock-specific hero: the Time Bank's remaining minutes in Earn Mode (its reason to exist), the
+//   open-goal count in Full mode, or the next scheduled lock time when nothing is locked — each one
+//   number in the design system's hero tier (`NumeralText(.hero)`), on the same `zanoCard` surface
+//   as Today's hero (danger wash while locked; accent wash + the static earned glow once every goal
+//   is done), so the two screens read as one product.
+// - Required goals use the shared `GoalRow` (with a ring) instead of a hand-rolled row with
+//   different padding, open goals first.
+// - The three-line "time context" card is three quiet caption rows at the bottom.
+// - Emergency unlock is pinned to the bottom of the screen in a `StickyActionBar` ("always
+//   available" is now also "always visible", never at the end of a scroll) and reads as danger, not
+//   as another acid-green CTA (accent means earned; the exit that costs you the earn is not that).
+//   It is `PrimaryButton(.holdToCommit, tint: .danger)`: a quiet `surface2` capsule with a danger
+//   outline that fills in danger over the 2 s hold, its label inverting under the fill (the Core
+//   component draws the label twice, `text` on the track and `onFill` masked to the fill — the
+//   earlier light-on-acid-green label was 1.11 : 1). VoiceOver's double-tap fires it immediately.
 //
-// Copy note: user-facing strings go through `Copy.lockStatus.*`
-// (`Core/Sources/Core/Copy/LockStatusCopy.swift`), following the `Copy.<area>` umbrella convention
-// `Copy.swift` documents — moved there from this file's own private nested `Copy` enum by the
-// repo-wide Copy sweep (2026-09-22); see that file's header for why.
+// Shared pieces (`SegmentedProgress`, `GoalDayProgress`, `goalIconName`) come from `TodayView.swift`.
+//
+// No `NavigationStack` of its own: this view is pushed from `TodayView`'s hero card via
+// `navigationDestination`, and is also a tab root that `ContentView` wraps in its own
+// `NavigationStack` — either host already supplies navigation chrome, so nesting a second one here
+// would be wrong in the pushed case. `.navigationTitle`/`.navigationBarTitleDisplayMode` below work
+// in both hosts.
+//
+// Every animation here is gated on `@Environment(\.accessibilityReduceMotion)`; the wash and glow
+// are dropped under Reduce Transparency. Engine calls (`LockEngineManager`, `TimeBankEngine`)
+// follow this task's SYSTEM CONTRACTS shape exactly; nothing here has been compiled or rendered (no
+// Mac/Swift toolchain).
+//
+// Copy note: user-facing strings go through `Copy.lockStatus.*` (`Core/Sources/Core/Copy/
+// LockStatusCopy.swift`). Strings this pass added (`hero*`, `goal*`, `timeBankExpiryNote`) briefly
+// lived in an `extension Copy.lockStatus` at the bottom of this file; the review pass moved them into
+// `LockStatusCopy.swift` verbatim, so call sites are unchanged. The screen calls `timeBankExpiryNote`,
+// not `timeBankFootnote` (same words now). The emergency button's text is load-bearing for the UI
+// tests ("Hold to unlock in an emergency").
+//
+// The Time Bank fill is Core's `TimeBankBar` (review pass): this file used to carry a private
+// `BankBar` for a taller bar with a visible track, but `TimeBankBar` now has both (12 pt,
+// `Theme.Colors.track`), plus the glow and the low-balance pulse, so the copy was removed.
 //
 // Analytics (gap-fill wave, spec §23): this screen logs its own screen view and flushes
 // `SharedDefaults.shieldImpressionCount` — the on-device-only tally `ShieldConfigurationExtension`
@@ -44,37 +73,42 @@ struct LockStatusView: View {
     @Query private var lockSessions: [LockSession]
     @Query private var timeBanks: [TimeBank]
 
+    // MARK: - Environment
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     // MARK: - Local state
 
     @State private var isEmergencyUnlocking = false
     @State private var actionError: String?
     @State private var timeBankRemainingMinutes: Int?
 
+    /// `TimeBankBar`'s own suggested "low" line ("e.g. `remainingMinutes <= 5`").
+    private static let lowBankThreshold = 5
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                lockStatusCard
-                timeContextCard
+                heroCard
 
                 if !requiredGoals.isEmpty {
                     goalsSection
                 }
 
-                if activeSession?.mode == .earn {
-                    timeBankSection
-                }
-
-                if let actionError {
-                    Text(actionError)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.danger)
-                }
-
-                emergencySection
+                contextSection
             }
-            .padding(Theme.Spacing.md)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.md)
+            .padding(.bottom, Theme.Spacing.xl)
         }
-        .background(Theme.Colors.background.ignoresSafeArea())
+        .scrollBounceBehavior(.basedOnSize)
+        // The canvas, with a faint accent wash from the top edge while the reward is in hand
+        // (spendable minutes, or every goal done). Static, and dropped under Reduce Transparency.
+        .zanoBackdrop(glow: reduceTransparency ? nil : backdropGlow, intensity: 0.10)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            emergencyBar
+        }
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.lockStatus.screenTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -118,76 +152,228 @@ struct LockStatusView: View {
         Analytics.shared.capture(event: "shield_impression", properties: ["count": count])
     }
 
-    // MARK: - Lock status card
+    // MARK: - Hero
 
-    private var lockStatusCard: some View {
-        LockStatusCard(
-            isLocked: activeSession != nil,
-            statusLine: statusLine,
-            detailLine: detailLine
-        )
+    private enum HeroState: Equatable {
+        /// Nothing is locked.
+        case unlocked
+        /// Locked in Earn Mode: the bank is the hero, open goals are secondary.
+        case bank(minutes: Int, total: Int, goalsLeft: Int)
+        /// Locked in Full mode with goals still open: the open-goal count is the hero.
+        case goals(remaining: Int, total: Int)
+        /// Locked in Full mode, every required goal done; the engine is about to release it.
+        case allDone
     }
 
-    private var statusLine: String {
-        guard activeSession != nil else { return Copy.lockStatus.unlockedHeadline }
-        return remainingRequiredGoalCount == 1
-            ? Copy.lockStatus.lockedHeadlineSingular
-            : Copy.lockStatus.lockedHeadlinePlural(remainingRequiredGoalCount)
-    }
-
-    private var detailLine: String? {
-        guard activeSession != nil else { return nil }
-        if let bank = todaysTimeBank, activeSession?.mode == .earn, bank.remainingMin > 0 {
-            return "\(bank.remainingMin) min banked"
+    private var heroState: HeroState {
+        guard let session = activeSession else { return .unlocked }
+        if session.mode == .earn {
+            return .bank(
+                minutes: displayedRemainingMinutes,
+                total: todaysTimeBank?.earnedMin ?? 0,
+                goalsLeft: remainingRequiredGoalCount
+            )
         }
-        return CoachVoiceTone.goalsRemainingClause(voice, remaining: remainingRequiredGoalCount)
+        let remaining = remainingRequiredGoalCount
+        guard remaining > 0 else { return .allDone }
+        return .goals(remaining: remaining, total: max(requiredGoals.count, remaining))
     }
 
-    // MARK: - Time context
+    /// A nearly-spent bank (never an empty one that was never earned) borrows `warning`.
+    private func isBankLow(minutes: Int, total: Int) -> Bool {
+        total > 0 && minutes <= Self.lowBankThreshold
+    }
 
-    private var timeContextCard: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            if let session = activeSession {
-                HStack(spacing: Theme.Spacing.xs) {
-                    Image(systemName: "clock.fill")
+    /// The card glows only when every goal is done; the reward stays rare.
+    private var heroIsEarned: Bool {
+        if case .allDone = heroState { return true }
+        return false
+    }
+
+    private var backdropGlow: Color? {
+        switch heroState {
+        case .allDone:
+            return Theme.Colors.accent
+        case .bank(let minutes, let total, _):
+            let spendable = minutes > 0 && !isBankLow(minutes: minutes, total: total)
+            return spendable ? Theme.Colors.accent : nil
+        case .unlocked, .goals:
+            return nil
+        }
+    }
+
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            heroTopRow
+            heroBody
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.lg)
+        .zanoCard(
+            radius: Theme.Radius.large,
+            tint: reduceTransparency ? nil : heroBadgeTint,
+            active: heroIsEarned && !reduceTransparency
+        )
+        // One announcement for the card instead of a swipe through its parts.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(heroAccessibilityLabel)
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
+    }
+
+    private var heroTopRow: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            IconBadge(systemName: heroBadgeSymbol, tint: heroBadgeTint, size: .small)
+            Text(heroEyebrow)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var heroBody: some View {
+        switch heroState {
+        case .unlocked:
+            if let next = SharedDefaults.nextScheduledLockAt {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(nextLockLabel(next))
+                        .zanoText(.eyebrow)
                         .foregroundStyle(Theme.Colors.muted)
-                    Text(Copy.lockStatus.lockedSincePrefix)
-                        .foregroundStyle(Theme.Colors.text)
-                    Text(session.startedAt, style: .time)
-                        .foregroundStyle(Theme.Colors.text)
+                    heroNumeral(
+                        next.formatted(date: .omitted, time: .shortened),
+                        color: Theme.Colors.text,
+                        glows: false,
+                        changeKey: Int(next.timeIntervalSince1970)
+                    )
                 }
-                .font(Theme.Typography.body)
-
-                Text(Copy.lockStatus.triggerLine(session.trigger))
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-
-                if let nextLockAt = SharedDefaults.nextScheduledLockAt {
-                    nextLockRow(nextLockAt)
-                }
-            } else if let nextLockAt = SharedDefaults.nextScheduledLockAt {
-                nextLockRow(nextLockAt)
             } else {
                 Text(Copy.lockStatus.noScheduleLine)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.muted)
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(Theme.Colors.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+        case .bank(let minutes, let total, _):
+            let isLow = isBankLow(minutes: minutes, total: total)
+            // Earned minutes are the accent's job; a nearly-spent bank borrows `warning`.
+            let numeralColor: Color = isLow ? Theme.Colors.warning : (minutes > 0 ? Theme.Colors.accent : Theme.Colors.text)
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                heroNumeral(
+                    Copy.lockStatus.heroBankLine(minutes: minutes),
+                    color: numeralColor,
+                    glows: minutes > 0 && !isLow,
+                    changeKey: minutes
+                )
+                // Decorative here (the hero card speaks the balance); no `label`, so the bar is just
+                // the fill, on the shared `track`, with the low-balance tint and one-shot pulse.
+                TimeBankBar(remainingMinutes: minutes, totalMinutes: total, isLow: isLow)
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+                    Text(Copy.lockStatus.timeBankHeading)
+                        .font(Theme.Typography.captionEmphasized)
+                        .foregroundStyle(Theme.Colors.text)
+                    Text(Copy.lockStatus.timeBankExpiryNote)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+        case .goals(let remaining, let total):
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                heroNumeral(
+                    Copy.lockStatus.heroGoalsLeftLine(count: remaining),
+                    color: Theme.Colors.text,
+                    glows: false,
+                    changeKey: remaining
+                )
+                SegmentedProgress(total: total, done: total - remaining, filled: Theme.Colors.accent)
+            }
+
+        case .allDone:
+            HStack(spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "checkmark", tint: Theme.Colors.accent, size: .medium)
+                Text(Copy.lockStatus.heroAllDone)
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(Theme.Colors.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
     }
 
-    private func nextLockRow(_ date: Date) -> some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: "calendar")
-                .foregroundStyle(Theme.Colors.muted)
-            Text(Copy.lockStatus.nextLockPrefix)
-                .foregroundStyle(Theme.Colors.muted)
-            Text(date, style: .time)
-                .foregroundStyle(Theme.Colors.muted)
+    /// The hero number with its unit on the same baseline (`NumeralText` styles the caller-composed
+    /// line: "45" over "min available"; "10:30" over "PM"). It rolls the digits when the value
+    /// changes (inert under Reduce Motion, where the ambient animation is nil). `glows` adds a
+    /// static text glow for spendable earned minutes only, dropped under Reduce Transparency —
+    /// never an animated blur radius.
+    private func heroNumeral(_ line: String, color: Color, glows: Bool, changeKey: Int) -> some View {
+        NumeralText(line, size: .hero, color: color)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .shadow(color: Theme.Colors.accent.opacity(glows && !reduceTransparency ? 0.35 : 0), radius: 14)
+            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
+    }
+
+    /// "Next lock", with the weekday when it isn't today ("Next lock · Wednesday"). The weekday is
+    /// locale-formatted date data, not copy.
+    private func nextLockLabel(_ date: Date) -> String {
+        guard !Calendar.current.isDateInToday(date) else { return Copy.lockStatus.heroNextLock }
+        return Copy.lockStatus.heroNextLockOn(day: date.formatted(.dateTime.weekday(.wide)))
+    }
+
+    private var heroEyebrow: String {
+        switch heroState {
+        case .unlocked:
+            return Copy.lockStatus.unlockedHeadline
+        case .bank(_, _, let goalsLeft):
+            switch goalsLeft {
+            case 0: return Copy.lockStatus.heroEyebrowLocked
+            case 1: return Copy.lockStatus.lockedHeadlineSingular
+            default: return Copy.lockStatus.lockedHeadlinePlural(goalsLeft)
+            }
+        case .goals:
+            return Copy.lockStatus.heroEyebrowLocked
+        case .allDone:
+            return Copy.lockStatus.heroEyebrowUnlocking
         }
-        .font(Theme.Typography.caption)
+    }
+
+    private var heroBadgeSymbol: String {
+        switch heroState {
+        case .unlocked: "lock.open.fill"
+        case .bank, .goals: "lock.fill"
+        case .allDone: "checkmark"
+        }
+    }
+
+    /// `danger` for a running lock (spec §15), `accent` once it is earned/released.
+    private var heroBadgeTint: Color {
+        switch heroState {
+        case .bank, .goals: Theme.Colors.danger
+        case .unlocked, .allDone: Theme.Colors.accent
+        }
+    }
+
+    private var heroAccessibilityLabel: String {
+        var parts = [heroEyebrow]
+        switch heroState {
+        case .unlocked:
+            if let next = SharedDefaults.nextScheduledLockAt {
+                parts.append("\(Copy.lockStatus.nextLockPrefix) \(next.formatted(date: .omitted, time: .shortened))")
+            } else {
+                parts.append(Copy.lockStatus.noScheduleLine)
+            }
+        case .bank(let minutes, _, let goalsLeft):
+            parts.append(Copy.lockStatus.heroBankLine(minutes: minutes))
+            if goalsLeft > 0 {
+                parts.append(CoachVoiceTone.goalsRemainingClause(voice, remaining: goalsLeft))
+            }
+        case .goals(let remaining, _):
+            parts.append(Copy.lockStatus.heroGoalsLeftLine(count: remaining))
+            parts.append(CoachVoiceTone.goalsRemainingClause(voice, remaining: remaining))
+        case .allDone:
+            parts.append(Copy.lockStatus.heroAllDone)
+        }
+        return parts.joined(separator: ". ")
     }
 
     // MARK: - Required goals
@@ -198,67 +384,88 @@ struct LockStatusView: View {
         return goals.filter { requiredIDs.contains($0.id) }
     }
 
-    private var goalsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.lockStatus.requiredGoalsHeading)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
+    /// Open goals first, then done ones, each group in its stored order.
+    private var orderedRequiredGoals: [Goal] {
+        requiredGoals.filter { !isGoalDoneToday($0) } + requiredGoals.filter { isGoalDoneToday($0) }
+    }
 
-            ForEach(requiredGoals) { goal in
+    private var goalsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Copy.lockStatus.requiredGoalsHeading)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+
+            ForEach(orderedRequiredGoals) { goal in
                 goalRow(goal)
             }
         }
     }
 
     private func goalRow(_ goal: Goal) -> some View {
-        let p = progress(for: goal)
-        return HStack(spacing: Theme.Spacing.sm) {
-            GoalRing(progress: p.fraction, color: Theme.Colors.Ring.color(for: goal.type), size: .small)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(goal.title)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.text)
-                    .lineLimit(1)
-                Text(p.valueText)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-
-            Spacer(minLength: 0)
-
-            if p.fraction >= 1 {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Theme.Colors.accent)
-            }
+        let p = dayProgress(for: goal)
+        let status: GoalRowStatus = p.isComplete ? .complete : (p.hasStarted ? .inProgress : .pending)
+        let statusLabel = switch status {
+        case .complete: Copy.lockStatus.goalStatusComplete
+        case .inProgress: Copy.lockStatus.goalStatusInProgress
+        case .pending: Copy.lockStatus.goalStatusPending
         }
-        .padding(Theme.Spacing.sm)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+        let detail: String
+        if let target = p.target {
+            detail = Copy.lockStatus.goalValue(current: p.current ?? 0, target: target, unit: p.unit)
+        } else {
+            detail = p.isComplete ? Copy.lockStatus.goalDone : Copy.lockStatus.goalNotYet
+        }
+        return GoalRow(
+            title: goal.title,
+            detail: detail,
+            icon: goalIconName(for: goal.type),
+            color: Theme.Colors.Ring.color(for: goal.type),
+            status: status,
+            progress: p.fraction,
+            statusAccessibilityLabel: statusLabel
+        )
+    }
+
+    // MARK: - Time context (trivia, so: caption rows at the bottom, not a card)
+
+    @ViewBuilder
+    private var contextSection: some View {
+        if let session = activeSession {
+            let trigger = Copy.lockStatus.triggerLine(session.trigger)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                contextRow(icon: "clock.fill") {
+                    Text(Copy.lockStatus.lockedSincePrefix)
+                    Text(session.startedAt, style: .time)
+                }
+                if !trigger.isEmpty {
+                    contextRow(icon: "hand.tap.fill") {
+                        Text(trigger)
+                    }
+                }
+                if let nextLockAt = SharedDefaults.nextScheduledLockAt {
+                    contextRow(icon: "calendar") {
+                        Text(Copy.lockStatus.nextLockPrefix)
+                        Text(nextLockAt, style: .time)
+                    }
+                }
+            }
+            .font(Theme.Typography.caption)
+            .foregroundStyle(Theme.Colors.muted)
+            .padding(.horizontal, Theme.Spacing.xxs)
+        }
+    }
+
+    private func contextRow<Content: View>(icon: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: icon)
+                .font(Theme.Typography.icon(.xsmall))
+                .frame(width: Theme.Spacing.md)
+            content()
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Time Bank (Earn Mode only — spec §5.2)
-
-    private var timeBankSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            TimeBankBar(
-                remainingMinutes: displayedRemainingMinutes,
-                totalMinutes: todaysTimeBank?.earnedMin ?? 0,
-                label: Copy.lockStatus.timeBankHeading
-            )
-
-            Text("\(displayedRemainingMinutes) min available")
-                .font(Theme.Typography.numeralSmall())
-                .foregroundStyle(Theme.Colors.text)
-
-            Text(Copy.lockStatus.timeBankFootnote)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-        }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-    }
 
     private var displayedRemainingMinutes: Int {
         timeBankRemainingMinutes ?? todaysTimeBank?.remainingMin ?? 0
@@ -270,27 +477,41 @@ struct LockStatusView: View {
 
     // MARK: - Emergency unlock (CLAUDE.md: every lock keeps a way out — no exceptions)
 
+    /// Pinned, so "always available" is also "always visible". Also carries `actionError`, so a
+    /// failed emergency unlock is never off-screen behind a scroll.
     @ViewBuilder
-    private var emergencySection: some View {
-        if activeSession != nil {
-            VStack(spacing: Theme.Spacing.xs) {
-                PrimaryButton(
-                    title: Copy.lockStatus.emergencyUnlockTitle,
-                    systemImage: "exclamationmark.triangle.fill",
-                    style: .holdToCommit,
-                    isEnabled: !isEmergencyUnlocking,
-                    action: performEmergencyUnlock
-                )
-                Text(Copy.lockStatus.emergencyUnlockFootnote)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .multilineTextAlignment(.center)
+    private var emergencyBar: some View {
+        if activeSession != nil || actionError != nil {
+            StickyActionBar {
+                VStack(spacing: Theme.Spacing.xs) {
+                    if let actionError {
+                        Text(actionError)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.danger)
+                            .multilineTextAlignment(.center)
+                    }
+                    if activeSession != nil {
+                        PrimaryButton(
+                            title: Copy.lockStatus.emergencyUnlockTitle,
+                            systemImage: "exclamationmark.triangle.fill",
+                            style: .holdToCommit,
+                            isEnabled: !isEmergencyUnlocking,
+                            tint: .danger,
+                            action: performEmergencyUnlock
+                        )
+                        Text(Copy.lockStatus.emergencyUnlockFootnote)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.muted)
+                            .multilineTextAlignment(.center)
+                    }
+                }
             }
         }
     }
 
     private func performEmergencyUnlock() {
         guard let session = activeSession else { return }
+        actionError = nil
         isEmergencyUnlocking = true
         Analytics.shared.capture(event: "lock_emergency_unlock_started")
         Task {
@@ -321,8 +542,7 @@ struct LockStatusView: View {
         timeBanks.first { Calendar.current.isDateInToday($0.date) }
     }
 
-    // MARK: - Per-goal progress (see TodayView.swift for the same computation and why it's
-    // duplicated rather than shared — each Feature screen stays self-contained in this batch).
+    // MARK: - Per-goal progress (the computation itself is `GoalDayProgress`, shared with Today)
 
     private func todaysPlan(for goal: Goal) -> DailyPlan? {
         dailyPlans.first { $0.goal?.id == goal.id && Calendar.current.isDateInToday($0.date) }
@@ -332,24 +552,16 @@ struct LockStatusView: View {
         goalEvents.filter { $0.goal?.id == goal.id && Calendar.current.isDateInToday($0.ts) }
     }
 
-    private func isGoalDoneToday(_ goal: Goal) -> Bool {
-        progress(for: goal).fraction >= 1
+    private func dayProgress(for goal: Goal) -> GoalDayProgress {
+        GoalDayProgress(
+            goal: goal,
+            todaysEvents: todaysEvents(for: goal),
+            plannedValue: todaysPlan(for: goal)?.plannedValue
+        )
     }
 
-    private func progress(for goal: Goal) -> (fraction: Double, valueText: String) {
-        let events = todaysEvents(for: goal)
-        let hasCompletion = events.contains { [.complete, .verify, .planB].contains($0.kind) }
-        let target = todaysPlan(for: goal)?.plannedValue ?? goal.targetValue
-
-        guard let target, target > 0 else {
-            return (hasCompletion ? 1 : 0, hasCompletion ? "Done" : "Not yet")
-        }
-
-        let loggedSum = events.compactMap(\.value).reduce(0, +)
-        let fraction = hasCompletion ? 1 : min(1, loggedSum / target)
-        let unit = goal.unit ?? ""
-        let valueText = "\(Int(loggedSum.rounded()))/\(Int(target.rounded()))\(unit)"
-        return (fraction, valueText)
+    private func isGoalDoneToday(_ goal: Goal) -> Bool {
+        dayProgress(for: goal).isComplete
     }
 }
 

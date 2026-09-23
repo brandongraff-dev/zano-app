@@ -19,81 +19,72 @@
 // separate Core module owned by a different session), so there is no lock state here that could
 // trap anyone.
 //
-// `LockSetManager` API — not one of the predefined SYSTEM CONTRACTS in this batch's task (only
-// LockEngineManager, FocusSessionVerifier, GymVerifier, TimeBankEngine, StreakEngine,
-// AdaptiveGoalEngine, and the three ActivityAttributes were given exact shapes), but this file's
-// calls below were cross-checked against the real, now-implemented
-// `Core/Sources/Core/LockEngine/LockSetManager.swift` in a later review pass and match it exactly
-// (previously this comment described an assumed shape written ahead of that file existing; it's
-// now confirmed real, not assumed). Mirrors the id-based, `async throws`, `static let shared`
-// style every predefined contract in this batch uses (e.g. `LockEngineManager.startLock(
-// lockSetID: UUID, ...)` takes an id, not a model instance, and so do all its siblings):
+// `LockSetManager` API (cross-checked against the real `Core/Sources/Core/LockEngine/
+// LockSetManager.swift`): id-based, `async throws`, `static let shared`.
 //
-//     final class LockSetManager {
-//         static let shared = LockSetManager()
-//         func createLockSet(name: String, selection: FamilyActivitySelection?, makeDefault: Bool) async throws -> UUID
-//         func updateSelection(_ selection: FamilyActivitySelection, for lockSetID: UUID) async throws
-//         func rename(lockSetID: UUID, to name: String) async throws
-//         func setDefault(lockSetID: UUID) async throws
-//         func delete(lockSetID: UUID) async throws
-//         func selection(for lockSet: LockSet) -> FamilyActivitySelection
-//     }
+//     createLockSet(name:selection:makeDefault:) / updateSelection(_:for:) / rename(lockSetID:to:)
+//     setDefault(lockSetID:) / delete(lockSetID:) / selection(for: LockSet) -> FamilyActivitySelection
 //
-// Notes for whoever implements it for real:
-// - `createLockSet`/`updateSelection`/`rename`/`setDefault`/`delete` take ids (not `LockSet`
-//   instances) on purpose: this view's `@Query` results live on the environment's `ModelContext`,
-//   while a manager singleton most likely persists through its own `ModelContext(ModelContainer.
-//   appGroup)` — passing ids sidesteps any cross-context object-identity hazard entirely.
-// - `selection(for:)` is the one exception: it's a pure, synchronous decode of a `LockSet`
-//   instance's already-in-memory `appTokensBlob` (see that property's doc comment — "LockEngine
-//   owns encoding/decoding a FamilyActivitySelection into/out of this blob"), not a persistence
-//   op, so it takes the instance directly and returns synchronously (`.object([:])`-style empty
-//   `FamilyActivitySelection()` on a nil/undecodable blob) so this view can call it inline while
-//   building row text instead of threading `Task`/loading-state through every row.
-// - `setDefault` is expected to clear `isDefault` on every other `LockSet` for the current user
-//   in the same write, since there's no Postgres partial-unique-index enforcing "at most one
-//   default" server-side (see `LockSet.swift`) — the client owns that invariant.
-// - `createLockSet` is expected to set `isDefault = true` automatically when it's the user's
-//   first lock set (a set with no default is meaningless the moment any lock set exists at all —
-//   every other consumer of `LockSet.isDefault`, e.g. NFC-tap-with-no-mapping, needs something to
-//   resolve to). This view intentionally does not special-case "is this the first one?" itself —
-//   that invariant belongs with the type that owns every other default-set bookkeeping rule.
-// - `userID` is intentionally not a parameter anywhere above, matching every predefined contract
-//   in this batch (none take one either) — the manager is assumed to resolve the current device's
-//   one local `User` row itself (see `User.swift`: "this device's local SwiftData store holds
-//   exactly one User row... the signed-in (or anonymous) owner of the device").
+// - Mutations take ids, not `LockSet` instances, on purpose: this view's `@Query` results live on the
+//   environment's `ModelContext`, while the manager persists through its own context — ids sidestep
+//   any cross-context object-identity hazard.
+// - `selection(for:)` is the one synchronous, instance-taking call: a pure decode of an
+//   already-in-memory `appTokensBlob`, so rows can call it inline while building their text.
+// - `setDefault` clears `isDefault` on every other set in the same write (no server-side unique
+//   index enforces "at most one default"; the client owns that invariant), and `createLockSet`
+//   makes the user's first set the default. This view deliberately special-cases neither.
 //
-// ASSUMED API — `Copy.lockSetup` / `Copy.common`: CLAUDE.md and this session's task both require
-// "no hardcoded UI strings" — everything user-facing here goes through `Core/Sources/Core/Copy`,
-// which is also not this session's file to create. Every `Copy.lockSetup.*` / `Copy.common.*`
-// member this file and `AppPickerView.swift` reference is plain, tone-neutral admin-screen copy
-// (name a set, pick its apps, save) — not one of the coach-voice-flavored strings spec §5.13
-// describes for in-the-moment motivational copy (shield screens, nudges, streak messages), so a
-// single static string/function per key is assumed to be enough here, with no `CoachVoice`
-// parameter threaded through. Full list of keys referenced, for whoever owns `Core/Sources/Core/
-// Copy`: `screenTitle`, `newLockSetButtonLabel`, `emptyStateTitle`, `emptyStateMessage`,
-// `deleteButtonLabel`, `deleteConfirmTitle`, `deleteConfirmMessage(name:)`,
-// `defaultToggleAccessibilityLabel(name:)`, `noAppsSelected`, `selectionSummary(appCount:
-// categoryCount:webDomainCount:)`, `saveErrorTitle`, `newLockSetTitle`, `editLockSetTitle`,
-// `nameFieldLabel`, `nameFieldPlaceholder`, `saveButtonLabel`, `selectAppsButtonLabel`,
-// `appPickerFooter`, `authorizationErrorTitle`, `authorizationErrorMessage`,
-// `authorizationDeniedTitle`, `authorizationDeniedMessage`; `Copy.common.ok`, `Copy.common.cancel`.
+// All user-facing strings come from `Copy.lockSetup` / `Copy.common` (plain, tone-neutral admin copy —
+// no coach voice threaded through).
 
 import SwiftUI
 import SwiftData
 import FamilyControls
 import Core
 
-/// Lock Set management screen: list of saved `LockSet`s with a default-set toggle, plus create /
+// MARK: - Visual pass (design wave 2026-09-23)
+//
+// `docs/design/composition-audit.md` graded this screen F ("the most tutorial-grade screen"): a stock
+// `List` on the system's pure-black grouped background, rows in system fonts and `.primary/
+// .secondary` (the only Feature file that bypassed `Theme` outright), no identity for the product's
+// core object, a `Toggle` that snapped back when switched off (a radio wearing a switch's clothes),
+// and the app picker rendered as a settings line. What it is now, composition and visual only (every
+// `LockSetManager` call, the free-tier error alert path and the delete confirmation are unchanged):
+//
+//   * Lock sets are cards (the shared `zanoCard`) with the picked apps' real icons as an overlapped
+//     stack and a `+N` overflow tile, instead of a name and a count. The system-rendered `Label(token)`
+//     keeps the token-privacy rule intact (see `AppPickerView.swift`).
+//   * The default set is *visibly* the default without a word of copy: it sorts first, wears an
+//     accent wash and an accent-dim edge, and its control is a filled accent star. Every other set
+//     carries an outline star. The control is an explicit radio-style button (an off-tap on the current
+//     default is a no-op, `LockSetManager.setDefault` is the only writer) with a 44pt target. Its
+//     symbol swap and the row reorder both honor Reduce Motion (the swap used to be ungated).
+//   * The empty state is the same card language (a dashed outline with one CTA), not a system
+//     `ContentUnavailableView`, and the only time the screen carries a backdrop glow: an invitation,
+//     not decoration on an admin list.
+//   * The editor sheet leaves `Form` for a themed scroll view; the Always-Allowed warning that the
+//     audit noted "exists and is never used here" appears directly under the picker when the current
+//     selection could be affected by it (it uses `AlwaysAllowedCheck`'s own acknowledgement flag, so a
+//     user who dismissed it once is not nagged). The name field is an input well that lights an accent
+//     ring while focused.
+//   * `.tint(Theme.Colors.accent)` at this screen's root so the toolbar "+"/Save/Cancel are not system
+//     blue (`docs/design/typography-color-findings.md` C2). The app-wide tint belongs in `ZANOApp`/
+//     `ContentView`, which this wave does not own; this is the local fix until that lands.
+//
+// Copy gap (recorded, not hardcoded): a visible "Default" pill would read better than the star alone,
+// but it needs a new `Copy.lockSetup` member and `Core/Sources/Core/Copy` is outside this wave's edit
+// list. The star, the sort order, the accent edge and the existing
+// `Copy.lockSetup.defaultToggleAccessibilityLabel(name:)` carry the state meanwhile.
+
+/// Lock Set management screen: list of saved `LockSet`s with a default-set control, plus create /
 /// rename / re-pick-apps / delete. Reads `LockSet` rows directly via `@Query` (cheap, declarative,
 /// and this screen is the only v1 place that lists them) but never writes to one directly — every
-/// mutation goes through `LockSetManager` (assumed API, see file header) so blob encoding and
-/// default-set exclusivity stay owned by the Lock Engine module, not duplicated here.
+/// mutation goes through `LockSetManager` so blob encoding and default-set exclusivity stay owned by
+/// the Lock Engine module, not duplicated here.
 ///
-/// Expected to be pushed from within an existing `NavigationStack` (e.g. a "Manage Lock Sets" row
-/// on Settings, or reached while setting up a lock — Session 5 owns that wiring per docs/spec.md
-/// §15/§17 row 5), so this view sets `.navigationTitle`/`.toolbar` but does not own a
-/// `NavigationStack` itself; only the preview and the modal editor sheet below provide one.
+/// Expected to be pushed from within an existing `NavigationStack` (Settings links here), so this view
+/// sets `.navigationTitle`/`.toolbar` but does not own a `NavigationStack` itself; only the preview and
+/// the modal editor sheet below provide one.
 struct LockSetupView: View {
     @Query(sort: \LockSet.name) private var lockSets: [LockSet]
 
@@ -102,29 +93,56 @@ struct LockSetupView: View {
     @State private var errorAlert: LockSetupErrorAlert?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Cards sit 8pt apart (4pt above + 4pt below each), inside the standard 16pt screen gutter.
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(
+            top: Theme.Spacing.xxs,
+            leading: Theme.Spacing.md,
+            bottom: Theme.Spacing.xxs,
+            trailing: Theme.Spacing.md
+        )
+    }
+
+    /// The default set first, then by name. `@Query` sorts by name only; leading with the default is
+    /// how the list says "this is the one that applies" without a label.
+    private var orderedLockSets: [LockSet] {
+        lockSets.sorted { lhs, rhs in
+            if lhs.isDefault != rhs.isDefault { return lhs.isDefault }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+    }
+
     var body: some View {
-        List {
-            if lockSets.isEmpty {
+        let ordered = orderedLockSets
+        return List {
+            if ordered.isEmpty {
                 emptyState
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                     .transition(.opacity)
             } else {
-                ForEach(lockSets) { lockSet in
+                ForEach(ordered) { lockSet in
                     lockSetRow(lockSet)
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                         .transition(rowTransition)
                 }
             }
         }
-        // Explicit row insertion/removal choreography, distinct from `List`'s own default row
-        // animation: a new lock set (created via the "+" sheet) or a deleted one (swipe-to-delete)
-        // now settles/dismisses with this design system's own spring rather than the system
-        // default slide, and — unlike the system default — this is explicitly gated for Reduce
-        // Motion below. Keyed on the ordered id list (not just `.count`) so a rename that moves a
-        // row to a new position in this screen's name-sorted `@Query` also animates as a genuine
-        // reorder, not a silent jump. See `docs/design/animation-opportunities.md` Part 0 for the
-        // reduced-motion fallback pattern this follows everywhere in this wave.
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .zanoBackdrop(glow: ordered.isEmpty ? Theme.Colors.accent : nil, intensity: 0.12)
+        // Explicit row insertion/removal/reorder choreography, distinct from `List`'s own default row
+        // animation: a new lock set (created via the "+" sheet), a deleted one (swipe-to-delete) or a
+        // change of default now settles with this design system's own spring rather than the system
+        // default slide, and — unlike the system default — is explicitly gated for Reduce Motion.
+        // Keyed on the ordered id list (not just `.count`) so a rename or a new default that moves a
+        // row also animates as a genuine reorder, not a silent jump.
         .animation(
             reduceMotion ? .easeOut(duration: 0.18) : Theme.Motion.springStandard,
-            value: lockSets.map(\.id)
+            value: ordered.map(\.id)
         )
         .navigationTitle(Copy.lockSetup.screenTitle)
         .toolbar {
@@ -172,9 +190,9 @@ struct LockSetupView: View {
         } message: { alert in
             Text(alert.message)
         }
+        .tint(Theme.Colors.accent)
         // `Theme.swift`'s own header: this is a fixed, dark-only design system, not
-        // light/dark-adaptive — screens force `.preferredColorScheme(.dark)` themselves (the
-        // pattern `TodayView`/`LockStatusView`/every other real screen already follows). Without
+        // light/dark-adaptive — screens force `.preferredColorScheme(.dark)` themselves. Without
         // this, a Light/Automatic system appearance leaves this screen's own dark surfaces intact
         // but every native `.confirmationDialog`/`.alert` above (both heavily used here) and the
         // status bar/nav chrome follow the *system* appearance instead. See
@@ -182,12 +200,10 @@ struct LockSetupView: View {
         .preferredColorScheme(.dark)
     }
 
-    /// A newly-created row settles in (fade + gentle scale-up from 0.96, matching the "arriving"
-    /// feel `ShieldPreview`'s hero reveal uses elsewhere in this wave) and a deleted row simply
+    /// A newly-created row settles in (fade + gentle scale-up from 0.96) and a deleted one simply
     /// fades rather than sliding — sliding is already `List`'s own default for the swipe-to-delete
-    /// path, so this only needs to cover the fade half to avoid two competing motions stacking on
-    /// the same row. Reduce Motion: plain opacity both ways, no scale — see Part 0 of
-    /// `docs/design/animation-opportunities.md`.
+    /// path, so this only covers the fade half to avoid two competing motions stacking on the same
+    /// row. Reduce Motion: plain opacity both ways, no scale.
     private var rowTransition: AnyTransition {
         reduceMotion
             ? .opacity
@@ -197,36 +213,89 @@ struct LockSetupView: View {
             )
     }
 
+    // MARK: - Empty state
+
+    /// A dashed, outlined tile in the same card language as a real row, with one CTA. The glyph is
+    /// `text` on a neutral disc (not accent): the accent's one job on this screen is the CTA itself.
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(Copy.lockSetup.emptyStateTitle, systemImage: "lock.shield")
-        } description: {
-            Text(Copy.lockSetup.emptyStateMessage)
-        } actions: {
-            Button(Copy.lockSetup.newLockSetButtonLabel) {
+        VStack(spacing: Theme.Spacing.md) {
+            IconBadge(systemName: "lock.shield.fill", tint: Theme.Colors.text, size: .large)
+
+            VStack(spacing: Theme.Spacing.xxs) {
+                Text(Copy.lockSetup.emptyStateTitle)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(Copy.lockSetup.emptyStateMessage)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            PrimaryButton(
+                title: Copy.lockSetup.newLockSetButtonLabel,
+                systemImage: "plus"
+            ) {
                 editorTarget = .create
             }
         }
+        .padding(Theme.Spacing.lg)
+        .frame(maxWidth: .infinity)
+        .background {
+            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
+                .strokeBorder(
+                    Theme.Colors.hairlineStrong,
+                    style: StrokeStyle(lineWidth: 1.5, dash: [6, 6])
+                )
+        }
+        .padding(.top, Theme.Spacing.lg)
     }
 
+    // MARK: - Row
+
     private func lockSetRow(_ lockSet: LockSet) -> some View {
-        Button {
+        // Decoded once per row render: both the icon stack and the summary read from it.
+        let selection = LockSetManager.shared.selection(for: lockSet)
+        let isDefault = lockSet.isDefault
+        return Button {
             editorTarget = .edit(lockSet)
         } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: Theme.Spacing.md) {
+                LockSetIconStack(items: selection.pickedActivityItems)
+
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(lockSet.name)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                    Text(appSummary(for: lockSet))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                        .lineLimit(1)
+                    Text(selection.lockSetupSummary)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .lineLimit(2)
                 }
-                Spacer()
-                defaultToggle(for: lockSet)
+
+                // Room for the default control overlaid below, so the text column never runs under it.
+                Spacer(minLength: Theme.Metrics.minTapTarget)
             }
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard(radius: Theme.Radius.medium, tint: isDefault ? Theme.Colors.accent : nil)
+            .overlay {
+                if isDefault {
+                    RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+                        .strokeBorder(Theme.Colors.accentDim, lineWidth: 1.5)
+                        .allowsHitTesting(false)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
+        // A sibling of the row button, not a child of its label: a control nested inside another
+        // button's label is what made the old switch fight the row tap.
+        .overlay(alignment: .trailing) {
+            defaultControl(for: lockSet)
+                .padding(.trailing, Theme.Spacing.xs)
+        }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 pendingDeletion = lockSet
@@ -236,41 +305,34 @@ struct LockSetupView: View {
         }
     }
 
-    /// A `Toggle` per the task's own wording ("a default-set toggle"), not a free multi-select —
-    /// turning one lock set's toggle on calls `LockSetManager.setDefault`, which is the only place
-    /// that clears every other set's flag. Turning the *current* default's toggle off directly
-    /// would leave zero default sets, which every other consumer of `LockSet.isDefault` relies on
-    /// always resolving to something, so an off-tap here is a no-op rather than a dead end —
-    /// picking a different set's toggle on is the only way to change the default, same as a radio
-    /// button, just presented as the toggle the task asked for.
-    private func defaultToggle(for lockSet: LockSet) -> some View {
-        Toggle(isOn: Binding(
-            get: { lockSet.isDefault },
-            set: { isOn in
-                guard isOn else { return }
-                setDefault(lockSet)
-            }
-        )) {
-            EmptyView()
+    /// Radio-style "make this the default" control. Same semantics as the old `Toggle`: turning one
+    /// lock set on calls `LockSetManager.setDefault`, which is the only place that clears every other
+    /// set's flag; tapping the *current* default is a no-op rather than a dead end, because turning
+    /// it off would leave zero defaults and every consumer of `LockSet.isDefault` (NFC tap with no
+    /// tag mapping, schedules with no override) needs something to resolve to. Picking a different
+    /// set is the only way to change the default — exactly a radio button, now presented as one.
+    private func defaultControl(for lockSet: LockSet) -> some View {
+        let isDefault = lockSet.isDefault
+        return Button {
+            guard !isDefault else { return }
+            setDefault(lockSet)
+        } label: {
+            Image(systemName: isDefault ? "star.fill" : "star")
+                .font(Theme.Typography.icon(.small))
+                // `onFill`, not `background`: the one label color for anything drawn on an accent fill.
+                .foregroundStyle(isDefault ? Theme.Colors.onFill : Theme.Colors.muted)
+                .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+                .background(isDefault ? Theme.Colors.accent : Theme.Colors.track, in: Circle())
+                .minTapTarget()
         }
-        .labelsHidden()
-        .toggleStyle(.switch)
+        .buttonStyle(.pressable(scale: 0.92))
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isDefault)
         .accessibilityLabel(Copy.lockSetup.defaultToggleAccessibilityLabel(name: lockSet.name))
-    }
-
-    private func appSummary(for lockSet: LockSet) -> String {
-        let selection = LockSetManager.shared.selection(for: lockSet)
-        let appCount = selection.applicationTokens.count
-        let categoryCount = selection.categoryTokens.count
-        let webDomainCount = selection.webDomainTokens.count
-        guard appCount + categoryCount + webDomainCount > 0 else {
-            return Copy.lockSetup.noAppsSelected
-        }
-        return Copy.lockSetup.selectionSummary(
-            appCount: appCount,
-            categoryCount: categoryCount,
-            webDomainCount: webDomainCount
-        )
+        .accessibilityAddTraits(isDefault ? .isSelected : [])
+        // Only the set that just *became* default buzzes: the set that lost the flag flips too, but
+        // the user did not touch it.
+        .sensoryFeedback(.selection, trigger: isDefault) { _, newValue in newValue }
     }
 
     private func setDefault(_ lockSet: LockSet) {
@@ -301,6 +363,55 @@ struct LockSetupView: View {
     }
 }
 
+/// The lock set's identity: up to three real app icons, overlapped, with a `+N` tile for the rest.
+/// Each tile sits on a 2pt `surface` halo (a background shape that extends past the tile's edge) so
+/// the overlap reads as layered tiles rather than merged shapes — the same cutout idea `ShieldPreview`'s
+/// lock badge uses, drawn *behind* the tile so it never covers the tile's own hairline edge. An empty
+/// set (created with no apps yet) shows a lock-shield glyph tile instead of nothing.
+private struct LockSetIconStack: View {
+    let items: [PickedActivityItem]
+
+    private static let maxTiles = 3
+    private static let tileSize: CGFloat = 40
+
+    var body: some View {
+        let visible = Array(items.prefix(Self.maxTiles))
+        let overflow = items.count - visible.count
+        return HStack(spacing: -Theme.Spacing.sm) {
+            if visible.isEmpty {
+                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                    .fill(Theme.Colors.surface2)
+                    .frame(width: Self.tileSize, height: Self.tileSize)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                            .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+                    }
+                    .overlay {
+                        Image(systemName: "lock.shield")
+                            .font(Theme.Typography.icon(.large))
+                            .foregroundStyle(Theme.Colors.muted)
+                    }
+            } else {
+                ForEach(visible) { item in
+                    ActivityTokenTile(item: item, size: Self.tileSize)
+                        .background { halo }
+                }
+                if overflow > 0 {
+                    ActivityOverflowTile(count: overflow, size: Self.tileSize)
+                        .background { halo }
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var halo: some View {
+        RoundedRectangle(cornerRadius: Theme.Radius.small + 2, style: .continuous)
+            .fill(Theme.Colors.surface)
+            .padding(-2)
+    }
+}
+
 /// Which lock set the editor sheet is working on: a brand-new one, or an existing one being
 /// renamed / having its app selection changed. `Identifiable` so it can drive `.sheet(item:)`
 /// directly — file-scoped, not a shared model.
@@ -327,8 +438,7 @@ private struct LockSetupErrorAlert: Identifiable {
 }
 
 /// The create / rename / re-pick-apps form, shared by both the "+" toolbar button and tapping an
-/// existing row. Everything here talks to `LockSetManager` (assumed API, see file header) — never
-/// to `ModelContext` directly.
+/// existing row. Everything here talks to `LockSetManager` — never to `ModelContext` directly.
 private struct LockSetEditorSheet: View {
     /// See the name `TextField`'s own comment (§4.3) — an arbitrary but generous ceiling, well
     /// past any real lock-set name, that keeps this field's length bounded for every downstream
@@ -338,10 +448,15 @@ private struct LockSetEditorSheet: View {
     let target: EditorTarget
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var name: String = ""
     @State private var selection = FamilyActivitySelection()
     @State private var isSaving = false
     @State private var errorAlert: LockSetupErrorAlert?
+    @FocusState private var isNameFocused: Bool
+    /// Set when the user closes the Always-Allowed banner in this sheet; paired with
+    /// `AlwaysAllowedCheck.hasAcknowledgedWarning` (the cross-session "don't nag forever" flag).
+    @State private var hasDismissedAlwaysAllowedWarning = false
 
     private var existingLockSet: LockSet? {
         if case .edit(let lockSet) = target {
@@ -359,29 +474,42 @@ private struct LockSetEditorSheet: View {
         return hasName && hasSelection
     }
 
+    /// The banner is honest, not a detector (see `AlwaysAllowedCheck`'s header): it appears whenever
+    /// the picked apps or categories *could* be exempted by Settings > Screen Time > Always Allowed.
+    private var shouldShowAlwaysAllowedWarning: Bool {
+        AlwaysAllowedCheck.shouldWarn(for: selection)
+            && !hasDismissedAlwaysAllowedWarning
+            && !AlwaysAllowedCheck.hasAcknowledgedWarning
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField(Copy.lockSetup.nameFieldPlaceholder, text: $name)
-                        .textInputAutocapitalization(.words)
-                        // No consumer-side length cap existed anywhere in this flow — a
-                        // pathologically long name would still degrade gracefully downstream
-                        // (every real display site already applies its own `lineLimit`), but
-                        // nothing enforced a sane ceiling at the point of entry. Capped here so
-                        // every new consumer can trust the string is already bounded, rather than
-                        // each one independently re-guarding it. See
-                        // `docs/design/ui-stress-test-findings.md` §4.3.
-                        .onChange(of: name) { _, newValue in
-                            guard newValue.count > Self.maxNameLength else { return }
-                            name = String(newValue.prefix(Self.maxNameLength))
-                        }
-                } header: {
-                    Text(Copy.lockSetup.nameFieldLabel)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                    nameSection
 
-                AppPickerView(selection: $selection)
+                    AppPickerView(selection: $selection)
+
+                    if shouldShowAlwaysAllowedWarning {
+                        AlwaysAllowedWarningView(selection: selection) {
+                            AlwaysAllowedCheck.recordAcknowledged()
+                            hasDismissedAlwaysAllowedWarning = true
+                        }
+                        .transition(
+                            reduceMotion
+                                ? .opacity
+                                : .opacity.combined(with: .move(edge: .top))
+                        )
+                    }
+                }
+                .padding(Theme.Spacing.md)
+                .animation(
+                    reduceMotion ? nil : Theme.Motion.springStandard,
+                    value: shouldShowAlwaysAllowedWarning
+                )
             }
+            .scrollDismissesKeyboard(.interactively)
+            .zanoBackdrop()
             .navigationTitle(
                 existingLockSet == nil ? Copy.lockSetup.newLockSetTitle : Copy.lockSetup.editLockSetTitle
             )
@@ -412,6 +540,48 @@ private struct LockSetEditorSheet: View {
             } message: { alert in
                 Text(alert.message)
             }
+        }
+        .tint(Theme.Colors.accent)
+        // Same fixed-dark rationale as `LockSetupView`; a presented sheet does not reliably inherit
+        // the presenter's `preferredColorScheme`.
+        .preferredColorScheme(.dark)
+    }
+
+    /// An eyebrow label over an input well (`surface2`, edge-lit). The well lights an accent ring while
+    /// focused, so it reads as *the* field being edited.
+    private var nameSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Copy.lockSetup.nameFieldLabel)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+                .padding(.horizontal, Theme.Spacing.xs)
+
+            TextField(Copy.lockSetup.nameFieldPlaceholder, text: $name)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .textInputAutocapitalization(.words)
+                .focused($isNameFocused)
+                .padding(Theme.Spacing.md)
+                .frame(minHeight: Theme.Metrics.minTapTarget)
+                .zanoCard(radius: Theme.Radius.medium, fill: Theme.Colors.surface2)
+                .overlay {
+                    RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+                        .strokeBorder(Theme.Colors.accent, lineWidth: 1.5)
+                        .opacity(isNameFocused ? 1 : 0)
+                        .allowsHitTesting(false)
+                }
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isNameFocused)
+                // No consumer-side length cap existed anywhere in this flow — a
+                // pathologically long name would still degrade gracefully downstream
+                // (every real display site already applies its own `lineLimit`), but
+                // nothing enforced a sane ceiling at the point of entry. Capped here so
+                // every new consumer can trust the string is already bounded, rather than
+                // each one independently re-guarding it. See
+                // `docs/design/ui-stress-test-findings.md` §4.3.
+                .onChange(of: name) { _, newValue in
+                    guard newValue.count > Self.maxNameLength else { return }
+                    name = String(newValue.prefix(Self.maxNameLength))
+                }
         }
     }
 

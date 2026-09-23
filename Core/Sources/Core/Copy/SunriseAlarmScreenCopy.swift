@@ -36,8 +36,9 @@ extension Copy {
         public static let tagPromptLabel = "Tap your Sunrise Tag to turn off the alarm."
         public static let tagScanButtonLabel = "Scan Sunrise Tag"
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
-        public static let tagScanNoMatchMessage =
-            "That tag isn't set up yet — hold it near your phone again to register it as your Sunrise Tag."
+        // While the alarm is ringing, never tell a half-asleep user to add a new tag: the only
+        // useful instruction is to find the one they already set up.
+        public static let tagScanNoMatchMessage = "This isn't your Sunrise Tag. Find the one you set up."
         public static let wrongTagErrorText = "That's a different ZANO tag — find your Sunrise Tag instead."
 
         // Steps
@@ -83,13 +84,15 @@ extension Copy {
 
         // Dismiss method
         public static let dismissMethodSectionHeader = "How you turn it off"
-        public static let dismissMethodFooter =
-            "The only way to stop the alarm is completing the step you pick below — that's the point."
+        // Not "the only way": the snooze and the 60-second escape hatch are also ways out, and
+        // "only" would make the escape hatch feel like it can't be trusted. Also no "below" — that
+        // couples the words to the layout.
+        public static let dismissMethodFooter = "To stop the alarm, complete the step you pick."
 
         public static func variantTitle(_ variant: SunriseAlarmManager.DismissVariant) -> String {
             switch variant {
             case .tag: "Tap a tag"
-            case .steps: "Walk it off"
+            case .steps: "Walk to turn it off"
             case .focus: "Wake-up timer"
             case .squad: "Squad check-in"
             }
@@ -108,14 +111,14 @@ extension Copy {
         public static let tagSectionHeader = "Sunrise Tag"
         public static func tagMappedStatus(count: Int) -> String {
             switch count {
-            case 0: "No tag set up yet."
-            case 1: "1 tag set up."
-            default: "\(count) tags set up."
+            case 0: "No tag added yet."
+            case 1: "1 tag added."
+            default: "\(count) tags added."
             }
         }
         public static let tagScanButtonLabel = "Add a Sunrise Tag"
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
-        public static let tagScanNoMatchMessage = "That tag isn't registered yet — scan again to add it."
+        public static let tagScanNoMatchMessage = "That tag isn't added yet. Scan it again to add it."
         public static let tagScanErrorTitle = "Couldn't read tag"
         public static let tagPlacementHeader =
             "Put it somewhere you have to get up for — bathroom mirror, kitchen, coffee machine."

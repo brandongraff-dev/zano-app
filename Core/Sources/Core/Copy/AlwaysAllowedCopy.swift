@@ -30,7 +30,9 @@ extension Copy {
 
         // MARK: - Banner (`AlwaysAllowedWarningView`)
 
-        public static let bannerTitle = "Some apps can't be locked"
+        /// A title that states as fact what the body below only hedges ("If any of these apps are
+        /// in..."). This one matches the hedge: check first, then rely on the lock.
+        public static let bannerTitle = "Check Always Allowed before you rely on this lock"
 
         /// Shown when the selection includes at least one individually-picked app
         /// (`AlwaysAllowedCheck.Assessment.appCount > 0`).
@@ -60,7 +62,7 @@ extension Copy {
 
         // MARK: - Full explainer (for a setup/help screen that wants more than the one-line banner)
 
-        public static let explainerTitle = "The \"Always Allowed\" gotcha"
+        public static let explainerTitle = "Apps that ignore your lock"
 
         public static let explainer =
             "Apple's Screen Time has its own exception list — Settings > Screen Time > Always " +
@@ -75,7 +77,6 @@ extension Copy {
             "ZANO to be able to lock."
 
         public static let explainerNote =
-            "This isn't a ZANO bug to report — it's Apple's own Screen Time design, the same for " +
-            "every app-blocking app on the App Store."
+            "This is how Screen Time works for every app blocker."
     }
 }

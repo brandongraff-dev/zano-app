@@ -15,11 +15,11 @@ import Foundation
 
 extension Copy {
     public enum lockSetup {
-        public static let screenTitle = "Lock Sets"
-        public static let newLockSetButtonLabel = "New Lock Set"
+        public static let screenTitle = "Lock sets"
+        public static let newLockSetButtonLabel = "New lock set"
 
         public static let emptyStateTitle = "No lock sets yet"
-        public static let emptyStateMessage = "Create a lock set to choose which apps get shielded."
+        public static let emptyStateMessage = "Create a lock set to choose which apps get locked."
 
         public static let deleteButtonLabel = "Delete"
         public static let deleteConfirmTitle = "Delete this lock set?"
@@ -42,19 +42,22 @@ extension Copy {
 
         public static let saveErrorTitle = "Couldn't save"
 
-        public static let newLockSetTitle = "New Lock Set"
-        public static let editLockSetTitle = "Edit Lock Set"
+        public static let newLockSetTitle = "New lock set"
+        public static let editLockSetTitle = "Edit lock set"
         public static let nameFieldLabel = "Name"
         public static let nameFieldPlaceholder = "e.g. Social, Games, All"
         public static let saveButtonLabel = "Save"
 
-        public static let selectAppsButtonLabel = "Apps & Categories"
-        public static let appPickerFooter = "Choose the apps, categories, and websites this lock set shields."
+        public static let selectAppsButtonLabel = "Apps & categories"
+        public static let appPickerFooter = "Choose the apps, categories, and websites to lock."
 
-        public static let authorizationErrorTitle = "Couldn't request access"
-        public static let authorizationErrorMessage = "Something went wrong requesting Screen Time access. Try again."
+        // Same wording as `Copy.onboarding.q2Authorization*` — one failure, one phrasing. No
+        // Settings breadcrumb: the exact path differs across iOS versions and none of it has been
+        // verified on a device (CLAUDE.md rule 5).
+        public static let authorizationErrorTitle = "Couldn't turn on Screen Time access"
+        public static let authorizationErrorMessage = "Check your connection and try again."
         public static let authorizationDeniedTitle = "Screen Time access needed"
         public static let authorizationDeniedMessage =
-            "ZANO needs Screen Time access to shield apps. Enable it in Settings > Screen Time > ZANO."
+            "ZANO needs Screen Time access to lock apps. Turn it on in Settings, then come back."
     }
 }

@@ -9,86 +9,82 @@
 // themes, ring styles, shield backgrounds, and coach voice packs."
 //
 // This is the dedicated, full-screen Trophy Case — a richer companion to the small "Trophy Case"
-// preview card `App/ZANO/Features/Progress/ProgressView.swift` already renders inline on the
-// Progress tab (that file is owned by a different session this same batch; read, not edited,
-// here). The two intentionally differ in one way: ProgressView's card only lists badges that
-// already exist (`if badges.isEmpty { ... } else { ForEach(badges) ... }`); this screen shows the
-// full, spec-named milestone set as a grid — earned tiles lit up with their badge's real
-// `earnedAt`, not-yet-earned tiles shown locked/dimmed — because a "trophy case" that only ever
+// preview card `App/ZANO/Features/Progress/ProgressView.swift` renders inline on the Progress tab.
+// The two intentionally differ in one way: ProgressView's card only lists badges that already exist;
+// this screen shows the full, spec-named milestone set as a grid — earned tiles lit up with their
+// badge's real `earnedAt`, not-yet-earned tiles shown locked — because a "trophy case" that only ever
 // shows what's already won isn't showing the case, just the trophies. Both screens read the same
-// `Badge` rows via `@Query` and the same `Copy.badges.*` keys (see ASSUMED API below), so a badge
-// earned anywhere shows up identically in both places with zero duplication of award logic —
-// neither this file nor ProgressView.swift ever inserts a `Badge`; that's `StreakEngine`/
-// `ComebackMode`/(future) other engines' job exclusively.
+// `Badge` rows via `@Query` and the same `Copy.badges.*` keys, so a badge earned anywhere shows up
+// identically in both places with zero duplication of award logic — neither this file nor
+// ProgressView.swift ever inserts a `Badge`; that's `StreakEngine`/`ComebackMode`/(future) other
+// engines' job exclusively.
 //
-// Reads `Badge` directly via `@Query`, exactly like `ProgressView.swift` (read in full before
-// writing this file) — this screen is read-only, same as that one: it never mutates a `Badge` row
-// itself. `CosmeticsStore.shared` (this task's other owned file,
-// `Core/Sources/Core/Retention/CosmeticsStore.swift`) supplies the coin balance shown here and
-// backs the "Open the Shop" link into `CosmeticsShopView` (this task's third owned file, same
-// directory) — Trophy Case and the Cosmetics Shop are one spec section (§5.17) and one coin
-// economy, so linking them directly here (rather than making the user find the shop through
-// Settings) is this task's own UX call, flagged in `decisions`.
+// Reads `Badge` directly via `@Query`, exactly like `ProgressView.swift` — this screen is read-only:
+// it never mutates a `Badge` row itself. `CosmeticsStore.shared` supplies the coin balance shown here
+// and backs the link into `CosmeticsShopView` (same directory) — Trophy Case and the Cosmetics Shop
+// are one spec section (§5.17) and one coin economy, so linking them directly here (rather than making
+// the user find the shop through Settings) is this task's own UX call.
 //
 // ── The six milestone badge keys below ──
 //
 // `first_earned_unlock`, `streak_7`, `streak_30`, `streak_100`, `protein_1000g_week`,
-// `gym_50_sessions` are exactly spec §5.17's own list, and exactly the same keys/SF Symbols
-// `ProgressView.swift`'s file-scoped `ProgressBadgeIconMap` already uses for its `streak_7`/
-// `streak_30`/`streak_100`/`protein_1000g_week`/`gym_50_sessions`/`first_earned_unlock` cases
-// (that enum also has `streak_14`/`streak_365`/`comeback` cases this screen's canonical grid
-// omits — see "Other achievements" below for where those still show up). Icons are re-declared
-// locally, inline on each `TrophyMilestone` entry in the `milestones` array below, rather than
-// imported: `ProgressBadgeIconMap` is `private` to ProgressView.swift's file scope (Swift access
-// control, not a cross-target boundary — same App module, still can't reach a `private` symbol in
-// a different file), and this task does not own that file to change its access level. Keeping the
-// same SF Symbol choices here is a
-// deliberate visual-consistency decision, not a coincidence — flagged in `decisions` in case a
-// future session changes one without knowing to update the other.
+// `gym_50_sessions` are exactly spec §5.17's own list. Icons are declared locally on each
+// `TrophyMilestone` entry rather than imported: `ProgressView.swift`'s `ProgressBadgeIconMap` is
+// `private` to that file, and this task does not own it. Keeping the same SF Symbol *family* is a
+// deliberate visual-consistency decision — flagged in case a future session changes one without
+// knowing to update the other.
 //
-// **No engine currently awards most of these badges.** Grepping the whole repo before writing
-// this file found only `StreakEngine.awardComebackBadge` (`"comeback_<date>"`) and
-// `ComebackMode.awardChallengeCompleteBadge` (`"comeback_challenge_<date>"`) actually inserting
-// `Badge` rows today — nothing yet awards `first_earned_unlock`, `streak_7`, `streak_30`,
-// `streak_100`, `protein_1000g_week`, or `gym_50_sessions`. That's expected and correctly
-// reflected here: every one of those six tiles renders "locked" until a future session (most
-// likely `StreakEngine` for the three streak milestones, `GymVerifier` for the 50-session badge,
-// and whichever engine ends up owning weekly protein totals for the 1,000g badge) adds the actual
-// award call. Flagged prominently in `knownIssues` — this is real, not a placeholder bug in this
-// screen.
+// **No engine currently awards most of these badges.** Only `StreakEngine.awardComebackBadge`
+// (`"comeback_<date>"`) and `ComebackMode.awardChallengeCompleteBadge` (`"comeback_challenge_<date>"`)
+// actually insert `Badge` rows today — nothing yet awards `first_earned_unlock`, `streak_7`,
+// `streak_30`, `streak_100`, `protein_1000g_week`, or `gym_50_sessions`. Every one of those six tiles
+// renders "locked" until a future session adds the actual award call. Real, not a bug in this screen.
 //
-// ASSUMED API — `Copy.trophyCase.*` / `Copy.cosmetics.*` / `Copy.badges.*` / `Copy.common.*`
-// (`Core/Sources/Core/Copy`, not owned by this task). Follows the exact precedent
-// `LockSetupView.swift`/`ProgressView.swift` already set: reference `Copy.<feature>.*` by name
-// and list every assumed member here. `Copy.badges.*` and `Copy.common.ok` are not new — they're
-// the same members `ProgressView.swift`'s own ASSUMED API block already lists; repeated here only
-// because this file also depends on them, not because this file is redefining them.
-//
-//   Copy.trophyCase.screenTitle: String                              // "Trophy Case"
-//   Copy.trophyCase.screenSubtitle: String                           // e.g. "Every milestone,
-//                                                                     // earned the real way."
-//   Copy.trophyCase.progressLabel(earned: Int, total: Int) -> String // "4 of 6 unlocked"
-//   Copy.trophyCase.openShopButtonTitle: String                      // "Cosmetics Shop"
-//   Copy.trophyCase.lockedAccessibilityHint: String                  // "Not yet earned"
-//   Copy.trophyCase.otherAchievementsSectionTitle: String            // "More Achievements"
-//   Copy.badges.title(forKey: String) -> String                      // per-badge display title,
-//                                                                     // keyed by `Badge.key`
-//   Copy.badges.earnedOnLabel(date: Date) -> String                  // "Earned Mar 3"
-//   Copy.cosmetics.coinBalanceAccessibilityLabel(balance: Int) -> String  // "120 coins"
-//   Copy.common.ok: String                                           // already assumed elsewhere
-//
-// Badge icon (SF Symbol) mapping is kept as small, file-scoped reference data, not copy — same
-// convention `ProgressView.swift`'s own `ProgressBadgeIconMap` and `GoalRow.swift`'s `icon`
-// parameter already establish.
+// Copy: `Copy.trophyCase.*` / `Copy.cosmetics.*` / `Copy.badges.*` / `Copy.common.*`
+// (`Core/Sources/Core/Copy/TrophyCosmeticsCopy.swift`). Badge icon (SF Symbol) mapping is small,
+// file-scoped reference data, not copy.
 
 import SwiftUI
 import SwiftData
 import Core
 
+// MARK: - Visual pass (design wave 2026-09-23)
+//
+// Grade before the pass: C+ (`docs/design/composition-audit.md` section 4): "good tile + earn moment;
+// header card has 3 jobs". What it is now, composition and visual treatment only (every `@Query`, the
+// `CosmeticsStore` refresh, the earn-edge celebration and all accessibility wiring are unchanged):
+//
+//   * The header card had three jobs (progress headline, subtitle + coin pill, and a nested full-width
+//     shop link) and no lead. It is one hero: the shared `GoalRing` (earned count as its centre
+//     numeral, target beneath) with the headline, subtitle and coin balance beside it. The ring used
+//     to be a bespoke copy because `GoalRing` had a `surface2` track and a fixed centre; it now has
+//     hue-tinted tracks and value centres, so the copy is gone and the ring behaves like every other
+//     ring in the app (track, glow, completion pulse, Reduce Motion). The shop link is a single quiet
+//     row at the bottom. The coin pill stays in the card rather than the nav bar: iOS 26 wraps toolbar
+//     items in glass, and a `surface2` capsule inside a glass capsule is glass-on-glass
+//     (`docs/design/2026-ios-trends.md` section 2.1).
+//   * The hero and earned tiles wash with the accent only once something is *earned* (the accent means
+//     earned/unlocked, spec section 15): an empty case is neutral, and a full one gets the static glow.
+//   * Locked milestones were six identical padlocks (`ICO-01`): carrying zero information about what
+//     there is to win. A locked tile shows the milestone's own glyph, dimmed, with a small lock
+//     badge; the disc, not the label, carries the dimming (the 0.55 opacity on the whole tile put the
+//     title at 2.56:1 contrast, `typography-color-findings.md` C6).
+//   * Every tile has a status line ("Earned Mar 3" / the existing `lockedAccessibilityHint`), so tiles
+//     align to the same baseline.
+//   * Icons swap `star.circle.fill` / `fork.knife.circle.fill` for the un-circled glyphs: a circle
+//     inside a 60pt circle is a double frame (`ICO-09`). `ProgressView.swift`'s `ProgressBadgeIconMap`
+//     still uses the circled variants (not this wave's file); reconcile when that file is next touched.
+//   * The shop entry uses `paintpalette.fill`, the glyph `SettingsView` uses for the same destination
+//     (`ICO-05`), and the coin currency reads as a neutral `centsign.circle.fill` and a numeral with a
+//     quiet unit rather than a warning-colored seal (`typography-color-findings.md` C9: `warning` means
+//     "needs attention", not "currency").
+//   * Depth comes from the shared `zanoCard` recipe; the local `depthCard`/`FeatureBackdrop`/
+//     `CardPressStyle` shims this folder used to carry are gone.
+
 /// The dedicated Trophy Case screen (spec §5.17) — a milestone badge grid plus an entry point
 /// into the Cosmetics Shop. Meant to be pushed onto an existing `NavigationStack` (from Progress
-/// or Settings, whichever a future session wires up) rather than presenting its own, matching
-/// `ProgressView`/`LockSetupView`'s convention of never owning navigation chrome themselves.
+/// or Settings) rather than presenting its own, matching `ProgressView`/`LockSetupView`'s convention
+/// of never owning navigation chrome themselves.
 public struct TrophyCaseView: View {
     @Query(sort: \Badge.earnedAt, order: .reverse) private var badges: [Badge]
 
@@ -97,68 +93,61 @@ public struct TrophyCaseView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                headerCard
+                heroCard
                 milestonesSection
                 if !otherEarnedBadges.isEmpty {
                     otherAchievementsSection
                 }
+                shopLink
             }
             .padding(Theme.Spacing.md)
         }
-        .background(Theme.Colors.background)
-        .scrollContentBackground(.hidden)
+        .zanoBackdrop(glow: earnedMilestoneCount > 0 ? Theme.Colors.accent : nil, intensity: 0.12)
         .navigationTitle(Copy.trophyCase.screenTitle)
         .task { await CosmeticsStore.shared.refresh() }
+        .tint(Theme.Colors.accent)
         // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
         // `LockSetupView.swift`'s comment for the full rationale.
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Header (coin balance + Shop entry point)
+    // MARK: - Hero (progress ring + coin balance)
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+    private var heroCard: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            // The headline beside it ("4 of 6 earned") already says this; announcing the ring as well
+            // would read the same fact twice.
+            GoalRing(
+                progress: milestoneProgress,
+                color: Theme.Colors.accent,
+                size: .custom(128),
+                center: .value("\(earnedMilestoneCount)", unit: "/\(milestones.count)")
+            )
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(Copy.trophyCase.progressLabel(earned: earnedMilestoneCount, total: milestones.count))
-                        .font(Theme.Typography.headline)
+                        .font(Theme.Typography.title)
                         .foregroundStyle(Theme.Colors.text)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(Copy.trophyCase.screenSubtitle)
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 0)
-                CoinBalancePill(balance: CosmeticsStore.shared.coinBalance)
+                TrophyCoinPill(balance: CosmeticsStore.shared.coinBalance)
             }
 
-            NavigationLink {
-                CosmeticsShopView()
-            } label: {
-                HStack(spacing: Theme.Spacing.xs) {
-                    Image(systemName: "bag.fill")
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text(Copy.trophyCase.openShopButtonTitle)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.text)
-                    Spacer(minLength: 0)
-                    // "chevron.forward" (not the literal "chevron.right"), matching every other
-                    // disclosure chevron in this safe set (`GhostProgressBanner.swift`,
-                    // `LockStatusCard.swift`) — the semantic, auto-mirroring name so this row's
-                    // chevron flips to point left, like the others, in an RTL locale instead of
-                    // staying pinned to the physical right. See
-                    // `docs/design/ui-stress-test-findings.md` §2.4.
-                    Image(systemName: "chevron.forward")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.muted)
-                }
-                .padding(Theme.Spacing.sm)
-                .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-            }
-            .buttonStyle(.plain)
+            Spacer(minLength: 0)
         }
-        .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .padding(Theme.Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard(
+            radius: Theme.Radius.large,
+            tint: earnedMilestoneCount > 0 ? Theme.Colors.accent : nil,
+            active: allMilestonesEarned
+        )
     }
 
     // MARK: - Milestones grid (spec §5.17's exact six)
@@ -168,11 +157,11 @@ public struct TrophyCaseView: View {
     /// zero `Badge` rows — the entire point of a trophy *case* over a bare "here's what you've
     /// won so far" list.
     private let milestones: [TrophyMilestone] = [
-        TrophyMilestone(key: "first_earned_unlock", systemImage: "star.circle.fill"),
+        TrophyMilestone(key: "first_earned_unlock", systemImage: "star.fill"),
         TrophyMilestone(key: "streak_7", systemImage: "flame"),
         TrophyMilestone(key: "streak_30", systemImage: "flame.fill"),
         TrophyMilestone(key: "streak_100", systemImage: "crown.fill"),
-        TrophyMilestone(key: "protein_1000g_week", systemImage: "fork.knife.circle.fill"),
+        TrophyMilestone(key: "protein_1000g_week", systemImage: "fork.knife"),
         TrophyMilestone(key: "gym_50_sessions", systemImage: "dumbbell.fill"),
     ]
 
@@ -180,17 +169,29 @@ public struct TrophyCaseView: View {
         milestones.filter { milestone in badges.contains { $0.key == milestone.key } }.count
     }
 
+    private var allMilestonesEarned: Bool {
+        !milestones.isEmpty && earnedMilestoneCount == milestones.count
+    }
+
+    private var milestoneProgress: Double {
+        guard !milestones.isEmpty else { return 0 }
+        return min(1, Double(earnedMilestoneCount) / Double(milestones.count))
+    }
+
+    /// Three equal columns, six tiles, two rows: no adaptive-minimum guesswork, and every tile is
+    /// the same size whether its title wraps to one line or two (the title reserves two lines).
     private var milestonesSection: some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 96), spacing: Theme.Spacing.sm)],
-            spacing: Theme.Spacing.md
+            columns: Array(
+                repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm, alignment: .top),
+                count: 3
+            ),
+            spacing: Theme.Spacing.sm
         ) {
             ForEach(milestones) { milestone in
                 TrophyTile(milestone: milestone, badge: badges.first { $0.key == milestone.key })
             }
         }
-        .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
     }
 
     // MARK: - Other achievements (per-occurrence badges outside the fixed six, e.g. "comeback_*")
@@ -207,18 +208,23 @@ public struct TrophyCaseView: View {
     }
 
     private var otherAchievementsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text(Copy.trophyCase.otherAchievementsSectionTitle)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+                .padding(.horizontal, Theme.Spacing.xs)
 
-            VStack(spacing: Theme.Spacing.xs) {
-                ForEach(otherEarnedBadges) { badge in
+            // One card, hairline rows: these are a dense list, so they get dividers between rows
+            // instead of a card per row (`docs/design/competitive-research.md` 3.1: MyFitnessPal's
+            // failure was hero-scale cards on every list row).
+            VStack(spacing: 0) {
+                ForEach(Array(otherEarnedBadges.enumerated()), id: \.offset) { index, badge in
+                    if index > 0 {
+                        TrophyDivider()
+                    }
                     HStack(spacing: Theme.Spacing.sm) {
-                        Image(systemName: "rosette")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Theme.Colors.accent)
-                        VStack(alignment: .leading, spacing: 2) {
+                        IconBadge(systemName: "rosette", tint: Theme.Colors.accent, size: .small)
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                             Text(Copy.badges.title(forKey: badge.key))
                                 .font(Theme.Typography.body)
                                 .foregroundStyle(Theme.Colors.text)
@@ -228,13 +234,45 @@ public struct TrophyCaseView: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(Theme.Spacing.sm)
-                    .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                    .padding(.vertical, Theme.Spacing.sm)
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .padding(.horizontal, Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard(radius: Theme.Radius.medium)
         }
-        .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+    }
+
+    // MARK: - Shop entry
+
+    /// A single quiet row at the bottom: the shop is where spent coins go, not the point of this
+    /// screen. The glyph is `text` on a neutral disc (accent stays reserved for earned states).
+    private var shopLink: some View {
+        NavigationLink {
+            CosmeticsShopView()
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "paintpalette.fill", tint: Theme.Colors.text, size: .small)
+                Text(Copy.trophyCase.openShopButtonTitle)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Spacer(minLength: 0)
+                // "chevron.forward" (not the literal "chevron.right"), matching every other
+                // disclosure chevron — the semantic, auto-mirroring name so this row's chevron flips
+                // to point left in an RTL locale instead of staying pinned to the physical right. See
+                // `docs/design/ui-stress-test-findings.md` §2.4.
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: Theme.Metrics.minTapTarget)
+            .zanoCard(radius: Theme.Radius.medium)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        }
+        .buttonStyle(.pressable)
     }
 }
 
@@ -249,89 +287,89 @@ private struct TrophyMilestone: Identifiable {
     var id: String { key }
 }
 
-/// One tile in the milestones grid — locked (dimmed, `lock.fill`) if `badge == nil`, lit up with
-/// the milestone's real icon and earned date otherwise.
+/// A one-device-pixel divider between the rows of a dense list card: `Theme.Colors.hairline` at
+/// exactly 1 physical pixel, so it stays "crisp 1px" (spec section 16) at every display scale.
+/// `Divider()` is a system-tinted line that ignores `Theme`.
+private struct TrophyDivider: View {
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        Rectangle()
+            .fill(Theme.Colors.hairline)
+            .frame(height: 1 / max(displayScale, 1))
+            .accessibilityHidden(true)
+    }
+}
+
+/// One tile in the milestones grid — locked (the milestone's own glyph, dimmed, with a lock badge) if
+/// `badge == nil`, lit up with the milestone's real icon and earned date otherwise.
 ///
-/// Per `docs/design/animation-opportunities.md` row 11: this screen currently has no engine wired
-/// up to award most of these six milestones yet (see this file's header), so the celebratory
-/// moment below is written to already be correct the day one is — a `false → true` edge on
-/// `isEarned` while this screen happens to be open fires a one-shot burst + expanding ring, rather
-/// than needing a follow-up patch once an engine exists. A tile that's *already* earned when this
-/// view first appears never fires this (`.onChange(of:)` only reports changes after the initial
-/// value, not the initial value itself), so re-opening Trophy Case doesn't re-celebrate old badges.
+/// Per `docs/design/animation-opportunities.md` row 11: this screen has no engine wired up to award
+/// most of these six milestones yet (see this file's header), so the celebratory moment below is
+/// written to already be correct the day one is — a `false → true` edge on `isEarned` while this
+/// screen happens to be open fires a one-shot burst + expanding ring, rather than needing a follow-up
+/// patch once an engine exists. A tile that's *already* earned when this view first appears never
+/// fires this (`.onChange(of:)` only reports changes after the initial value, not the initial value
+/// itself), so re-opening Trophy Case doesn't re-celebrate old badges.
 private struct TrophyTile: View {
     let milestone: TrophyMilestone
     let badge: Badge?
 
-    /// Fires `CelebrationBurst` (`Core/Sources/Core/UI/Components/CelebrationBurst.swift`, reused
-    /// by name — not edited, a concurrent wave owns that file) on every increment. Left ungated by
-    /// Reduce Motion here on purpose: `CelebrationBurst` already has its own internal reduced-
-    /// motion fallback (a plain cross-fade, no radial travel), so this tile still gets *some*
-    /// positive confirmation either way, matching Part 0's "never drop feedback to literally
-    /// nothing" rule rather than suppressing the whole burst.
+    /// Fires `CelebrationBurst` (`Core/Sources/Core/UI/Components/CelebrationBurst.swift`) on every
+    /// increment. Left ungated by Reduce Motion here on purpose: `CelebrationBurst` already has its
+    /// own internal reduced-motion fallback (a plain cross-fade, no radial travel), so this tile still
+    /// gets *some* positive confirmation either way, matching "never drop feedback to literally
+    /// nothing" rather than suppressing the whole burst.
     @State private var celebrationTick = 0
     /// Gates *mounting* `CelebrationBurst` into the view tree at all — not just whether it's
-    /// visible. `CelebrationBurst.body` fires a burst from its own `.onAppear` unconditionally
-    /// ("The burst also always fires once on first appear, regardless of this value's starting
-    /// point" — that file's own doc comment), so including it in every tile's `ZStack`
-    /// unconditionally would confetti-burst every tile, locked ones included, the instant this
-    /// screen first renders. Only inserting the view once `celebrate()` has actually run keeps its
-    /// unconditional first-appear fire correct instead of a bug: by the time it mounts,
-    /// `celebrationTick` has already moved past 0, so that first appear *is* the real celebration.
+    /// visible. `CelebrationBurst.body` fires a burst from its own `.onAppear` unconditionally, so
+    /// including it in every tile's `ZStack` unconditionally would confetti-burst every tile, locked
+    /// ones included, the instant this screen first renders. Only inserting the view once
+    /// `celebrate()` has actually run keeps its unconditional first-appear fire correct instead of a
+    /// bug: by the time it mounts, `celebrationTick` has already moved past 0, so that first appear
+    /// *is* the real celebration.
     @State private var hasCelebrated = false
     /// Drives the expanding accent ring below — `nil` when idle, `0 → 1` while animating. This one
     /// *is* skipped entirely under Reduce Motion (see `celebrate()`): it's a supplementary visual
-    /// flourish, not the primary feedback channel (the icon/circle crossfade below carries that).
+    /// flourish, not the primary feedback channel (the icon/disc crossfade below carries that).
     @State private var ringProgress: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isEarned: Bool { badge != nil }
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.xxs) {
-            ZStack {
-                Circle()
-                    .fill(isEarned ? Theme.Colors.accent.opacity(0.16) : Theme.Colors.surface2)
-                    .frame(width: 60, height: 60)
+        VStack(spacing: Theme.Spacing.xs) {
+            badgeDisc
 
-                if let ringProgress {
-                    Circle()
-                        .stroke(Theme.Colors.accent, lineWidth: 2)
-                        .frame(width: 60, height: 60)
-                        .scaleEffect(1 + 0.6 * ringProgress)
-                        .opacity(0.6 * (1 - ringProgress))
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-
-                Image(systemName: isEarned ? milestone.systemImage : "lock.fill")
-                    .font(.system(size: isEarned ? 24 : 18, weight: .semibold))
-                    .foregroundStyle(isEarned ? Theme.Colors.accent : Theme.Colors.muted)
-                    .contentTransition(.symbolEffect(.replace))
-
-                if hasCelebrated {
-                    CelebrationBurst(trigger: celebrationTick, particleCount: 14)
-                        .frame(width: 84, height: 84)
-                }
-            }
-            .frame(width: 60, height: 60)
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.62),
-                value: isEarned
-            )
-            Text(Copy.badges.title(forKey: milestone.key))
-                .font(Theme.Typography.caption)
-                .foregroundStyle(isEarned ? Theme.Colors.text : Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            if let badge {
-                Text(Copy.badges.earnedOnLabel(date: badge.earnedAt))
-                    .font(.system(size: 10, weight: .regular))
+            VStack(spacing: Theme.Spacing.xxs) {
+                // Title keeps its color (`text` earned, `muted` locked: 5.64:1); only the disc is
+                // dimmed. Two lines reserved so a one-line and a two-line title do not make tiles
+                // of different heights.
+                Text(Copy.badges.title(forKey: milestone.key))
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(isEarned ? Theme.Colors.text : Theme.Colors.muted)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2, reservesSpace: true)
+                Text(statusLine)
+                    .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
+        .padding(.vertical, Theme.Spacing.md)
+        .padding(.horizontal, Theme.Spacing.xs)
         .frame(maxWidth: .infinity)
-        .opacity(isEarned ? 1 : 0.55)
+        // Earned = an accent wash and an accent-dim edge (`accentDim` is the token for "a
+        // highlighted border"); the disc carries the glow, so the card itself stays flat.
+        .zanoCard(radius: Theme.Radius.medium, tint: isEarned ? Theme.Colors.accent : nil)
+        .overlay {
+            if isEarned {
+                RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+                    .strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
+                    .allowsHitTesting(false)
+            }
+        }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springStandard, value: isEarned)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
@@ -340,6 +378,70 @@ private struct TrophyTile: View {
             guard new, !old else { return }
             celebrate()
         }
+    }
+
+    /// The badge disc. Earned: accent-washed with a static accent glow. Locked: `surface2` with the
+    /// milestone's own glyph at reduced opacity and a small lock badge tucked into the lower
+    /// trailing edge (a `background` cutout ring keeps it legible over the disc).
+    private var badgeDisc: some View {
+        ZStack {
+            Circle()
+                .fill(isEarned ? Theme.Colors.accentWash : Theme.Colors.surface2)
+            Circle()
+                .strokeBorder(
+                    isEarned ? Theme.Colors.accentDim : Theme.Colors.hairline,
+                    lineWidth: Theme.Metrics.edgeWidth
+                )
+
+            if let ringProgress {
+                Circle()
+                    .stroke(Theme.Colors.accent, lineWidth: 2)
+                    .scaleEffect(1 + 0.6 * ringProgress)
+                    .opacity(0.6 * (1 - ringProgress))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
+            // Fixed-size art inside a fixed 60pt disc (the disc, not the glyph, is the layout unit),
+            // so this stays a literal size rather than a text-relative icon.
+            Image(systemName: milestone.systemImage)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(isEarned ? Theme.Colors.accent : Theme.Colors.muted)
+                .opacity(isEarned ? 1 : 0.55)
+
+            if !isEarned {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.Colors.muted)
+                    .frame(width: 20, height: 20)
+                    .background(Theme.Colors.background, in: Circle())
+                    .overlay {
+                        Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+                    }
+                    .offset(x: 20, y: 20)
+                    .accessibilityHidden(true)
+            }
+
+            if hasCelebrated {
+                CelebrationBurst(trigger: celebrationTick, particleCount: 14)
+                    .frame(width: 84, height: 84)
+            }
+        }
+        .frame(width: 60, height: 60)
+        // Static glow on the *earned* state only (`2026-ios-trends.md` 3.3.C); never animated.
+        .shadow(color: isEarned ? Theme.Colors.accent.opacity(0.35) : Color.clear, radius: 12)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.62),
+            value: isEarned
+        )
+    }
+
+    /// Every tile has one, so earned and locked tiles keep the same height and baseline.
+    private var statusLine: String {
+        if let badge {
+            return Copy.badges.earnedOnLabel(date: badge.earnedAt)
+        }
+        return Copy.trophyCase.lockedAccessibilityHint
     }
 
     /// One-shot moment for the `false → true` edge only — see the type doc comment. Well inside
@@ -362,33 +464,40 @@ private struct TrophyTile: View {
     }
 }
 
-/// A small coin-balance capsule, shared visually (not by import — see `CosmeticsShopView.swift`'s
-/// own copy of this same tiny view) between this screen's header and the shop's.
-private struct CoinBalancePill: View {
+/// A small coin-balance capsule for this screen's hero. (The Cosmetics Shop, where the balance is the
+/// point of the screen, draws its own larger wallet header instead of reusing this pill.) Neutral
+/// colors: `warning` is "needs attention soon", not "currency"
+/// (`docs/design/typography-color-findings.md` C9). The balance is a numeral with a quiet unit
+/// ("120 coins", straight from `Copy.cosmetics`, so it pluralizes), not a bare digit run.
+private struct TrophyCoinPill: View {
     let balance: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var balanceText: String {
+        Copy.cosmetics.coinBalanceAccessibilityLabel(balance: balance)
+    }
+
     var body: some View {
-        HStack(spacing: Theme.Spacing.xxs) {
-            Image(systemName: "seal.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.Colors.warning)
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: "centsign.circle.fill")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.muted)
             // A digit-roll, not a hard cut, when a badge/purchase changes the balance while this
-            // screen is open — docs/design/animation-opportunities.md row 12. `.numericText()`
-            // interpolates digit-by-digit; not a spring/bounce/particle, but still gated per this
-            // wave's blanket Reduce Motion rule rather than assuming its own carve-out.
-            Text("\(balance)")
-                .font(Theme.Typography.numeralSmall())
-                .foregroundStyle(Theme.Colors.text)
-                .contentTransition(.numericText(value: Double(balance)))
+            // screen is open — docs/design/animation-opportunities.md row 12. `NumeralText` applies
+            // `.numericText()` (identity under Reduce Motion); the value-keyed animation below is the
+            // driver, gated per the wave-wide Reduce Motion rule.
+            NumeralText(balanceText, size: .small)
                 .animation(reduceMotion ? .easeOut(duration: 0.15) : .easeOut(duration: 0.3), value: balance)
         }
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xxs)
         .background(Theme.Colors.surface2, in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Copy.cosmetics.coinBalanceAccessibilityLabel(balance: balance))
+        .accessibilityLabel(balanceText)
     }
 }
 

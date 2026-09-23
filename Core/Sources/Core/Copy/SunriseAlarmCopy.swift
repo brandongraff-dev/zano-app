@@ -14,13 +14,14 @@
 // `onboardingDisclaimer` and `standardAlarmReminder` say it outright so it shows up in setup, not
 // just implicitly through careful phrasing elsewhere.
 //
-// Voice (docs/spec.md §5.13: Hype/Tough Love/Chill/Data) is used where it adds real texture — the
-// escalating ring copy, the wind-down nudge, the dismissed confirmation — but, mirroring
-// `ShieldCopy.Buttons`'s and `.emergencyNotification`'s title's own documented reasoning, every
-// string touching the **escape hatch**, the **no-guarantee disclaimer**, or the **snooze
-// penalty** is deliberately fixed across voices: these are safety/wayfinding moments, not
-// personality moments, and a half-asleep user reading them at 6 AM needs them to be exactly the
-// same, predictable words every time.
+// Voice (docs/spec.md §5.13: Hype/Tough Love/Chill/Data): NOTHING in this file takes a voice today
+// — this header used to claim the ring, wind-down and dismissed-confirmation copy were voice-aware,
+// but none of those functions accepts one (docs/design/writing-findings.md §2.1). Voicing them
+// needs a `CoachVoice` parameter and is future work. Every string touching the **escape hatch**,
+// the **no-guarantee disclaimer**, or the **snooze penalty** must stay fixed across voices in any
+// case, mirroring `ShieldCopy.Buttons`'s and `.emergencyNotification`'s documented reasoning:
+// these are safety/wayfinding moments, not personality moments, and a half-asleep user reading
+// them at 6 AM needs exactly the same, predictable words every time.
 
 import Foundation
 
@@ -36,7 +37,7 @@ public enum SunriseAlarmCopy {
 
     /// Shorter version for a settings-screen footnote/tooltip, once the user already has it on.
     public static let standardAlarmReminder =
-        "Keep a standard alarm as backup. ZANO makes getting up harder to skip, not impossible to sleep through."
+        "Keep a standard alarm as backup. ZANO makes staying in bed harder. It can't guarantee you'll wake up."
 
     /// Explains why the tier differs by iOS version (spec §5.10: "Be explicit in onboarding about
     /// which tier the user's phone supports").
@@ -64,11 +65,13 @@ public enum SunriseAlarmCopy {
         case .tag:
             body = "Tap the Sunrise Tag to turn this off."
         case .steps:
-            body = "Walk it off — this stops once you've taken enough steps."
+            body = "Walk to turn it off — this stops once you've taken enough steps."
         case .focus:
             body = "Open ZANO and start your 3-minute wake-up timer to stop this."
         case .squad:
-            body = "Tap the Sunrise Tag to turn this off. A squadmate gets pinged if you don't."
+            // Squad check-in is hold-to-confirm in `AlarmRingingView` (no tag scan), so every
+            // string for this variant says that, once and the same way.
+            body = "Open ZANO and hold to confirm you're up. A squadmate gets pinged if you don't."
         }
         return (title, body)
     }
@@ -80,7 +83,9 @@ public enum SunriseAlarmCopy {
 
     public static func alarmKitStopButtonLabel(variant: SunriseAlarmManager.DismissVariant) -> String {
         switch variant {
-        case .tag, .squad: "I'm up"
+        // "I'm up" read as self-attestation dismissing the alarm — the opposite of the tag
+        // mechanic, and not what the squad variant does either. Both finish inside ZANO.
+        case .tag, .squad: "Open ZANO"
         case .steps: "Walking"
         case .focus: "Start wake-up timer"
         }
@@ -101,7 +106,7 @@ public enum SunriseAlarmCopy {
         case .tag: "Tap the Sunrise Tag to stop it"
         case .steps: "Keep walking to stop it"
         case .focus: "Start your wake-up timer to stop it"
-        case .squad: "Tap the Sunrise Tag — or a squadmate gets pinged in 10 min"
+        case .squad: "Hold to confirm you're up — or a squadmate gets pinged in 10 min"
         }
     }
 
@@ -134,9 +139,10 @@ public enum SunriseAlarmCopy {
     public static let snoozeConfirmation = "Snoozed for 5 minutes. That's your one for today."
 
     public static let snoozeUnavailable =
-        "No snoozes left today — a second snooze breaks your morning goal instead of delaying it."
+        "You've used your snooze. Snoozing again would break your morning goal."
 
-    public static let snoozeLimitBrokeGoal = "Morning goal missed — you used your one snooze already."
+    public static let snoozeLimitBrokeGoal =
+        "Morning goal slipped: that was your second snooze. Tomorrow's alarm is a fresh start."
 
     // MARK: - Escape hatch (spec §5.10 point 6, §24 — voice-invariant, never trap the user)
 
@@ -181,7 +187,7 @@ public enum SunriseAlarmCopy {
 
     public static let pickupAfterBedtimeTitle = "Late-night pickup"
     public static let pickupAfterBedtimeBody =
-        "Picking up after bedtime breaks tonight's Sleep goal — gently noted, not a big deal. See you in the morning recap."
+        "Phone picked up after bedtime. It counts against tonight's Sleep goal. You'll see it in the morning recap."
 
     // MARK: - Settings summary lines
 
@@ -190,7 +196,7 @@ public enum SunriseAlarmCopy {
         case .tag: "Tap your Sunrise Tag to turn off the alarm."
         case .steps: "Walk to turn off the alarm — no tag needed yet."
         case .focus: "A 3-minute wake-up timer turns off the alarm."
-        case .squad: "Tap your Sunrise Tag. A squadmate is pinged if you don't within 10 min."
+        case .squad: "Hold to confirm you're up. A squadmate is pinged if you don't within 10 min."
         }
     }
 }

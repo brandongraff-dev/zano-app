@@ -44,6 +44,44 @@
 // complete — worse than leaving both unpaused. Left as a real TODO for whichever session builds this
 // properly across the whole app (Today screen's focus timer needs the exact same fix), not guessed
 // at here.
+//
+// DESIGN PASS (composition-audit offender 4 / scorecard row 14, better-ui HIT-06/MOT-08/ICO-06,
+// better-layout 3.9/6.3/7.6/7.7, typography-color C7, competitive-research §3.2/§3.4). Every
+// presentational piece changed; the Core Loop code above (`start`, `finish`, `handleEmergencyUnlock`,
+// the countdown, the lock/streak calls) is the same logic, minus the confetti trigger the old
+// celebration used (the celebration now stages itself). What was wrong: a lone SF
+// Symbol in a circle per phase; a *second*, weaker celebration language (a 56pt flame, a five-colour
+// confetti palette that broke "ONE accent") next to `UnlockCelebrationView`'s seal; a 160x6pt
+// emergency bar — a 60-second safety control at the smallest size in the app, with no VoiceOver
+// action at all; a widget "guide" that was a pulsing grid glyph on a loop nobody could turn off;
+// and a CTA that floated up the page on the widget phase.
+//
+//   intro        the ring the user is about to fill, empty, "10 min" inside it — the same object they
+//                watch fill in the next phase — then eyebrow, display headline, subtitle.
+//   running      the same ring as a 200pt hero with the countdown in it. The exit is no longer a
+//                bar: it is a 52pt capsule (`EmergencyHoldControl`) pinned at the bottom on the
+//                shared action bar, danger-tinted, whose fill sweeps along the capsule as you hold
+//                and whose label inverts under the fill (no light-on-accent, 1.11:1) — the same
+//                grammar as `PrimaryButton.holdToCommit`, at 60 seconds. Not another big ring: the
+//                alarm's two-equal-rings problem (composition-audit offender 8) is not repeated.
+//                VoiceOver gets an action (double-tap starts the 60s countdown, again cancels).
+//   celebrating  one language for the whole product: `UnlockCelebrationView`'s vocabulary — the ring
+//                closes, the burst (accent-only `CelebrationBurst`) fires, "Earned." in accent — with
+//                the streak as the hero numeral inside the ring (96pt, counting 0 to 1) and a week row
+//                whose today is checked (the Duolingo streak-moment structure, competitive-research
+//                §3.2). Timeline: 0.25s beat, ring fills 0.6s, then burst + tick + one haptic at
+//                ~0.85s — inside `Theme.Motion.unlockCelebrationMaxDuration`, and "Done" is live from
+//                the first frame.
+//   not verified calm and neutral (spec §8 rule 9): a counterclockwise arrow ("try again"), not a
+//                muted checkmark seal that told the wrong story (better-ui ICO-06).
+//   widget       a mock of the widget itself (a ring and a streak, both TRUE at this moment: the
+//                focus ring is full and the streak is 1) and the three steps lighting up in turn once
+//                (the spec's "animated guide"), all lit under Reduce Motion — replacing a looping
+//                pulse. Step numbers are neutral discs, not accent decoration.
+//
+// Every animation is gated on `accessibilityReduceMotion`. The header chrome is hidden on this
+// screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
+// shared action bar.
 
 import SwiftUI
 import SwiftData
@@ -65,13 +103,13 @@ struct Screen14FirstWin: View {
     var onFinished: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .intro
     @State private var focusSessionID: UUID?
     @State private var lockSessionID: UUID?
     @State private var secondsRemaining = Self.plannedMinutes * 60
     @State private var countdownTask: Task<Void, Never>?
     @State private var emergencyUnlock: EmergencyUnlock?
-    @State private var confettiBurstID = 0
     @State private var isStarting = false
     @State private var errorMessage: String?
 
@@ -92,118 +130,127 @@ struct Screen14FirstWin: View {
     }
 
     var body: some View {
-        ZStack {
-            content
-            if phase == .celebrating {
-                OnboardingConfettiView(trigger: confettiBurstID)
+        content
+            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: phase)
+            .alert(
+                "",
+                isPresented: Binding(
+                    get: { errorMessage != nil },
+                    set: { isPresented in if !isPresented { errorMessage = nil } }
+                )
+            ) {
+                Button(Copy.common.ok, role: .cancel) { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
             }
-        }
-        .alert(
-            "",
-            isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { isPresented in if !isPresented { errorMessage = nil } }
-            )
-        ) {
-            Button(Copy.common.ok, role: .cancel) { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
-        .onDisappear { countdownTask?.cancel() }
-        .onAppear {
-            Analytics.shared.capture(
-                event: "onboarding_screen_viewed",
-                properties: ["screen": "first_win", "screen_number": 14]
-            )
-        }
+            .onDisappear { countdownTask?.cancel() }
+            .onAppear {
+                Analytics.shared.capture(
+                    event: "onboarding_screen_viewed",
+                    properties: ["screen": "first_win", "screen_number": 14]
+                )
+            }
     }
 
     @ViewBuilder
     private var content: some View {
         switch phase {
-        case .intro: introView
-        case .running: runningView
-        case .celebrating: celebratingView
-        case .notVerified: notVerifiedView
-        case .widgetPrompt: widgetPromptView
+        case .intro:
+            introView.transition(.opacity)
+        case .running:
+            runningView.transition(.opacity)
+        case .celebrating:
+            FirstWinCelebration(streak: 1) { phase = .widgetPrompt }
+                .transition(.opacity)
+        case .notVerified:
+            notVerifiedView.transition(.opacity)
+        case .widgetPrompt:
+            FirstWinWidgetPrompt(streak: 1) { finishOnboarding() }
+                .transition(.opacity)
         }
     }
 
     // MARK: - Intro
 
+    /// The ring the user is about to fill — empty, with the length of the session inside it. The
+    /// running phase is this same ring, filling, so the promise and the thing are one object.
     private var introView: some View {
-        VStack(spacing: Theme.Spacing.xl) {
-            Spacer(minLength: Theme.Spacing.xl)
+        OnboardingKit.CenteredScroll {
+            VStack(spacing: Theme.Spacing.xl) {
+                GoalRing(
+                    progress: 0,
+                    color: Theme.Colors.Ring.focus,
+                    size: .hero,
+                    center: .value("\(Self.plannedMinutes)", unit: Copy.onboardingReveal.firstWinRingUnit)
+                )
+                .accessibilityHidden(true)
 
-            ZStack {
-                Circle().fill(Theme.Colors.surface2).frame(width: 96, height: 96)
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(Theme.Colors.accent)
+                VStack(spacing: Theme.Spacing.sm) {
+                    OnboardingKit.Eyebrow(text: Copy.onboarding.firstWinEyebrow)
+                    OnboardingKit.DisplayTitle(text: Copy.onboarding.firstWinHeadline)
+                    Text(Copy.onboarding.firstWinSubtitle)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, Theme.Spacing.lg)
+                .accessibilityElement(children: .combine)
             }
-
-            VStack(spacing: Theme.Spacing.sm) {
-                Text(Copy.onboarding.firstWinEyebrow)
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .textCase(.uppercase)
-                Text(Copy.onboarding.firstWinHeadline)
-                    .font(Theme.Typography.title)
-                    .foregroundStyle(Theme.Colors.text)
-                    .multilineTextAlignment(.center)
-                Text(Copy.onboarding.firstWinSubtitle)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-
-            Spacer(minLength: Theme.Spacing.xl)
-
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.lg)
+        }
+        .background {
+            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.10)
+        }
+        .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.firstWinStartButton,
                 isEnabled: !isStarting
             ) {
                 Task { await start() }
             }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
         }
     }
 
     // MARK: - Running
 
     private var runningView: some View {
-        VStack(spacing: Theme.Spacing.xl) {
-            Spacer(minLength: Theme.Spacing.lg)
+        OnboardingKit.CenteredScroll {
+            VStack(spacing: Theme.Spacing.lg) {
+                Text(Copy.onboarding.firstWinRunningHeadline)
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(Theme.Colors.text)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text(Copy.onboarding.firstWinRunningHeadline)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
+                GoalRing(
+                    progress: progressFraction,
+                    color: Theme.Colors.Ring.focus,
+                    size: .hero,
+                    center: .text(formattedCountdown)
+                )
 
-            GoalRing(
-                progress: progressFraction,
-                color: Theme.Colors.Ring.focus,
-                size: .large,
-                center: .text(formattedCountdown)
-            )
-
-            Text(Copy.onboarding.firstWinRunningDetail)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Theme.Spacing.lg)
-
-            Spacer(minLength: Theme.Spacing.lg)
-
+                Text(Copy.onboarding.firstWinRunningDetail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Spacing.lg)
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.lg)
+        }
+        .background {
+            OnboardingKit.Glow(tint: Theme.Colors.Ring.focus, opacity: 0.10)
+        }
+        .onboardingKitActionBar {
             if let emergencyUnlock {
                 EmergencyHoldControl(emergencyUnlock: emergencyUnlock)
-                    .padding(.bottom, Theme.Spacing.lg)
-                    .onChange(of: emergencyUnlock.phase) { _, newPhase in
-                        if newPhase == .unlocked {
-                            Task { await handleEmergencyUnlock() }
-                        }
-                    }
+            }
+        }
+        .onChange(of: emergencyUnlock?.phase) { _, newPhase in
+            if newPhase == .unlocked {
+                Task { await handleEmergencyUnlock() }
             }
         }
     }
@@ -217,147 +264,36 @@ struct Screen14FirstWin: View {
         String(format: "%d:%02d", secondsRemaining / 60, secondsRemaining % 60)
     }
 
-    // MARK: - Celebrating
-
-    private var celebratingView: some View {
-        VStack(spacing: Theme.Spacing.xl) {
-            Spacer(minLength: Theme.Spacing.xl)
-
-            Image(systemName: "flame.fill")
-                .font(.system(size: 56, weight: .bold))
-                .foregroundStyle(Theme.Colors.accent)
-                .symbolEffect(.bounce, value: confettiBurstID)
-
-            VStack(spacing: Theme.Spacing.sm) {
-                Text(Copy.onboarding.firstWinCelebrationTitle)
-                    .font(Theme.Typography.title)
-                    .foregroundStyle(Theme.Colors.text)
-                    .multilineTextAlignment(.center)
-                Text(Copy.onboarding.firstWinCelebrationSubtitle(streak: 1))
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-
-            StreakPill(count: 1)
-
-            Spacer(minLength: Theme.Spacing.xl)
-
-            PrimaryButton(title: Copy.onboarding.firstWinDoneButton) {
-                phase = .widgetPrompt
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
-        }
-    }
-
     // MARK: - Not verified (emergency-unlock exit — calm, no shame, spec §8 rule 9)
 
     private var notVerifiedView: some View {
-        VStack(spacing: Theme.Spacing.xl) {
-            Spacer(minLength: Theme.Spacing.xl)
+        OnboardingKit.CenteredScroll {
+            VStack(spacing: Theme.Spacing.xl) {
+                // A counterclockwise arrow — "go again" — in muted, not a checkmark seal: a check on
+                // the not-verified screen told the wrong story (better-ui ICO-06).
+                IconBadge(systemName: "arrow.counterclockwise", tint: Theme.Colors.muted, size: .large)
 
-            Image(systemName: "checkmark.seal")
-                .font(.system(size: 44, weight: .medium))
-                .foregroundStyle(Theme.Colors.muted)
-
-            VStack(spacing: Theme.Spacing.sm) {
-                Text(Copy.onboarding.firstWinNotVerifiedTitle)
-                    .font(Theme.Typography.title)
-                    .foregroundStyle(Theme.Colors.text)
-                    .multilineTextAlignment(.center)
-                Text(Copy.onboarding.firstWinNotVerifiedSubtitle)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: Theme.Spacing.sm) {
+                    Text(Copy.onboarding.firstWinNotVerifiedTitle)
+                        .zanoText(.titleLarge)
+                        .foregroundStyle(Theme.Colors.text)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(Copy.onboarding.firstWinNotVerifiedSubtitle)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, Theme.Spacing.lg)
             }
-            .padding(.horizontal, Theme.Spacing.lg)
-
-            Spacer(minLength: Theme.Spacing.xl)
-
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.lg)
+        }
+        .onboardingKitActionBar {
             PrimaryButton(title: Copy.onboarding.firstWinDoneButton) {
                 finishOnboarding()
             }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
-        }
-    }
-
-    // MARK: - Widget prompt
-
-    private var widgetPromptView: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.lg) {
-                Spacer(minLength: Theme.Spacing.lg)
-
-                widgetGlyph
-
-                Text(Copy.onboarding.firstWinWidgetPromptHeadline)
-                    .font(Theme.Typography.title)
-                    .foregroundStyle(Theme.Colors.text)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Theme.Spacing.lg)
-
-                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    widgetStep(number: 1, text: Copy.onboarding.firstWinWidgetPromptStep1)
-                    widgetStep(number: 2, text: Copy.onboarding.firstWinWidgetPromptStep2)
-                    widgetStep(number: 3, text: Copy.onboarding.firstWinWidgetPromptStep3)
-                }
-                .padding(Theme.Spacing.md)
-                .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-                .padding(.horizontal, Theme.Spacing.lg)
-
-                Spacer(minLength: Theme.Spacing.lg)
-
-                PrimaryButton(title: Copy.onboarding.firstWinDoneButton) {
-                    finishOnboarding()
-                }
-                .padding(.horizontal, Theme.Spacing.lg)
-                .padding(.bottom, Theme.Spacing.lg)
-            }
-        }
-    }
-
-    /// A grid-icon glyph standing in for a Home Screen widget, matching `ShieldPreview.swift`'s
-    /// own precedent of building a badge from two known-safe SF Symbols in a `ZStack` rather than
-    /// trusting a single compound symbol name (e.g. a `"widget.*"` glyph) this environment has no
-    /// way to verify exists on the current SDK — see this task's `knownIssues`.
-    private var widgetGlyph: some View {
-        ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
-                .fill(Theme.Colors.surface2)
-                .frame(width: 96, height: 96)
-                .overlay(
-                    Image(systemName: "square.grid.2x2.fill")
-                        .font(.system(size: 32, weight: .medium))
-                        .foregroundStyle(Theme.Colors.muted)
-                )
-                .symbolEffect(.pulse, options: .repeating)
-
-            Circle()
-                .fill(Theme.Colors.accent)
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Theme.Colors.background)
-                )
-                .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))
-        }
-    }
-
-    private func widgetStep(number: Int, text: String) -> some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            Text("\(number)")
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(Theme.Colors.background)
-                .frame(width: 20, height: 20)
-                .background(Theme.Colors.accent, in: Circle())
-            Text(text)
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.text)
-            Spacer(minLength: 0)
         }
     }
 
@@ -500,7 +436,6 @@ struct Screen14FirstWin: View {
         if verified {
             await StreakEngine.shared.recordEarnedUnlock(on: .now)
             Analytics.shared.capture(event: "onboarding_first_win_verified")
-            confettiBurstID += 1
             phase = .celebrating
         } else {
             Analytics.shared.capture(event: "onboarding_first_win_not_verified")
@@ -540,103 +475,407 @@ struct Screen14FirstWin: View {
 /// header) and so isn't reusable for `EmergencyUnlock.holdDuration`'s fixed 60s, hence this small,
 /// screen-local control instead of a shared Core component — emergency-unlock UI isn't one of
 /// docs/spec.md §15's named core components.
+///
+/// It was a 160x6pt bar with a 13pt caption (a ~26pt-tall target, better-ui HIT-06). It is now a
+/// 52pt capsule with the same grammar as `PrimaryButton.holdToCommit`: `surface2` track, a `danger`
+/// fill that sweeps along it as `EmergencyUnlock.progress` advances, a `danger` outline at rest
+/// (an exit that costs something does not wear the accent), and a label drawn twice — `text` on the
+/// track and `onFill` masked to the fill's width — so it stays readable under the sweep (`text` on
+/// a `danger` fill is 3.1:1; `onFill` on it is 5.8:1). Idle it names the gesture ("Press and hold
+/// to end the lock"); holding it counts down the seconds.
+///
+/// Accessibility: a sustained 60s hold has no VoiceOver equivalent, so the default action starts
+/// the same countdown (`beginHold()` needs no finger; the engine completes it on its own after 60s)
+/// and, while it runs, cancels it. The seconds remaining are the element's value.
 @MainActor
 private struct EmergencyHoldControl: View {
     let emergencyUnlock: EmergencyUnlock
 
-    var body: some View {
-        VStack(spacing: Theme.Spacing.xxs) {
-            ZStack(alignment: .leading) {
-                Capsule().fill(Theme.Colors.surface2)
-                GeometryReader { proxy in
-                    Capsule()
-                        .fill(Theme.Colors.danger.opacity(0.85))
-                        .frame(width: proxy.size.width * emergencyUnlock.progress)
-                }
-            }
-            .frame(width: 160, height: 6)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-            Text(label)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-        }
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in emergencyUnlock.beginHold() }
-                .onEnded { _ in emergencyUnlock.cancelHold() }
-        )
-        .animation(Theme.Motion.springStandard, value: emergencyUnlock.phase)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Copy.onboarding.firstWinEmergencyLabel)
+    private var isHolding: Bool {
+        emergencyUnlock.phase == .holding
     }
 
-    private var label: String {
-        emergencyUnlock.phase == .holding
-            ? "\(emergencyUnlock.secondsRemaining)s"
-            : Copy.onboarding.firstWinEmergencyLabel
+    private var labelText: String {
+        isHolding
+            ? Copy.onboardingReveal.firstWinEmergencySeconds(emergencyUnlock.secondsRemaining)
+            : Copy.onboardingReveal.firstWinEmergencyHint
+    }
+
+    private var label: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: isHolding ? "lock.open.fill" : "lock.fill")
+                .font(Theme.Typography.icon(.small))
+            Text(labelText)
+                .font(Theme.Typography.headline.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Theme.Spacing.md)
+        .frame(minHeight: Theme.Metrics.primaryButtonHeight)
+    }
+
+    var body: some View {
+        label
+            .foregroundStyle(Theme.Colors.text)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    label
+                        .foregroundStyle(Theme.Colors.onFill)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .mask(alignment: .leading) {
+                            Rectangle()
+                                .frame(width: proxy.size.width * emergencyUnlock.progress)
+                        }
+                }
+            }
+            .background {
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.Colors.surface2)
+                    GeometryReader { proxy in
+                        Rectangle()
+                            .fill(Theme.Colors.danger)
+                            .frame(width: proxy.size.width * emergencyUnlock.progress)
+                    }
+                    // Clipping a rectangle to the capsule keeps the fill's trailing edge straight
+                    // while it is narrow (the same fix `PrimaryButton`'s hold fill got).
+                    .clipShape(Capsule())
+                }
+            }
+            .overlay(
+                Capsule()
+                    .strokeBorder(Theme.Colors.danger.opacity(isHolding ? 0 : 0.5), lineWidth: 1.5)
+            )
+            .compositingGroup()
+            .scaleEffect(isHolding && !reduceMotion ? 0.98 : 1)
+            .contentShape(Capsule())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in emergencyUnlock.beginHold() }
+                    .onEnded { _ in emergencyUnlock.cancelHold() }
+            )
+            .animation(Theme.Motion.press(reduceMotion: reduceMotion), value: isHolding)
+            .animation(reduceMotion ? nil : .linear(duration: 0.05), value: emergencyUnlock.progress)
+            // The same escalating "charging up" tick `PrimaryButton.holdToCommit` has, one per tenth
+            // of the 60 seconds; never on the reset back to zero.
+            .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: Int(emergencyUnlock.progress * 10)) { oldValue, newValue in
+                newValue > oldValue
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.onboarding.firstWinEmergencyLabel)
+            .accessibilityHint(Copy.onboardingReveal.firstWinEmergencyHint)
+            .accessibilityValue(isHolding ? Copy.onboardingReveal.firstWinEmergencySeconds(emergencyUnlock.secondsRemaining) : "")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                if isHolding {
+                    emergencyUnlock.cancelHold()
+                } else {
+                    emergencyUnlock.beginHold()
+                }
+            }
     }
 }
 
-// MARK: - Confetti
+// MARK: - Celebration
 
-/// A short, tasteful confetti burst — docs/spec.md §15 Motion: "unlock celebration <= 1.2s". Not
-/// one of §15's named Core components, so kept screen-local rather than added to `Core/UI`.
-private struct OnboardingConfettiView: View {
-    let trigger: Int
+/// The first win's celebration, in `UnlockCelebrationView`'s vocabulary so the product has one
+/// celebration language, not two: a ring that closes, an accent-only burst, "Earned." in accent —
+/// with the streak as the hero. See the file header for the timeline. Owns its own staging state
+/// (the parent only says which streak to show and what "Done" does).
+private struct FirstWinCelebration: View {
+    let streak: Int
+    let onDone: () -> Void
 
-    @State private var isBursting = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var sealProgress: Double = 0
+    @State private var shownStreak = 0
+    @State private var showText = false
+    @State private var showBurst = false
+    @State private var weekDone = false
+    @State private var hapticTick = 0
 
-    private struct Particle: Identifiable {
-        let id = UUID()
-        let xOffset: CGFloat
-        let delay: Double
-        let rotation: Double
-        let color: Color
+    /// Where the particles radiate from: a frame centred on the ring, bigger than it.
+    private static let burstFrame: CGFloat = 320
+
+    /// Reduce Motion shows the final state from the first frame, with no flash of the unearned one.
+    private var progress: Double { reduceMotion ? 1 : sealProgress }
+    private var streakValue: Int { reduceMotion ? streak : shownStreak }
+    private var isTextShown: Bool { reduceMotion || showText }
+    private var isWeekDone: Bool { reduceMotion || weekDone }
+
+    var body: some View {
+        OnboardingKit.CenteredScroll {
+            VStack(spacing: Theme.Spacing.lg) {
+                Text(Copy.onboarding.firstWinCelebrationTitle)
+                    .font(Theme.Typography.numeralMedium())
+                    .foregroundStyle(Theme.Colors.accent)
+                    .opacity(isTextShown ? 1 : 0)
+                    .accessibilityAddTraits(.isHeader)
+
+                seal
+
+                Text(Copy.onboardingReveal.firstWinCelebrationBody)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Spacing.lg)
+                    .opacity(isTextShown ? 1 : 0)
+                    .offset(y: isTextShown || reduceMotion ? 0 : Theme.Spacing.xs)
+
+                FirstWinWeekRow(isDone: isWeekDone)
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.lg)
+        }
+        .background {
+            // Static radial glow; only its opacity changes, once, at the unlock beat. Never an
+            // animated blur or radius.
+            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.18)
+                .opacity(showBurst ? 1 : 0.3)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: showBurst)
+        }
+        .onboardingKitActionBar {
+            PrimaryButton(title: Copy.onboarding.firstWinDoneButton, action: onDone)
+        }
+        .sensoryFeedback(.success, trigger: hapticTick)
+        .task { await play() }
     }
 
-    private static let palette: [Color] = [
-        Theme.Colors.accent,
-        Theme.Colors.Ring.protein,
-        Theme.Colors.Ring.focus,
-        Theme.Colors.Ring.water,
-        Theme.Colors.warning,
-    ]
+    /// The streak ring: the burst behind it, the ring closing, the streak numeral inside it.
+    private var seal: some View {
+        ZStack {
+            if showBurst {
+                // Mounted at the unlock beat so the burst fires exactly once, from the moment the
+                // ring closes. Accent-only; it handles Reduce Motion itself (in-place cross-fade).
+                CelebrationBurst(trigger: 0)
+                    .frame(width: Self.burstFrame, height: Self.burstFrame)
+            }
 
-    private let particles: [Particle] = (0..<28).map { index in
-        Particle(
-            xOffset: CGFloat.random(in: -140...140),
-            delay: Double.random(in: 0...0.15),
-            rotation: Double.random(in: 0...360),
-            color: palette[index % palette.count]
-        )
+            GoalRing(progress: progress, color: Theme.Colors.accent, size: .hero, center: .none)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 0) {
+                OnboardingKit.HeroNumeral(text: "\(streakValue)", color: Theme.Colors.text)
+                Text(Copy.onboardingReveal.firstWinStreakUnit)
+                    .zanoText(.unit)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// 0.25s beat (the ring is seen empty while the phase cross-fades in) -> the ring fills over
+    /// 0.6s -> at ~0.85s the burst fires, the streak ticks 0 to 1, today's dot checks, and one
+    /// success haptic lands. Inside `Theme.Motion.unlockCelebrationMaxDuration`, and nothing here
+    /// gates the "Done" button.
+    private func play() async {
+        guard !reduceMotion else {
+            showBurst = true
+            hapticTick += 1
+            return
+        }
+
+        try? await Task.sleep(for: .milliseconds(250))
+        guard !Task.isCancelled else { return }
+        withAnimation(Theme.Motion.ringFill) { sealProgress = 1 }
+        withAnimation(Theme.Motion.springStandard) { showText = true }
+
+        try? await Task.sleep(for: .milliseconds(600))
+        guard !Task.isCancelled else { return }
+        showBurst = true
+        hapticTick += 1
+        withAnimation(Theme.Motion.springCelebration) {
+            shownStreak = streak
+            weekDone = true
+        }
+    }
+}
+
+/// Seven day marks with today checked — the week row of the streak moment (competitive-research
+/// §3.2: Duolingo shows the streak as a number *and* a week of dots, today checked). The weekday
+/// initials come from the user's calendar, starting on their first weekday, so it needs no copy.
+/// Decorative: the streak numeral and body line above carry the meaning, so it is hidden from
+/// VoiceOver. Today's dot pops in once; under Reduce Motion it is simply checked.
+private struct FirstWinWeekRow: View {
+    let isDone: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Day: Identifiable {
+        let id: Int
+        let symbol: String
+        let isToday: Bool
+    }
+
+    private var days: [Day] {
+        let calendar = Calendar.current
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        guard symbols.count == 7 else { return [] }
+        let firstIndex = calendar.firstWeekday - 1
+        let todayIndex = calendar.component(.weekday, from: Date.now) - 1
+        return (0..<7).map { offset in
+            let index = (firstIndex + offset) % 7
+            return Day(id: index, symbol: symbols[index], isToday: index == todayIndex)
+        }
     }
 
     var body: some View {
-        ZStack {
-            ForEach(particles) { particle in
-                Capsule()
-                    .fill(particle.color)
-                    .frame(width: 6, height: 12)
-                    .rotationEffect(.degrees(isBursting ? particle.rotation : 0))
-                    .offset(x: particle.xOffset, y: isBursting ? 380 : -20)
-                    .opacity(isBursting ? 0 : 1)
-                    .animation(
-                        .easeOut(duration: Theme.Motion.unlockCelebrationMaxDuration).delay(particle.delay),
-                        value: isBursting
-                    )
+        HStack(spacing: Theme.Spacing.xs) {
+            ForEach(days) { day in
+                VStack(spacing: Theme.Spacing.xs) {
+                    Text(day.symbol)
+                        .font(Theme.Typography.captionEmphasized)
+                        .foregroundStyle(day.isToday ? Theme.Colors.text : Theme.Colors.muted)
+                    dot(for: day)
+                }
+                .frame(maxWidth: .infinity)
             }
         }
-        .allowsHitTesting(false)
-        .onAppear { burst() }
-        .onChange(of: trigger) { _, _ in burst() }
+        .padding(Theme.Spacing.md)
+        .zanoCard()
+        .accessibilityHidden(true)
     }
 
-    private func burst() {
-        isBursting = false
-        Task {
-            try? await Task.sleep(for: .milliseconds(20))
-            isBursting = true
+    private func dot(for day: Day) -> some View {
+        ZStack {
+            Circle()
+                .strokeBorder(Theme.Colors.track, lineWidth: 2)
+            if day.isToday {
+                Circle()
+                    .fill(Theme.Colors.accent)
+                    .overlay {
+                        Image(systemName: "checkmark")
+                            .font(Theme.Typography.icon(.small))
+                            .foregroundStyle(Theme.Colors.onFill)
+                    }
+                    .scaleEffect(isDone ? 1 : 0.4)
+                    .opacity(isDone ? 1 : 0)
+            }
+        }
+        .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+        .animation(reduceMotion ? nil : Theme.Motion.springCelebration, value: isDone)
+    }
+}
+
+// MARK: - Widget prompt
+
+/// Spec §7.14's "prompt to add the Home Screen widget with an animated guide". A mock of the widget
+/// itself — a ring and a streak, both true at this moment (the focus ring is full; the streak is 1)
+/// — lands once, then the three steps light up in turn (one pass, not a loop) and rest all lit.
+/// Under Reduce Motion everything is shown lit and in place. Step numbers are neutral discs: accent
+/// is for the CTA, not decoration.
+private struct FirstWinWidgetPrompt: View {
+    let streak: Int
+    let onDone: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasLanded = false
+    @State private var litSteps = 0
+
+    private static let stepCount = 3
+    /// A small Home Screen widget is roughly square at this size on current iPhones.
+    private static let widgetSide: CGFloat = 148
+    private static let widgetRingDiameter: CGFloat = 64
+
+    private var isLanded: Bool { reduceMotion || hasLanded }
+    private var visibleSteps: Int { reduceMotion ? Self.stepCount : litSteps }
+
+    var body: some View {
+        OnboardingKit.CenteredScroll {
+            VStack(spacing: Theme.Spacing.xl) {
+                widgetMock
+
+                OnboardingKit.DisplayTitle(text: Copy.onboarding.firstWinWidgetPromptHeadline)
+                    .padding(.horizontal, Theme.Spacing.lg)
+
+                stepsCard
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.lg)
+        }
+        .onboardingKitActionBar {
+            PrimaryButton(title: Copy.onboarding.firstWinDoneButton, action: onDone)
+        }
+        .task { await runGuide() }
+    }
+
+    /// The widget, and the "add" badge that says what the steps below do with it.
+    private var widgetMock: some View {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: Theme.Spacing.xs) {
+                GoalRing(
+                    progress: 1,
+                    color: Theme.Colors.Ring.focus,
+                    size: .custom(Self.widgetRingDiameter),
+                    center: .icon(systemName: "timer")
+                )
+                HStack(spacing: Theme.Spacing.xxs) {
+                    Image(systemName: "flame.fill")
+                        .font(Theme.Typography.icon(.small))
+                        .foregroundStyle(Theme.Colors.accent)
+                    Text("\(streak)")
+                        .font(Theme.Typography.numeralSmall())
+                        .foregroundStyle(Theme.Colors.text)
+                }
+            }
+            .frame(width: Self.widgetSide, height: Self.widgetSide)
+            .zanoCard(radius: Theme.Radius.large)
+
+            Image(systemName: "plus")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.onFill)
+                .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+                .background(Theme.Colors.accent, in: Circle())
+                .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))
+                .offset(x: Theme.Spacing.xxs, y: Theme.Spacing.xxs)
+        }
+        .scaleEffect(isLanded ? 1 : 0.9)
+        .opacity(isLanded ? 1 : 0)
+        .accessibilityHidden(true)
+    }
+
+    private var stepsCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            step(number: 1, text: Copy.onboarding.firstWinWidgetPromptStep1)
+            step(number: 2, text: Copy.onboarding.firstWinWidgetPromptStep2)
+            step(number: 3, text: Copy.onboarding.firstWinWidgetPromptStep3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .zanoCard()
+    }
+
+    private func step(number: Int, text: String) -> some View {
+        let isLit = visibleSteps >= number
+        return HStack(spacing: Theme.Spacing.sm) {
+            Text("\(number)")
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(isLit ? Theme.Colors.onFill : Theme.Colors.muted)
+                .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+                .background(isLit ? Theme.Colors.text : Theme.Colors.surface2, in: Circle())
+            Text(text)
+                .font(Theme.Typography.body)
+                .foregroundStyle(isLit ? Theme.Colors.text : Theme.Colors.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isLit)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The widget lands, then each step lights in turn, once.
+    private func runGuide() async {
+        guard !reduceMotion else { return }
+        withAnimation(Theme.Motion.springCelebration) { hasLanded = true }
+        try? await Task.sleep(for: .milliseconds(450))
+        for step in 1...Self.stepCount {
+            guard !Task.isCancelled else { return }
+            withAnimation(Theme.Motion.springStandard) { litSteps = step }
+            try? await Task.sleep(for: .milliseconds(450))
         }
     }
 }

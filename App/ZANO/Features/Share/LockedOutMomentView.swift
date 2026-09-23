@@ -7,68 +7,30 @@
 // "3+ attempts in an hour" counter this moment is triggered by (this task's brief: "triggered by a
 // 3-attempts-in-an-hour counter you implement here").
 //
-// Renders through `ShareCard` (`Core/Sources/Core/UI/Components/ShareCard.swift`, docs/spec.md
-// §15's core component list: "ShareCard (9:16 renderer)") rather than a bespoke layout — ShareCard
-// is already the generic export surface for exactly this ("designed to be legible as a standalone
-// image on Instagram/TikTok/iMessage" per its own header), and reusing it here keeps every
-// shareable card in the app (this one, `WeeklyRecapShareView`) visually and technically consistent
-// instead of each screen inventing its own `ImageRenderer` plumbing.
+// Renders through `LockedOutPoster` (`SharePoster.swift`, this folder): a fixed 360 x 640pt canvas
+// exported at scale 3 (= 1080 x 1920 px), with the on-screen preview being the same view scaled to
+// fit, so what the user approves is what they post. This replaces the old `ShareCard` path — three
+// lines of 22pt text on a gradient with no graphic, exported at a UI-sized type ramp on a 1080pt
+// canvas (see `SharePoster.swift`'s header). The poster's hero is the spec's own line ("My phone
+// won't let me open TikTok until I hit the gym.") as display type over a lock medallion, with the
+// attempt count as a stat pill: `one sec`'s finding is that showing how often you tried is what
+// changes behavior (`docs/design/competitive-research.md` 3.3).
 //
-// docs/spec.md §15/§24 note the shield's own copy lives in `Core/Sources/Core/Copy` — this file
-// follows the exact "ASSUMED API" precedent `App/ZANO/Features/LockSetup/LockSetupView.swift` and
-// `App/ZANO/Features/Progress/ProgressView.swift` already set (both read in full before writing
-// this file): reference `Copy.<feature>.*` by name, as if it already exists, and list every
-// assumed member here so whoever implements `Core/Sources/Core/Copy` for real only has to match
-// this shape. This is deliberately NOT the same tactic `TodayView.swift` used (a private in-file
-// `Copy` enum) — that file predates this convention; `ProgressView`/`LockSetupView` are the more
-// recent, more CLAUDE.md-compliant precedent (no hardcoded string literal ever appears at a call
-// site below), so this file follows them.
-//
-// ASSUMED API — `Copy.lockedOut.*` / `Copy.share.*` (`Core/Sources/Core/Copy`, not owned by this
-// task):
-//
-//   Copy.lockedOut.screenTitle: String                                          // "Locked Out"
-//   Copy.lockedOut.headline(appName: String?, blockingGoalSummary: String?) -> String
-//       // The spec-literal line itself, e.g. "My phone won't let me open TikTok until I hit the
-//       // gym." Both parameters are caller-composed short phrases already resolved by this view —
-//       // `appName` for the app the user kept trying to open, `blockingGoalSummary` for what
-//       // unlocks it (e.g. "hit the gym") — and both fall back to a generic phrase when `nil`
-//       // (a category-level shield has no single app name to report; multiple required goals have
-//       // no single headline one), mirroring exactly how `ShieldCopy.content(for:)` (already
-//       // built, `Core/Sources/Core/Copy/ShieldCopy.swift`) handles its own optional `shieldedName`
-//       // with `shieldedName ?? "This app"` inline, not a separate variant table. Deliberately
-//       // `String?` here, not pre-resolved to `"This app"` by this view: CLAUDE.md reserves that
-//       // fallback wording for Copy to own, the same way ShieldCopy already owns it — this view
-//       // only ever passes through what it actually knows.
-//   Copy.lockedOut.statLine(attemptCount: Int, windowMinutes: Int) -> String     // "3 tries in the
-//       // last 60 minutes"
-//   Copy.lockedOut.highlightLine(goalsRemaining: Int, streak: Int) -> String     // "1 goal left ·
-//       // Streak 14" — same clause style `CoachVoiceTone.goalsRemainingClause`/`streakClause`
-//       // already use elsewhere, just voice-neutral since spec §5.16 gives no coach-voice example.
-//   Copy.lockedOut.acknowledgementLine: String                                  // spec §5.16's own
-//       // framing, e.g. "Turns friction into content. Might as well share it."
-//   Copy.lockedOut.dismissButtonTitle: String                                   // "Not now"
-//   Copy.share.shareButtonTitle: String                                         // spec §5.16's
-//       // literal button name: "a 'Share this' option" — keep this string exactly "Share this".
-//   Copy.share.preparingShareTitle: String                                      // "Preparing…"
-//   Copy.share.shareFailedRetryLabel: String                                    // new, added by
-//       // the accessibility/stress-test pass (docs/design/ui-stress-test-findings.md §3.6), e.g.
-//       // "Couldn't prepare image — tap to try again". Shared with `WeeklyRecapShareView.swift`,
-//       // which hits the identical `ShareCard.renderImage` nil-return gap.
-//   Copy.share.footerWordmark: String                                          // small bottom-
-//       // right logo text on every `ShareCard` export (P7 mockup, §16); shared with
-//       // `WeeklyRecapShareView` so every exported card uses the same wordmark.
+// Copy: `Copy.lockedOut.*` and `Copy.share.*` (`Core/Sources/Core/Copy/ShareCopy.swift`). This file
+// composes no user-facing string of its own: the app-name and goal-summary fallbacks live in
+// `Copy.lockedOut.headline`, which owns the "This app" wording the same way `ShieldCopy.content(for:)`
+// owns its own `shieldedName` fallback.
 //
 // CROSS-MODULE GAP (flagging, not guessing): the only place iOS actually tells us "the user just
 // tried to open a blocked app" is `ShieldConfigurationExtension.configuration(shielding:...)`
-// (`Extensions/ZANOShieldConfig/ShieldConfigurationExtension.swift`, already built by another
-// session, owned by that session — not touched here) — the system calls one of those four
-// overrides every single time the shield renders. `ManagedSettingsUI` gives no other "an attempt
-// happened" callback (`ShieldActionDelegate` only fires on an explicit button tap). That means the
-// counter's *write* side must be reachable from an extension target, which per CLAUDE.md ("Shared
-// code goes ONLY in Core/Sources/Core/<Module>... Extension-only code in Extensions/<Name>/") means
-// it has to live in Core — but this task's owned-file list is only the two files in this folder,
-// both in the `ZANO` **app** target, which `ZANOShieldConfig` cannot import. So:
+// (`Extensions/ZANOShieldConfig/ShieldConfigurationExtension.swift`, owned by another session, not
+// touched here) — the system calls one of those four overrides every single time the shield renders.
+// `ManagedSettingsUI` gives no other "an attempt happened" callback (`ShieldActionDelegate` only fires
+// on an explicit button tap). That means the counter's *write* side must be reachable from an
+// extension target, which per CLAUDE.md ("Shared code goes ONLY in Core/Sources/Core/<Module>...
+// Extension-only code in Extensions/<Name>/") means it has to live in Core — but this task's
+// owned-file list is only the files in this folder, all in the `ZANO` **app** target, which
+// `ZANOShieldConfig` cannot import. So:
 //   `LockedOutAttemptTracker` below is written to have ZERO app-target dependencies (only
 //   `Foundation` + `Core`'s public `AppGroup.identifier`) specifically so it can be relocated
 //   verbatim into `Core/Sources/Core/Verification/LockedOutAttemptTracker.swift` by whoever owns
@@ -259,34 +221,36 @@ public struct LockedOutMomentContent: Sendable, Equatable {
 
 // MARK: - View
 
-/// The Locked-Out Moment (spec §5.16): a dismissable card, presented once
+/// The Locked-Out Moment (spec §5.16): a dismissable poster, presented once
 /// ``LockedOutAttemptTracker`` (or an equivalent future signal) fires, offering a "Share this"
 /// export of the moment. This view never itself locks or shields anything — it's a promotional/
 /// content moment layered on top of a shield that's already active, so CLAUDE.md's "any lock/shield
 /// feature must always keep an emergency-unlock path" doesn't create a new obligation here (there's
-/// no new lock state to escape); it's still always dismissable via `onDismiss`, as good practice for
-/// any full-screen moment.
+/// no new lock state to escape); it's still always dismissable via `onDismiss` (the header's close
+/// control, a 44pt target), as good practice for any full-screen moment.
+///
+/// Layout: a header carrying only the dismiss control (the poster's own eyebrow is the title), the
+/// poster preview filling the space between, and the acknowledgement line plus the share action
+/// pinned in a bottom bar, so the share button is on screen at every phone height and the poster
+/// shrinks to fit instead of scrolling under it.
 public struct LockedOutMomentView: View {
     private let content: LockedOutMomentContent
     private let onDismiss: () -> Void
 
     @State private var renderedImage: UIImage?
-    /// `true` once `ShareCard.renderImage` has returned `nil` — see the `.task` below and
-    /// `docs/design/ui-stress-test-findings.md` §3.6. Previously nothing branched on this case, so
-    /// a render failure (low memory, an unusually large rendered frame) left `actions` showing an
-    /// indefinite "Preparing…" spinner forever, indistinguishable from "still working."
+    /// `true` once the poster render has returned `nil` — see the `.task` below and
+    /// `docs/design/ui-stress-test-findings.md` §3.6. Without a branch on this case, a render failure
+    /// (low memory) would leave the action stuck on "Preparing…" forever, indistinguishable from
+    /// "still working."
     @State private var shareRenderFailed = false
     /// Bumped by `retryShareRender()` to re-run the `.task(id:)` below on demand — a plain `.task`
     /// only fires once per this view's identity, so retrying after a failure needs an explicit id
     /// change, not just resetting the `@State` it reads.
     @State private var renderAttempt = 0
-    /// Drives the card's one-shot entrance reveal below — see `body`'s `.onAppear`. Same call-site-
-    /// only pattern `WeeklyRecapShareView.swift` (this folder) uses, and the same reason: this
-    /// file's own header already documents why `ShareCard.swift` itself must stay untouched (its
-    /// `renderImage` call constructs a separate, off-screen instance purely for `ImageRenderer`
-    /// capture — an animation baked into `ShareCard`'s own `body` risks being mid-flight when that
-    /// instance is rasterized). Animating `.scaleEffect`/`.opacity` on the `ShareCard(content:)`
-    /// instance composed here, not inside `ShareCard.swift`, preserves that separation.
+    /// Drives the poster's one-shot entrance reveal below — see `body`'s `.onAppear`. Applied only to
+    /// the on-screen preview instance: the poster `SharePosterRenderer` rasterizes is a separate,
+    /// untransformed instance, so an animation can never be mid-flight when it is captured
+    /// (`docs/design/animation-opportunities.md` row 10's explicit constraint).
     @State private var cardAppeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -299,49 +263,50 @@ public struct LockedOutMomentView: View {
     }
 
     public var body: some View {
-        VStack(spacing: Theme.Spacing.lg) {
-            header
+        VStack(spacing: 0) {
+            // No title: the poster's own eyebrow ("Locked out") already is one, and repeating it
+            // above the poster said the same words twice. The dismiss label stays the spec's "Not now".
+            ShareMomentHeader(
+                title: nil,
+                dismissLabel: Copy.lockedOut.dismissButtonTitle,
+                onDismiss: onDismiss
+            )
 
-            ScrollView {
-                VStack(spacing: Theme.Spacing.md) {
-                    ShareCard(content: shareCardContent)
-                        .frame(maxWidth: 320)
-                        .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
-                        .opacity(cardAppeared ? 1 : 0)
-
-                    Text(Copy.lockedOut.acknowledgementLine)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, Theme.Spacing.lg)
-                .padding(.top, Theme.Spacing.md)
-            }
-
-            actions
-                .padding(.horizontal, Theme.Spacing.xl)
-                .padding(.bottom, Theme.Spacing.lg)
+            SharePosterPreview(poster: poster)
+                .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
+                .opacity(cardAppeared ? 1 : 0)
         }
-        .background(Theme.Colors.background.ignoresSafeArea())
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .zanoBackdrop()
+        .zanoActionBar {
+            VStack(spacing: Theme.Spacing.sm) {
+                Text(Copy.lockedOut.acknowledgementLine)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                actions
+            }
+        }
         .task(id: renderAttempt) {
             guard renderedImage == nil else { return }
             shareRenderFailed = false
-            // `await`, not a direct call: `ShareCard.renderImage` is `@MainActor`-isolated, and
-            // this task's environment has no Mac/Swift compiler to confirm whether SwiftUI's
-            // `.task` closure is itself MainActor-isolated on the SDK this project targets. `await`
-            // here is correct either way — a redundant `await` on an already-isolated call compiles
-            // fine, while omitting a *required* one is a hard error — see this task's `knownIssues`.
-            if let image = await ShareCard.renderImage(content: shareCardContent) {
+            // `await`, not a direct call: `SharePosterRenderer.image` is `@MainActor`-isolated, and
+            // this environment has no Mac/Swift compiler to confirm whether SwiftUI's `.task`
+            // closure is itself MainActor-isolated on the SDK this project targets. `await` is
+            // correct either way — a redundant `await` on an already-isolated call compiles fine,
+            // while omitting a *required* one is a hard error.
+            if let image = await SharePosterRenderer.image(of: poster) {
                 renderedImage = image
             } else {
                 shareRenderFailed = true
             }
         }
-        // The card's one-shot arrival, per docs/design/animation-opportunities.md row 10: scale
-        // 0.92→1.0 + fade in, `springStandard`-family spring, fired once on appear. This moment is
-        // this screen's own emotional beat (spec §5.16: "turn friction into content"), so it's
-        // worth the same reveal `WeeklyRecapShareView.swift` gives its card. Reduce Motion:
-        // opacity-only, no scale — same Part 0 pattern as everywhere else in this wave.
+        // The poster's one-shot arrival, per docs/design/animation-opportunities.md row 10: scale
+        // 0.92→1.0 + fade in, a `springStandard`-family spring, fired once on appear. This moment is
+        // this screen's own emotional beat (spec §5.16: "turn friction into content"), so it's worth
+        // the same reveal `WeeklyRecapShareView.swift` gives its poster. Reduce Motion: opacity-only,
+        // no scale.
         .onAppear {
             guard !cardAppeared else { return }
             withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.8)) {
@@ -360,32 +325,16 @@ public struct LockedOutMomentView: View {
         renderAttempt += 1
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        HStack {
-            Text(Copy.lockedOut.screenTitle)
-                .font(Theme.Typography.title)
-                .foregroundStyle(Theme.Colors.text)
-            Spacer(minLength: 0)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Copy.lockedOut.dismissButtonTitle)
-        }
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.top, Theme.Spacing.md)
-    }
-
-    // MARK: - Actions (share / dismiss)
+    // MARK: - Actions (share / retry)
 
     @ViewBuilder
     private var actions: some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            Group {
+        // The "Preparing…" state crossfades into the real Share control the moment the render
+        // finishes. Keyed on a small `Equatable` state enum, not the image itself: `UIImage` isn't
+        // `Equatable`, which `.animation(_:value:)` requires.
+        Group {
+            switch shareRenderState {
+            case .ready:
                 if let renderedImage {
                     ShareLink(
                         item: Image(uiImage: renderedImage),
@@ -394,45 +343,28 @@ public struct LockedOutMomentView: View {
                             image: Image(uiImage: renderedImage)
                         )
                     ) {
-                        shareLabel
+                        ShareActionLabel(state: .ready)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .transition(shareControlTransition)
-                } else if shareRenderFailed {
-                    // Previously unreachable: `ShareCard.renderImage` returning `nil` left this
-                    // screen stuck on `preparingShareLabel` forever, indistinguishable from "still
-                    // working." This is a terminal failure state with its own message and a tap-
-                    // to-retry affordance instead. See `docs/design/ui-stress-test-findings.md` §3.6.
-                    Button(action: retryShareRender) {
-                        shareFailedLabel
-                    }
-                    .buttonStyle(.plain)
-                    .transition(shareControlTransition)
-                } else {
-                    preparingShareLabel
-                        .transition(shareControlTransition)
                 }
+            case .failed:
+                // A terminal failure state with its own message and a tap-to-retry affordance instead
+                // of an indefinite spinner. See `docs/design/ui-stress-test-findings.md` §3.6.
+                Button(action: retryShareRender) {
+                    ShareActionLabel(state: .failed)
+                }
+                .buttonStyle(.pressable)
+                .transition(shareControlTransition)
+            case .preparing:
+                ShareActionLabel(state: .preparing)
+                    .transition(shareControlTransition)
             }
-            // Same "Preparing…" → Share crossfade `WeeklyRecapShareView.swift` uses — see that
-            // file's identical comment. Keyed on a small `Equatable` state enum, not the image
-            // itself (`UIImage` isn't `Equatable`).
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard,
-                value: shareRenderState
-            )
-
-            Button(Copy.lockedOut.dismissButtonTitle, action: onDismiss)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .buttonStyle(.plain)
         }
-    }
-
-    /// The three states `actions` renders — see the `.animation(value:)` above.
-    private enum ShareRenderState: Equatable {
-        case preparing
-        case ready
-        case failed
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard,
+            value: shareRenderState
+        )
     }
 
     private var shareRenderState: ShareRenderState {
@@ -441,78 +373,17 @@ public struct LockedOutMomentView: View {
         return .preparing
     }
 
-    /// Reduce Motion: plain fade, no scale — same Part 0 pattern as the card reveal above.
+    /// Reduce Motion: plain fade, no scale — same pattern as the poster reveal above.
     private var shareControlTransition: AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .center))
     }
 
-    /// Styled to match `PrimaryButton`'s `.standard` visual treatment
-    /// (`Core/Sources/Core/UI/Components/PrimaryButton.swift`). Not built by wrapping
-    /// `PrimaryButton` itself: that component owns its own `Button`/action, and `ShareLink` needs
-    /// to own the tap gesture here instead, so this mirrors its look with the same `Theme` tokens
-    /// rather than nesting one tappable control inside another.
-    private var shareLabel: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 16, weight: .semibold))
-            Text(Copy.share.shareButtonTitle)
-                .font(Theme.Typography.headline)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Theme.Spacing.sm)
-        .foregroundStyle(Theme.Colors.background)
-        .background(Theme.Colors.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-    }
+    // MARK: - Poster
 
-    /// `SwiftUI.ProgressView` is spelled out fully here — this file's module (the `ZANO` app
-    /// target) also declares `App/ZANO/Features/Progress/ProgressView.swift`'s `struct
-    /// ProgressView: View` (the Progress *screen*) at module scope; an unqualified `ProgressView()`
-    /// in this same module would silently resolve to that screen instead of the system spinner
-    /// (both are zero-argument-constructible `View`s, so this would compile with no error and just
-    /// be wrong) — see that file's own header comment for the same gotcha called out from its side.
-    private var preparingShareLabel: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            SwiftUI.ProgressView()
-                .tint(Theme.Colors.background)
-            Text(Copy.share.preparingShareTitle)
-                .font(Theme.Typography.headline)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Theme.Spacing.sm)
-        .foregroundStyle(Theme.Colors.background)
-        .background(Theme.Colors.accent.opacity(0.5), in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-    }
-
-    /// The terminal render-failure state (§3.6 above) — same layout as `shareLabel`/
-    /// `preparingShareLabel` but a muted/outlined "retry" treatment instead of the solid accent
-    /// fill, so it doesn't read as another affirmative "share now" action. Wrapped in a `Button`
-    /// by its caller in `actions`.
-    private var shareFailedLabel: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 16, weight: .semibold))
-            Text(Copy.share.shareFailedRetryLabel)
-                .font(Theme.Typography.headline)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Theme.Spacing.sm)
-        .foregroundStyle(Theme.Colors.text)
-        .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
-                .strokeBorder(Theme.Colors.danger.opacity(0.5), lineWidth: 1)
-        )
-    }
-
-    // MARK: - ShareCard content
-
-    private var shareCardContent: ShareCardContent {
-        ShareCardContent(
-            title: Copy.lockedOut.headline(appName: content.appName, blockingGoalSummary: content.blockingGoalSummary),
-            dayRings: [],
+    private var poster: LockedOutPoster {
+        LockedOutPoster(
+            eyebrow: Copy.lockedOut.screenTitle,
+            headline: Copy.lockedOut.headline(appName: content.appName, blockingGoalSummary: content.blockingGoalSummary),
             statLine: Copy.lockedOut.statLine(attemptCount: content.attemptCount, windowMinutes: content.windowMinutes),
             highlightLine: highlightLine,
             footerLabel: Copy.share.footerWordmark

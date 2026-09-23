@@ -21,11 +21,11 @@ public enum WidgetCopy {
     // MARK: - Home Screen widget
 
     public static let appName = "ZANO"
-    public static let startLockButton = "Start Lock"
+    public static let startLockButton = "Start lock"
     public static let logProteinButton = "+25g"
     public static let logWaterButton = "+500ml"
-    public static let startFocusButton = "Start Focus"
-    public static let todaysPlanTitle = "Today's Plan"
+    public static let startFocusButton = "Start focus"
+    public static let todaysPlanTitle = "Today's plan"
     public static let timeBankTitle = "Time Bank"
     public static let noActiveLock = "Unlocked"
 
@@ -38,7 +38,10 @@ public enum WidgetCopy {
         count == 1 ? "1 goal left" : "\(count) goals left"
     }
 
-    public static func streak(_ count: Int) -> String { "\(count)🔥" }
+    /// "14-day streak" in words. This is also the VoiceOver label for the widget's numeral-plus-
+    /// flame streak pill, so it can't be the emoji alone ("14🔥" read as "14 fire"), and it puts
+    /// no flame on Data or Tough Love users who didn't choose one.
+    public static func streak(_ count: Int) -> String { "\(count)-day streak" }
 
     public static func nextLock(_ date: Date?) -> String {
         guard let date else { return "No lock scheduled" }
@@ -48,13 +51,16 @@ public enum WidgetCopy {
         return "Next lock \(formatter.string(from: date))"
     }
 
+    /// Time Bank balance still to spend, so "left" — not "unlocked", which reads as time already
+    /// used (and dilutes the core lock/unlock verb). The celebration screen keeps the spec-verbatim
+    /// "2h 10m unlocked" (`Copy.celebration.timeBankUnlockedLabel`), where it fits.
     public static func minutesRemaining(_ minutes: Int) -> String {
-        guard minutes > 0 else { return "0 min unlocked" }
+        guard minutes > 0 else { return "0 min left" }
         let hours = minutes / 60
         let mins = minutes % 60
-        if hours > 0 && mins > 0 { return "\(hours)h \(mins)m unlocked" }
-        if hours > 0 { return "\(hours)h unlocked" }
-        return "\(mins) min unlocked"
+        if hours > 0 && mins > 0 { return "\(hours)h \(mins)m left" }
+        if hours > 0 { return "\(hours)h left" }
+        return "\(mins) min left"
     }
 
     // MARK: - Lock Screen widget
@@ -77,13 +83,13 @@ public enum WidgetCopy {
     public static let controlLockedLabel = "Locked"
     public static let controlUnlockedLabel = "Unlocked"
 
-    public static let controlLogWaterTitle = "Log Water"
+    public static let controlLogWaterTitle = "Log water"
     public static let controlLogWaterDescription = "Log 500ml of water."
-    public static let controlLogShakeTitle = "Log Shake"
+    public static let controlLogShakeTitle = "Log shake"
     public static let controlLogShakeDescription = "Log 25g of protein."
-    public static let controlStartFocusTitle = "Start Focus"
+    public static let controlStartFocusTitle = "Start focus"
     public static let controlStartFocusDescription = "Start a 25-minute focus session."
-    public static let controlLogCreatineTitle = "Log Creatine"
+    public static let controlLogCreatineTitle = "Log creatine"
     public static let controlLogCreatineDescription = "Log today's creatine dose."
 
     public static let controlNoDefaultLockSetMessage =

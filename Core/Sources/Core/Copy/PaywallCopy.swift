@@ -27,7 +27,7 @@ extension Copy {
         public static let yourPlanSectionTitle = "The plan you built"
 
         public static func lockSetSummary(name: String) -> String {
-            "Locking: \(name)"
+            "Lock set: \(name)"
         }
 
         // MARK: - Plans
@@ -48,7 +48,7 @@ extension Copy {
 
         /// Spec §16 P5 mockup shape: "$3.33/mo · 7 days free".
         public static func annualDetailLine(perMonth: String, trialDays: Int) -> String {
-            "\(perMonth)/mo · \(trialDays) days free"
+            "\(perMonth)/mo · \(trialDays) \(trialDays == 1 ? "day" : "days") free"
         }
 
         public static func trialDaysLabel(_ days: Int) -> String {
@@ -68,11 +68,33 @@ extension Copy {
         public static let continueWithLimitedFreeLink = "Continue with limited free"
 
         public static let retryButtonLabel = "Try again"
-        public static let errorTitle = "Something went wrong"
+        /// The alert title for a failed purchase (`PaywallView`'s `.failed` purchase state): names
+        /// the action that failed instead of "Something went wrong". The alert's message carries
+        /// the specific cause.
+        public static let errorTitle = "Couldn't complete purchase"
 
         /// Spec §7.13's own promise: "we'll remind you 2 days before it ends."
         public static func trialReminderNote(daysBefore: Int) -> String {
-            "We'll remind you \(daysBefore) days before your trial ends."
+            "We'll remind you \(daysBefore) \(daysBefore == 1 ? "day" : "days") before your trial ends."
         }
+
+        // MARK: - Subscription terms (docs/spec.md §24: "subscription terms in the paywall per App
+        // Store rules")
+        //
+        // ADDED, NOT YET REFERENCED: the live `PaywallView` shows a trial reminder, Restore and the
+        // free link, but no price-after-trial, auto-renew/cancel note, or Terms and Privacy links
+        // (the auto-renew text only existed for the superseded `Screen13Paywall`). These are the
+        // strings it needs; wiring them in is a `PaywallView` change. See
+        // docs/design/writing-findings.md §5.1 (HIGH).
+
+        /// e.g. `afterTrialPriceLine(price: "$39.99", period: "year")` -> "After the trial: $39.99
+        /// per year." `price` comes from StoreKit/RevenueCat, never a literal.
+        public static func afterTrialPriceLine(price: String, period: String) -> String {
+            "After the trial: \(price) per \(period)."
+        }
+
+        public static let autoRenewNote = "Auto-renews until you cancel. Cancel anytime in your Apple ID settings."
+        public static let termsLinkLabel = "Terms of use"
+        public static let privacyLinkLabel = "Privacy policy"
     }
 }

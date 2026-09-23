@@ -21,13 +21,13 @@ extension Copy {
         /// Matches spec §5.22's own example title verbatim: "A 'Building ZANO' feed card".
         public static let defaultHeadline = "Building ZANO"
         public static let defaultBody =
-            "Follow along as we build ZANO in public — the wins, the bugs, and the hardware."
+            "Follow along as we build ZANO — the wins, the bugs, and the hardware."
         /// "Watch", not "Follow" — spec's own product-catalog framing (§25) leans on video/UGC
         /// content (unboxing videos, gym-mirror content), so "Watch" reads as the more literal
-        /// verb for "your content" than a generic "Follow"; caller can override entirely if the
-        /// actual linked content (a specific video vs. a general profile) calls for different
-        /// wording.
-        public static let ctaLabel = "Watch"
+        /// verb for "your content" than a generic "Follow". The label names its destination
+        /// ("Watch the build log"), not a bare verb; caller can override entirely if the actual
+        /// linked content (a specific video vs. a general profile) calls for different wording.
+        public static let ctaLabel = "Watch the build log"
         public static let dismissAccessibilityLabel = "Dismiss"
     }
 }

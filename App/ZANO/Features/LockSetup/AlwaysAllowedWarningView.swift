@@ -2,32 +2,31 @@
 // App / Features / LockSetup
 //
 // Owned by: this task (docs/spec.md §20.2 `dsadriel-pocs/screen-time-app-blocker-ios` row, §27).
-// New, standalone file — does NOT edit `LockSetupView.swift` / `AppPickerView.swift` in this same
-// directory. Those two are owned by a different, already-in-flight session (see each file's own
-// "Owned by" header: "Do not edit from another session"); this view has no compile-time
-// dependency on either of them and is not wired into them from here. Dropping it into
-// `LockSetEditorSheet`'s `Form` in `LockSetupView.swift`, or into the onboarding Q2 app-selection
-// screen, is a follow-up integration step outside this task's file list — flagged in
-// knownIssues, not done here.
 //
-// Renders `AlwaysAllowedCheck.Assessment` (Core/Sources/Core/LockEngine/AlwaysAllowedCheck.swift,
-// this same task's other owned file) as a small, reusable warning banner. See that file's header
-// for exactly what is/isn't possible to detect automatically — short version: nothing. Apple gives
-// no API to read Settings > Screen Time > Always Allowed, so this is an honest "go check
-// yourself" nudge, not a real conflict detector, and this view never pretends otherwise.
+// Renders `AlwaysAllowedCheck.Assessment` (Core/Sources/Core/LockEngine/AlwaysAllowedCheck.swift)
+// as a small, reusable warning banner. See that file's header for exactly what is/isn't possible to
+// detect automatically — short version: nothing. Apple gives no API to read Settings > Screen Time >
+// Always Allowed, so this is an honest "go check yourself" nudge, not a real conflict detector, and
+// this view never pretends otherwise. `LockSetEditorSheet` (LockSetupView.swift) shows it directly
+// under the app picker whenever the picked apps could be exempted by that list.
 //
-// Style follows `GhostProgressBanner` (Core/Sources/Core/UI/Components/GhostProgressBanner.swift)
-// — the closest existing precedent for a Theme-consistent, self-contained, drop-in banner that
-// takes one already-computed value and an optional action/dismiss closure. This view lives in
-// App/ZANO (not Core/Sources/Core/UI/Components) because it's specific to the Screen Time / lock
-// picking flow (imports `FamilyControls`), not a generic reusable component another non-lock
-// module would need — `AppPickerView.swift` (this same directory, not edited here) is the
-// existing precedent for a FamilyControls-importing view living at this App/ZANO layer rather
-// than in Core/UI.
+// Style follows `GhostProgressBanner` (Core/UI/Components) — the closest precedent for a
+// Theme-consistent, self-contained, drop-in banner that takes one already-computed value and an
+// optional action/dismiss closure. It lives in App/ZANO (not Core/UI) because it is specific to the
+// Screen Time / lock picking flow (imports `FamilyControls`), like `AppPickerView.swift`.
 //
 // `import UIKit` below is solely for `UIApplication.openSettingsURLString` (see
 // `openSettingsButton`'s doc comment) — CLAUDE.md: "No UIKit unless an API requires it." SwiftUI
 // has no equivalent constant; this is the one Apple-documented way to deep-link out to Settings.
+//
+// Visual pass (design wave 2026-09-23; docs/design/better-layout-findings.md row 1.9,
+// better-ui-findings.md HIT-01/ICO-11): this message says a lock may silently not apply, yet its
+// title was 13pt, its body 13pt muted, its only action a 13pt borderless text link, and its dismiss
+// control an 11pt glyph with no hit padding (the smallest target in the app). Type now matches the
+// severity (`headline` title, `textSecondary` paragraph), "Open Settings" is a real capsule button,
+// and both controls reach 44pt without moving their visuals. The card is the shared `zanoCard` with a
+// warning wash and a warning-hued edge, so it reads as an object with a severity, and the glyph is an
+// `IconBadge` (the one badge recipe) instead of a hand-built disc.
 
 import SwiftUI
 import UIKit
@@ -78,29 +77,31 @@ struct AlwaysAllowedWarningView: View {
     }
 
     var body: some View {
-        // Previously this whole `HStack` — including `openSettingsButton` and the optional
-        // `dismissButton`, both real, independently-actionable buttons — was collapsed under a
-        // single `.accessibilityElement(children: .ignore)` + one label, which removes children
-        // from the accessibility tree entirely: a VoiceOver user could not reach or activate
-        // either button, only hear one static announcement. The fix scopes the "collapse to one
-        // label" treatment (still appropriate for `GhostProgressBanner`'s single-action precedent
-        // this file's header cites, which has only ever one possible action) to just the
-        // non-interactive title+message text below, leaving both buttons exposed normally — each
-        // already carries its own visible/explicit label. See
-        // `docs/design/ui-stress-test-findings.md` §1.3.
+        // Only the non-interactive title + message collapse into one VoiceOver element; the "Open
+        // Settings" and dismiss buttons stay individually reachable (collapsing the whole row under
+        // `.accessibilityElement(children: .ignore)` used to make both unreachable for a
+        // VoiceOver user, docs/design/ui-stress-test-findings.md §1.3).
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            iconBadge
-                .accessibilityHidden(true)
+            // A lock-with-warning glyph: this is specifically "your lock may not hold", which the
+            // generic exclamation triangle did not say. SF Symbol name recalled from the catalog,
+            // not confirmed on a Mac; a wrong name renders blank, never crashes.
+            IconBadge(
+                systemName: "lock.trianglebadge.exclamationmark.fill",
+                tint: Theme.Colors.warning,
+                size: .medium
+            )
 
-            VStack(alignment: .leading, spacing: 4) {
-                VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(Copy.alwaysAllowed.bannerTitle)
-                        .font(Theme.Typography.captionEmphasized)
+                        .font(Theme.Typography.headline)
                         .foregroundStyle(Theme.Colors.text)
 
+                    // A five-line paragraph on a dark surface: the middle text tier and the
+                    // paragraph leading (docs/design/typography-color-findings.md T5, C15).
                     Text(bannerMessage)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
+                        .zanoText(.paragraph)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
@@ -115,21 +116,12 @@ struct AlwaysAllowedWarningView: View {
             }
         }
         .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-        .overlay(
+        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.warning)
+        .overlay {
             RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                .strokeBorder(Theme.Colors.warning.opacity(0.4), lineWidth: 1)
-        )
-    }
-
-    private var iconBadge: some View {
-        ZStack {
-            Circle().fill(Theme.Colors.warning.opacity(0.16))
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.Colors.warning)
+                .strokeBorder(Theme.Colors.warning.opacity(0.4), lineWidth: Theme.Metrics.edgeWidth)
+                .allowsHitTesting(false)
         }
-        .frame(width: 32, height: 32)
     }
 
     /// Picks the specific-but-true variant when possible, falling back to the generic-but-true one
@@ -152,8 +144,7 @@ struct AlwaysAllowedWarningView: View {
     /// access to that screen at all, not even a one-way deep link), so the user still navigates
     /// Settings > Screen Time > Always Allowed by hand from here — this button only saves the
     /// first hop. `openSettingsURLString`'s exact current behavior (which page it lands on) isn't
-    /// confirmed against a device in this environment (no Mac — CLAUDE.md rule 5); flagged in
-    /// knownIssues.
+    /// confirmed against a device in this environment (no Mac — CLAUDE.md rule 5).
     @ViewBuilder
     private var openSettingsButton: some View {
         Button {
@@ -161,21 +152,35 @@ struct AlwaysAllowedWarningView: View {
                 openURL(url)
             }
         } label: {
+            // A tinted capsule (~32pt visual) inside a 44pt frame: the fix for the previously
+            // borderless 13pt text link is a visible edge plus a full-size target.
             Text(Copy.alwaysAllowed.openSettingsButtonLabel)
                 .font(Theme.Typography.captionEmphasized)
                 .foregroundStyle(Theme.Colors.warning)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background(Theme.Colors.wash(Theme.Colors.warning), in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(Theme.Colors.warning.opacity(0.35), lineWidth: Theme.Metrics.edgeWidth)
+                }
+                .minTapTarget()
         }
-        .buttonStyle(.plain)
-        .padding(.top, 2)
+        .buttonStyle(.pressable(scale: 0.96))
     }
 
+    /// The glyph stays small and stays in the corner; only the tappable frame grows to 44pt. The
+    /// negative padding hands the extra area back to the card's own padding so the visual position
+    /// (and the text column's width) barely moves.
     private func dismissButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .semibold))
+                .font(Theme.Typography.icon(.xsmall, weight: .bold))
                 .foregroundStyle(Theme.Colors.muted)
+                .minTapTarget()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable(scale: 0.9))
+        .padding(.top, -Theme.Spacing.sm)
+        .padding(.trailing, -Theme.Spacing.sm)
         .accessibilityLabel(Copy.alwaysAllowed.dismissAccessibilityLabel)
     }
 }
@@ -187,6 +192,7 @@ struct AlwaysAllowedWarningView: View {
     )
     .padding()
     .background(Theme.Colors.background)
+    .preferredColorScheme(.dark)
 }
 
 #Preview("Categories only") {
@@ -195,4 +201,5 @@ struct AlwaysAllowedWarningView: View {
     )
     .padding()
     .background(Theme.Colors.background)
+    .preferredColorScheme(.dark)
 }

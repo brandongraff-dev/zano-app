@@ -1,33 +1,56 @@
 // Screen4AppSelection.swift
 // App / Features / Onboarding
 //
-// Owned by this session. docs/spec.md §7.4 (screen 4, Q2): "Which apps steal your time? — Native
-// FamilyActivityPicker styled into the flow. (This is also the permission request; prime it with
-// one sentence first.)"
+// docs/spec.md §7.4 (screen 4, Q2): "Which apps steal your time? - Native FamilyActivityPicker styled
+// into the flow. (This is also the permission request; prime it with one sentence first.)" The
+// one-sentence prime is `Copy.onboarding.q2Subtitle`, shown above the picker card.
 //
-// This screen deliberately does NOT reuse `App/ZANO/Features/LockSetup/AppPickerView.swift` (a
-// different session's owned file, CLAUDE.md "never touch a file owned by another agent"): that
-// view renders itself as a `Form` `Section` row for the LockSetup admin screen, while spec §7.4
-// wants this styled full-bleed as part of the onboarding flow with a one-sentence prime up front.
-// Both use the same underlying FamilyControls APIs (`AuthorizationCenter`, `.familyActivityPicker`
-// modifier, `.individual` authorization — never `.child`, since ZANO only ever restricts the
-// signed-in user's own device) — duplicated intentionally rather than shared.
+// This screen deliberately does NOT reuse `App/ZANO/Features/LockSetup/AppPickerView.swift`: that view
+// renders itself as a `Form` `Section` row for the LockSetup admin screen, while spec §7.4 wants this
+// styled full-bleed as part of the onboarding flow with a one-sentence prime up front. Both use the
+// same underlying FamilyControls APIs (`AuthorizationCenter`, `.familyActivityPicker`, `.individual`
+// authorization - never `.child`, since ZANO only ever restricts the signed-in user's own device).
+// The authorization logic below is unchanged from the previous revision.
 //
-// ASSUMED API — see Screen3MainGoal.swift's header for the full note (`Copy.onboarding`/
-// `Copy.common`, `OnboardingQuestion`, `PrimaryButton`). New keys beyond that file's list: none —
-// all of `q2Title`, `q2Subtitle`, `q2PickerButtonLabel`, `q2SelectionSummary`,
-// `q2AuthorizationErrorTitle/Message`, `q2AuthorizationDeniedTitle/Message` are already listed
-// there.
+// DESIGN PASS 2 (docs/design/*, 2026-09-23; nothing here has been rendered). The picker is the
+// screen's one focal object (layout audit 1.8: "the apps are the product, and only a count is shown"):
+//   - Empty: a large dashed drop-zone card. Inside it, a row of three empty app-icon slots and a
+//     fourth "add" slot: it previews exactly what the filled state looks like (icons in a row), so the
+//     card reads as "your apps go here" before it is read. A dashed outline is the empty-slot idiom
+//     (competitive-research §3.10).
+//   - Filled: an overlapped row of the user's real app icons, then a check + the count summary, in a
+//     `zanoCard` with the static accent glow ("active element", spec §16) and a 2pt accent edge.
+//     Icons are FamilyControls' own `Label(token).labelStyle(.iconOnly)`: the system renders them,
+//     so the privacy rule holds (tokens are opaque; nothing here can read an app name or bundle id).
+//     API verified against Apple's Developer Forums / sample code, not compiled.
+//   - Icon-only on purpose: `Label(token)` titles ignore this app's forced-dark color scheme (they
+//     follow the system setting) and cannot be restyled (Apple Developer Forums threads 726330 and
+//     732567), so a title would render dark-on-dark for light-mode users. The count line below the
+//     icons carries the text. Icons can also intermittently render as three dots (thread 723651), so
+//     the icon row is additive and the summary never depends on it. Capped at 5 tiles + "+N" to keep
+//     the number of live token views small (thread 727437 reports freezes with many).
+//   - The card carries no accent *wash* (only the glow): the icon tiles are cut out of each other
+//     with a `surface`-colored ring, which only matches the card fill if nothing tints it.
+//   - Real tokens: `hairlineStrong` dash, `accentWash` add-slot, `PressableStyle` press state,
+//     `chevron.forward` (mirrors in RTL), selection haptic, Reduce-Motion-gated transitions.
+//
+// Handoff idea (needs a Copy key, not editable here): one privacy line under the subtitle, e.g.
+// "Your app list never leaves this phone." It is true (CLAUDE.md: tokens never leave the device) and
+// it is the moment users are about to see a system permission prompt.
 
 import SwiftUI
 import FamilyControls
+import ManagedSettings
+import ManagedSettingsUI
 import Core
 
-/// Screen 4 of 14 (spec §7.4) — Q2, the onboarding-embedded app picker. This is also v1's
+/// Screen 4 of 14 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
 /// FamilyControls authorization request (spec §7.4's parenthetical), primed with one sentence
 /// (`Copy.onboarding.q2Subtitle`) before the system picker/permission sheet appears.
 struct Screen4AppSelection: View {
     @Bindable var flowState: OnboardingFlowState
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isPickerPresented = false
     @State private var authorizationAlert: Screen4AuthorizationAlert?
@@ -36,14 +59,19 @@ struct Screen4AppSelection: View {
     /// (a `UserDefaults`-backed value, not `@Observable`) to be re-read on the next render.
     @State private var alwaysAllowedWarningDismissed = false
 
-    private var hasSelection: Bool {
-        !flowState.selectedApps.applicationTokens.isEmpty
-            || !flowState.selectedApps.categoryTokens.isEmpty
-            || !flowState.selectedApps.webDomainTokens.isEmpty
+    private let tileSize = Theme.Metrics.iconBadgeMedium
+    private let maxIconTiles = 5
+
+    private var selectedCount: Int {
+        flowState.selectedApps.applicationTokens.count
+            + flowState.selectedApps.categoryTokens.count
+            + flowState.selectedApps.webDomainTokens.count
     }
 
+    private var hasSelection: Bool { selectedCount > 0 }
+
     /// docs/spec.md §20.2's `dsadriel-pocs/screen-time-app-blocker-ios` row: "add an onboarding
-    /// check for Always Allowed." This is that check's one call site — the moment the user is
+    /// check for Always Allowed." This is that check's one call site - the moment the user is
     /// actually picking apps to lock is the moment the gotcha (apps in Settings > Screen Time >
     /// Always Allowed can never be shielded, no matter what ZANO configures) is most actionable.
     /// See `AlwaysAllowedCheck.swift` (Core/Sources/Core/LockEngine) for exactly what this can and
@@ -59,36 +87,20 @@ struct Screen4AppSelection: View {
             && alwaysAllowedAssessment.shouldWarn
     }
 
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+    }
+
+    /// A slot's corner: `Radius.small`, concentric with the card at a 16pt inset (20 - 16 = 4 would
+    /// be exact; 12 keeps the tiles reading as app icons, which iOS draws at ~22% of their side).
+    private var slotShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+    }
+
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.q2Title, subtitle: Copy.onboarding.q2Subtitle) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Button {
-                    Task { await requestAuthorizationThenPresentPicker() }
-                } label: {
-                    HStack {
-                        Image(systemName: "apps.iphone")
-                            .foregroundStyle(Theme.Colors.accent)
-                        Text(hasSelection ? selectionSummary : Copy.onboarding.q2PickerButtonLabel)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.text)
-                            .multilineTextAlignment(.leading)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Theme.Colors.muted)
-                    }
-                    .padding(Theme.Spacing.md)
-                    .background(Theme.Colors.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                            .strokeBorder(
-                                hasSelection ? Theme.Colors.accent : Theme.Colors.hairline,
-                                lineWidth: hasSelection ? 2 : 1
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                pickerCard
 
                 // spec §20.2 / §27: surface the Always Allowed gotcha right where the user is
                 // picking apps, not buried in a settings screen they may never visit.
@@ -100,12 +112,8 @@ struct Screen4AppSelection: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
-                flowState.advance()
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
+        .onboardingPinnedContinue(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
+            flowState.advance()
         }
         .familyActivityPicker(isPresented: $isPickerPresented, selection: $flowState.selectedApps)
         .alert(
@@ -127,6 +135,147 @@ struct Screen4AppSelection: View {
                 properties: ["screen": "app_selection", "screen_number": 4]
             )
         }
+    }
+
+    // MARK: - Picker card
+
+    private var pickerCard: some View {
+        Button {
+            Task { await requestAuthorizationThenPresentPicker() }
+        } label: {
+            cardContent
+        }
+        .buttonStyle(PressableStyle())
+        .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: hasSelection)
+        .sensoryFeedback(.selection, trigger: selectedCount)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(hasSelection ? selectionSummary : Copy.onboarding.q2PickerButtonLabel)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private var cardContent: some View {
+        if hasSelection {
+            selectedContent
+        } else {
+            emptyContent
+        }
+    }
+
+    private var emptyContent: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.xs) {
+                ForEach(0..<3, id: \.self) { _ in
+                    slotShape
+                        .strokeBorder(
+                            Theme.Colors.hairlineStrong,
+                            style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])
+                        )
+                        .frame(width: tileSize, height: tileSize)
+                }
+                // The one live slot: the action. Accent is right here (the affordance on the screen).
+                Image(systemName: "plus")
+                    .font(Theme.Typography.icon(.large, weight: .bold))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .frame(width: tileSize, height: tileSize)
+                    .background(Theme.Colors.accentWash, in: slotShape)
+            }
+            .accessibilityHidden(true)
+
+            Text(Copy.onboarding.q2PickerButtonLabel)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Spacing.xl)
+        .background(Theme.Colors.surface.opacity(0.6), in: cardShape)
+        .overlay {
+            cardShape.strokeBorder(
+                Theme.Colors.hairlineStrong,
+                style: StrokeStyle(lineWidth: 1.5, dash: [6, 6])
+            )
+        }
+        .contentShape(cardShape)
+    }
+
+    private var selectedContent: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.sm) {
+                iconRow
+                Spacer(minLength: Theme.Spacing.sm)
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+
+            HStack(spacing: Theme.Spacing.xs) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.Colors.accent)
+                Text(selectionSummary)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Static glow on the active (selected) card, no wash (see the file header).
+        .zanoCard(radius: Theme.Radius.medium, active: true)
+        .overlay { cardShape.strokeBorder(Theme.Colors.accent, lineWidth: 2) }
+        .contentShape(cardShape)
+    }
+
+    // MARK: - Selected-app icons
+
+    /// A token to preview. Web domains are counted in the summary but not drawn as tiles.
+    private enum PreviewToken: Hashable, Identifiable {
+        case app(ApplicationToken)
+        case category(ActivityCategoryToken)
+
+        var id: Self { self }
+    }
+
+    private var previewTokens: [PreviewToken] {
+        let apps = flowState.selectedApps.applicationTokens.map(PreviewToken.app)
+        let categories = flowState.selectedApps.categoryTokens.map(PreviewToken.category)
+        return Array((apps + categories).prefix(maxIconTiles))
+    }
+
+    private var overflowCount: Int { max(0, selectedCount - previewTokens.count) }
+
+    private var iconRow: some View {
+        HStack(spacing: -Theme.Spacing.xs) {
+            ForEach(previewTokens) { token in
+                iconTile { tokenIcon(token) }
+            }
+            if overflowCount > 0 {
+                iconTile {
+                    Text("+\(overflowCount)")
+                        .font(Theme.Typography.numeralSmall())
+                        .foregroundStyle(Theme.Colors.text)
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func tokenIcon(_ token: PreviewToken) -> some View {
+        switch token {
+        case .app(let applicationToken):
+            Label(applicationToken).labelStyle(.iconOnly)
+        case .category(let categoryToken):
+            Label(categoryToken).labelStyle(.iconOnly)
+        }
+    }
+
+    /// One app-icon slot. The `surface`-colored ring cuts each tile out of its neighbour where they
+    /// overlap, matching the card fill.
+    private func iconTile<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(width: tileSize, height: tileSize)
+            .background(Theme.Colors.surface2, in: slotShape)
+            .overlay(slotShape.strokeBorder(Theme.Colors.surface, lineWidth: 2))
     }
 
     private var selectionSummary: String {
@@ -170,7 +319,7 @@ struct Screen4AppSelection: View {
     }
 }
 
-/// File-scoped alert payload — plain `Identifiable` glue for SwiftUI's `.alert(_:isPresented:
+/// File-scoped alert payload - plain `Identifiable` glue for SwiftUI's `.alert(_:isPresented:
 /// presenting:actions:message:)`, not a shared model.
 private struct Screen4AuthorizationAlert: Identifiable {
     let id = UUID()
@@ -180,4 +329,5 @@ private struct Screen4AuthorizationAlert: Identifiable {
 
 #Preview {
     Screen4AppSelection(flowState: OnboardingFlowState())
+        .preferredColorScheme(.dark)
 }

@@ -86,15 +86,17 @@ extension Copy {
 extension Copy {
     public enum trophyCase {
         public static let screenTitle = "Trophy Case"
-        public static let screenSubtitle = "Every milestone, earned the real way."
+        public static let screenSubtitle = "Every badge, earned the real way."
 
+        /// "earned", not "unlocked": matches "Earned Mar 3" on each tile and the "Not yet earned"
+        /// hint, and keeps "unlock" for the lock mechanic.
         public static func progressLabel(earned: Int, total: Int) -> String {
-            "\(earned) of \(total) unlocked"
+            "\(earned) of \(total) earned"
         }
 
         public static let openShopButtonTitle = "Cosmetics Shop"
         public static let lockedAccessibilityHint = "Not yet earned"
-        public static let otherAchievementsSectionTitle = "More Achievements"
+        public static let otherAchievementsSectionTitle = "More badges"
     }
 }
 
@@ -109,9 +111,9 @@ extension Copy {
         public static func categoryTitle(_ category: CosmeticCategory) -> String {
             switch category {
             case .theme: "Themes"
-            case .ringStyle: "Ring Styles"
-            case .shieldBackground: "Shield Backgrounds"
-            case .coachVoicePack: "Coach Voice Packs"
+            case .ringStyle: "Ring styles"
+            case .shieldBackground: "Shield backgrounds"
+            case .coachVoicePack: "Coach voice packs"
             }
         }
 
@@ -166,7 +168,7 @@ extension Copy {
             "ring_double_ring": "A second, thinner ring traces just outside the main one.",
 
             "shield_classic": "The default shield backdrop.",
-            "shield_city_skyline": "A city skyline behind your blocked-app shield.",
+            "shield_city_skyline": "A city skyline behind your shield.",
             "shield_gym_floor": "A gym floor backdrop — a little extra motivation.",
             "shield_mountain_dawn": "A mountain sunrise backdrop.",
             "shield_abstract_wave": "An abstract wave pattern backdrop.",
@@ -182,8 +184,9 @@ extension Copy {
         public static let equippedButtonTitle = "Equipped"
         public static let equippedBadgeLabel = "Equipped"
 
+        /// Names the currency: a bare "Buy · 250" beside real-money Pro copy reads as dollars.
         public static func purchaseButtonTitle(priceCoins: Int) -> String {
-            "Buy · \(priceCoins)"
+            "Buy for \(priceCoins) \(priceCoins == 1 ? "coin" : "coins")"
         }
 
         public static let proUpsellBannerText = "Cosmetics purchases are a Pro perk. Upgrade to spend your coins."
@@ -193,7 +196,7 @@ extension Copy {
 
         public static let insufficientCoinsAlertTitle = "Not enough coins"
         public static func insufficientCoinsAlertMessage(shortBy: Int) -> String {
-            "You're \(shortBy) coin\(shortBy == 1 ? "" : "s") short. Keep earning goals to close the gap."
+            "You're \(shortBy) coin\(shortBy == 1 ? "" : "s") short. Complete goals to earn more coins."
         }
 
         public static func coinBalanceAccessibilityLabel(balance: Int) -> String {

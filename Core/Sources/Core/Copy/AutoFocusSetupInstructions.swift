@@ -65,32 +65,34 @@ public enum AutoFocusSetupInstructions {
     /// and Auto-Focus isn't set up yet (`AutoFocusIntegration.shouldOfferSetupPrompt`). Kept to
     /// one line: this is an inline banner/toast moment, not a screen.
     public static let lockStartPrompt =
-        "Want your phone to go quiet too? Set up Auto-Focus once and ZANO turns on a Focus mode " +
-        "every time a lock starts — so blocked apps stop buzzing you, not just blocking you."
+        "Want your phone quiet too? Set up Auto-Focus once and ZANO turns on a Focus mode when " +
+        "you start a lock, so notifications from locked apps stop too."
 
     /// The same nudge's title, for a banner that wants a title/body pair instead of one line.
-    public static let lockStartPromptTitle = "Silence blocked apps, not just block them"
+    public static let lockStartPromptTitle = "Silence notifications too"
 
     /// The nudge's action-button label, for a banner that offers a direct way in rather than
-    /// requiring the user to find Settings on their own.
-    public static let lockStartPromptAction = "Set it up (30 sec)"
+    /// requiring the user to find Settings on their own. Names the action; the time estimate
+    /// lives in ``explainer``.
+    public static let lockStartPromptAction = "Set up Auto-Focus"
 
     // MARK: - Setup guide (spec §5.12 "One-tap setup guide")
 
-    /// Shown on the dedicated setup screen, above ``steps``.
+    /// Shown on the dedicated setup screen, above ``steps``. Short sentences, one idea each: a
+    /// user reads this while switching between apps.
     public static let explainer =
-        "ZANO can't turn on a Focus mode by itself — Apple doesn't let apps do that directly. A " +
-        "one-time Shortcuts automation closes the gap: the moment you open ZANO to start a lock, " +
-        "your phone quietly switches into a Focus mode you choose, so notifications from the " +
-        "apps you just locked stop showing up too. Takes about 30 seconds, once."
+        "ZANO can't turn on a Focus mode by itself, because Apple doesn't let apps do that " +
+        "directly. A one-time Shortcuts automation closes the gap. When you open ZANO to start a " +
+        "lock, your phone switches into a Focus mode you choose, and notifications from the apps " +
+        "you just locked stop too. Setup takes about 30 seconds."
 
     public static let steps: [Step] = [
         Step(
             id: 1,
             title: "Pick or create a Focus",
             detail: "You'll need a Focus to turn on — in the Settings app, go to Focus. Any " +
-                "existing Focus works, but a dedicated one (name it something like \"Locked " +
-                "In\") keeps this separate from your regular Work/Sleep Focus. Set it to silence " +
+                "existing Focus works, but a dedicated one (name it something like “Locked " +
+                "In”) keeps this separate from your regular Work/Sleep Focus. Set it to silence " +
                 "notifications from the apps you lock with ZANO."
         ),
         Step(
@@ -102,34 +104,33 @@ public enum AutoFocusSetupInstructions {
         Step(
             id: 3,
             title: "Start a new automation",
-            detail: "Tap the + in the top corner, then \"Create Personal Automation.\""
+            detail: "Tap the + in the top corner, then “Create Personal Automation.”"
         ),
         Step(
             id: 4,
-            title: "Choose \"App\" as the trigger",
-            detail: "Scroll to \"App,\" tap \"Choose,\" and select ZANO. Choose \"Is Opened,\" " +
-                "then tap \"Next.\" (This is the closest thing iOS gives a Shortcuts automation " +
-                "to \"a ZANO lock started\" — see Limits below.)"
+            title: "Choose “App” as the trigger",
+            detail: "Scroll to “App,” tap “Choose,” and select ZANO. Choose “Is Opened,” " +
+                "then tap “Next.” (This is the closest thing iOS gives a Shortcuts automation " +
+                "to “a ZANO lock started.” It has limits, covered in the Limits section.)"
         ),
         Step(
             id: 5,
-            title: "Add \"Set Focus\"",
-            detail: "Tap \"Add Action,\" search \"Focus,\" and choose \"Set Focus.\" Set it to " +
-                "\"Turn On\" and pick the Focus you set up in step 1."
+            title: "Add “Set Focus”",
+            detail: "Tap “Add Action,” search “Focus,” and choose “Set Focus.” Set it to " +
+                "“Turn On” and pick the Focus you set up in step 1."
         ),
         Step(
             id: 6,
-            title: "Turn off \"Ask Before Running\"",
-            detail: "Tap \"Next,\" then turn off \"Ask Before Running.\" Without this, iOS shows " +
+            title: "Turn off “Ask Before Running”",
+            detail: "Tap “Next,” then turn off “Ask Before Running.” Without this, iOS shows " +
                 "a confirmation banner every single time you open ZANO — this is the step that " +
                 "makes it silent."
         ),
         Step(
             id: 7,
             title: "Done",
-            detail: "Tap \"Done.\" From now on, opening ZANO quietly turns that Focus on — no " +
-                "extra tap. Turning it back off again is a separate, optional step — see " +
-                "\"Turning Focus back off\" below."
+            detail: "Tap “Done.” From now on, opening ZANO quietly turns that Focus on — no " +
+                "extra tap. Turning it back off is a separate, optional step."
         )
     ]
 
@@ -138,9 +139,9 @@ public enum AutoFocusSetupInstructions {
     public static let turnOffExplainer =
         "Auto-Focus only ever turns a Focus ON — it never turns it off for you, on purpose. You " +
         "stay in full control of when your phone goes back to normal, the same way you stay in " +
-        "control of everything else ZANO locks (see Emergency Unlock). Turn the Focus off " +
-        "yourself any time from Control Center, or repeat the steps above with \"Is Closed\" and " +
-        "\"Turn Off\" instead if you'd rather it happen automatically when you leave the app."
+        "control of everything else ZANO locks, including Emergency Unlock. Turn the Focus off " +
+        "yourself any time from Control Center, or repeat the steps above with “Is Closed” and " +
+        "“Turn Off” instead if you'd rather it happen automatically when you leave the app."
 
     // MARK: - Folding this into an existing NFC-tag automation
 
@@ -151,37 +152,35 @@ public enum AutoFocusSetupInstructions {
     /// instead of creating a second, redundant automation.
     public static let nfcTagAddOn =
         "Start locks by tapping an NFC tag instead? Skip the automation above — open your " +
-        "existing tag automation (Shortcuts > Automation > your tag), tap \"Add Action,\" add " +
-        "\"Set Focus\" the same way as step 5, and it'll turn on the instant you tap, same as " +
+        "existing tag automation (Shortcuts > Automation > your tag), tap “Add Action,” add " +
+        "“Set Focus” the same way as step 5, and it'll turn on the instant you tap, same as " +
         "the lock itself."
 
     // MARK: - Limits (honest about what this can't do)
 
     public static let limits: [String] = [
-        "This only reliably catches locks you start by opening ZANO. A lock that arms itself on " +
-            "a schedule (like the Bedtime Gate, spec §5.10) while ZANO isn't open won't trigger " +
-            "this automation — iOS has no Shortcuts trigger for \"a specific app's background " +
-            "timer fired.\" Set that Focus's own schedule (Settings > Focus > your Focus > a " +
-            "fixed time) alongside this for those.",
-        "Focus mode silences notifications; it doesn't block the apps themselves — that's still " +
-            "ZANO's shield doing the actual blocking. Auto-Focus is the quiet-down layer on top, " +
-            "not a replacement for it.",
-        "You can always turn Focus off by hand from Control Center, regardless of this " +
-            "automation — Auto-Focus never removes that option. It also never affects ZANO's own " +
-            "Emergency Unlock (spec §24, §5.10 point 6: \"no one gets trapped\"): ending a lock " +
-            "early works exactly the same whether or not Auto-Focus is set up."
+        "This only reliably catches locks you start by opening ZANO. A lock that starts on a " +
+            "schedule while ZANO isn't open, like the Bedtime Gate, won't trigger this " +
+            "automation. iOS has no Shortcuts trigger for “a specific app's background timer " +
+            "fired.” For those, set the Focus's own schedule under Settings > Focus > your " +
+            "Focus.",
+        "Focus mode silences notifications; it doesn't lock the apps themselves. ZANO's lock " +
+            "still does that. Auto-Focus is a quiet layer on top, not a replacement for it.",
+        "You can always turn Focus off by hand from Control Center, with or without this " +
+            "automation. Auto-Focus also never affects Emergency Unlock: ending a lock early " +
+            "works the same whether or not Auto-Focus is set up."
     ]
 
     // MARK: - Troubleshooting
 
     public static let troubleshooting: [String] = [
-        "If the Focus doesn't turn on, open the automation in Shortcuts and confirm \"Ask " +
-            "Before Running\" is off — this is the single most common miss.",
-        "\"Ask Before Running\" turning itself back on after an iOS update is a known Shortcuts " +
+        "If the Focus doesn't turn on, open the automation in Shortcuts and confirm “Ask " +
+            "Before Running” is off — this is the single most common miss.",
+        "“Ask Before Running” turning itself back on after an iOS update is a known Shortcuts " +
             "quirk (the same one can affect NFC tag automations). If a previously-silent " +
             "automation starts asking again, check that setting first.",
-        "If ZANO was already open in the background, reopening it may not count as \"Is " +
-            "Opened\" — fully close ZANO first (swipe it away in the App Switcher) if you're " +
+        "If ZANO was already open in the background, reopening it may not count as “Is " +
+            "Opened” — fully close ZANO first (swipe it away in the App Switcher) if you're " +
             "testing this.",
         "Nothing here ever stops you from reaching ZANO's own Emergency Unlock, and nothing here " +
             "can lock you out of your phone — Focus mode only changes notifications, never app " +

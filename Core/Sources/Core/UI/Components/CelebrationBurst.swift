@@ -15,6 +15,13 @@
 // file) behind the "Earned." headline; also reusable anywhere else a tasteful, non-blocking
 // celebratory accent is wanted (a streak milestone, a badge reveal) without a second particle
 // implementation.
+//
+// Design-quality pass (docs/design/{better-ui RAD,competitive-research 3.4}): the burst has an
+// origin now — a single expanding shockwave ring behind the particles, on the same `progress` value
+// (omitted under Reduce Motion) — and its particle shapes carry no raw corner radii (capsule strips,
+// squares rounded in proportion to their own size), which were two of the last three hard-coded
+// radii in the repo. Still single-accent by default: celebrations are the one place the accent is
+// spent in bulk, so they stay one hue (ONE accent only, spec §15).
 
 import SwiftUI
 
@@ -77,6 +84,8 @@ public struct CelebrationBurst: View {
 
     public var body: some View {
         ZStack {
+            shockwave
+
             ForEach(particles) { particle in
                 particleShape(particle)
                     .foregroundStyle(colors[particle.colorIndex % colors.count])
@@ -93,6 +102,21 @@ public struct CelebrationBurst: View {
         .allowsHitTesting(false)
         .onAppear { fire() }
         .onChange(of: trigger) { _, _ in fire() }
+    }
+
+    // MARK: - Shockwave
+
+    /// One thin ring expanding from the center and fading, behind the particles: it gives the burst
+    /// an *origin* (something happened here) instead of confetti appearing from nowhere. It rides the
+    /// same `progress` value as the particles, so it needs no timer of its own; under Reduce Motion
+    /// it is omitted entirely (an expanding ring is exactly the large motion that setting asks apps
+    /// to avoid, and the in-place particle cross-fade already carries the cue).
+    private var shockwave: some View {
+        Circle()
+            .strokeBorder(colors[0].opacity(0.55), lineWidth: Theme.Spacing.xxs / 2)
+            .frame(width: Theme.Metrics.iconBadgeMedium + Theme.Spacing.xs, height: Theme.Metrics.iconBadgeMedium + Theme.Spacing.xs)
+            .scaleEffect(1 + progress * 3.6)
+            .opacity(reduceMotion || progress <= 0 ? 0 : max(0, 1 - Double(progress) * 1.1))
     }
 
     // MARK: - Firing
@@ -158,9 +182,11 @@ public struct CelebrationBurst: View {
         case .circle:
             Circle()
         case .square:
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+            // Radius as a fraction of the particle (a raw 2pt on a 5pt chip reads as a circle, on an
+            // 11pt one as a sharp square), so every square keeps the same soft-cornered shape.
+            RoundedRectangle(cornerRadius: particle.size * 0.22, style: .continuous)
         case .strip:
-            RoundedRectangle(cornerRadius: 1, style: .continuous)
+            Capsule()
         }
     }
 

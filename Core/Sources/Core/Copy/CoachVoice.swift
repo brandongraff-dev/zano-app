@@ -73,41 +73,55 @@ extension CoachVoice {
 /// they stay trivially unit-testable without a `ModelContainer`/`UserDefaults` suite.
 public enum CoachVoiceTone: Sendable {
 
-    /// A streak mention shaped like each voice would actually say it. Hype leads with fire and an
-    /// exclamation; Tough Love states it flatly; Chill undersells it; Data reads it as a bare
-    /// stat. `streak == 0` omits the streak clause entirely (no voice brags about a zero, and
-    /// Tough Love doesn't kick someone who has no streak to lose).
+    /// A streak mention shaped like each voice would actually say it. Hype puts the fire next to
+    /// the count (never instead of it); Tough Love states the stakes flatly; Chill undersells it;
+    /// Data reads it as a label and value. `streak == 0` omits the streak clause entirely (no
+    /// voice brags about a zero, and Tough Love doesn't kick someone who has no streak to lose).
+    /// Every form says "streak" and "day(s)" in words so VoiceOver reads a real sentence, and
+    /// day(s) is singular-aware ("1 day", never "1 days").
     public static func streakClause(_ voice: CoachVoice, streak: Int) -> String? {
         guard streak > 0 else { return nil }
+        let dayWord = streak == 1 ? "day" : "days"
         switch voice {
-        case .hype: "Streak: \(streak) 🔥"
-        case .toughLove: "\(streak)-day streak on the line."
-        case .chill: "\(streak) days in, no rush."
-        case .data: "Streak \(streak)d."
+        case .hype: return "\(streak)-day streak 🔥"
+        case .toughLove: return "\(streak)-day streak on the line."
+        case .chill: return "\(streak) \(dayWord) in. Nice and steady."
+        case .data: return "Streak: \(streak) \(dayWord)."
         }
     }
 
     /// How each voice phrases "N goals still open," singular-aware. Used for the default
     /// mid-lock Living Shield moment (docs/spec.md §5.1).
+    ///
+    /// Voice shape (docs/design/writing-findings.md §2.2): Hype lands on the stakes, Tough Love
+    /// states the fact and stops (no bare commands, no scolding), Chill gives permission, Data
+    /// gives label-and-value.
     public static func goalsRemainingClause(_ voice: CoachVoice, remaining: Int) -> String {
         let goalWord = remaining == 1 ? "goal" : "goals"
         switch voice {
-        case .hype: "\(remaining) \(goalWord) between you and everything."
-        case .toughLove: "\(remaining) \(goalWord) left. Go do them."
-        case .chill: "\(remaining) \(goalWord) whenever you're ready."
-        case .data: "\(remaining) \(goalWord) open."
+        case .hype: return "\(remaining) \(goalWord) between you and everything."
+        case .toughLove: return "\(remaining) \(goalWord) left. That's the whole list."
+        case .chill: return "\(remaining) \(goalWord) left, at your pace."
+        case .data: return "\(remaining) \(goalWord) open."
         }
     }
 
-    /// How each voice acknowledges a miss without being punishing (docs/spec.md §5.6 "the app
-    /// makes the comeback day feel special... shield copy that acknowledges it" — and CLAUDE.md's
-    /// "no restrictive/shaming copy" spirit: acknowledge, don't scold).
+    /// How each voice acknowledges a slip without being punishing (docs/spec.md §5.6 "the app
+    /// makes the comeback day feel special... shield copy that acknowledges it" and §8 rules 9 and
+    /// 10: a slip is "slipped", never "missed", is never followed by a threat, and is always
+    /// followed by the next smallest step).
+    ///
+    /// Every voice ends on the same step: start with the smallest goal. This deliberately does
+    /// NOT append the total goals left (the heaviest possible framing for someone who just slipped)
+    /// — `ShieldCopy.content(for:)` relies on that and adds nothing after this string. A more
+    /// specific step ("One focus session and you're back") needs the shield to know which goal is
+    /// smallest; see docs/design/writing-findings.md §3.3.
     public static func missAcknowledgment(_ voice: CoachVoice) -> String {
         switch voice {
-        case .hype: "Yesterday slipped — doesn't matter, TODAY'S the comeback."
-        case .toughLove: "Yesterday slipped. Never miss twice. Handle today."
-        case .chill: "Yesterday slipped, that's fine. Today's a reset."
-        case .data: "Yesterday: missed. 2-in-a-row is what breaks a streak — today doesn't have to."
+        case .hype: "Yesterday slipped. TODAY is the comeback. Start with your smallest goal."
+        case .toughLove: "Yesterday slipped. Today counts. Start with your smallest goal."
+        case .chill: "Yesterday slipped, and that's fine. Start with the smallest goal when you're ready."
+        case .data: "Streak holds through one slip. Start with your smallest goal."
         }
     }
 }

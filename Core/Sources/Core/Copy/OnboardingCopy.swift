@@ -23,16 +23,22 @@ extension Copy {
         // MARK: - Screen 1: Hook (spec §7.1 — verbatim)
 
         public static let hookHeadline = "Your phone is fighting your goals. Let's flip that."
-        public static let hookCTA = "I'm ready."
+        /// Spec §7.1's "I'm ready." without the trailing period: it is the only button label in the
+        /// product that ended in one (docs/design/writing-findings.md §5.5). The words are unchanged.
+        public static let hookCTA = "I'm ready"
 
         // MARK: - Screen 2: Social proof (spec §7.2)
 
-        // TODO: replace with real testimonials once available (spec §7.2: "real ones once you
-        // have them; placeholder copy marked clearly until then"). These three are placeholder.
+        // TODO: replace with real testimonials once they exist (spec §7.2: "real ones once you
+        // have them"). Until then this strip carries plain product claims, not invented quotes:
+        // fabricated endorsements are a ship risk (App Review and consumer-protection), and the old
+        // "(placeholder)" attribution was user-visible. Every line below is a fact about how ZANO
+        // works (CLAUDE.md, docs/spec.md §3). Screen2SocialProof renders each entry as centered
+        // headline text and expects exactly 3, so a real quote drops in as `"..." — Name`.
         public static let socialProofQuotes: [String] = [
-            "\"I stopped doomscrolling and actually hit the gym 4x this week.\" — early user (placeholder)",
-            "\"My streak's at 32 days. Longest I've ever gone at anything.\" — early user (placeholder)",
-            "\"The lock screen alone changed how I pick up my phone.\" — early user (placeholder)",
+            "Your distracting apps stay locked until you've earned them back.",
+            "Workouts verify from your gym's location and Apple Health. No honor system.",
+            "Works offline. Your apps open the second your last goal verifies.",
         ]
 
         // MARK: - Screen 3: Q1 main goal (spec §7.3)
@@ -46,22 +52,29 @@ extension Copy {
         public static let q2Subtitle = "Pick the apps and sites you want locked until you've earned them back."
         public static let q2PickerButtonLabel = "Choose apps"
 
+        /// Reuses `Copy.lockSetup.selectionSummary` so apps, categories and websites are counted
+        /// precisely ("1 app, 1 category selected") instead of calling everything an "app".
         public static func q2SelectionSummary(appCount: Int, categoryCount: Int, webDomainCount: Int) -> String {
             let total = appCount + categoryCount + webDomainCount
             guard total > 0 else { return q2PickerButtonLabel }
-            return total == 1 ? "1 app selected" : "\(total) apps selected"
+            let summary = Copy.lockSetup.selectionSummary(
+                appCount: appCount,
+                categoryCount: categoryCount,
+                webDomainCount: webDomainCount
+            )
+            return "\(summary) selected"
         }
 
-        public static let q2AuthorizationErrorTitle = "Couldn't request permission"
-        public static let q2AuthorizationErrorMessage =
-            "Something went wrong asking for Screen Time access. Try again in a moment."
+        // Same wording as `Copy.lockSetup.authorization*` — one failure, one phrasing.
+        public static let q2AuthorizationErrorTitle = "Couldn't turn on Screen Time access"
+        public static let q2AuthorizationErrorMessage = "Check your connection and try again."
         public static let q2AuthorizationDeniedTitle = "Screen Time access needed"
         public static let q2AuthorizationDeniedMessage =
-            "ZANO needs Screen Time access to lock apps until you've earned them back. You can enable it in Settings > Screen Time."
+            "ZANO needs Screen Time access to lock apps until you've earned them back. Turn it on in Settings, then come back."
 
         // MARK: - Screen 5: Q3 daily phone time (spec §7.5)
 
-        public static let q3Title = "How much time do you spend on your phone daily?"
+        public static let q3Title = "How long are you on your phone each day?"
         public static let q3Subtitle = "Be honest — this is just for you."
 
         public static func q3HoursValue(_ hours: Double) -> String {
@@ -77,7 +90,7 @@ extension Copy {
 
         // MARK: - Screen 6: Q4 workouts/week (spec §7.6)
 
-        public static let q4Title = "How many times do you work out?"
+        public static let q4Title = "How many workouts a week?"
         public static let q4Subtitle = "Current pace vs. where you want to be."
         public static let q4CurrentLabel = "Right now"
         public static let q4TargetLabel = "My goal"
@@ -88,8 +101,8 @@ extension Copy {
 
         // MARK: - Screen 7: Q5 fall-off pattern (spec §7.7)
 
-        public static let q5Title = "When do you usually fall off?"
-        public static let q5Subtitle = "This helps us catch you before it happens."
+        public static let q5Title = "When does your routine usually slip?"
+        public static let q5Subtitle = "ZANO will plan extra support for those moments."
 
         // MARK: - Screen 8: Q6 coach voice (spec §7.8)
 
@@ -98,7 +111,9 @@ extension Copy {
 
         // MARK: - Screen 9: Wake-up moment (spec §7.9)
 
-        public static let wakeUpEyebrow = "THE MATH"
+        // Eyebrows are stored in sentence case; every onboarding screen that shows one applies
+        // `.textCase(.uppercase)` itself (casing is rendering, and stored caps localize badly).
+        public static let wakeUpEyebrow = "The math"
 
         /// Spec §7.9's own worked example: "At 5h/day, that's ~76 days a year on your phone."
         public static func wakeUpHeadline(dailyHours: Int, daysPerYear: Int) -> String {
@@ -112,11 +127,13 @@ extension Copy {
             "Earning even 2h back = \(daysReclaimed) days a year."
         }
 
-        public static let wakeUpContinueButton = "Let's fix that"
+        /// Names the next screen instead of a catchphrase; "Let's ..." baked Hype into every user's
+        /// buttons before and after they picked a voice (docs/design/writing-findings.md §5.5).
+        public static let wakeUpContinueButton = "See my plan"
 
         // MARK: - Screen 10: Plan reveal (spec §7.10)
 
-        public static let planRevealEyebrow = "YOUR PLAN"
+        public static let planRevealEyebrow = "Your plan"
         /// Spec §7.10 verbatim: "Your Lock-In Plan".
         public static let planRevealHeadline = "Your Lock-In Plan"
         public static let planLockedAppsDetailLine = "These stay locked until you earn them back."
@@ -124,7 +141,12 @@ extension Copy {
         public static func planLockedAppsStatusLine(appCount: Int, categoryCount: Int, webDomainCount: Int) -> String {
             let total = appCount + categoryCount + webDomainCount
             guard total > 0 else { return "No apps locked yet" }
-            return total == 1 ? "1 app locked" : "\(total) apps locked"
+            let summary = Copy.lockSetup.selectionSummary(
+                appCount: appCount,
+                categoryCount: categoryCount,
+                webDomainCount: webDomainCount
+            )
+            return "\(summary) locked"
         }
 
         /// Title for one plan-preview goal row. `type` is Core's own `GoalType`
@@ -152,13 +174,27 @@ extension Copy {
             "Starting at \(current) \(unit) · target \(target) \(unit)"
         }
 
-        /// Spec §7.10 verbatim example: "Built for you in 2:14."
-        public static let planBuiltInLabel = "Built for you in 2:14."
-        public static let planContinueButton = "Let's do this"
+        /// Spec §7.10's example was "Built for you in 2:14." — a constant, so every user "built"
+        /// their plan in exactly 2:14. A fake number presented as fact, so this states what is
+        /// true instead. (Restoring the real elapsed time needs a parameter; see
+        /// docs/design/writing-findings.md §5.1.)
+        public static let planBuiltInLabel = "Built from your answers."
+        public static let planContinueButton = "Continue"
         public static let planScheduleLine = "Locks each morning until your goals are done."
 
+        /// `patternLabel` is `FallOffPattern.displayLabel` ("Weekends", "Evenings", "When stressed",
+        /// "After a few good days", "Travel"). Each known answer gets its own full sentence — a
+        /// sentence assembled around the raw label read "on when stressed" and "on travel". An
+        /// unrecognised label falls back to a sentence that needs no label at all.
         public static func planScheduleFallOffNote(patternLabel: String) -> String {
-            "We'll watch out for you on \(patternLabel.lowercased()) — that's usually when things slip."
+            switch patternLabel.lowercased() {
+            case "weekends": "We'll watch weekends, when things usually slip."
+            case "evenings": "We'll watch evenings, when things usually slip."
+            case "when stressed": "We'll watch for stressful days, when things usually slip."
+            case "after a few good days": "We'll watch the days after a few good ones, when things usually slip."
+            case "travel": "We'll watch your travel days, when things usually slip."
+            default: "We'll watch for the moments when things usually slip."
+            }
         }
 
         /// Shared between screen 10 (Plan Reveal) and screen 14 (First Win): the name given to the
@@ -167,7 +203,7 @@ extension Copy {
 
         // MARK: - Screen 11: Commitment (spec §7.11)
 
-        public static let commitEyebrow = "LAST STEP"
+        public static let commitEyebrow = "Last step"
         public static let commitHeadline = "Commit to your plan"
         public static let commitSubtitle = "Hold the button for 2 seconds. This is you, deciding."
         public static let commitHoldButtonLabel = "Hold to commit"
@@ -181,7 +217,7 @@ extension Copy {
 
         // MARK: - Screen 12: Permission priming (spec §7.12)
 
-        public static let permissionEyebrow = "STAY IN THE LOOP"
+        public static let permissionEyebrow = "Stay in the loop"
         public static let permissionHeadline = "Turn on notifications"
         /// Spec §7.12 verbatim: "We'll only nudge when it matters."
         public static let permissionSubtitle = "We'll only nudge when it matters."
@@ -193,26 +229,32 @@ extension Copy {
         // header.
 
         public static let paywallHeadline = "Earn your phone back"
-        public static let paywallSubtitle = "Unlock everything by doing what you already said you'd do."
+        public static let paywallSubtitle = "Do what you already said you'd do, and your apps open back up."
         /// Spec §7.13's own promise: "we'll remind you 2 days before it ends."
         public static let paywallTrialReminder = "We'll remind you 2 days before your trial ends."
         public static let paywallCTAButton = "Start my 7-day free trial"
         /// Spec §7.13/§21 verbatim: "Continue with limited free".
         public static let paywallContinueFreeButton = "Continue with limited free"
-        public static let paywallFreeTierDetail = "1 goal, 1 lock set, no strings attached."
+        public static let paywallFreeTierDetail = "Free: 1 goal and 1 lock set."
         public static let paywallAutoRenewDisclaimer = "Auto-renews unless canceled. Cancel anytime in Settings."
         public static let paywallMonthlyLabel = "Monthly"
         public static let paywallAnnualLabel = "Annual"
         public static let paywallLifetimeLabel = "Lifetime"
         public static let paywallAnnualBadge = "BEST VALUE"
 
+        /// `period` is the caller's short unit: "yr", "mo", or "once" for a lifetime purchase.
         public static func paywallPriceSuffix(period: String) -> String {
-            period == "once" ? "One-time purchase" : "Billed per \(period)"
+            switch period {
+            case "once": "One-time purchase"
+            case "yr": "Billed yearly"
+            case "mo": "Billed monthly"
+            default: "Billed per \(period)"
+            }
         }
 
         // MARK: - Screen 14: First win (spec §7.14)
 
-        public static let firstWinEyebrow = "YOUR FIRST WIN"
+        public static let firstWinEyebrow = "Your first win"
         /// Spec §7.14 verbatim: "Start your first lock now."
         public static let firstWinHeadline = "Start your first lock now"
         /// Spec §7.14 verbatim: "10-minute focus to unlock."
@@ -225,16 +267,19 @@ extension Copy {
         public static let firstWinCelebrationTitle = "Earned."
 
         public static func firstWinCelebrationSubtitle(streak: Int) -> String {
-            "Streak: \(streak) 🔥 Day \(streak) starts now."
+            "Day \(streak) is on the board."
         }
 
-        public static let firstWinNotVerifiedTitle = "No worries"
+        /// Neutral on purpose: this constant is shown to every coach voice, and "No worries" was
+        /// Chill leaking in as everyone's default. (Per-voice variants need a voice parameter; see
+        /// docs/design/writing-findings.md §3.6.)
+        public static let firstWinNotVerifiedTitle = "Not this time"
         public static let firstWinNotVerifiedSubtitle = "You can always try again — your plan is already saved."
         public static let firstWinWidgetPromptHeadline = "Add ZANO to your Home Screen"
         public static let firstWinWidgetPromptStep1 = "Touch and hold your Home Screen"
         public static let firstWinWidgetPromptStep2 = "Tap the + button in the top corner"
         public static let firstWinWidgetPromptStep3 = "Search for ZANO and add the widget"
-        public static let firstWinDoneButton = "Let's go"
+        public static let firstWinDoneButton = "Done"
 
         // MARK: - Container chrome (`OnboardingContainerView.swift`)
 

@@ -1,81 +1,60 @@
 // Screen3MainGoal.swift
 // App / Features / Onboarding
 //
-// Owned by this session (Onboarding screens 1-8; see OnboardingFlowState.swift's header for the
-// full 14-screen map and this file list's ownership rules). docs/spec.md §7.3 (screen 3, Q1):
-// "Main goal — Get consistent at the gym / Hit my protein / Stop doomscrolling / Lock in on
-// work-school / All of it." Option labels below are spec-verbatim (`MainGoal.displayLabel`,
-// `OnboardingFlowState.swift`, this session).
+// docs/spec.md §7.3 (screen 3, Q1): "Main goal — Get consistent at the gym / Hit my protein / Stop
+// doomscrolling / Lock in on work-school / All of it." Option labels are spec-verbatim
+// (`MainGoal.displayLabel`, `OnboardingFlowState.swift`).
 //
-// ASSUMED API — this session's owned files do not include Core/Sources/Core/Copy or
-// Core/Sources/Core/UI's component catalog (spec §15 names both as build targets for other
-// sessions), so — following the same cross-session pattern already merged into this repo
-// (`App/ZANO/Features/LockSetup/LockSetupView.swift`'s `Copy.lockSetup`/`LockSetManager`
-// assumptions) — every screen in this session calls two things that don't exist on disk yet.
-// This file carries the full note; every other screen in this session points back here.
+// DESIGN PASS 2 (docs/design/*, 2026-09-23; nothing here has been rendered, there is no Mac).
 //
-// 1. `Copy.onboarding.*` / `Copy.common.continueButtonLabel` / `Copy.common.ok` — plain string
-//    (or small formatting-function) members on the `Copy` namespace (`Core/Sources/Core/Copy`).
-//    Full key list used across this session's 8 screens, for whoever builds that file next:
-//      common: continueButtonLabel, ok
-//      onboarding: hookHeadline, hookCTA, socialProofQuotes ([String], 3 placeholder testimonial
-//        quotes per spec §7.2 — "marked clearly" as placeholder until real ones exist), q1Title,
-//        q1Subtitle, q2Title, q2Subtitle, q2PickerButtonLabel, q2SelectionSummary(appCount:
-//        categoryCount:webDomainCount:) -> String, q2AuthorizationErrorTitle,
-//        q2AuthorizationErrorMessage, q2AuthorizationDeniedTitle, q2AuthorizationDeniedMessage,
-//        q3Title, q3Subtitle, q3HoursValue(_ hours: Double) -> String, q3SliderMinLabel,
-//        q3SliderMaxLabel, q4Title, q4Subtitle, q4CurrentLabel, q4TargetLabel,
-//        q4WorkoutsPerWeekValue(_ count: Int) -> String, q5Title, q5Subtitle, q6Title, q6Subtitle.
-//    `hookHeadline`/`hookCTA` are spec-verbatim (§7.1); every other key is this session's authored
-//    copy (spec only gives each question's *subject*, e.g. "Q3: Daily phone time", not its
-//    on-screen wording) — free to revise once a copy owner exists; nothing in these screens
-//    depends on the exact wording, only that the keys exist and return non-empty strings.
+// Screens 1-7 were first restyled before the shared design system existed, so this file carried its
+// own stand-ins for it. Those are gone now and everything points at the real Core pieces:
+//   - `OnboardingDerivedColors`  -> `Theme.Colors.hairline / hairlineStrong / track / accentWash`
+//   - `OnboardingCardPressStyle` -> `PressableStyle`
+//   - the bespoke choice row     -> `SelectableCard` (one selected/unselected look app-wide: accent wash
+//                                   + 2pt accent edge + filled check; visible 12% hairline otherwise)
+//   - the hand-rolled pinned bar -> `zanoActionBar` (`StickyActionBar`)
+// What is still hosted here for screens 1-7 to share: `OnboardingSingleChoiceList` (screens 3 and 7)
+// and `View.onboardingPinnedContinue` (all seven).
 //
-// 2. Two Core/UI components (spec §15's component list): `OnboardingQuestion` and `PrimaryButton`.
-//    Neither has a defined initializer in spec §15 (just named in the "build first" list), so this
-//    session assumed the simplest shape that fits every screen that uses it:
-//      struct OnboardingQuestion<Content: View>: View {
-//          init(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content)
-//      }
-//      struct PrimaryButton: View {
-//          init(_ title: String, isEnabled: Bool = true, action: @escaping () -> Void)
-//      }
-//    CORRECTION (post-hoc cross-check against the real, shipped components): `OnboardingQuestion`'s
-//    assumed shape above matched what was actually built. `PrimaryButton`'s did not — the real,
-//    shipped `Core/Sources/Core/UI/Components/PrimaryButton.swift` requires a **labeled**
-//    `title:` parameter (`init(title: String, systemImage: String? = nil, style: Style = .standard,
-//    isEnabled: Bool = true, action: @escaping () -> Void)`), not the unlabeled `_ title:` guessed
-//    here. Every call site in this session's screens (1, 2, 3, 4, 5, 6, 7, 8) has been updated to
-//    pass `title:` explicitly to match the real component; this note is left in place, corrected,
-//    rather than deleted, so the history of the assumption is still legible.
-//    (`PrimaryButton` is also documented in spec §15 as having a "hold-to-commit variant" — see
-//    `Theme.Motion.holdToCommitDuration` — used by screen 11's Commitment screen, not by this
-//    session; the plain tap initializer above is all screens 1-8 need.)
+// Pacing (docs/design/competitive-research.md §3.5, "every input triggers a visible consequence"; Cal
+// AI, Opal, Duolingo): Q1 used to be five text rows and nothing happened when you tapped one. Now a
+// "Your plan" card above the options shows the three rings the app is built around (workout, protein,
+// focus - the same trio screen 2 introduces). They start dim and empty; picking an answer ignites the
+// ring(s) it will produce, so "All of it" lights all three. It is a literal preview of what screen 10
+// builds (see `MainGoal.previewGoalTypes`), not decoration, and it is the visual link between "what I
+// said" and "what the app will make me". Decorative for VoiceOver (the options carry the meaning).
 //
-// `MainGoal`'s display-label strings are a deliberate, narrow exception to "copy lives in
-// Core/Copy" — see its doc comment in OnboardingFlowState.swift for why.
+// Motion: one-shot staggered entrance of the options (never blocks input), the ring ignite, one
+// `.selection` haptic per change. All of it is off under Reduce Motion (rows are simply present, rings
+// snap, no scale/offset).
 
 import SwiftUI
 import Core
 
-/// Screen 3 of 14 (spec §7.3) — Q1, single-select main goal.
+/// Screen 3 of 14 (spec §7.3) - Q1, single-select main goal.
 struct Screen3MainGoal: View {
     @Bindable var flowState: OnboardingFlowState
 
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.q1Title, subtitle: Copy.onboarding.q1Subtitle) {
-            VStack(spacing: Theme.Spacing.sm) {
-                ForEach(MainGoal.allCases, id: \.self) { goal in
-                    optionRow(goal)
-                }
+            VStack(spacing: Theme.Spacing.lg) {
+                OnboardingPlanPreview(selection: flowState.mainGoal)
+
+                OnboardingSingleChoiceList(
+                    options: MainGoal.allCases,
+                    selection: flowState.mainGoal,
+                    title: { $0.displayLabel },
+                    symbol: { symbol(for: $0) },
+                    onSelect: { flowState.mainGoal = $0 }
+                )
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: Copy.common.continueButtonLabel, isEnabled: flowState.mainGoal != nil) {
-                flowState.advance()
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
+        .onboardingPinnedContinue(
+            title: Copy.common.continueButtonLabel,
+            isEnabled: flowState.mainGoal != nil
+        ) {
+            flowState.advance()
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -86,37 +65,151 @@ struct Screen3MainGoal: View {
         }
     }
 
-    private func optionRow(_ goal: MainGoal) -> some View {
-        let isSelected = flowState.mainGoal == goal
-        return Button {
-            flowState.mainGoal = goal
-        } label: {
-            HStack {
-                Text(goal.displayLabel)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Theme.Colors.accent)
+    /// SF Symbol identifiers (not user-facing copy). Chosen so each answer is recognizable from the
+    /// glyph alone before the label is read.
+    private func symbol(for goal: MainGoal) -> String {
+        switch goal {
+        case .gymConsistency: "dumbbell.fill"
+        case .protein: "fork.knife"
+        case .stopDoomscrolling: "iphone.slash"
+        case .lockInWorkSchool: "book.closed.fill"
+        case .allOfIt: "sparkles"
+        }
+    }
+}
+
+// MARK: - Q1 -> plan preview
+
+extension MainGoal {
+    /// The goal types the plan reveal builds for this answer. This mirrors
+    /// `Screen10PlanReveal.planGoals` (workout for gym, protein for protein, a focus session for both
+    /// "stop doomscrolling" and "lock in", all three for "all of it"). It is a second copy of that
+    /// switch on purpose: screen 10 is not editable from this wave. This is internal (not private) so
+    /// that when screen 10 next changes it can read this property instead, making one source of truth
+    /// and ensuring the preview here can never promise a ring the plan will not contain.
+    var previewGoalTypes: [GoalType] {
+        switch self {
+        case .gymConsistency: [.workoutGym]
+        case .protein: [.protein]
+        case .stopDoomscrolling, .lockInWorkSchool: [.focusSession]
+        case .allOfIt: [.workoutGym, .protein, .focusSession]
+        }
+    }
+}
+
+/// "Your plan" card: the three core rings, dim until the chosen answer makes them part of the plan.
+/// Order matches Today (spec §16 P1: workout, protein, focus) and screen 2's ring trio.
+private struct OnboardingPlanPreview: View {
+    let selection: MainGoal?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Slot: Identifiable {
+        let type: GoalType
+        let icon: String
+        var id: String { type.rawValue }
+    }
+
+    private let slots: [Slot] = [
+        Slot(type: .workoutGym, icon: "dumbbell.fill"),
+        Slot(type: .protein, icon: "fork.knife"),
+        Slot(type: .focusSession, icon: "timer"),
+    ]
+
+    /// How full a lit ring is drawn. Partial on purpose (spec §8 rule 2: progress is always partially
+    /// filled); it is a picture of "a ring you will fill", not a claim about the user's progress.
+    private let litProgress = 0.62
+
+    /// One compact row (eyebrow left, rings right, ~72pt) rather than a stacked card: the five options
+    /// below need ~370pt, and a taller preview pushed the last one under the pinned Continue on a
+    /// 393x852 phone (arithmetic, not a render).
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            Text(Copy.onboarding.planRevealEyebrow)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+
+            Spacer(minLength: Theme.Spacing.sm)
+
+            HStack(spacing: Theme.Spacing.sm) {
+                ForEach(slots) { slot in
+                    let isLit = selection?.previewGoalTypes.contains(slot.type) ?? false
+                    GoalRing(
+                        progress: isLit ? litProgress : 0,
+                        color: isLit ? Theme.Colors.Ring.color(for: slot.type) : Theme.Colors.muted,
+                        size: .custom(48),
+                        center: .icon(systemName: slot.icon)
+                    )
                 }
             }
-            .padding(Theme.Spacing.md)
-            .background(isSelected ? Theme.Colors.surface2 : Theme.Colors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            )
         }
-        .buttonStyle(.plain)
-        .animation(Theme.Motion.springStandard, value: isSelected)
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard()
+        .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: selection)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Shared by screens 1-7
+
+/// A vertical list of single-select options, each a `SelectableCard` with a leading SF Symbol. Used by
+/// Q1 (screen 3) and Q5 (screen 7). Titles come from the caller (spec-verbatim `displayLabel`s);
+/// symbols are identifiers, not copy.
+struct OnboardingSingleChoiceList<Option: Hashable>: View {
+    let options: [Option]
+    let selection: Option?
+    let title: (Option) -> String
+    let symbol: (Option) -> String
+    let onSelect: (Option) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                SelectableCard(
+                    title: title(option),
+                    icon: symbol(option),
+                    isSelected: selection == option
+                ) {
+                    onSelect(option)
+                }
+                // A short, one-shot stagger (onboarding is once-ever, so the sequence can carry
+                // hierarchy). Never gates input: the cards are tappable from the first frame.
+                .opacity(appeared || reduceMotion ? 1 : 0)
+                .offset(y: appeared || reduceMotion ? 0 : Theme.Spacing.xs)
+                .animation(
+                    reduceMotion ? nil : Animation.easeOut(duration: 0.35).delay(Double(index) * 0.06),
+                    value: appeared
+                )
+            }
+        }
+        .sensoryFeedback(.selection, trigger: selection)
+        .onAppear { appeared = true }
+    }
+}
+
+extension View {
+    /// Pins the onboarding "Continue" CTA to the bottom safe area in the shared `StickyActionBar`:
+    /// one 16pt margin, one position and width for every screen 1-7, with a fade (not a blurred
+    /// material strip) so content scrolling underneath dissolves instead of sliding behind an
+    /// unbacked button. A disabled Continue is the palette's real disabled state (`surface2` +
+    /// `muted`), not a dimmed accent.
+    func onboardingPinnedContinue(
+        title: String,
+        isEnabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
+        zanoActionBar {
+            PrimaryButton(title: title, isEnabled: isEnabled, action: action)
+        }
     }
 }
 
 #Preview {
     Screen3MainGoal(flowState: OnboardingFlowState())
+        .preferredColorScheme(.dark)
 }

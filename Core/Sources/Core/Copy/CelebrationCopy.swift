@@ -75,8 +75,10 @@ extension Copy {
 
         /// Dismiss control for the celebration once it's played. Deliberately not `Copy.common.
         /// continueButtonLabel` (`CommonCopy.swift`, same directory): this screen is closing a
-        /// moment, not advancing an onboarding step, and "Nice" reads right for that in a way the
-        /// generic "Continue" doesn't — a copy choice, flagged in this task's `decisions`.
-        public static let dismissButtonLabel = "Nice"
+        /// moment, not advancing an onboarding step. "Done" (was "Nice"): a button label should be a
+        /// verb-ish action, not a reaction — and "Nice" read oddly to Tough Love and Data users. The
+        /// "Earned." headline stays fixed across voices; a per-voice coach line under it needs a
+        /// voice parameter (docs/design/writing-findings.md §3.6).
+        public static let dismissButtonLabel = "Done"
     }
 }

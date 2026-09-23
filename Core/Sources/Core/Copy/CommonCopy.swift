@@ -42,7 +42,12 @@ extension Copy {
         /// `.unknownItem`/`.storeFailure` catch-all). Added here, not a one-off in that file, per
         /// this same rationale: a second screen with the same generic-failure need should reuse
         /// this rather than invent its own wording.
-        public static let somethingWentWrongTitle = "Something went wrong"
-        public static let somethingWentWrongMessage = "Please try again."
+        ///
+        /// The key names are historical; the words are deliberately not "Something went wrong /
+        /// Please try again" (no cause, no fix). A last-resort catch-all should still name that the
+        /// action didn't complete and give one thing to try. Prefer a per-cause string whenever
+        /// the caller knows the cause.
+        public static let somethingWentWrongTitle = "Couldn't complete that"
+        public static let somethingWentWrongMessage = "Check your connection and try again."
     }
 }

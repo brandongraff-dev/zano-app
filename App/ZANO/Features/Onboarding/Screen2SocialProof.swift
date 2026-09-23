@@ -57,6 +57,12 @@ struct Screen2SocialProof: View {
         }
         .preferredColorScheme(.dark)
         .task { await runRotation() }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "social_proof", "screen_number": 2]
+            )
+        }
     }
 
     private var dots: some View {

@@ -3,14 +3,15 @@
 Implements spec.md §9.9: "Python ML service (FastAPI) exposes /plan, /risk,
 /nudge endpoints; Edge Functions call it."
 
-STATUS: every endpoint below is a deliberately simple, clearly-labeled
-heuristic stub (see each function's docstring), not a trained model.
-spec.md §9.1/§9.2/§9.3 describe the real v1/v2 approach (rules -> bandit,
-logistic regression -> LightGBM); those need `goal_events` production data
-that does not exist yet, so this service starts rules-based per spec.md §9's
-opening line ("Start rules-based, replace with models as `goal_events`
-grows.") and every response says so via a `source`/`model_version` field
-prefixed "heuristic_".
+STATUS: `/plan` and `/risk` are deliberately simple, clearly-labeled heuristic stubs (see each
+function's docstring), not trained models — spec.md §9.1/§9.2 describe the real v1/v2 approach
+(rules -> bandit, logistic regression -> LightGBM), which needs `goal_events` production data that
+does not exist yet, so those two follow spec.md §9's opening line ("Start rules-based, replace with
+models as `goal_events` grows") and label every response via a `source`/`model_version` field
+prefixed "heuristic_". `/nudge` (spec.md §9.3) is different: it's a real Thompson-sampling
+contextual bandit (`app/nudge_bandit.py`), not a heuristic — see that module and `nudge()` below for
+why a bandit needs no `goal_events` history to start from (population prior) the way `/risk`'s
+model does. Its `model_version` is `"bandit_thompson_v1"`, not `"heuristic_..."`.
 
 This service is stateless: it does no persistence and holds no DB
 connection. It is a pure function of each request's payload. Supabase Edge
@@ -23,12 +24,13 @@ from __future__ import annotations
 
 from datetime import date as Date
 from typing import Optional
+from uuid import UUID
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
+from app import nudge_bandit
 from app.models import (
-    CoachVoice,
-    NudgeFormat,
+    NudgeOutcome,
     NudgeRequest,
     NudgeResponse,
     NudgeTimingSlot,
@@ -256,61 +258,82 @@ def risk(req: RiskRequest) -> RiskResponse:
     )
 
 
-# Deterministic tone/slot/format rotation used until a real per-user bandit
-# exists (spec.md §9.3 v2). Order defines the round-robin used by `_pick_arm`.
-_TONES: list[CoachVoice] = [CoachVoice.HYPE, CoachVoice.TOUGH_LOVE, CoachVoice.CHILL, CoachVoice.DATA]
-_SLOTS: list[NudgeTimingSlot] = [
-    NudgeTimingSlot.MORNING,
-    NudgeTimingSlot.PRE_GYM,
-    NudgeTimingSlot.AFTERNOON,
-    NudgeTimingSlot.EVENING,
-]
-_FORMATS: list[NudgeFormat] = [NudgeFormat.PUSH, NudgeFormat.WIDGET_COPY, NudgeFormat.SHIELD_COPY]
-
-
 @app.post("/nudge", response_model=NudgeResponse)
 def nudge(req: NudgeRequest) -> NudgeResponse:
-    """Nudge Optimizer v0 — deterministic arm pick, not yet a bandit (spec.md §9.3).
+    """Nudge Optimizer — per-user Thompson-sampling contextual bandit (spec.md §9.3).
 
-    HEURISTIC STUB: the real design is a per-user contextual bandit over the
-    4 (tone) x 4 (timing slot) x 3 (format) = 48 arms, with reward = "goal
-    completed within 3 hours of nudge". With no logged rewards yet, this
-    picks an arm deterministically from context (user id + date + hour) so
-    behavior is stable and testable, and enforces the 2/day cap itself as a
-    defense-in-depth product-safety check (spec.md §9.3, §8).
+    Real bandit (see `app/nudge_bandit.py`), not a heuristic stub: arms are the 4 tone x 4 timing
+    slot x 3 format = 48 combinations spec.md §9.3 defines. Each arm's reward ("goal completed
+    within 3 hours of nudge") is modeled Beta-Bernoulli; every user starts from the uniform
+    population prior (`nudge_bandit.population_prior`) and, once `req.history` carries logged
+    outcomes for this user (mirroring the `nudges` table, spec.md §13), that history is folded onto
+    the prior (`nudge_bandit.update_posterior`) before Thompson sampling draws the arm to serve next
+    (`nudge_bandit.select_arm`). This service stays stateless like `/plan` and `/risk` (module
+    docstring): the caller resends the full per-user history every call; nothing is persisted here.
+
+    Context narrows the 48-arm space before sampling:
+    - `coach_voice`, if given, fixes the tone — that's a product setting the user picked (spec
+      §5.13), not something the bandit should override.
+    - `current_hour`, if given, fixes the timing slot via `_slot_for_hour`.
+    Format is always left fully to the bandit. Any dimension left unconstrained is sampled from the
+    user's posterior across all its values.
+
+    The 2/day cap (`NUDGE_DAILY_CAP`) is still enforced here directly, independent of the bandit, as
+    a defense-in-depth product-safety check (spec.md §9.3, §8) — `should_send` goes false at the cap
+    even though an arm is still chosen and returned for logging/preview purposes.
     """
     should_send = req.nudges_sent_today < NUDGE_DAILY_CAP
 
-    tone = req.coach_voice or _TONES[_stable_index(req.user_id, req.date, len(_TONES))]
-    slot = _slot_for_hour(req.current_hour) or _SLOTS[_stable_index(req.user_id, req.date, len(_SLOTS), salt=1)]
-    fmt = _FORMATS[_stable_index(req.user_id, req.date, len(_FORMATS), salt=2)]
+    try:
+        history = [
+            nudge_bandit.ArmOutcome(arm_id=outcome.arm_id, rewarded=outcome.rewarded)
+            for outcome in req.history
+        ]
+        arm, posterior = nudge_bandit.thompson_sample_arm(
+            history,
+            tone=req.coach_voice,
+            timing_slot=_slot_for_hour(req.current_hour),
+            seed=_nudge_seed(req.user_id, req.date, req.current_hour, req.history),
+        )
+    except ValueError as exc:
+        # Only reachable via an unknown arm_id in req.history (nudge_bandit.update_posterior) —
+        # malformed history should fail loudly rather than silently mis-crediting an arm.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    arm_id = f"{tone.value}:{slot.value}:{fmt.value}"
+    arm_posterior = posterior[arm.arm_id]
 
     return NudgeResponse(
         user_id=req.user_id,
-        tone=tone,
-        timing_slot=slot,
-        format=fmt,
-        arm_id=arm_id,
+        tone=arm.tone,
+        timing_slot=arm.timing_slot,
+        format=arm.format,
+        arm_id=arm.arm_id,
         should_send=should_send,
-        model_version="heuristic_baseline_v1",
+        model_version="bandit_thompson_v1",
+        posterior_mean=round(arm_posterior.mean, 4),
+        is_cold_start=len(req.history) == 0,
     )
 
 
-def _stable_index(user_id, date: Date, modulus: int, salt: int = 0) -> int:
-    """Deterministic, evenly-distributed index in [0, modulus) for (user, date).
+def _nudge_seed(user_id: UUID, date: Date, current_hour: Optional[int], history: list[NudgeOutcome]) -> int:
+    """Deterministic RNG seed for `/nudge`'s Thompson sample, derived from every input that affects
+    the pick: (user, date, hour, history).
 
-    Stands in for a bandit's arm-selection step. Uses Python's built-in hash
-    seeded consistently via `hash(str(...))` is process-random in general,
-    so this hashes the string with a fixed, simple algorithm instead to stay
-    reproducible across runs/tests.
+    Real exploration should vary sample-to-sample across genuinely different situations, which this
+    still does — different user/date/hour/history all change the seed. What it buys instead is
+    reproducibility for the *same* inputs (repeat calls, tests, replay/debugging) without this
+    stateless service needing to remember anything, the same "reproducible pure function of the
+    request" property `/plan` and `/risk` already have. Hashes the key with a fixed, simple
+    algorithm (not Python's salted built-in `hash()`, which is process-random) so it's stable across
+    runs and interpreters.
     """
-    key = f"{user_id}:{date.isoformat()}:{salt}".encode()
+    key = f"{user_id}:{date.isoformat()}:{current_hour}:{len(history)}".encode()
+    for outcome in history:
+        key += f":{outcome.arm_id}:{int(outcome.rewarded)}".encode()
     digest = 0
     for byte in key:
-        digest = (digest * 31 + byte) % 1_000_003
-    return digest % modulus
+        digest = (digest * 31 + byte) % 2_147_483_647
+    return digest
 
 
 def _slot_for_hour(hour: Optional[int]) -> Optional[NudgeTimingSlot]:

@@ -93,6 +93,12 @@ struct Screen11Commitment: View {
         } message: {
             Text(saveErrorMessage ?? "")
         }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "commitment", "screen_number": 11]
+            )
+        }
     }
 
     private var recapLine: String {

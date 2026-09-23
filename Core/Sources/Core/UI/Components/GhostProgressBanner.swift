@@ -36,6 +36,8 @@ public struct GhostProgressBanner: View {
     /// leaves the banner non-interactive, matching `LockStatusCard`/`GoalRow`'s own convention.
     private let action: (() -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// - Parameters:
     ///   - comparison: The comparison to render, from `GhostMode.shared.ghostComparison(for:)`.
     ///   - title: Optional caller-composed eyebrow label. Defaults to `nil`.
@@ -67,7 +69,7 @@ public struct GhostProgressBanner: View {
         content
             .padding(Theme.Spacing.md)
             .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            .animation(Theme.Motion.springStandard, value: comparison)
+            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: comparison)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(composedAccessibilityLabel)
     }
@@ -76,7 +78,7 @@ public struct GhostProgressBanner: View {
         Group {
             if let action {
                 Button(action: action) { rowBody }
-                    .buttonStyle(.plain)
+                    .buttonStyle(RowPressStyle())
             } else {
                 rowBody
             }
@@ -152,6 +154,11 @@ public struct GhostProgressBanner: View {
             Text("\(value)")
                 .font(Theme.Typography.numeralSmall())
                 .foregroundStyle(tint)
+                // A plain `Text("\(value)")` swap pops instantly on its own; `.numericText` is a
+                // built-in "odometer" roll that honors Reduce Motion automatically (no extra
+                // gating code needed here) and rides the same `.animation(value: comparison)`
+                // already applied above (docs/design/apple-design-review.md §4).
+                .contentTransition(.numericText(value: Double(value)))
         }
     }
 
@@ -164,5 +171,23 @@ public struct GhostProgressBanner: View {
             return Text("\(title). \(comparison.headline)")
         }
         return Text(comparison.headline)
+    }
+}
+
+/// Gives this banner's tappable variant visible touch-down feedback — `.buttonStyle(.plain)`
+/// alone suppresses SwiftUI's default press state almost entirely, a direct miss against HIG's
+/// "Response" principle (react on pointer-down, not on release). Duplicated (not shared) in
+/// `GoalRow.swift`, the only other row-style tappable component in this wave's safe set — with
+/// just two call sites, CLAUDE.md's "three similar call sites beat a premature protocol" argues
+/// against carving out a new shared file for this alone (docs/design/apple-design-review.md
+/// §6.3).
+private struct RowPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

@@ -71,6 +71,12 @@ public struct StartFocusIntent: AppIntent {
         let clampedMinutes = max(1, minutes)
         _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: clampedMinutes)
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_start_focus",
+            properties: ["minutes": clampedMinutes, "goal_id": goalID.uuidString]
+        )
+
         return .result(dialog: "Focus started for \(clampedMinutes) minutes.")
     }
 }

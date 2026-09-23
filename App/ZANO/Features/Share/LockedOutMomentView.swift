@@ -51,6 +51,10 @@
 //   Copy.share.shareButtonTitle: String                                         // spec §5.16's
 //       // literal button name: "a 'Share this' option" — keep this string exactly "Share this".
 //   Copy.share.preparingShareTitle: String                                      // "Preparing…"
+//   Copy.share.shareFailedRetryLabel: String                                    // new, added by
+//       // the accessibility/stress-test pass (docs/design/ui-stress-test-findings.md §3.6), e.g.
+//       // "Couldn't prepare image — tap to try again". Shared with `WeeklyRecapShareView.swift`,
+//       // which hits the identical `ShareCard.renderImage` nil-return gap.
 //   Copy.share.footerWordmark: String                                          // small bottom-
 //       // right logo text on every `ShareCard` export (P7 mockup, §16); shared with
 //       // `WeeklyRecapShareView` so every exported card uses the same wordmark.
@@ -267,6 +271,24 @@ public struct LockedOutMomentView: View {
     private let onDismiss: () -> Void
 
     @State private var renderedImage: UIImage?
+    /// `true` once `ShareCard.renderImage` has returned `nil` — see the `.task` below and
+    /// `docs/design/ui-stress-test-findings.md` §3.6. Previously nothing branched on this case, so
+    /// a render failure (low memory, an unusually large rendered frame) left `actions` showing an
+    /// indefinite "Preparing…" spinner forever, indistinguishable from "still working."
+    @State private var shareRenderFailed = false
+    /// Bumped by `retryShareRender()` to re-run the `.task(id:)` below on demand — a plain `.task`
+    /// only fires once per this view's identity, so retrying after a failure needs an explicit id
+    /// change, not just resetting the `@State` it reads.
+    @State private var renderAttempt = 0
+    /// Drives the card's one-shot entrance reveal below — see `body`'s `.onAppear`. Same call-site-
+    /// only pattern `WeeklyRecapShareView.swift` (this folder) uses, and the same reason: this
+    /// file's own header already documents why `ShareCard.swift` itself must stay untouched (its
+    /// `renderImage` call constructs a separate, off-screen instance purely for `ImageRenderer`
+    /// capture — an animation baked into `ShareCard`'s own `body` risks being mid-flight when that
+    /// instance is rasterized). Animating `.scaleEffect`/`.opacity` on the `ShareCard(content:)`
+    /// instance composed here, not inside `ShareCard.swift`, preserves that separation.
+    @State private var cardAppeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameters:
     ///   - content: Fully-composed display data — see ``LockedOutMomentContent``.
@@ -284,6 +306,8 @@ public struct LockedOutMomentView: View {
                 VStack(spacing: Theme.Spacing.md) {
                     ShareCard(content: shareCardContent)
                         .frame(maxWidth: 320)
+                        .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
+                        .opacity(cardAppeared ? 1 : 0)
 
                     Text(Copy.lockedOut.acknowledgementLine)
                         .font(Theme.Typography.body)
@@ -299,15 +323,41 @@ public struct LockedOutMomentView: View {
                 .padding(.bottom, Theme.Spacing.lg)
         }
         .background(Theme.Colors.background.ignoresSafeArea())
-        .task {
+        .task(id: renderAttempt) {
             guard renderedImage == nil else { return }
+            shareRenderFailed = false
             // `await`, not a direct call: `ShareCard.renderImage` is `@MainActor`-isolated, and
             // this task's environment has no Mac/Swift compiler to confirm whether SwiftUI's
             // `.task` closure is itself MainActor-isolated on the SDK this project targets. `await`
             // here is correct either way — a redundant `await` on an already-isolated call compiles
             // fine, while omitting a *required* one is a hard error — see this task's `knownIssues`.
-            renderedImage = await ShareCard.renderImage(content: shareCardContent)
+            if let image = await ShareCard.renderImage(content: shareCardContent) {
+                renderedImage = image
+            } else {
+                shareRenderFailed = true
+            }
         }
+        // The card's one-shot arrival, per docs/design/animation-opportunities.md row 10: scale
+        // 0.92→1.0 + fade in, `springStandard`-family spring, fired once on appear. This moment is
+        // this screen's own emotional beat (spec §5.16: "turn friction into content"), so it's
+        // worth the same reveal `WeeklyRecapShareView.swift` gives its card. Reduce Motion:
+        // opacity-only, no scale — same Part 0 pattern as everywhere else in this wave.
+        .onAppear {
+            guard !cardAppeared else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.8)) {
+                cardAppeared = true
+            }
+        }
+        // `Theme.swift`'s own header: this is a fixed, dark-only design system — see
+        // `docs/design/ui-stress-test-findings.md` §2.1, and `LockSetupView.swift`'s identical
+        // comment for the full rationale.
+        .preferredColorScheme(.dark)
+    }
+
+    private func retryShareRender() {
+        renderedImage = nil
+        shareRenderFailed = false
+        renderAttempt += 1
     }
 
     // MARK: - Header
@@ -335,26 +385,65 @@ public struct LockedOutMomentView: View {
     @ViewBuilder
     private var actions: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            if let renderedImage {
-                ShareLink(
-                    item: Image(uiImage: renderedImage),
-                    preview: SharePreview(
-                        Copy.lockedOut.headline(appName: content.appName, blockingGoalSummary: content.blockingGoalSummary),
-                        image: Image(uiImage: renderedImage)
-                    )
-                ) {
-                    shareLabel
+            Group {
+                if let renderedImage {
+                    ShareLink(
+                        item: Image(uiImage: renderedImage),
+                        preview: SharePreview(
+                            Copy.lockedOut.headline(appName: content.appName, blockingGoalSummary: content.blockingGoalSummary),
+                            image: Image(uiImage: renderedImage)
+                        )
+                    ) {
+                        shareLabel
+                    }
+                    .buttonStyle(.plain)
+                    .transition(shareControlTransition)
+                } else if shareRenderFailed {
+                    // Previously unreachable: `ShareCard.renderImage` returning `nil` left this
+                    // screen stuck on `preparingShareLabel` forever, indistinguishable from "still
+                    // working." This is a terminal failure state with its own message and a tap-
+                    // to-retry affordance instead. See `docs/design/ui-stress-test-findings.md` §3.6.
+                    Button(action: retryShareRender) {
+                        shareFailedLabel
+                    }
+                    .buttonStyle(.plain)
+                    .transition(shareControlTransition)
+                } else {
+                    preparingShareLabel
+                        .transition(shareControlTransition)
                 }
-                .buttonStyle(.plain)
-            } else {
-                preparingShareLabel
             }
+            // Same "Preparing…" → Share crossfade `WeeklyRecapShareView.swift` uses — see that
+            // file's identical comment. Keyed on a small `Equatable` state enum, not the image
+            // itself (`UIImage` isn't `Equatable`).
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard,
+                value: shareRenderState
+            )
 
             Button(Copy.lockedOut.dismissButtonTitle, action: onDismiss)
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
                 .buttonStyle(.plain)
         }
+    }
+
+    /// The three states `actions` renders — see the `.animation(value:)` above.
+    private enum ShareRenderState: Equatable {
+        case preparing
+        case ready
+        case failed
+    }
+
+    private var shareRenderState: ShareRenderState {
+        if renderedImage != nil { return .ready }
+        if shareRenderFailed { return .failed }
+        return .preparing
+    }
+
+    /// Reduce Motion: plain fade, no scale — same Part 0 pattern as the card reveal above.
+    private var shareControlTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .center))
     }
 
     /// Styled to match `PrimaryButton`'s `.standard` visual treatment
@@ -394,6 +483,28 @@ public struct LockedOutMomentView: View {
         .padding(.vertical, Theme.Spacing.sm)
         .foregroundStyle(Theme.Colors.background)
         .background(Theme.Colors.accent.opacity(0.5), in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+    }
+
+    /// The terminal render-failure state (§3.6 above) — same layout as `shareLabel`/
+    /// `preparingShareLabel` but a muted/outlined "retry" treatment instead of the solid accent
+    /// fill, so it doesn't read as another affirmative "share now" action. Wrapped in a `Button`
+    /// by its caller in `actions`.
+    private var shareFailedLabel: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 16, weight: .semibold))
+            Text(Copy.share.shareFailedRetryLabel)
+                .font(Theme.Typography.headline)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Spacing.sm)
+        .foregroundStyle(Theme.Colors.text)
+        .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                .strokeBorder(Theme.Colors.danger.opacity(0.5), lineWidth: 1)
+        )
     }
 
     // MARK: - ShareCard content

@@ -36,6 +36,15 @@ public struct GoalRow: View {
     /// one-tap Tier C goal).
     private let progress: Double?
     private let action: (() -> Void)?
+    /// Optional caller-composed status word/phrase (e.g. "Complete", "In progress") appended to
+    /// this row's combined VoiceOver announcement. `GoalRow` carries no `Copy` import of its own
+    /// (see file header) — like every other string here, this is caller-composed, so pass
+    /// `Copy.*` text from the call site rather than hardcoding a status word in this file. `nil`
+    /// (the default) omits it, so the announcement is still title + detail only rather than
+    /// falling back to a hardcoded English word. See `docs/design/ui-stress-test-findings.md` §2.2.
+    private let statusAccessibilityLabel: String?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameters:
     ///   - title: Caller-composed goal title.
@@ -45,6 +54,8 @@ public struct GoalRow: View {
     ///     `Theme.Colors.accent`.
     ///   - status: Drives the trailing indicator. Defaults to `.pending`.
     ///   - progress: Optional completion fraction for a leading `GoalRing`. Defaults to `nil`.
+    ///   - statusAccessibilityLabel: Optional caller-composed status word for VoiceOver (see
+    ///     property doc above). Defaults to `nil`.
     ///   - action: Optional tap handler (e.g. navigate to verify this goal). Defaults to `nil`.
     public init(
         title: String,
@@ -53,6 +64,7 @@ public struct GoalRow: View {
         color: Color = Theme.Colors.accent,
         status: GoalRowStatus = .pending,
         progress: Double? = nil,
+        statusAccessibilityLabel: String? = nil,
         action: (() -> Void)? = nil
     ) {
         self.title = title
@@ -61,6 +73,7 @@ public struct GoalRow: View {
         self.color = color
         self.status = status
         self.progress = progress
+        self.statusAccessibilityLabel = statusAccessibilityLabel
         self.action = action
     }
 
@@ -68,7 +81,7 @@ public struct GoalRow: View {
         Group {
             if let action {
                 Button(action: action) { rowBody }
-                    .buttonStyle(.plain)
+                    .buttonStyle(RowPressStyle())
             } else {
                 rowBody
             }
@@ -102,6 +115,29 @@ public struct GoalRow: View {
             statusIndicator
         }
         .contentShape(Rectangle())
+        // Without this, VoiceOver swipes through the leading ring/icon, title, detail, and status
+        // glyph (whose SF Symbol name carries no semantic "complete/in progress/pending" meaning
+        // on its own) as four disconnected stops. One explicit, ordered announcement replaces all
+        // of that — see `docs/design/ui-stress-test-findings.md` §2.2.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(combinedAccessibilityLabel)
+    }
+
+    /// Title, then detail (or the ring's own progress fraction when there's no separate detail
+    /// text to carry it), then the optional caller-supplied status word — see
+    /// `statusAccessibilityLabel`'s doc comment.
+    private var combinedAccessibilityLabel: String {
+        var parts = [title]
+        if let detail {
+            parts.append(detail)
+        } else if let progress {
+            let clamped = min(1, max(0, progress))
+            parts.append("\(Int((clamped * 100).rounded()))%")
+        }
+        if let statusAccessibilityLabel {
+            parts.append(statusAccessibilityLabel)
+        }
+        return parts.joined(separator: ", ")
     }
 
     @ViewBuilder
@@ -122,19 +158,44 @@ public struct GoalRow: View {
 
     @ViewBuilder
     private var statusIndicator: some View {
-        switch status {
-        case .complete:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Theme.Colors.accent)
-        case .inProgress:
-            Image(systemName: "circle.dotted")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Theme.Colors.warning)
-        case .pending:
-            Image(systemName: "circle")
-                .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(Theme.Colors.muted)
+        Group {
+            switch status {
+            case .complete:
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.accent)
+            case .inProgress:
+                Image(systemName: "circle.dotted")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.warning)
+            case .pending:
+                Image(systemName: "circle")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Theme.Colors.muted)
+            }
         }
+        // SwiftUI doesn't interpolate between two different SF Symbol names on its own — without
+        // this, the icon just replaces itself instantly at the exact spot the eye is drawn to
+        // (docs/design/apple-design-review.md §4).
+        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: status)
+    }
+}
+
+/// Gives `GoalRow`'s tappable variant visible touch-down feedback — `.buttonStyle(.plain)` alone
+/// suppresses SwiftUI's default press state almost entirely, a direct miss against HIG's
+/// "Response" principle (react on pointer-down, not on release). Duplicated (not shared) in
+/// `GhostProgressBanner.swift`, the only other row-style tappable component in this wave's safe
+/// set — with just two call sites, CLAUDE.md's "three similar call sites beat a premature
+/// protocol" argues against carving out a new shared file for this alone
+/// (docs/design/apple-design-review.md §6.3).
+private struct RowPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

@@ -109,6 +109,9 @@ public struct TrophyCaseView: View {
         .scrollContentBackground(.hidden)
         .navigationTitle(Copy.trophyCase.screenTitle)
         .task { await CosmeticsStore.shared.refresh() }
+        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
+        // `LockSetupView.swift`'s comment for the full rationale.
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header (coin balance + Shop entry point)
@@ -138,7 +141,13 @@ public struct TrophyCaseView: View {
                         .font(Theme.Typography.body)
                         .foregroundStyle(Theme.Colors.text)
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
+                    // "chevron.forward" (not the literal "chevron.right"), matching every other
+                    // disclosure chevron in this safe set (`GhostProgressBanner.swift`,
+                    // `LockStatusCard.swift`) — the semantic, auto-mirroring name so this row's
+                    // chevron flips to point left, like the others, in an RTL locale instead of
+                    // staying pinned to the physical right. See
+                    // `docs/design/ui-stress-test-findings.md` §2.4.
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.Colors.muted)
                 }
@@ -242,9 +251,39 @@ private struct TrophyMilestone: Identifiable {
 
 /// One tile in the milestones grid — locked (dimmed, `lock.fill`) if `badge == nil`, lit up with
 /// the milestone's real icon and earned date otherwise.
+///
+/// Per `docs/design/animation-opportunities.md` row 11: this screen currently has no engine wired
+/// up to award most of these six milestones yet (see this file's header), so the celebratory
+/// moment below is written to already be correct the day one is — a `false → true` edge on
+/// `isEarned` while this screen happens to be open fires a one-shot burst + expanding ring, rather
+/// than needing a follow-up patch once an engine exists. A tile that's *already* earned when this
+/// view first appears never fires this (`.onChange(of:)` only reports changes after the initial
+/// value, not the initial value itself), so re-opening Trophy Case doesn't re-celebrate old badges.
 private struct TrophyTile: View {
     let milestone: TrophyMilestone
     let badge: Badge?
+
+    /// Fires `CelebrationBurst` (`Core/Sources/Core/UI/Components/CelebrationBurst.swift`, reused
+    /// by name — not edited, a concurrent wave owns that file) on every increment. Left ungated by
+    /// Reduce Motion here on purpose: `CelebrationBurst` already has its own internal reduced-
+    /// motion fallback (a plain cross-fade, no radial travel), so this tile still gets *some*
+    /// positive confirmation either way, matching Part 0's "never drop feedback to literally
+    /// nothing" rule rather than suppressing the whole burst.
+    @State private var celebrationTick = 0
+    /// Gates *mounting* `CelebrationBurst` into the view tree at all — not just whether it's
+    /// visible. `CelebrationBurst.body` fires a burst from its own `.onAppear` unconditionally
+    /// ("The burst also always fires once on first appear, regardless of this value's starting
+    /// point" — that file's own doc comment), so including it in every tile's `ZStack`
+    /// unconditionally would confetti-burst every tile, locked ones included, the instant this
+    /// screen first renders. Only inserting the view once `celebrate()` has actually run keeps its
+    /// unconditional first-appear fire correct instead of a bug: by the time it mounts,
+    /// `celebrationTick` has already moved past 0, so that first appear *is* the real celebration.
+    @State private var hasCelebrated = false
+    /// Drives the expanding accent ring below — `nil` when idle, `0 → 1` while animating. This one
+    /// *is* skipped entirely under Reduce Motion (see `celebrate()`): it's a supplementary visual
+    /// flourish, not the primary feedback channel (the icon/circle crossfade below carries that).
+    @State private var ringProgress: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isEarned: Bool { badge != nil }
 
@@ -254,10 +293,32 @@ private struct TrophyTile: View {
                 Circle()
                     .fill(isEarned ? Theme.Colors.accent.opacity(0.16) : Theme.Colors.surface2)
                     .frame(width: 60, height: 60)
+
+                if let ringProgress {
+                    Circle()
+                        .stroke(Theme.Colors.accent, lineWidth: 2)
+                        .frame(width: 60, height: 60)
+                        .scaleEffect(1 + 0.6 * ringProgress)
+                        .opacity(0.6 * (1 - ringProgress))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+
                 Image(systemName: isEarned ? milestone.systemImage : "lock.fill")
                     .font(.system(size: isEarned ? 24 : 18, weight: .semibold))
                     .foregroundStyle(isEarned ? Theme.Colors.accent : Theme.Colors.muted)
+                    .contentTransition(.symbolEffect(.replace))
+
+                if hasCelebrated {
+                    CelebrationBurst(trigger: celebrationTick, particleCount: 14)
+                        .frame(width: 84, height: 84)
+                }
             }
+            .frame(width: 60, height: 60)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.62),
+                value: isEarned
+            )
             Text(Copy.badges.title(forKey: milestone.key))
                 .font(Theme.Typography.caption)
                 .foregroundStyle(isEarned ? Theme.Colors.text : Theme.Colors.muted)
@@ -271,8 +332,26 @@ private struct TrophyTile: View {
         }
         .frame(maxWidth: .infinity)
         .opacity(isEarned ? 1 : 0.55)
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springStandard, value: isEarned)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+        .sensoryFeedback(.success, trigger: celebrationTick)
+        .onChange(of: isEarned) { old, new in
+            guard new, !old else { return }
+            celebrate()
+        }
+    }
+
+    /// One-shot moment for the `false → true` edge only — see the type doc comment. Well inside
+    /// `Theme.Motion.unlockCelebrationMaxDuration` (1.2s): the ring's own animation is 0.5s.
+    private func celebrate() {
+        celebrationTick += 1
+        hasCelebrated = true
+        guard !reduceMotion else { return }
+        ringProgress = 0
+        withAnimation(.easeOut(duration: 0.5)) {
+            ringProgress = 1
+        }
     }
 
     private var accessibilityLabel: Text {
@@ -288,14 +367,22 @@ private struct TrophyTile: View {
 private struct CoinBalancePill: View {
     let balance: Int
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: Theme.Spacing.xxs) {
             Image(systemName: "seal.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.Colors.warning)
+            // A digit-roll, not a hard cut, when a badge/purchase changes the balance while this
+            // screen is open — docs/design/animation-opportunities.md row 12. `.numericText()`
+            // interpolates digit-by-digit; not a spring/bounce/particle, but still gated per this
+            // wave's blanket Reduce Motion rule rather than assuming its own carve-out.
             Text("\(balance)")
                 .font(Theme.Typography.numeralSmall())
                 .foregroundStyle(Theme.Colors.text)
+                .contentTransition(.numericText(value: Double(balance)))
+                .animation(reduceMotion ? .easeOut(duration: 0.15) : .easeOut(duration: 0.3), value: balance)
         }
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xxs)

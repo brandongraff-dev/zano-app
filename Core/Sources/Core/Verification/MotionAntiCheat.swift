@@ -80,6 +80,12 @@ public final class MotionAntiCheat: Sendable {
         return queue
     }()
 
+    /// Backs `isDeviceFlat` — see that method's doc comment and `AccelerometerFlatnessState`
+    /// (bottom of this file) for why the device-flat check gets its own actor-isolated state
+    /// instead of sharing `manager`/`queue` above (those back `CMMotionActivityManager`, a
+    /// different, stateless-per-query CoreMotion class).
+    private let flatnessState = AccelerometerFlatnessState()
+
     private init() {}
 
     /// `false` on devices without the motion coprocessor Core Motion activity classification
@@ -170,6 +176,101 @@ public final class MotionAntiCheat: Sendable {
             return false
         }
         return latest.automotive
+    }
+
+    /// Best-effort "is the device currently lying flat (screen up or screen down) on a surface?"
+    /// check, for the Stretch/mobility goal's device-flat anti-cheat signal (docs/spec.md §3
+    /// "Stretch / mobility" row: "guided 5-min timer with device flat on floor (accelerometer
+    /// check)"; anti-cheat column: "Device orientation"). `StretchVerifier`
+    /// (`Core/Sources/Core/Verification/StretchVerifier.swift`) is this method's only call site as
+    /// of this writing — added onto this existing type rather than forking a second motion-utility
+    /// file, per that session's own task instructions.
+    ///
+    /// Uses raw accelerometer data (`CMMotionManager`), not `CMMotionActivityManager` (the class
+    /// `MotionAntiCheat` otherwise wraps): Apple's motion-activity classifier has no
+    /// "flat"/orientation signal, only coarse walking/running/automotive/cycling/stationary
+    /// buckets, so a literal device-orientation check needs the separate, lower-level
+    /// accelerometer API. Both live on this one type because they answer the same *kind* of
+    /// question ("what is CoreMotion telling us about the device's current physical state, for
+    /// anti-cheat purposes?") even though they're backed by different CoreMotion classes — see
+    /// `AccelerometerFlatnessState` at the bottom of this file for the actual `CMMotionManager`
+    /// state, kept separate from `manager`/`queue` above because it needs actor-isolated
+    /// start/stop serialization those don't.
+    ///
+    /// Computes the tilt angle between the device's measured acceleration vector and its
+    /// screen-normal (z) axis — `0°` is perfectly flat, `90°` is on-edge vertical — and returns
+    /// whether that's within `toleranceDegrees`. Deliberately agnostic to screen-up vs.
+    /// screen-down (a stretch mat is on the floor; either face is a legitimate "set the phone
+    /// down" orientation) and to the accelerometer's face-up-vs-face-down sign convention, since
+    /// the calculation only uses `abs(z)`.
+    ///
+    /// - Parameter toleranceDegrees: How far from perfectly flat still counts as "flat". `25` is
+    ///   this file's own assumption (uneven floors/rugs, not a perfectly level surface) — spec §3
+    ///   says only "device flat on floor", no exact tolerance. Flagged in knownIssues for a
+    ///   product-feel pass once a device is available to test on.
+    /// - Returns: `true` — fail-open, per this whole file's convention (see header comment) —
+    ///   when the accelerometer is unavailable, a read is already in flight (see
+    ///   `AccelerometerFlatnessState`), or no sample arrived in time. `false` only on an actual,
+    ///   successfully-measured tilt beyond tolerance.
+    public func isDeviceFlat(toleranceDegrees: Double = 25) async -> Bool {
+        await flatnessState.isDeviceFlat(toleranceDegrees: toleranceDegrees)
+    }
+}
+
+// MARK: - AccelerometerFlatnessState
+
+/// Owns the one `CMMotionManager` instance backing `MotionAntiCheat.isDeviceFlat` and serializes
+/// access to it. An `actor` (same rationale as `TapRateLimiter` below: the idiomatic Swift 6 way
+/// to serialize concurrent mutable access without hand-rolled locking) because
+/// `CMMotionManager.startAccelerometerUpdates()`/`stopAccelerometerUpdates()` is a single-handler,
+/// stateful start/stop pair — two overlapping start/stop cycles racing each other (e.g. two
+/// `StretchVerifier` tick-loop samples firing close together, or two concurrent callers) would
+/// corrupt each other's reading, not just harmlessly duplicate work the way two concurrent
+/// `CMMotionActivityManager` queries would.
+///
+/// Apple recommends keeping a single `CMMotionManager` per app rather than creating one per call
+/// site; this type is that single instance for the device-flat check specifically (`GymVerifier`
+/// separately owns its own `CMMotionActivityManager`-only anti-cheat state and never touches raw
+/// accelerometer data, so there's no second instance to consolidate with here).
+private actor AccelerometerFlatnessState {
+    private let motionManager = CMMotionManager()
+
+    /// Guards against actor reentrancy across the `Task.sleep` below: a second `isDeviceFlat` call
+    /// arriving while one is already mid-sample fails open (returns `true`) rather than racing the
+    /// first call's start/stop pair. Set before the only `await` in `isDeviceFlat`, so a reentrant
+    /// call during that suspension reliably observes it.
+    private var isSampling = false
+
+    func isDeviceFlat(toleranceDegrees: Double) async -> Bool {
+        guard motionManager.isAccelerometerAvailable else { return true }
+        guard !isSampling else { return true }
+
+        isSampling = true
+        motionManager.accelerometerUpdateInterval = 0.1
+        motionManager.startAccelerometerUpdates()
+        defer {
+            motionManager.stopAccelerometerUpdates()
+            isSampling = false
+        }
+
+        // Pull-based read (no handler closure): `startAccelerometerUpdates()` begins populating
+        // `accelerometerData` asynchronously; give the sensor a brief moment to deliver its first
+        // sample before reading it once. This sidesteps the handler-based API's "closure fires
+        // repeatedly, must guard against resuming a checked continuation twice" hazard entirely.
+        try? await Task.sleep(for: .milliseconds(250))
+
+        guard let acceleration = motionManager.accelerometerData?.acceleration else { return true }
+        return Self.tiltFromFlatDegrees(acceleration) <= toleranceDegrees
+    }
+
+    /// Angle (degrees) between the measured acceleration vector and the device's z axis
+    /// (perpendicular to the screen). `0` = perfectly flat face-up or face-down; `90` = on edge.
+    /// Uses `abs(z)` so it doesn't matter which face is up, or which sign convention this SDK
+    /// version uses for that axis.
+    private static func tiltFromFlatDegrees(_ acceleration: CMAcceleration) -> Double {
+        let horizontalMagnitude = (acceleration.x * acceleration.x + acceleration.y * acceleration.y).squareRoot()
+        let radians = atan2(horizontalMagnitude, abs(acceleration.z))
+        return radians * 180 / .pi
     }
 }
 

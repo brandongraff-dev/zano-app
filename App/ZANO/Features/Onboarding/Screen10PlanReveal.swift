@@ -91,6 +91,12 @@ struct Screen10PlanReveal: View {
         .task {
             await persistPlanIfNeeded()
         }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "plan_reveal", "screen_number": 10]
+            )
+        }
     }
 
     private var header: some View {

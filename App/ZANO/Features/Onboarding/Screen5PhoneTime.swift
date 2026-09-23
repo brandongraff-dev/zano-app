@@ -47,6 +47,12 @@ struct Screen5PhoneTime: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "phone_time", "screen_number": 5]
+            )
+        }
     }
 }
 

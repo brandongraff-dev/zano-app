@@ -51,6 +51,11 @@ public struct LogCreatineIntent: AppIntent {
         if try IntentSupport.hasVerifiedEventToday(for: goal.id, in: context) {
             // No shame, no error — spec §8 rule 9: "Copy never says 'you failed.'" Already done
             // today is a fine, boring outcome, not a problem to surface as a failure.
+            // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+            Analytics.shared.capture(
+                event: "intent_log_creatine",
+                properties: ["source": source.rawValue, "counted": false]
+            )
             return .result(dialog: "Already logged today.")
         }
 
@@ -64,6 +69,12 @@ public struct LogCreatineIntent: AppIntent {
         )
         context.insert(event)
         try context.save()
+
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_log_creatine",
+            properties: ["source": source.rawValue, "counted": true]
+        )
 
         return .result(dialog: "Creatine logged.")
     }

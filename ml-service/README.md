@@ -7,11 +7,11 @@ FastAPI service exposing `/plan`, `/risk`, `/nudge` to Supabase Edge Functions, 
 > everything in Postgres until scale forces otherwise. Python ML service (FastAPI) exposes
 > `/plan`, `/risk`, `/nudge` endpoints; Edge Functions call it.
 
-## Status: heuristic skeleton, not a trained model
+## Status: heuristic skeleton for /plan and /risk; a real bandit for /nudge
 
 Per `docs/spec.md` §9's opening line ("Start rules-based, replace with models as `goal_events`
-grows"), and because the `goal_events` table has no production data yet, every endpoint here is a
-deliberately simple, clearly-labeled heuristic:
+grows"), and because the `goal_events` table has no production data yet, `/plan` and `/risk` are
+deliberately simple, clearly-labeled heuristics:
 
 - **`POST /plan`** — the actual v1 rules engine from spec §9.1 (75-85% target completion band,
   lower a step under a 60% 7-day rate, raise a step above a 90% 10-day rate, never more than one
@@ -22,10 +22,15 @@ deliberately simple, clearly-labeled heuristic:
   baseline probability (`RISK_BASELINE_P_MISS` in `app/main.py`) nudged by a few transparent,
   hand-picked adjustments. Treat `p_miss` as a rough ranking signal, not a calibrated probability,
   until a real model replaces it.
-- **`POST /nudge`** — spec §9.3 describes a per-user contextual bandit over 4 tones × 4 timing
-  slots × 3 formats, reward = completion within 3 hours. With no logged rewards yet, this picks an
-  arm deterministically from `(user_id, date)` so behavior is stable/testable, and enforces the
-  2/day cap itself.
+- **`POST /nudge`** — spec §9.3's actual bandit, not a stand-in: a per-user Beta-Bernoulli
+  Thompson-sampling contextual bandit over the 4 tone × 4 timing-slot × 3 format = 48-arm space
+  (`app/nudge_bandit.py`), reward = goal completed within 3 hours of the nudge. A bandit needs no
+  `goal_events` history to start from — every arm begins at a uniform population prior
+  (`nudge_bandit.population_prior`, Beta(1, 1)) and each call folds the caller-supplied `history`
+  of this user's past delivered-nudge outcomes onto that prior before sampling, so behavior
+  improves per-user as `nudges` rows accumulate without needing a trained model or any state held
+  by this service. The 2/day cap is still enforced directly as a defense-in-depth product-safety
+  check independent of the bandit.
 
 This service is **stateless** — no DB connection, no persistence. It's a pure function of each
 request's payload; Supabase Edge Functions own reading/writing `daily_plans`, `risk_scores`, and
@@ -73,9 +78,11 @@ pytest
 ```
 
 Tests in `tests/test_main.py` exercise all three endpoints through FastAPI's `TestClient`
-(real HTTP-shaped requests, no internal mocking) and pin the current heuristic behavior described
-above — when a real model replaces a stub, its tests should be replaced too, not patched to keep
-passing against the old heuristic.
+(real HTTP-shaped requests, no internal mocking) and pin `/plan`'s and `/risk`'s current heuristic
+behavior plus `/nudge`'s bandit-backed behavior described above — when a real model replaces the
+`/plan`/`/risk` stubs, their tests should be replaced too, not patched to keep passing against the
+old heuristic. `tests/test_nudge_bandit.py` unit-tests `app/nudge_bandit.py` directly (arm space,
+prior, posterior update, Thompson sampling) without going through FastAPI.
 
 ## Known gaps / integration points (see orchestrator's consolidated report for full tracking)
 
@@ -88,3 +95,14 @@ passing against the old heuristic.
   (it holds no history of its own — see the stateless-by-design note above).
 - No LightGBM/scikit-learn dependency yet on purpose — `requirements.txt` stays minimal until
   §9.2's real model has data to train on.
+- `/nudge`'s bandit is context-free beyond tone/timing-slot/format (no covariates like `p_miss` or
+  day-of-week feed into arm selection yet, even though `NudgeRequest.p_miss` is already accepted
+  for callers that have it) — spec §9.3 only asks for "per-user bandit with population prior", not
+  a richer contextual-features model, so this is a deliberate scope line, not an oversight, but a
+  true LinUCB/contextual-features bandit would need it as a next step.
+- `/nudge`'s per-call `_nudge_seed` makes Thompson sampling reproducible for identical
+  `(user_id, date, current_hour, history)` inputs (useful for tests/replay), which also means two
+  calls with those exact same inputs return the same arm rather than re-rolling — in production,
+  each call naturally has a different `history` (or at least a different `nudges_sent_today`/hour)
+  once the Edge Function logs outcomes, so this hasn't been a practical limitation, but it's worth
+  knowing about if a caller ever expects two identical requests to explore differently.

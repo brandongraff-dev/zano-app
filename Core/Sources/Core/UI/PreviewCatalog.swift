@@ -33,6 +33,7 @@ public struct PreviewCatalog: View {
                 shieldPreviewSection
                 recapCardSection
                 shareCardSection
+                ghostProgressBannerSection
             }
             .padding(Theme.Spacing.md)
         }
@@ -247,6 +248,53 @@ public struct PreviewCatalog: View {
             statLine: "4 workouts · 1,020g protein · 6h 40m time reclaimed",
             highlightLine: "Best day: Thursday",
             footerLabel: "ZANO"
+        )
+    }
+
+    // MARK: - GhostProgressBanner
+
+    /// Added per `docs/design/ui-stress-test-findings.md` §4.2: this catalog covered 10 of the 11
+    /// named components in this safe set's Core UI list, missing `GhostProgressBanner` (added to
+    /// the design system after the rest of the catalog existed). Includes a `hasGhostWeek: false`
+    /// sample — the empty-state branch, which changes both the tint and hides the scoreboard.
+    private var ghostProgressBannerSection: some View {
+        section("GhostProgressBanner") {
+            VStack(spacing: Theme.Spacing.md) {
+                GhostProgressBanner(comparison: sampleGhostComparisonAhead, title: "Ghost Mode", action: {})
+                GhostProgressBanner(comparison: sampleGhostComparisonNoGhostWeek, title: "Ghost Mode")
+            }
+        }
+    }
+
+    /// `GhostMode.GhostComparison` has no public initializer (see that type's own file) — only an
+    /// internal, module-wide memberwise one, which this file can use because `PreviewCatalog.swift`
+    /// compiles into the same `Core` module as `GhostMode.swift`, not because this catalog is
+    /// re-declaring or widening that type's access.
+    private var sampleGhostComparisonAhead: GhostMode.GhostComparison {
+        GhostMode.GhostComparison(
+            date: .now,
+            weekStart: Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now,
+            dayOfWeekOffset: 2,
+            dayLabel: "Tuesday",
+            hasGhostWeek: true,
+            ghostWeekStart: Calendar.current.date(byAdding: .weekOfYear, value: -3, to: .now),
+            ghostCompletedCount: 2,
+            currentCompletedCount: 3,
+            headline: "Ghost You had completed 2 goals by Tuesday. You're at 3 — ahead."
+        )
+    }
+
+    private var sampleGhostComparisonNoGhostWeek: GhostMode.GhostComparison {
+        GhostMode.GhostComparison(
+            date: .now,
+            weekStart: Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now,
+            dayOfWeekOffset: 2,
+            dayLabel: "Tuesday",
+            hasGhostWeek: false,
+            ghostWeekStart: nil,
+            ghostCompletedCount: 0,
+            currentCompletedCount: 1,
+            headline: "Keep going — your first Ghost week is still being written."
         )
     }
 

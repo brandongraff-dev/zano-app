@@ -131,6 +131,12 @@ struct Screen9WakeUp: View {
             .padding(.horizontal, Theme.Spacing.lg)
             .padding(.bottom, Theme.Spacing.lg)
         }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "wake_up", "screen_number": 9]
+            )
+        }
     }
 }
 

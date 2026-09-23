@@ -68,6 +68,10 @@ public struct CheckStatusIntent: AppIntent {
             parts.append("\(bankedMinutes) minutes banked")
         }
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent"). No
+        // `@Parameter`s on this intent, so no key-parameter properties to attach.
+        Analytics.shared.capture(event: "intent_check_status")
+
         return .result(dialog: IntentDialog(stringLiteral: parts.joined(separator: ". ") + "."))
     }
 

@@ -1,0 +1,173 @@
+// FounderSeriesCard.swift
+// Core / UI / Components
+//
+// docs/spec.md §5.22 Founder Series Inside the App: "A 'Building ZANO' feed card (optional)
+// linking to your content. Founder-led brands win; make the founder visible without being
+// annoying."
+//
+// A simple, standalone, dismissible card — this task's own brief is explicit that this is "logic
+// + a standalone component only" and that wiring it into an actual feed/screen (Today, Progress,
+// wherever "Settings → Gear"-adjacent content ends up living) is a follow-up, not this task's job;
+// no `App/ZANO/Features/**` file is touched here. Every string is caller-composed, never read from
+// `Core/Sources/Core/Copy` internally — same "views never compose their own sentence" discipline
+// `PaywallCard.swift`/`RecapCard.swift`/`GhostProgressBanner.swift` each document at their own
+// declaration (`PaywallCard.swift`'s header: "All text is caller-composed... `SubscriptionPackage`/
+// pricing types never appear here; the caller resolves them to plain strings first"). A ready-made
+// default set of that copy — "Building ZANO", matching spec §5.22's own example title verbatim —
+// lives in `Copy/FounderSeriesCopy.swift` (`Copy.founderSeries`) for whichever future caller wires
+// this in, exactly the same "component takes strings, Copy supplies them, the two files don't
+// import each other" split this codebase already uses everywhere else.
+//
+// "Optional" (spec §5.22) and "without being annoying" are read as: this component is always
+// dismissible (`onDismiss` is required, not optional) and is entirely stateless about *whether* to
+// keep showing itself — it has no `@AppStorage`/`UserDefaults` of its own. A real "stay dismissed"
+// promise needs to survive this view being destroyed and recreated (a fresh feed row, a relaunch),
+// which only a caller with a persistence story of its own (or, if a shared/synced "seen this" flag
+// is ever wanted, `GearOffersEngine`'s own `UserDefaults`-backed dismissal log in this same task —
+// `Monetization/GearOffersEngine.swift` — is the closest existing precedent to extend, not this
+// file) can actually provide. Flagged as the honest scope boundary, not silently assumed away.
+//
+// Naming note: the caller-composed paragraph copy is named `bodyText` throughout (parameter,
+// stored property, doc comments), never plain `body` — `View`'s own required `var body: some
+// View` already owns that exact name on this type, and a second, differently-typed member called
+// `body` is an invalid redeclaration, not just a style nit.
+
+import SwiftUI
+
+/// A dismissible "Building ZANO" feed card (docs/spec.md §5.22) — founder-visibility content, kept
+/// visually consistent with every other `Core/UI/Components` card via `Theme` tokens only.
+public struct FounderSeriesCard: View {
+    /// Caller-composed headline, e.g. `Copy.founderSeries.defaultHeadline` ("Building ZANO").
+    private let headline: String
+    /// Caller-composed paragraph copy, e.g. `Copy.founderSeries.defaultBody`. Named `bodyText`,
+    /// not `body` — see this file's header naming note.
+    private let bodyText: String
+    /// Caller-composed CTA label (e.g. "Watch"). `nil` alongside a `nil` `onTapCTA` renders the
+    /// card as a plain, non-interactive announcement with no button — still dismissible.
+    private let ctaLabel: String?
+    /// Tap handler for the CTA (e.g. open the founder's linked content). Only rendered when both
+    /// this and `ctaLabel` are non-`nil`.
+    private let onTapCTA: (() -> Void)?
+    /// Caller-composed VoiceOver label for the dismiss (×) button, e.g.
+    /// `Copy.founderSeries.dismissAccessibilityLabel`. Required, not defaulted to a bare literal
+    /// here — see this file's header note on why this component never falls back to inline copy.
+    private let dismissAccessibilityLabel: String
+    /// Called when the person dismisses the card. Required (not optional) — spec §5.22 frames this
+    /// card as "optional" from the *product's* point of view, which this component reads as: it
+    /// must always be dismissible, never a caller-optional afterthought.
+    private let onDismiss: () -> Void
+
+    /// - Parameters:
+    ///   - headline: Caller-composed headline (from `Copy.founderSeries.*` or an override).
+    ///   - bodyText: Caller-composed paragraph copy.
+    ///   - ctaLabel: Caller-composed CTA label. Defaults to `nil` (no CTA button).
+    ///   - onTapCTA: CTA tap handler. Defaults to `nil`. Only rendered alongside a non-`nil`
+    ///     `ctaLabel`.
+    ///   - dismissAccessibilityLabel: Caller-composed VoiceOver label for the dismiss control.
+    ///   - onDismiss: Dismiss handler — always called from the visible × button.
+    public init(
+        headline: String,
+        bodyText: String,
+        ctaLabel: String? = nil,
+        onTapCTA: (() -> Void)? = nil,
+        dismissAccessibilityLabel: String,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.headline = headline
+        self.bodyText = bodyText
+        self.ctaLabel = ctaLabel
+        self.onTapCTA = onTapCTA
+        self.dismissAccessibilityLabel = dismissAccessibilityLabel
+        self.onDismiss = onDismiss
+    }
+
+    public var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            iconBadge
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(headline)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+
+                Text(bodyText)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+
+                if let ctaLabel, let onTapCTA {
+                    Button(action: onTapCTA) {
+                        Text(ctaLabel)
+                            .font(Theme.Typography.captionEmphasized)
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            dismissButton
+        }
+        .padding(Theme.Spacing.md)
+        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+                .strokeBorder(Theme.Colors.hairline, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    /// A simple video/camera glyph — "founder content" in this product's own framing (§25's
+    /// unboxing/UGC/gym-mirror-video language) leans on video, not a literal headshot photo this
+    /// component has no image asset for. `Image(systemName:)` degrades to a blank glyph (never a
+    /// crash) if the symbol name is ever wrong on a given OS version — same acknowledged-but-
+    /// nonfatal risk `GhostProgressBanner.swift`'s own `iconBadge` flags for its own SF Symbol.
+    private var iconBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Theme.Colors.accent.opacity(0.16))
+            Image(systemName: "video.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.Colors.accent)
+        }
+        .frame(width: 40, height: 40)
+        .accessibilityHidden(true)
+    }
+
+    private var dismissButton: some View {
+        Button(action: onDismiss) {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.Colors.muted)
+                .padding(6)
+                .background(Theme.Colors.surface2, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(dismissAccessibilityLabel)
+    }
+}
+
+#Preview {
+    VStack(spacing: Theme.Spacing.sm) {
+        FounderSeriesCard(
+            headline: "Building ZANO",
+            bodyText: "Follow along as we build ZANO in public — the wins, the bugs, and the hardware.",
+            ctaLabel: "Watch",
+            onTapCTA: {},
+            dismissAccessibilityLabel: "Dismiss",
+            onDismiss: {}
+        )
+        FounderSeriesCard(
+            headline: "Building ZANO",
+            bodyText: "New this week: sampling the first Lock Card run.",
+            dismissAccessibilityLabel: "Dismiss",
+            onDismiss: {}
+        )
+    }
+    .padding()
+    .background(Theme.Colors.background.ignoresSafeArea())
+    .preferredColorScheme(.dark)
+}

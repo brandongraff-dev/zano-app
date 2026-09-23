@@ -84,9 +84,16 @@ public struct ShareCard: View {
             )
 
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // This card's export path (`renderImage`) gives it a fixed frame and clips to a
+                // rounded rect with no scroll fallback — text that grows past the frame is
+                // silently cut off, not truncated with an ellipsis. Every string below is capped
+                // with an explicit `lineLimit` so a long caller-composed sentence (a long app
+                // name, a long localized line) degrades to a visible "…" instead of vanishing off
+                // the bottom of the export. See `docs/design/ui-stress-test-findings.md` §3.5.
                 Text(content.title)
                     .font(Theme.Typography.title)
                     .foregroundStyle(Theme.Colors.text)
+                    .lineLimit(2)
 
                 dayRingsStrip
 
@@ -95,11 +102,13 @@ public struct ShareCard: View {
                         .font(Theme.Typography.headline)
                         .foregroundStyle(Theme.Colors.text)
                         .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(3)
 
                     if let highlightLine = content.highlightLine {
                         Text(highlightLine)
                             .font(Theme.Typography.body)
                             .foregroundStyle(Theme.Colors.muted)
+                            .lineLimit(2)
                     }
                 }
 
@@ -111,6 +120,7 @@ public struct ShareCard: View {
                         Text(footerLabel)
                             .font(Theme.Typography.captionEmphasized)
                             .foregroundStyle(Theme.Colors.muted)
+                            .lineLimit(1)
                     }
                 }
             }

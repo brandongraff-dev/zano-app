@@ -48,11 +48,20 @@ class CoachVoice(str, Enum):
 
 
 class NudgeTimingSlot(str, Enum):
-    """One of the 4 timing-slot arms in spec.md §9.3."""
+    """One of the 4 timing-slot arms in spec.md §9.3.
+
+    Raw values must match `Core/Sources/Core/Models/Nudge.swift`'s `NudgeTimingSlot` exactly —
+    that Swift enum is what actually writes `nudges.arm` (jsonb) rows from the app (spec.md §13),
+    and this service's `/nudge` endpoint folds those same rows back in as `ArmOutcome.arm_id`
+    history (see `app/nudge_bandit.py`'s `update_posterior`). `AFTERNOON` was previously
+    `"four_pm"` here vs. Swift's `afternoon4pm = "afternoon_4pm"` — any real nudge logged by the
+    app in the 4 PM slot would fail `update_posterior`'s arm_id lookup (HTTP 422) instead of
+    training the bandit. Fixed to match.
+    """
 
     MORNING = "morning"
     PRE_GYM = "pre_gym_window"
-    AFTERNOON = "four_pm"
+    AFTERNOON = "afternoon_4pm"
     EVENING = "evening"
 
 
@@ -183,12 +192,36 @@ class RiskResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class NudgeOutcome(BaseModel):
+    """One past *delivered* nudge's logged outcome for this user — the bandit's training signal.
+
+    Mirrors the `nudges` table (spec.md §13):
+    `nudges (id, user_id, ts, arm jsonb, delivered, acted_within_3h)`. Only delivered nudges should
+    be included; an undelivered one was never shown, so it has no reward either way.
+    """
+
+    arm_id: str = Field(
+        ...,
+        description="Must be one of the 48 canonical arm ids (see app/nudge_bandit.ALL_ARMS); "
+        "unknown ids fail the request with a 422 rather than being silently dropped.",
+    )
+    rewarded: bool = Field(
+        ..., description="spec.md §9.3 reward: goal completed within 3 hours of this nudge."
+    )
+
+
 class NudgeRequest(BaseModel):
     """Context for picking a nudge arm (spec.md §9.3).
 
     `nudges_sent_today` lets the caller enforce the 2/day cap even though
-    this stub also refuses to recommend a 3rd nudge itself, defense in depth
+    the endpoint also refuses to recommend a 3rd nudge itself, defense in depth
     since the cap is a product-safety rule (spec.md §8/§9.3), not a nicety.
+
+    `history` is this user's past delivered-nudge outcomes (any order) — the bandit's "per-user
+    update" input (spec.md §9.3). This service is stateless (app/main.py's module docstring), so
+    the caller (an Edge Function reading `nudges`) resends the full history on every call; nothing
+    is persisted here. An empty list is the population-prior cold start: a brand-new user with no
+    nudge history yet.
     """
 
     user_id: UUID
@@ -198,6 +231,11 @@ class NudgeRequest(BaseModel):
     nudges_sent_today: int = Field(default=0, ge=0)
     p_miss: Optional[float] = Field(
         default=None, ge=0, le=1, description="Optional /risk output, reused so callers don't recompute it."
+    )
+    history: list[NudgeOutcome] = Field(
+        default_factory=list,
+        description="This user's past delivered-nudge outcomes; see NudgeOutcome. Empty -> "
+        "population-prior cold start (spec.md §9.3).",
     )
 
 
@@ -210,4 +248,16 @@ class NudgeResponse(BaseModel):
     format: NudgeFormat
     arm_id: str = Field(..., description="Stable id for this tone/slot/format combo, for bandit bookkeeping later.")
     should_send: bool = Field(..., description="False when the 2/day cap (spec.md §9.3) has already been hit.")
-    model_version: str = "heuristic_baseline_v1"
+    model_version: str = "bandit_thompson_v1"
+    posterior_mean: float = Field(
+        ...,
+        ge=0,
+        le=1,
+        description="This arm's E[reward] under the user's current Beta posterior (population "
+        "prior + history) — the value Thompson sampling drew its winning sample from.",
+    )
+    is_cold_start: bool = Field(
+        ...,
+        description="True when this user had zero logged nudge history (pure population prior, "
+        "spec.md §9.3), false once at least one past outcome informed the posterior.",
+    )

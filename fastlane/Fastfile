@@ -1,0 +1,317 @@
+# fastlane/Fastfile — TestFlight/App Store automation for ZANO.
+#
+# See docs/spec.md §12 (Tech Stack table's CI row: "Xcode Cloud or GitHub Actions + fastlane" —
+# "TestFlight in one command") and docs/setup/apple-developer.md ("Also needed before TestFlight") for the
+# product/process context this implements. Invoked by .github/workflows/ci.yml's `testflight` job
+# (currently still gated off — see that file) via `fastlane beta`, and by hand from a Mac once one
+# exists (`bundle exec fastlane beta` from the repo root).
+#
+# ── Status: unverified ───────────────────────────────────────────────────────────────────────────
+# Written on Windows with no Mac, no Xcode, and no fastlane install to run this against (see
+# CLAUDE.md "Current environment status"). Every action name, parameter, and lane below is written
+# from training knowledge of fastlane's documented API surface, not confirmed against a real run.
+# Treat this as a strong first draft to smoke-test end-to-end the first time a Mac + real secrets
+# exist, not as proven-working automation. Specific known-uncertain points are flagged inline and
+# summarized at the bottom of this file.
+#
+# ── Required secrets (GitHub Actions repo secrets, or exported locally) ────────────────────────────
+# None of these exist yet — see docs/setup/apple-developer.md and docs/PROGRESS.md. Naming below
+# matches what .github/workflows/ci.yml's commented-out testflight job already names
+# (APP_STORE_CONNECT_API_KEY, MATCH_GIT_URL, MATCH_PASSWORD) plus the few more that same job's
+# "etc." implied would be needed once actually wired up:
+#
+#   APP_STORE_CONNECT_API_KEY   Base64-encoded JSON blob: {"key_id": "...", "issuer_id": "...",
+#                                "key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"}
+#                                Assemble this by hand after generating an App Store Connect API key
+#                                (App Store Connect → Users and Access → Integrations → Keys):
+#                                Apple only lets you download the raw .p8 once, so capture its
+#                                contents into the "key" field (escaped as \n line breaks, which is
+#                                just how JSON encodes a real newline) alongside the Key ID and Issuer
+#                                ID shown next to it, then `base64` the whole JSON document into this
+#                                one secret. See `app_store_connect_key` lane below for the decode
+#                                side.
+#   APPLE_TEAM_ID                Developer Portal Team ID (10 chars, e.g. "ABCDE12345"). Shown in
+#                                Apple Developer → Membership once enrolled.
+#   MATCH_GIT_URL                Git URL of the private repo `fastlane match` stores signing
+#                                certs/profiles in (recommended in docs/setup/apple-developer.md).
+#                                Create that repo separately — this Fastfile does not create it.
+#   MATCH_PASSWORD               Passphrase match uses to encrypt/decrypt that repo's contents. Read
+#                                automatically by the `match` action via this exact env var name —
+#                                fastlane's match config item maps 1:1 to `MATCH_PASSWORD`, so it is
+#                                intentionally never passed as an explicit lane parameter below.
+#
+# Local (non-CI) use additionally benefits from APPLE_ID / APPLE_ITC_TEAM_ID / ZANO_APP_IDENTIFIER —
+# see fastlane/Appfile.
+#
+# ── What's deliberately NOT here yet ────────────────────────────────────────────────────────────
+# - fastlane/metadata, fastlane/screenshots: no App Store listing copy, screenshots, or privacy
+#   nutrition-label answers exist yet (see docs/setup/app-review-notes.md checklist). `release`
+#   below skips both (`skip_metadata`/`skip_screenshots`) until those exist — don't flip that
+#   without also adding the directories `deliver` expects.
+# - Apple Watch (ZANOWatch): excluded from signing/build entirely. project.yml's own header notes
+#   ZANOWatch isn't embedded as ZANO's companion yet, and the v1 target is iPhone-only
+#   (`TARGETED_DEVICE_FAMILY: "1"` in project.yml). Add it here only once that's true.
+
+default_platform(:ios)
+
+# ── Shared constants ───────────────────────────────────────────────────────────────────────────
+SCHEME       = "ZANO"
+PROJECT_FILE = "ZANO.xcodeproj"
+OUTPUT_DIR   = "build"
+
+# Bundle identifiers as XcodeGen actually derives them TODAY from project.yml's
+# `options.bundleIdPrefix: com.zano.app` with no `PRODUCT_BUNDLE_IDENTIFIER` override on any of
+# these targets — XcodeGen's default is "<bundleIdPrefix>.<target name>" when a target doesn't
+# override it. (project.yml's own comment block above its `ZANOWatch` target spells out this exact
+# derivation rule, for the same reason: ZANOWatch *does* override it, and explains why.)
+#
+# ⚠️ KNOWN, FLAGGED MISMATCH — not fixed here, out of this task's file list (fastlane/*, ci.yml
+# only): docs/setup/apple-developer.md describes registering "com.zano.app" (bare, no suffix) as
+# the *main app's* bundle ID, with "5 extension suffixes" hung off it. As project.yml is actually
+# written today, the main `ZANO` target would generate "com.zano.app.ZANO", not bare
+# "com.zano.app". Someone needs to either add an explicit `PRODUCT_BUNDLE_IDENTIFIER: com.zano.app`
+# to the `ZANO` target in project.yml (the same fix already applied to `ZANOWatch` right below it,
+# for the identical reason) or update the docs to match reality. Whichever way that lands, these
+# constants — and the App Store Connect app record / match's stored profiles — must be updated to
+# match whatever XcodeGen *actually* generates. Verify with
+# `xcodebuild -showBuildSettings -project ZANO.xcodeproj -target ZANO | grep PRODUCT_BUNDLE_IDENTIFIER`
+# on a Mac before trusting these for a real submission.
+TARGET_BUNDLE_IDS = {
+  "ZANO"            => "com.zano.app.ZANO",
+  "ZANOWidgets"     => "com.zano.app.ZANOWidgets",
+  "ZANOShieldConfig" => "com.zano.app.ZANOShieldConfig",
+  "ZANOShieldAction" => "com.zano.app.ZANOShieldAction",
+  "ZANOMonitor"     => "com.zano.app.ZANOMonitor",
+  "ZANOReport"      => "com.zano.app.ZANOReport"
+}.freeze
+
+BUNDLE_ID_APP = TARGET_BUNDLE_IDS.fetch("ZANO")
+
+platform :ios do
+  # ── Private helpers ──────────────────────────────────────────────────────────────────────────
+
+  desc "Raise a clear error (not a stack trace) listing exactly which required secrets are missing"
+  private_lane :ensure_secrets_present do |options|
+    names = options.fetch(:names)
+    missing = names.select { |n| ENV[n].to_s.strip.empty? }
+    next if missing.empty?
+
+    UI.user_error!(
+      "Missing required secret(s): #{missing.join(', ')}. " \
+      "These come from GitHub Actions repo secrets in CI, or your local shell env otherwise — " \
+      "see the header comment in fastlane/Fastfile and docs/setup/apple-developer.md for what " \
+      "each one is and how to create it. None of them exist yet as of docs/PROGRESS.md's last " \
+      "update, so seeing this locally or in a real CI run is expected until Apple Developer " \
+      "Program enrollment + signing are set up."
+    )
+  end
+
+  desc "Regenerate ZANO.xcodeproj from project.yml via XcodeGen (never hand-edit the generated project)"
+  private_lane :generate_xcode_project do
+    # CI's testflight job installs xcodegen via `brew install xcodegen fastlane` before calling any
+    # lane here (see .github/workflows/ci.yml); a local Mac run needs it on PATH already
+    # (docs/setup/mac-setup.md). Run from the repo root, one level up from fastlane/.
+    Dir.chdir("..") do
+      sh("xcodegen generate")
+    end
+  end
+
+  desc "Build (or reuse, if already loaded) the App Store Connect API key from APP_STORE_CONNECT_API_KEY"
+  private_lane :app_store_connect_key do
+    ensure_secrets_present(names: ["APP_STORE_CONNECT_API_KEY"])
+
+    require "base64"
+    require "json"
+
+    raw = ENV.fetch("APP_STORE_CONNECT_API_KEY")
+    parsed = begin
+      JSON.parse(Base64.decode64(raw))
+    rescue JSON::ParserError => e
+      UI.user_error!(
+        "APP_STORE_CONNECT_API_KEY did not decode to valid JSON after base64 decoding " \
+        "(#{e.message}). Expected shape: " \
+        '{"key_id": "...", "issuer_id": "...", "key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----"}' \
+        " — see the header comment in this Fastfile for how to assemble it."
+      )
+    end
+
+    %w[key_id issuer_id key].each do |field|
+      UI.user_error!("APP_STORE_CONNECT_API_KEY JSON is missing required field \"#{field}\"") unless parsed[field]
+    end
+
+    app_store_connect_api_key(
+      key_id: parsed.fetch("key_id"),
+      issuer_id: parsed.fetch("issuer_id"),
+      key_content: parsed.fetch("key"),
+      is_key_content_base64: false,
+      in_house: false
+    )
+  end
+
+  desc "Fetch this app's signing certs/profiles from the match repo (manual signing, App Store distribution)"
+  private_lane :setup_appstore_signing do
+    ensure_secrets_present(names: ["MATCH_GIT_URL", "MATCH_PASSWORD", "APPLE_TEAM_ID"])
+
+    # MATCH_PASSWORD is intentionally not passed explicitly — fastlane's `match` action reads it
+    # from that exact env var name automatically (documented match ↔ env var convention), the same
+    # way `password:` would resolve if this ran interactively and prompted for it.
+    #
+    # `type: "appstore"` (no hyphen) is match's own naming for this signing type — distinct from
+    # `build_app`'s `export_method: "app-store"` (hyphenated) used below. Confusing but correct as
+    # of the fastlane versions this was written against from training knowledge; flagged in this
+    # file's bottom-of-file "known-uncertain" list in case a newer fastlane release has changed it.
+    match(
+      type: "appstore",
+      git_url: ENV.fetch("MATCH_GIT_URL"),
+      app_identifier: TARGET_BUNDLE_IDS.values,
+      # GitHub Actions sets CI=true in every job's env automatically; readonly there so a CI run
+      # only ever *fetches* certs/profiles match already has, never generates new ones. A developer
+      # running this by hand locally (CI unset) gets normal read/write match behavior.
+      readonly: ENV["CI"] == "true",
+      team_id: ENV.fetch("APPLE_TEAM_ID")
+    )
+
+    profile_mapping = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+
+    # Point every target at its own match-managed profile individually — `update_code_signing_settings`
+    # applies one (identity, profile) pair per call, and each ZANO extension target needs its own
+    # distinct profile/bundle ID, not the main app's.
+    TARGET_BUNDLE_IDS.each do |target_name, bundle_id|
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: PROJECT_FILE,
+        targets: [target_name],
+        team_id: ENV.fetch("APPLE_TEAM_ID"),
+        code_sign_identity: "Apple Distribution",
+        bundle_identifier: bundle_id,
+        profile_name: profile_mapping[bundle_id]
+      )
+    end
+
+    profile_mapping
+  end
+
+  desc "Archive + export a release-configuration .ipa signed for App Store distribution"
+  private_lane :build_appstore_ipa do |options|
+    profile_mapping = options.fetch(:profile_mapping)
+
+    build_app(
+      scheme: SCHEME,
+      project: PROJECT_FILE,
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: OUTPUT_DIR,
+      output_name: "ZANO.ipa",
+      clean: true,
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: ENV.fetch("APPLE_TEAM_ID"),
+        provisioningProfiles: profile_mapping
+      }
+    )
+  end
+
+  # ── Public lanes ─────────────────────────────────────────────────────────────────────────────
+
+  desc "Local convenience: regenerate the Xcode project from project.yml (`fastlane generate`)"
+  lane :generate do
+    generate_xcode_project
+  end
+
+  desc "Local convenience: run Core's unit tests the same way CI's build-and-test job does"
+  lane :tests do
+    Dir.chdir("..") do
+      sh("swift test --package-path Core")
+    end
+  end
+
+  desc "Build ZANO and push a new build straight to TestFlight — called by CI's `testflight` job"
+  lane :beta do
+    ensure_secrets_present(names: %w[APP_STORE_CONNECT_API_KEY APPLE_TEAM_ID MATCH_GIT_URL MATCH_PASSWORD])
+
+    generate_xcode_project
+    api_key = app_store_connect_key
+    profile_mapping = setup_appstore_signing
+
+    # Keep every TestFlight build number unique without hand-bumping anything git-tracked:
+    # project.yml (the source of truth) sets no explicit build number, so this bumps it only on the
+    # freshly-generated, gitignored ZANO.xcodeproj for this run alone.
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID_APP,
+      initial_build_number: 0
+    )
+    increment_build_number(build_number: latest + 1, xcodeproj: PROJECT_FILE)
+
+    build_appstore_ipa(profile_mapping: profile_mapping)
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID_APP,
+      ipa: "#{OUTPUT_DIR}/ZANO.ipa",
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      changelog: ENV["ZANO_CHANGELOG"] || "Automated TestFlight build from CI."
+    )
+  end
+
+  desc "App Store submission skeleton — NOT wired into CI yet, real gaps flagged inline; " \
+       "see this lane's body before ever running it for a real submission"
+  lane :release do
+    # Everything through build/signing/upload mirrors `beta` — the parts that differ (metadata,
+    # screenshots, review notes, submission itself) are exactly the parts that don't exist yet, so
+    # this stays a deliberately conservative skeleton: it uploads a build and stops short of
+    # actually submitting it for review.
+    ensure_secrets_present(names: %w[APP_STORE_CONNECT_API_KEY APPLE_TEAM_ID MATCH_GIT_URL MATCH_PASSWORD])
+
+    generate_xcode_project
+    api_key = app_store_connect_key
+    profile_mapping = setup_appstore_signing
+    build_appstore_ipa(profile_mapping: profile_mapping)
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID_APP,
+      ipa: "#{OUTPUT_DIR}/ZANO.ipa",
+      # Do NOT flip these to false/true until the corresponding real content exists:
+      skip_screenshots: true, # no fastlane/screenshots yet — nothing to upload
+      skip_metadata: true, # no fastlane/metadata yet — App Store Connect listing copy isn't written
+      submit_for_review: false, # flip only once docs/setup/app-review-notes.md's full checklist is
+                                 # complete (demo account seeded, review notes pasted in, privacy
+                                 # nutrition label filled out, Family Controls entitlement approved)
+      automatic_release: false,
+      force: true, # skip HTML preview/confirmation prompt — required for unattended CI use
+      precheck_include_in_app_purchases: false
+    )
+  end
+end
+
+# ── Known-uncertain points (flagged per CLAUDE.md working rule 5 — no Mac/fastlane install to
+#    check any of this against a real run) ─────────────────────────────────────────────────────
+# 1. TARGET_BUNDLE_IDS above assumes XcodeGen's default "<prefix>.<target name>" bundle-id
+#    derivation for every target except where project.yml explicitly overrides it (only
+#    ZANOWatch does, and that target is deliberately excluded here). Confirm against
+#    `xcodebuild -showBuildSettings` the first time this runs on a Mac.
+# 2. `sh("xcodegen generate")` / `sh("swift test --package-path Core")` use the classic
+#    single-string `sh` form deliberately (not the newer splat-args form) since that's the form
+#    documented consistently across fastlane versions; `Dir.chdir("..")` wrapping each is used
+#    instead of relying on any particular fastlane version's default working directory for `sh`.
+# 3. `match`'s `type: "appstore"` and `app_store_connect_api_key`'s exact parameter names
+#    (`key_id`/`issuer_id`/`key_content`/`is_key_content_base64`/`in_house`) are written from
+#    training knowledge of fastlane's documented action API; a `bundle exec fastlane action
+#    app_store_connect_api_key` / `match` on a real machine is the way to confirm before the
+#    first real run, since fastlane's action surface does shift across releases.
+# 4. `update_code_signing_settings` looped per-target with `bundle_identifier:`/`profile_name:`
+#    is the documented pattern for multi-target apps signed via match, but this repo has never
+#    actually run it — six targets (main app + 5 extensions) each need their own correctly
+#    provisioned entry in `profile_mapping`, which itself depends on match's app_identifier list
+#    exactly matching what's registered in the Developer Portal (see mismatch flagged above
+#    TARGET_BUNDLE_IDS).
+# 5. `build_app`'s `export_options[:provisioningProfiles]` expects bundle-id → profile-*name*
+#    (not UUID); `MATCH_PROVISIONING_PROFILE_MAPPING` is documented to hold exactly that shape,
+#    but hasn't been observed against a real match run in this repo.
+# 6. aps-environment in project.yml's ZANO target is currently hardcoded to "development" (see
+#    project.yml). A real App Store archive typically needs "production" for push to work in
+#    production — that's project.yml's concern, not this file's (out of this task's scope), but
+#    it will silently ship a build with the wrong push environment until someone fixes it there.

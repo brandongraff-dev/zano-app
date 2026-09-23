@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -217,6 +218,54 @@ def test_nudge_returns_a_valid_arm() -> None:
     assert data["format"] in {"push", "widget_copy", "shield_copy"}
     assert data["should_send"] is True
     assert data["arm_id"] == f"{data['tone']}:{data['timing_slot']}:{data['format']}"
+    assert data["model_version"] == "bandit_thompson_v1"
+
+
+def test_nudge_cold_start_has_population_prior_mean_and_is_cold_start_true() -> None:
+    """spec.md §9.3: 'Per-user bandit with population prior.' No history -> Beta(1,1) -> mean 0.5,
+    and the response says so explicitly via is_cold_start."""
+    body = {"user_id": _uuid(), "date": "2026-09-22"}
+    resp = client.post("/nudge", json=body)
+    data = resp.json()
+    assert data["is_cold_start"] is True
+    assert data["posterior_mean"] == pytest.approx(0.5)
+
+
+def test_nudge_with_history_updates_posterior_mean_for_the_chosen_arm() -> None:
+    """The response's posterior_mean must always equal alpha/(alpha+beta) for a Beta(1,1) prior
+    folded with however many of this user's history entries belong to the arm actually returned —
+    true no matter which of the context-eligible arms Thompson sampling ends up picking."""
+    uid = _uuid()
+    trained_arm_id = "hype:morning:push"
+    history = [{"arm_id": trained_arm_id, "rewarded": True} for _ in range(10)]
+    body = {
+        "user_id": uid,
+        "date": "2026-09-22",
+        "current_hour": 8,  # forces timing_slot=morning
+        "coach_voice": "hype",  # forces tone=hype; format stays bandit-controlled
+        "history": history,
+    }
+    resp = client.post("/nudge", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_cold_start"] is False
+    assert data["tone"] == "hype"
+    assert data["timing_slot"] == "morning"
+
+    rewards = sum(1 for h in history if h["arm_id"] == data["arm_id"] and h["rewarded"])
+    misses = sum(1 for h in history if h["arm_id"] == data["arm_id"] and not h["rewarded"])
+    expected_mean = (1 + rewards) / (1 + rewards + 1 + misses)
+    assert data["posterior_mean"] == pytest.approx(expected_mean, abs=1e-4)
+
+
+def test_nudge_rejects_unknown_arm_id_in_history_with_422() -> None:
+    body = {
+        "user_id": _uuid(),
+        "date": "2026-09-22",
+        "history": [{"arm_id": "not_a_real_arm", "rewarded": True}],
+    }
+    resp = client.post("/nudge", json=body)
+    assert resp.status_code == 422
 
 
 def test_nudge_respects_daily_cap() -> None:

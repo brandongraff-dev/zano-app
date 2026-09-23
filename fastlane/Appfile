@@ -1,0 +1,40 @@
+# fastlane/Appfile — account/app identity for every lane in this fastlane/Fastfile.
+#
+# See docs/spec.md §12 (Tech Stack: "CI | Xcode Cloud or GitHub Actions + fastlane") and
+# docs/setup/apple-developer.md for status. As of this writing: Apple Developer Program
+# enrollment has NOT happened yet, so none of the values below exist as real secrets anywhere —
+# this file only wires up *where* they come from (env vars, never literals), the same rule the
+# Fastfile follows. Nothing here will resolve to a real value until:
+#   1. Apple Developer Program enrollment completes, and
+#   2. the corresponding secret is added in GitHub Actions repo secrets (or exported locally by a
+#      developer running fastlane by hand on a Mac).
+#
+# Every lookup below is defensive (`ENV[...] if ... && !....empty?`) specifically so that running
+# `fastlane` locally, or CI's build-and-test job (which never calls a lane from this file), never
+# fails just because this file loaded — Appfile is evaluated before any lane runs, so a hard
+# `ENV.fetch` with no default would break `fastlane --help` on a machine with none of this set.
+
+# Primary app identifier. Matches BUNDLE_ID_APP in fastlane/Fastfile — see that file's own comment
+# block for why this is "com.zano.app.ZANO" rather than the bare "com.zano.app" that
+# docs/setup/apple-developer.md describes registering: that's an open, flagged discrepancy between
+# project.yml's actual (default, unoverridden) XcodeGen bundle-id derivation and the docs, not
+# something this file can resolve on its own. Override locally with ZANO_APP_IDENTIFIER while that
+# gets sorted out, so this file doesn't need editing when it is.
+app_identifier(ENV.fetch("ZANO_APP_IDENTIFIER", "com.zano.app.ZANO"))
+
+# Apple ID used for App Store Connect / Developer Portal actions that still need a *user* identity
+# rather than (or in addition to) the App Store Connect API key set up in fastlane/Fastfile
+# (`app_store_connect_api_key`) — e.g. `match` falls back to Apple ID + team auth if no API key is
+# in the lane context yet when it needs to hit the Developer Portal. Every lane in fastlane/Fastfile
+# sets up the API key *before* calling match precisely so this should rarely be needed in CI; it's
+# here mainly for a developer running `fastlane match` by hand the first time.
+apple_id(ENV["APPLE_ID"]) if ENV["APPLE_ID"] && !ENV["APPLE_ID"].to_s.empty?
+
+# Developer Portal team — required by `match`/`sigh`/`update_code_signing_settings` regardless of
+# API-key vs Apple-ID auth. Unknown until enrollment (docs/setup/apple-developer.md) produces a real
+# Team ID; nothing defaults it because a wrong guess here would silently sign against the wrong team.
+team_id(ENV["APPLE_TEAM_ID"]) if ENV["APPLE_TEAM_ID"] && !ENV["APPLE_TEAM_ID"].to_s.empty?
+
+# App Store Connect team — only matters if the Apple ID belongs to more than one App Store Connect
+# team; harmless to set even when there's just one.
+itc_team_id(ENV["APPLE_ITC_TEAM_ID"]) if ENV["APPLE_ITC_TEAM_ID"] && !ENV["APPLE_ITC_TEAM_ID"].to_s.empty?

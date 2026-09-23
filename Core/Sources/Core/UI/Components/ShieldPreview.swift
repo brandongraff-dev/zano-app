@@ -55,6 +55,15 @@ public struct ShieldPreview: View {
     private let emergencyActionTitle: String
     private let emergencyAction: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Drives a single-beat hero reveal on first appearance — this is the onboarding plan-reveal
+    /// screen, the highest-emotion moment in the P2 mockup (spec §16), so it's worth a restrained,
+    /// one-shot "materialize" rather than the fully-static render every other admin surface in
+    /// this safe set correctly uses (docs/design/animation-opportunities.md row 8). Deliberately
+    /// *not* a looping/repeating animation — HIG's "avoid slow looping oscillations" guidance
+    /// applies here exactly as it does to `AlarmRingingView`'s pulse; this fires once and stops.
+    @State private var hasAppeared = false
+
     /// - Parameters:
     ///   - glyph: Stand-in icon for the shielded app.
     ///   - headline: Caller-composed headline.
@@ -110,6 +119,9 @@ public struct ShieldPreview: View {
                 }
             }
             .padding(.horizontal, Theme.Spacing.xl)
+            .opacity(hasAppeared ? 1 : 0)
+            .offset(y: reduceMotion || hasAppeared ? 0 : 8)
+            .animation(reduceMotion ? reducedMotionReveal : .easeOut(duration: 0.3).delay(0.25), value: hasAppeared)
 
             Spacer(minLength: Theme.Spacing.xl)
 
@@ -123,6 +135,13 @@ public struct ShieldPreview: View {
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
                         .underline()
+                        // The visual (intentionally small/low-emphasis text) stays exactly as
+                        // designed; only the tappable area grows to HIG's 44×44pt minimum —
+                        // this is the one button the "never trap the user" safety rule (file
+                        // header) most depends on being easy to hit. See
+                        // `docs/design/ui-stress-test-findings.md` §3.9.
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -131,7 +150,14 @@ public struct ShieldPreview: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.Colors.background)
+        .onAppear { hasAppeared = true }
     }
+
+    /// Under Reduce Motion, every element below fades on the *same* short curve with no delay —
+    /// one uniform 150ms cross-fade for the whole card, not a staggered sequence with scale/rise
+    /// (docs/design/apple-design-review.md §6.6 / animation-opportunities row 8's reduced-motion
+    /// note).
+    private var reducedMotionReveal: Animation { .easeInOut(duration: 0.15) }
 
     private var iconBadge: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -143,6 +169,9 @@ public struct ShieldPreview: View {
                         .font(.system(size: 36, weight: .medium))
                         .foregroundStyle(Theme.Colors.muted)
                 )
+                .scaleEffect(reduceMotion || hasAppeared ? 1 : 0.8)
+                .opacity(hasAppeared ? 1 : 0)
+                .animation(reduceMotion ? reducedMotionReveal : .spring(response: 0.45, dampingFraction: 0.7), value: hasAppeared)
 
             Circle()
                 .fill(Theme.Colors.danger)
@@ -153,6 +182,15 @@ public struct ShieldPreview: View {
                         .foregroundStyle(Theme.Colors.text)
                 )
                 .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))
+                // The lock "lands" on the badge a beat after it — delayed by 150ms under normal
+                // motion; under Reduce Motion this collapses to the same un-delayed cross-fade as
+                // everything else, not a staggered arrival.
+                .scaleEffect(reduceMotion || hasAppeared ? 1 : 0.8)
+                .opacity(hasAppeared ? 1 : 0)
+                .animation(
+                    reduceMotion ? reducedMotionReveal : .spring(response: 0.45, dampingFraction: 0.7).delay(0.15),
+                    value: hasAppeared
+                )
         }
     }
 }

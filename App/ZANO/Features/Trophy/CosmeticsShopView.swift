@@ -300,14 +300,22 @@ private struct CosmeticItemCard: View {
 private struct CoinBalancePill: View {
     let balance: Int
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: Theme.Spacing.xxs) {
             Image(systemName: "seal.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.Colors.warning)
+            // See the identical comment on `TrophyCaseView.swift`'s copy of this same tiny view —
+            // docs/design/animation-opportunities.md row 12. Kept as a duplicated, file-scoped
+            // change (not factored into a shared helper) for the same reason the view itself is
+            // already duplicated rather than shared, per this file's own header comment.
             Text("\(balance)")
                 .font(Theme.Typography.numeralSmall())
                 .foregroundStyle(Theme.Colors.text)
+                .contentTransition(.numericText(value: Double(balance)))
+                .animation(reduceMotion ? .easeOut(duration: 0.15) : .easeOut(duration: 0.3), value: balance)
         }
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xxs)

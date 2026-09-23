@@ -39,6 +39,12 @@ struct Screen8CoachVoice: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "coach_voice", "screen_number": 8]
+            )
+        }
     }
 
     private func voiceRow(_ voice: CoachVoice) -> some View {

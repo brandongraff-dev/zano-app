@@ -110,6 +110,12 @@ struct Screen14FirstWin: View {
             Text(errorMessage ?? "")
         }
         .onDisappear { countdownTask?.cancel() }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "first_win", "screen_number": 14]
+            )
+        }
     }
 
     @ViewBuilder

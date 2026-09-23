@@ -54,6 +54,17 @@ public struct GoalRing: View {
     private let color: Color
     private let size: Size
     private let center: GoalRingCenter
+    private let label: String?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Tracks whether the ring has ever reached 100%, purely to detect the *moment* it first
+    /// crosses that threshold (`.onChange` below) and play a one-shot completion pulse. This is
+    /// deliberately self-contained state, not a caller-supplied flag — `GoalRing` is a value-driven
+    /// view with no other notion of "before"/"after", but `@State` still persists across body
+    /// re-evaluations for the same view identity, so it can detect its own progress crossing 1.0
+    /// without the caller having to track history itself (docs/design/animation-opportunities.md
+    /// row 4b).
+    @State private var justCompleted = false
 
     /// - Parameters:
     ///   - progress: Completion fraction. Any value is accepted and clamped to `0...1` internally
@@ -63,16 +74,25 @@ public struct GoalRing: View {
     ///     generic Time Bank / earn-progress ring).
     ///   - size: Preset diameter/line-width. Defaults to `.medium`.
     ///   - center: What to render in the ring's center. Defaults to `.none`.
+    ///   - label: Optional caller-composed VoiceOver label naming what this ring represents (e.g.
+    ///     `"Workout"`, `"Protein"`). Defaults to `nil`, matching this component's previous
+    ///     behavior. Pass one for a ring shown standalone with no adjacent text describing it; a
+    ///     ring already followed by its own title/value text (e.g. inside `RingClusterCell`/
+    ///     `GoalRow`, both of which combine their own child text into one announcement) can leave
+    ///     this `nil` to avoid a doubled-up VoiceOver read. See
+    ///     `docs/design/ui-stress-test-findings.md` §2.2.
     public init(
         progress: Double,
         color: Color = Theme.Colors.accent,
         size: Size = .medium,
-        center: GoalRingCenter = .none
+        center: GoalRingCenter = .none,
+        label: String? = nil
     ) {
         self.progress = progress
         self.color = color
         self.size = size
         self.center = center
+        self.label = label
     }
 
     private var clampedProgress: Double {
@@ -91,13 +111,48 @@ public struct GoalRing: View {
                     style: StrokeStyle(lineWidth: size.lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(Theme.Motion.ringFill, value: clampedProgress)
+                // The fill itself is information (a progress fraction), not decoration, so
+                // Reduce Motion shortens it rather than removing it entirely — a quick, plain
+                // ease still lands on the right value, just without the spec's full 600ms sweep
+                // (docs/design/apple-design-review.md §1 fix pattern).
+                .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: clampedProgress)
 
             centerContent
         }
+        // One-shot delight beat the moment this ring first reaches 100%, scaling the whole ring +
+        // center content together rather than just the stroke — purely visual (no haptic here:
+        // screens that already fire a completion haptic, e.g. Today's
+        // `.sensoryFeedback(.impact...)`, would otherwise double up; this stays a silent companion
+        // for every other place GoalRing renders standalone). Dropped entirely under Reduce
+        // Motion rather than swapped for a static variant: the ring is already visibly full, so no
+        // information is lost by skipping the pulse (docs/design/animation-opportunities.md row 4b).
+        .scaleEffect(justCompleted && !reduceMotion ? 1.06 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.55), value: justCompleted)
         .frame(width: size.diameter, height: size.diameter)
         .accessibilityElement(children: .ignore)
-        .accessibilityValue(Text("\(Int((clampedProgress * 100).rounded()))%"))
+        .accessibilityLabel(label ?? "")
+        .accessibilityValue(Text(accessibilityValueText))
+        .onChange(of: clampedProgress) { oldValue, newValue in
+            guard !reduceMotion, oldValue < 1, newValue >= 1 else { return }
+            justCompleted = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                justCompleted = false
+            }
+        }
+    }
+
+    /// VoiceOver's spoken value for this ring. Prefers the caller's own composed center text (e.g.
+    /// `"72/150g"`) when there is one — that's strictly more informative than a bare percentage and
+    /// is otherwise invisible to VoiceOver (this view's `.accessibilityElement(children: .ignore)`
+    /// above removes `centerContent`'s own `Text` from the tree) — falling back to the percentage
+    /// for an icon/empty center, which has no such text to borrow. See
+    /// `docs/design/ui-stress-test-findings.md` §2.2.
+    private var accessibilityValueText: String {
+        if case .text(let text) = center {
+            return text
+        }
+        return "\(Int((clampedProgress * 100).rounded()))%"
     }
 
     @ViewBuilder

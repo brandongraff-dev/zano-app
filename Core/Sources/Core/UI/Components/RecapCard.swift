@@ -38,6 +38,13 @@ public struct RecapCard: View {
     /// `StreakPill` without needing a caller-composed string.
     private let streak: Int?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Drives the insight box's reveal-after-rings beat below. Weekly-frequency surface (spec
+    /// §9.6's Sunday recap), so a one-shot sequenced reveal is exactly the tier
+    /// `find-animation-opportunities`' Gate calls delight-eligible — not something a tens-of-
+    /// times/day screen should do (docs/design/animation-opportunities.md row 9).
+    @State private var hasAppeared = false
+
     public init(
         weekLabel: String,
         rankLabel: String? = nil,
@@ -63,7 +70,10 @@ public struct RecapCard: View {
             header
 
             if !ringItems.isEmpty {
-                RingCluster(items: ringItems, ringSize: .small, layout: .row)
+                // Occasional-frequency context (weekly), exactly where the Gate says the
+                // stagger `RingCluster` otherwise defaults off is earned
+                // (docs/design/animation-opportunities.md row 9).
+                RingCluster(items: ringItems, ringSize: .small, layout: .row, staggerAppearance: true)
             }
 
             if completionLabel != nil || timeReclaimedLabel != nil || bestDayLabel != nil {
@@ -71,6 +81,10 @@ public struct RecapCard: View {
             }
 
             if let insightText {
+                // The coach's insight — the actual payoff of the whole weekly recap — fades/rises
+                // in just after the rings settle rather than appearing simultaneously with them.
+                // Reduced motion skips the delay chain entirely: show everything at once, no
+                // stagger.
                 Text(insightText)
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.text)
@@ -78,10 +92,14 @@ public struct RecapCard: View {
                     .padding(Theme.Spacing.sm)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                    .opacity(reduceMotion || hasAppeared ? 1 : 0)
+                    .offset(y: reduceMotion || hasAppeared ? 0 : 6)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.25).delay(0.3), value: hasAppeared)
             }
         }
         .padding(Theme.Spacing.md)
         .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .onAppear { hasAppeared = true }
     }
 
     private var header: some View {

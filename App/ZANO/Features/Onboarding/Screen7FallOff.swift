@@ -35,6 +35,12 @@ struct Screen7FallOff: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "fall_off", "screen_number": 7]
+            )
+        }
     }
 
     private func optionRow(_ pattern: FallOffPattern) -> some View {

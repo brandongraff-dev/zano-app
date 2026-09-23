@@ -100,17 +100,32 @@ struct LockSetupView: View {
     @State private var editorTarget: EditorTarget?
     @State private var pendingDeletion: LockSet?
     @State private var errorAlert: LockSetupErrorAlert?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         List {
             if lockSets.isEmpty {
                 emptyState
+                    .transition(.opacity)
             } else {
                 ForEach(lockSets) { lockSet in
                     lockSetRow(lockSet)
+                        .transition(rowTransition)
                 }
             }
         }
+        // Explicit row insertion/removal choreography, distinct from `List`'s own default row
+        // animation: a new lock set (created via the "+" sheet) or a deleted one (swipe-to-delete)
+        // now settles/dismisses with this design system's own spring rather than the system
+        // default slide, and — unlike the system default — this is explicitly gated for Reduce
+        // Motion below. Keyed on the ordered id list (not just `.count`) so a rename that moves a
+        // row to a new position in this screen's name-sorted `@Query` also animates as a genuine
+        // reorder, not a silent jump. See `docs/design/animation-opportunities.md` Part 0 for the
+        // reduced-motion fallback pattern this follows everywhere in this wave.
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.18) : Theme.Motion.springStandard,
+            value: lockSets.map(\.id)
+        )
         .navigationTitle(Copy.lockSetup.screenTitle)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -157,6 +172,29 @@ struct LockSetupView: View {
         } message: { alert in
             Text(alert.message)
         }
+        // `Theme.swift`'s own header: this is a fixed, dark-only design system, not
+        // light/dark-adaptive — screens force `.preferredColorScheme(.dark)` themselves (the
+        // pattern `TodayView`/`LockStatusView`/every other real screen already follows). Without
+        // this, a Light/Automatic system appearance leaves this screen's own dark surfaces intact
+        // but every native `.confirmationDialog`/`.alert` above (both heavily used here) and the
+        // status bar/nav chrome follow the *system* appearance instead. See
+        // `docs/design/ui-stress-test-findings.md` §2.1.
+        .preferredColorScheme(.dark)
+    }
+
+    /// A newly-created row settles in (fade + gentle scale-up from 0.96, matching the "arriving"
+    /// feel `ShieldPreview`'s hero reveal uses elsewhere in this wave) and a deleted row simply
+    /// fades rather than sliding — sliding is already `List`'s own default for the swipe-to-delete
+    /// path, so this only needs to cover the fade half to avoid two competing motions stacking on
+    /// the same row. Reduce Motion: plain opacity both ways, no scale — see Part 0 of
+    /// `docs/design/animation-opportunities.md`.
+    private var rowTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .asymmetric(
+                insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .center)),
+                removal: .opacity
+            )
     }
 
     private var emptyState: some View {
@@ -292,6 +330,11 @@ private struct LockSetupErrorAlert: Identifiable {
 /// existing row. Everything here talks to `LockSetManager` (assumed API, see file header) — never
 /// to `ModelContext` directly.
 private struct LockSetEditorSheet: View {
+    /// See the name `TextField`'s own comment (§4.3) — an arbitrary but generous ceiling, well
+    /// past any real lock-set name, that keeps this field's length bounded for every downstream
+    /// consumer.
+    static let maxNameLength = 40
+
     let target: EditorTarget
 
     @Environment(\.dismiss) private var dismiss
@@ -322,6 +365,17 @@ private struct LockSetEditorSheet: View {
                 Section {
                     TextField(Copy.lockSetup.nameFieldPlaceholder, text: $name)
                         .textInputAutocapitalization(.words)
+                        // No consumer-side length cap existed anywhere in this flow — a
+                        // pathologically long name would still degrade gracefully downstream
+                        // (every real display site already applies its own `lineLimit`), but
+                        // nothing enforced a sane ceiling at the point of entry. Capped here so
+                        // every new consumer can trust the string is already bounded, rather than
+                        // each one independently re-guarding it. See
+                        // `docs/design/ui-stress-test-findings.md` §4.3.
+                        .onChange(of: name) { _, newValue in
+                            guard newValue.count > Self.maxNameLength else { return }
+                            name = String(newValue.prefix(Self.maxNameLength))
+                        }
                 } header: {
                     Text(Copy.lockSetup.nameFieldLabel)
                 }

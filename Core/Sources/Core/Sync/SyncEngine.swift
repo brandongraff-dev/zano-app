@@ -3,13 +3,23 @@
 // docs/spec.md §11 (Architecture — outbox pattern, "app pulls on launch and via silent push") and
 // §13 (Data Model).
 //
-// This is the skeleton described in this session's task: no real networking yet. SyncEngine does
-// the local half of sync — queue durably, drain through whatever `SyncBackend` is configured, and
-// give launch a `pullAndMerge()` hook — behind a `SyncBackend` protocol Session 7 (`feat/backend`,
-// docs/spec.md §11/§13) implements for real against Supabase.
+// SyncEngine does the local half of sync — queue durably, drain through whatever `SyncBackend` is
+// configured, and give launch a `pullAndMerge()` hook — entirely behind the `SyncBackend` protocol
+// below. It deliberately knows nothing about HTTP, Supabase, or auth: the real, networked
+// conformance is `SupabaseSyncBackend` (`Core/Sources/Core/Sync/SupabaseSyncBackend.swift`), wired
+// in via `configure(modelContainer:backend:)`/`setBackend(_:)` exactly as this file always
+// documented. See that file for the wire contract against `backend/supabase/functions/sync/
+// index.ts` and what's still unverified (no live Supabase project to test against yet).
+//
+// `SyncPullBackend` below is an additive, separate protocol — not a new requirement bolted onto
+// `SyncBackend` itself — specifically so `SyncBackend`'s existing shape (and every conformer that
+// only implements `push(_:)`, including `SyncTests.swift`'s `FakeSyncBackend`) stays untouched and
+// compiling exactly as before. Only a backend that actually supports pulling (today, just
+// `SupabaseSyncBackend`) conforms to it.
 
 import Foundation
 import SwiftData
+import os
 
 /// The network transport `SyncEngine` pushes queued `OutboxEvent`s through.
 ///
@@ -25,6 +35,51 @@ public protocol SyncBackend: Sendable {
     /// durably accepted by the backend (so `SyncEngine` marks all of them `synced`), or this
     /// throws and none are marked synced, so the same batch is retried on the next `flush()`.
     func push(_ events: [OutboxEvent]) async throws
+}
+
+/// A `SyncBackend` that can also pull server-side changes — additive to `SyncBackend` itself (see
+/// this file's header for why it's a separate protocol rather than a new requirement on
+/// `SyncBackend`). `pullAndMerge()` below only pulls when the currently-configured `backend`
+/// happens to also conform to this; a plain `SyncBackend` that only pushes (or none at all) makes
+/// `pullAndMerge()` a silent no-op, same as before this existed.
+public protocol SyncPullBackend: SyncBackend {
+    /// Fetches server-side changes strictly after `since` (`nil` means "everything" — a device
+    /// with no cursor yet). `SupabaseSyncBackend` serves this from the same Edge Function endpoint
+    /// `push(_:)` posts to (docs: `backend/supabase/functions/sync/index.ts` answers both push and
+    /// pull from one POST), called with an empty `events` array so this is a pull-only round trip.
+    func pull(since: Date?) async throws -> SyncPullResult
+}
+
+/// One server-side "what changed since I last checked" result. Deliberately as generic as
+/// `OutboxEvent` itself: `changes` holds each changed row's own JSON object, still-encoded as
+/// `Data`, keyed by entity name — never decoded into `Goal`/`LockSession`/etc. here, so `Sync`
+/// never needs to import every other module's model types (the same reasoning `OutboxEvent.swift`
+/// documents for its own `payload: Data`). A future per-entity consumer (out of this file's scope —
+/// docs/sessions/07-backend.md flags the pull/merge *policy* as its own open decision) decodes each
+/// row with its own `Codable` shape, e.g. via `OutboxEvent.makeJSONDecoder()`.
+public struct SyncPullResult: Sendable, Equatable {
+    /// Echoes the server's response `syncedAt` — pass this back as `since` on the next pull. Also
+    /// what `SyncEngine` persists as its own cursor after a successful `pullAndMerge()`.
+    public let syncedAt: Date
+    /// `changes["goal"]` (etc.) — one `Data` per changed row, each independently JSON-decodable.
+    /// An entity name with no changes since `since` is simply absent, never an empty array.
+    public let changes: [String: [Data]]
+    /// Entity names where the server had more rows than it returned in this call (its own
+    /// per-entity page cap — see `MAX_ROWS_PER_ENTITY_PULL` in the Edge Function). A consumer that
+    /// needs completeness should treat this like "there's more — pull again," not "this is stale."
+    public let truncated: Set<String>
+
+    public init(syncedAt: Date, changes: [String: [Data]], truncated: Set<String>) {
+        self.syncedAt = syncedAt
+        self.changes = changes
+        self.truncated = truncated
+    }
+
+    /// What a backend without real pull support effectively returns — `pullAndMerge()` never
+    /// constructs this itself (a `SyncBackend` that isn't also `SyncPullBackend` is skipped
+    /// entirely, see above), but it's a convenient, honest "nothing happened" value for tests/
+    /// previews and for a `SyncPullBackend` conformer that has nothing new to report.
+    public static let empty = SyncPullResult(syncedAt: .distantPast, changes: [:], truncated: [])
 }
 
 /// Errors `SyncEngine` throws itself, as opposed to errors bubbled up from a `SyncBackend`.
@@ -64,10 +119,46 @@ public actor SyncEngine {
     /// a long time doesn't try to push its entire backlog in a single request.
     private static let batchSize = 200
 
+    /// App Group `UserDefaults` key `pullAndMerge()` persists its cursor under. Deliberately its
+    /// own key rather than a new case on `Store/SharedDefaults.swift` (out of this file's scope,
+    /// and that enum's own doc comment scopes it to state a Shield/Widget extension mirrors for
+    /// instant rendering — a sync cursor is neither) — written straight to the same App Group
+    /// suite (`AppGroup.identifier`, `Store/ModelContainer+AppGroup.swift`) via a private
+    /// `UserDefaults` handle below, namespaced `sync.*` so it can never collide with
+    /// `SharedDefaults`'s own `shared.*` keys.
+    private static let lastPulledAtDefaultsKey = "sync.lastPulledAt"
+
     private var modelContainer: ModelContainer?
     private var context: ModelContext?
     private var backend: SyncBackend?
     private var isFlushing = false
+
+    /// This process's App Group `UserDefaults` handle, purely for persisting the pull cursor below
+    /// — separate from `context`/`modelContainer` since the cursor isn't a SwiftData row and needs
+    /// to survive even before `configure(modelContainer:)` has ever run. Falls back to `.standard`
+    /// when the App Group entitlement is missing (e.g. a unit-test host), matching
+    /// `SharedDefaults`'s own documented fallback — per-process only in that case, never actually
+    /// shared, but `pullAndMerge()` degrades to "always pulls everything since the beginning" in
+    /// that situation rather than crashing, which is the correct failure mode for something this
+    /// non-critical.
+    private let defaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard
+
+    /// In-memory cache of the last successful pull's cursor, so a `pullAndMerge()` later in the
+    /// same process doesn't need to round-trip through `UserDefaults` first. Seeded from
+    /// `UserDefaults` lazily, the first time `pullAndMerge()` actually runs (not in `init()`,
+    /// which — like every other engine in `Core`, see this file's own header — has to stay a
+    /// trivial no-argument singleton initializer).
+    private var lastPulledAt: Date?
+    /// `true` once `lastPulledAt` has been seeded from `UserDefaults` at least once this process,
+    /// distinguishing "no cursor yet" (`nil`, seeded) from "haven't checked `UserDefaults` yet".
+    private var hasLoadedPulledAtFromDefaults = false
+
+    /// The most recent successful `pullAndMerge()` result, for a caller (a future per-entity merge
+    /// consumer, or a debug screen) to inspect — see ``latestPullResult()``. `nil` until the first
+    /// successful pull this process.
+    private var pulledChanges: SyncPullResult?
+
+    private let pullLogger = Logger(subsystem: "com.zano.app.Core", category: "SyncEngine")
 
     private init() {}
 
@@ -183,18 +274,48 @@ public actor SyncEngine {
     /// Called once at app launch (docs/spec.md §11: "app pulls on launch and via silent push") to
     /// bring down anything another device changed while this one was offline.
     ///
-    /// TODO(Session 7, `feat/backend`, docs/spec.md §11 + §13): there is no pull transport yet —
-    /// this session's task defines `SyncBackend` with only `push(_:)`, and this method honors that
-    /// exactly rather than inventing a pull API Session 7 didn't ask for. Session 7 is the right
-    /// place to decide the pull/merge policy (docs/spec.md §13 has no `updated_at` column on most
-    /// tables yet, so "last write wins" needs a real timestamp source first) and to add a matching
-    /// `pull(since:)` requirement to `SyncBackend` — or a sibling protocol — at that point.
+    /// Pulls for real when the configured `backend` conforms to ``SyncPullBackend`` (today, that's
+    /// `SupabaseSyncBackend`); otherwise a silent no-op, exactly as before this existed. On
+    /// success, advances the persisted cursor (`lastPulledAt`) and stashes the result for
+    /// ``latestPullResult()`` — it does **not** write anything into `Goal`/`LockSession`/etc.'s own
+    /// SwiftData rows itself. Turning the raw per-entity JSON in ``SyncPullResult/changes`` into
+    /// actual local writes is a deliberately separate, still-open decision (docs/sessions/
+    /// 07-backend.md: "Session 7 is the right place to decide the pull/merge policy" — docs/
+    /// spec.md §13 has no `updated_at` column on most tables yet, so "last write wins" needs a
+    /// real timestamp source first) that belongs to whichever module owns each entity, not to
+    /// `Sync` itself (see `OutboxEvent.swift`'s header for why this module stays generic rather
+    /// than importing every model type).
     ///
-    /// Deliberately a silent no-op today, including when `configure` hasn't run: launch must never
-    /// fail or block because sync isn't wired up yet (docs/spec.md §11 — "unlock must be instant
-    /// and offline").
+    /// Deliberately never throws, including when `configure` hasn't run or the pull itself fails:
+    /// launch must never fail or block because sync isn't wired up yet, or the network hiccuped
+    /// (docs/spec.md §11 — "unlock must be instant and offline"). A failed pull just leaves
+    /// `lastPulledAt` wherever it was, so the same (or overlapping) window is requested again next
+    /// time this runs — never advances the cursor past data it didn't actually receive.
     public func pullAndMerge() async {
-        // No-op skeleton — see TODO above.
+        guard let backend, let pullBackend = backend as? SyncPullBackend else { return }
+
+        if !hasLoadedPulledAtFromDefaults {
+            lastPulledAt = defaults.object(forKey: Self.lastPulledAtDefaultsKey) as? Date
+            hasLoadedPulledAtFromDefaults = true
+        }
+
+        do {
+            let result = try await pullBackend.pull(since: lastPulledAt)
+            lastPulledAt = result.syncedAt
+            defaults.set(result.syncedAt, forKey: Self.lastPulledAtDefaultsKey)
+            pulledChanges = result
+        } catch {
+            pullLogger.error(
+                "pullAndMerge: pull(since:) failed, cursor left unadvanced: \(String(describing: error), privacy: .public)"
+            )
+        }
+    }
+
+    /// The most recent successful ``pullAndMerge()`` result this process, for a future per-entity
+    /// merge consumer (or a debug/diagnostics screen) to inspect. `nil` until the first successful
+    /// pull, or forever on a backend that isn't ``SyncPullBackend``.
+    public func latestPullResult() -> SyncPullResult? {
+        pulledChanges
     }
 
     // MARK: - Housekeeping

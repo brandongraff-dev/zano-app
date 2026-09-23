@@ -60,6 +60,12 @@ public struct EndFocusIntent: AppIntent {
 
         let verified = try await FocusSessionVerifier.shared.endSession(sessionID: id)
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_end_focus",
+            properties: ["session_id": sessionID, "verified": verified]
+        )
+
         return .result(
             dialog: verified
                 ? "Focus session verified. Nice work."

@@ -38,6 +38,8 @@ public struct PrimaryButton: View {
     @State private var commitTick = 0
     @State private var holdTask: Task<Void, Never>?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// - Parameters:
     ///   - title: Caller-composed button label (from `Copy`).
     ///   - systemImage: Optional leading SF Symbol name.
@@ -82,6 +84,11 @@ public struct PrimaryButton: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+        // Horizontal inset was missing entirely (optical-alignment finding,
+        // docs/design/apple-design-review.md §8.1): with only vertical padding, the title/icon
+        // sit flush against the button's rounded-rect edge — especially visible on the
+        // `.holdToCommit` variant, which also draws a stroke border right at that same edge.
+        .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)
     }
 
@@ -114,7 +121,7 @@ public struct PrimaryButton: View {
                     .onChanged { _ in beginHoldIfNeeded() }
                     .onEnded { _ in endHold() }
             )
-            .animation(Theme.Motion.springStandard, value: isHolding)
+            .animation(pressFeedbackAnimation(reduceMotion: reduceMotion), value: isHolding)
             .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: hapticTick)
             .sensoryFeedback(.success, trigger: commitTick)
             .accessibilityElement(children: .ignore)
@@ -145,15 +152,22 @@ public struct PrimaryButton: View {
     private func beginHoldIfNeeded() {
         guard isEnabled, !isHolding else { return }
         isHolding = true
-        holdProgress = 0
-
+        // Do NOT hard-reset `holdProgress` to 0 here. If a previous release's cancel-spring
+        // (`endHold()`) is still animating the fill back toward 0, forcing it to a literal 0 now
+        // makes the fill visibly pop/teleport before immediately climbing again — a hard,
+        // un-physical break in an otherwise continuous, redirectable gesture (Apple HIG: "a user
+        // must be able to grab a moving element mid-flight and reverse it without waiting for the
+        // animation to finish"). Resuming the ascending tick loop from wherever `holdProgress`
+        // currently reads fixes this; worst case (re-press right as the spring finishes) is
+        // indistinguishable from starting at 0 anyway (docs/design/apple-design-review.md §3.1).
         let totalMs = max(1, Int(Theme.Motion.holdToCommitDuration * 1000))
         let tickMs = 50
+        let startingMs = Int(holdProgress * Double(totalMs))
 
         holdTask?.cancel()
         holdTask = Task { @MainActor in
-            var elapsedMs = 0
-            var lastDecile = 0
+            var elapsedMs = startingMs
+            var lastDecile = Int(holdProgress * 10)
             while elapsedMs < totalMs {
                 try? await Task.sleep(for: .milliseconds(tickMs))
                 if Task.isCancelled { return }
@@ -169,8 +183,18 @@ public struct PrimaryButton: View {
             guard !Task.isCancelled else { return }
             commitTick += 1
             action()
+            // Give the 100% moment a brief settle instead of an instant vanish: without this,
+            // `holdProgress` snapped back to 0 with no `withAnimation` at all the instant the
+            // hold completed — a "teleporting state" bug on the app's single highest-stakes
+            // confirmation control (docs/design/animation-opportunities.md row 2). If `action()`
+            // doesn't immediately dismiss/navigate away, the user gets to actually see "full"
+            // before the fill clears.
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
             isHolding = false
-            holdProgress = 0
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.72)) {
+                holdProgress = 0
+            }
         }
     }
 
@@ -182,20 +206,38 @@ public struct PrimaryButton: View {
         holdTask?.cancel()
         holdTask = nil
         isHolding = false
-        withAnimation(Theme.Motion.springStandard) {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
             holdProgress = 0
         }
     }
 }
 
+/// A dedicated, faster spring for press/hold feedback — Apple HIG's press-feedback budget is
+/// 100–160ms, and `Theme.Motion.springStandard` (response 0.35) settles noticeably slower than
+/// that. `Theme.swift` isn't editable this run (a sibling task owns it — see this task's
+/// knownIssues), so this stays a local, file-scoped helper rather than a new `Theme.Motion`
+/// token; promote it to one (`Theme.Motion.pressFeedback`) the next time `Theme.swift` is
+/// touched, per docs/design/animation-opportunities.md row 3. `fileprivate` (not a `private`
+/// member of `PrimaryButton`) so `StandardPrimaryButtonStyle` below — a sibling type in the same
+/// file — can share it instead of duplicating the tuning.
+fileprivate func pressFeedbackAnimation(reduceMotion: Bool) -> Animation {
+    reduceMotion ? .easeOut(duration: 0.1) : .spring(response: 0.16, dampingFraction: 0.75)
+}
+
 /// `ButtonStyle` for `PrimaryButton.Style.standard`: solid accent fill with a subtle press scale.
 private struct StandardPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Theme.Colors.background)
             .background(Theme.Colors.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(Theme.Motion.springStandard, value: configuration.isPressed)
+            // Every button tap, app-wide — this is squarely the "tens of times/day" frequency
+            // tier, so the press curve itself must stay fast (see `pressFeedbackAnimation`
+            // above); reduced motion keeps the opacity/scale feedback (it's real information —
+            // "the interface heard you") but drops the spring's settle for a flat, quick ease.
+            .animation(pressFeedbackAnimation(reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }

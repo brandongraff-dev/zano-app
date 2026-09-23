@@ -1,9 +1,12 @@
 name: CI
 
 # Runs on GitHub's macOS runners — this is how the project gets built/tested at all until a Mac is
-# available locally (see docs/setup/windows-workflow.md). The TestFlight job is disabled until
-# Apple Developer + signing secrets exist (docs/setup/apple-developer.md) — don't enable it early,
-# it'll just fail on missing secrets.
+# available locally (see docs/setup/windows-workflow.md). The `testflight` job below is real
+# (fastlane/Fastfile's `beta` lane) but gated off by default via the `ZANO_TESTFLIGHT_ENABLED`
+# repository variable, since Apple Developer + signing secrets don't exist yet
+# (docs/setup/apple-developer.md, docs/PROGRESS.md) — flipping that one variable to "true" once
+# they do is the only change needed to turn it on; see the `testflight` job's own comment below for
+# exactly which secrets that requires first.
 
 on:
   push:
@@ -39,16 +42,41 @@ jobs:
         # project.yml header comment) until the first real Mac session fixes them. Remove the
         # `|| true` once Session 0 is confirmed green on a real Mac build — see docs/PROGRESS.md.
 
-  # testflight:
-  #   Deliberately left commented out. Uncomment once:
-  #     1. Apple Developer Program enrollment is complete (docs/setup/apple-developer.md)
-  #     2. Signing is set up (recommend fastlane match) and its secrets are in GitHub Actions
-  #        repo secrets: MATCH_GIT_URL, MATCH_PASSWORD, APP_STORE_CONNECT_API_KEY, etc.
-  #     3. Family Controls entitlement requests are approved for all 5 bundle IDs
-  #   runs-on: macos-15
-  #   needs: build-and-test
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - run: brew install xcodegen fastlane
-  #     - run: xcodegen generate
-  #     - run: fastlane beta   # define this lane once fastlane is set up
+  testflight:
+    # Gated off by default — this job now runs a real lane (fastlane/Fastfile's `beta`), but every
+    # step below short-circuits via the job-level `if:` unless the `ZANO_TESTFLIGHT_ENABLED`
+    # repository variable (Settings → Secrets and variables → Actions → Variables tab, NOT
+    # Secrets) is set to the exact string "true". A gated-off run shows this job as *skipped*, not
+    # failed, so pushes to `main` stay green with zero risk of failing over the still-missing
+    # secrets below. Flip the variable on only once ALL of the following are true:
+    #   1. Apple Developer Program enrollment is complete (docs/setup/apple-developer.md)
+    #   2. Family Controls entitlement requests are approved for all bundle IDs (main app + the 4
+    #      extensions that need it — see docs/setup/apple-developer.md)
+    #   3. fastlane match is set up (a private cert/profile git repo exists) and these repo
+    #      *secrets* (not variables) are all added: APP_STORE_CONNECT_API_KEY, APPLE_TEAM_ID,
+    #      MATCH_GIT_URL, MATCH_PASSWORD — see fastlane/Fastfile's header comment for the exact
+    #      shape each one needs (APP_STORE_CONNECT_API_KEY in particular is a base64-encoded JSON
+    #      blob, not the raw .p8 file).
+    # See docs/PROGRESS.md for current status on all of the above.
+    runs-on: macos-15
+    needs: build-and-test
+    if: vars.ZANO_TESTFLIGHT_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen + fastlane
+        run: brew install xcodegen fastlane
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build and upload to TestFlight
+        run: fastlane beta
+        # No Gemfile/Bundler pinning a fastlane version yet — this runs against whatever
+        # `brew install fastlane` resolves to at the time. Add a Gemfile + `bundle exec` here if
+        # fastlane version drift ever causes a CI break that doesn't reproduce locally.
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}

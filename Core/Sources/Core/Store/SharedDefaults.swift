@@ -49,6 +49,7 @@ public enum SharedDefaults {
         static let earnedMinutesRemainingToday = "shared.earnedMinutesRemainingToday"
         static let earnedMinutesMirrorDate = "shared.earnedMinutesMirrorDate"
         static let nextScheduledLockAt = "shared.nextScheduledLockAt"
+        static let shieldImpressionCount = "shared.shieldImpressionCount"
     }
 
     // MARK: - Streak (spec §5.6 Never Miss Twice, §5.9 Ranks, §8 Retention Rules)
@@ -149,6 +150,43 @@ public enum SharedDefaults {
     public static var nextScheduledLockAt: Date? {
         get { defaults.object(forKey: Keys.nextScheduledLockAt) as? Date }
         set { defaults.set(newValue, forKey: Keys.nextScheduledLockAt) }
+    }
+
+    // MARK: - Shield impressions (spec §23 "Instrument from day one": "every shield impression
+    // (count only, on device → aggregate)")
+
+    /// Raw on-device tally of how many times `ShieldConfigurationExtension` has rendered a shield
+    /// since the count was last flushed. Shield extensions do no networking (spec §11, §27), so
+    /// this is the only place a shield impression is recorded the instant it happens — the count
+    /// just accumulates here until some later app launch reports it. Prefer
+    /// ``incrementShieldImpressionCount()``/``flushShieldImpressionCount()`` over reading/writing
+    /// this directly; the getter/setter stay `public` for tests and diagnostics.
+    public static var shieldImpressionCount: Int {
+        get { defaults.integer(forKey: Keys.shieldImpressionCount) }
+        set { defaults.set(newValue, forKey: Keys.shieldImpressionCount) }
+    }
+
+    /// Adds one to ``shieldImpressionCount``. Call from
+    /// `ShieldConfigurationExtension.configuration(shielding:)` — the only intended writer of
+    /// this key — every time a shield is actually rendered. `UserDefaults` doesn't give us a true
+    /// atomic increment across processes, but the worst case from two shield renders racing here
+    /// is undercounting by one impression on an aggregate, on-device, count-only metric, which is
+    /// an acceptable trade for not adding cross-process locking inside a shield extension's tiny
+    /// time/memory budget (spec §27: "extensions must be tiny").
+    public static func incrementShieldImpressionCount() {
+        defaults.set(defaults.integer(forKey: Keys.shieldImpressionCount) + 1, forKey: Keys.shieldImpressionCount)
+    }
+
+    /// Atomically reads ``shieldImpressionCount`` and resets it to `0`, for the main app to report
+    /// as a single aggregate `Analytics.capture(event: "shield_impression")` call the next time it
+    /// opens (see `LockStatusView`). Returns `0` — and writes nothing — when there's nothing to
+    /// flush, so a caller can skip firing an empty event.
+    @discardableResult
+    public static func flushShieldImpressionCount() -> Int {
+        let count = defaults.integer(forKey: Keys.shieldImpressionCount)
+        guard count != 0 else { return 0 }
+        defaults.set(0, forKey: Keys.shieldImpressionCount)
+        return count
     }
 
     // MARK: - UUID storage helpers

@@ -62,6 +62,12 @@ public struct LogCustomGoalIntent: AppIntent {
         context.insert(event)
         try context.save()
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_log_custom_goal",
+            properties: ["goal_id": matchedGoal.id.uuidString]
+        )
+
         return .result(dialog: "\(matchedGoal.title) logged.")
     }
 }

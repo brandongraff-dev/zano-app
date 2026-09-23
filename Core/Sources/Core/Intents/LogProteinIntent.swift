@@ -79,6 +79,12 @@ public struct LogProteinIntent: AppIntent {
         context.insert(event)
         try context.save()
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_log_protein",
+            properties: ["grams": grams, "source": source.rawValue, "counted": !isDuplicateTap]
+        )
+
         if isDuplicateTap {
             // Transparent, not accusatory — spec §9.8 Anti-Cheat Signals: "Never accuse — just
             // don't count, and show 'not counted: too quick' transparently."

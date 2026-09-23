@@ -77,6 +77,12 @@ struct Screen12PermissionPriming: View {
             .padding(.horizontal, Theme.Spacing.lg)
             .padding(.bottom, Theme.Spacing.lg)
         }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "permission_priming", "screen_number": 12]
+            )
+        }
     }
 
     /// Advances the flow regardless of the system prompt's outcome (granted, denied, or already

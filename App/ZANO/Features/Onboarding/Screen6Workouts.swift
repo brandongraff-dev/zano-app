@@ -42,6 +42,12 @@ struct Screen6Workouts: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "workouts", "screen_number": 6]
+            )
+        }
     }
 
     private func stepperRow(label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {

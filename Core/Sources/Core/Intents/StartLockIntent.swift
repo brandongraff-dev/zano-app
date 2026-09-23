@@ -129,6 +129,16 @@ public struct StartLockIntent: AppIntent {
             trigger: .manual
         )
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_start_lock",
+            properties: [
+                "mode": mode.rawValue,
+                "lock_set_id": resolvedLockSetID.uuidString,
+                "required_goal_count": resolvedGoalIDs.count,
+            ]
+        )
+
         let goalWord = resolvedGoalIDs.count == 1 ? "goal" : "goals"
         return .result(dialog: "Locked in. \(resolvedGoalIDs.count) \(goalWord) to go.")
     }

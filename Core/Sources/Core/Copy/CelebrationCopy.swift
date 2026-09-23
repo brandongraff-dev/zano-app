@@ -1,0 +1,82 @@
+// CelebrationCopy.swift
+// Core / Copy
+//
+// `Copy.celebration` — every user-facing string for the unlock-celebration moment
+// (`Core/Sources/Core/UI/Components/CelebrationBurst.swift`,
+// `App/ZANO/Features/Celebration/UnlockCelebrationView.swift`), per docs/spec.md §16's P3 mockup
+// ("burst of acid-green particles, headline 'Earned.', subline 'Workout verified · 42 min at the
+// gym', a Time Bank bar filling to '2h 10m unlocked', small badge 'Comeback' appearing") and §8
+// rule 4 (variable reward: "1 in ~6 unlocks triggers a surprise (badge, coin bonus, milestone
+// animation, coach voice line)... Keep it tasteful").
+//
+// New area, added here rather than left as an "ASSUMED API" note in `UnlockCelebrationView.swift`
+// for a future session to build (the pattern e.g. `FuelView.swift`/`LockSetupView.swift` use when
+// a Copy area belongs to a session that doesn't own `Core/Sources/Core/Copy` itself): this
+// directory was grepped before adding this file and nothing else on disk references
+// `Copy.celebration.*`, so there is no other agent's assumption to collide with — and this task's
+// own brief names the exact shape to use: the `Copy.<area>` umbrella pattern (`extension Copy {
+// public enum <area> { ... } }`, see `Copy.swift`'s header and `Copy.onboarding`/`Copy.badges`/
+// `Copy.trophyCase`/`Copy.cosmetics`, all same directory), never a flat standalone top-level enum
+// (the shape `ShieldCopy.swift`/`WidgetCopy.swift` use instead) — the exact kind of mismatch a
+// previous batch shipped as a real build break.
+
+import Foundation
+
+extension Copy {
+    public enum celebration {
+
+        /// Spec §16 P3 verbatim: "headline 'Earned.'". `Copy.onboarding.firstWinCelebrationTitle`
+        /// (`OnboardingCopy.swift`, same directory) is the same word for onboarding's own
+        /// first-win screen — a different subline shape (a streak line, not a goal-verification
+        /// line) for a different screen. Kept as its own constant here rather than shared, the same
+        /// way `Copy.trophyCase`/`Copy.badges` (same directory) each independently own small pieces
+        /// of overlapping wording instead of reaching into each other's area.
+        public static let headline = "Earned."
+
+        /// Spec §16 P3 verbatim shape: "subline 'Workout verified · 42 min at the gym'". Both
+        /// arguments are already caller-resolved strings — this never takes a `GoalType` itself
+        /// (see `UnlockCelebrationView.goalName`'s own doc comment for why: resolving a type to a
+        /// display name is each screen's own job, not this view's).
+        ///
+        /// - Parameters:
+        ///   - goalName: e.g. `"Workout"`.
+        ///   - detail: e.g. `"42 min at the gym"`. `nil` or empty collapses to just `"<goalName>
+        ///     verified"` — not every goal type has a detail worth showing (e.g. a plain Tier-C
+        ///     "cold shower" tap).
+        public static func subline(goalName: String, detail: String?) -> String {
+            guard let detail, !detail.isEmpty else { return "\(goalName) verified" }
+            return "\(goalName) verified · \(detail)"
+        }
+
+        /// Spec §16 P3 verbatim shape: "a Time Bank bar filling to '2h 10m unlocked'" — the same
+        /// wording `WidgetCopy.minutesRemaining(_:)` (`Core/Sources/Core/Copy/WidgetCopy.swift`)
+        /// produces. Reimplemented here rather than calling that function: `WidgetCopy`'s own file
+        /// header scopes it specifically to `Extensions/ZANOWidgets` (widget/Live-Activity
+        /// surfaces), and this is a different, in-app feature area that happens to want the exact
+        /// same sentence shape — not a shared dependency on that file.
+        public static func timeBankUnlockedLabel(minutes: Int) -> String {
+            guard minutes > 0 else { return "0 min unlocked" }
+            let hours = minutes / 60
+            let mins = minutes % 60
+            if hours > 0 && mins > 0 { return "\(hours)h \(mins)m unlocked" }
+            if hours > 0 { return "\(hours)h unlocked" }
+            return "\(mins) min unlocked"
+        }
+
+        /// VoiceOver label for the optional badge reveal (spec §16 P3: "small badge 'Comeback'
+        /// appearing"; §8 rule 4's variable reward). `title` is already caller-resolved display
+        /// copy — the canonical `Badge.key` → title resolver is `Copy.badges.title(forKey:)`
+        /// (`TrophyCosmeticsCopy.swift`, same directory); this file doesn't call that itself, and
+        /// neither does `UnlockCelebrationView` (see that type's `UnlockCelebrationBadge` doc
+        /// comment) — badge resolution is the presenting screen's job.
+        public static func badgeRevealAccessibilityLabel(title: String) -> String {
+            "Bonus badge earned: \(title)"
+        }
+
+        /// Dismiss control for the celebration once it's played. Deliberately not `Copy.common.
+        /// continueButtonLabel` (`CommonCopy.swift`, same directory): this screen is closing a
+        /// moment, not advancing an onboarding step, and "Nice" reads right for that in a way the
+        /// generic "Continue" doesn't — a copy choice, flagged in this task's `decisions`.
+        public static let dismissButtonLabel = "Nice"
+    }
+}

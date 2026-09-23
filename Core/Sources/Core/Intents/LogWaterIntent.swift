@@ -68,6 +68,12 @@ public struct LogWaterIntent: AppIntent {
         context.insert(event)
         try context.save()
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_log_water",
+            properties: ["milliliters": milliliters, "source": source.rawValue, "counted": !isRateLimited]
+        )
+
         if isRateLimited {
             // Transparent, not accusatory — spec §9.8: "Never accuse — just don't count, and show
             // 'not counted: too quick' transparently."

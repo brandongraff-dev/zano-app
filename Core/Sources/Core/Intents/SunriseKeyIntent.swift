@@ -68,6 +68,12 @@ public struct SunriseKeyIntent: AppIntent {
         context.insert(event)
         try context.save()
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_sunrise_key",
+            properties: ["tag_id": tagId]
+        )
+
         // Arms the day's lock automatically (spec §5.10, step 4). Best-effort: if a lock is
         // already active, or applying one fails for any other reason, the alarm-off + morning
         // goal verification above must still stand — CLAUDE.md's "never trap the user" cuts both

@@ -194,9 +194,32 @@ public enum Theme {
         /// streak milestones, badge reveals) — still within `unlockCelebrationMaxDuration`.
         public static let springCelebration: Animation = .spring(response: 0.45, dampingFraction: 0.68)
 
+        /// For 1:1 gesture-tracked motion the user's finger is actively driving (a hold-to-commit
+        /// fill, a future drag-to-dismiss sheet) — critically damped, no overshoot, snappier settle
+        /// than `springStandard` since a released gesture should feel like it "catches" immediately
+        /// rather than continue conversing. Apple's own shipped value for directly-manipulated
+        /// repositioning (WWDC18 "Designing Fluid Interfaces"): damping 1.0, response 0.4. Distinct
+        /// from `springStandard` (0.82 damping, for passive state flips the user didn't directly
+        /// touch) and from `springCelebration` (0.68 damping, deliberate overshoot for celebratory
+        /// beats) — pick by *what caused the change*, not by feel alone.
+        public static let springGesture: Animation = .spring(response: 0.4, dampingFraction: 1.0)
+
         /// Duration of `PrimaryButton`'s `.holdToCommit` press-and-hold gesture, per this task's
         /// brief ("hold-to-commit variant: 2-second press + haptics").
         public static let holdToCommitDuration: TimeInterval = 2.0
+
+        /// Convenience for call sites gating a spring behind
+        /// `@Environment(\.accessibilityReduceMotion)` — covers the common case of animating a
+        /// state flip with `springStandard` when motion is allowed, and snapping instantly when it
+        /// isn't. `nil` (not a zero-duration animation) is deliberate: it fully disables implicit
+        /// animation for that value change rather than still running the animation machinery for no
+        /// visible benefit. Call sites that need a different base curve (`.ringFill`,
+        /// `.springCelebration`, `.springGesture`) write their own `reduceMotion ? nil : ...`
+        /// ternary directly instead of this helper — this only covers the `springStandard` majority
+        /// case so it doesn't collapse four different curves into one name.
+        public static func standard(reduceMotion: Bool) -> Animation? {
+            reduceMotion ? nil : springStandard
+        }
     }
 }
 

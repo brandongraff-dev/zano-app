@@ -82,6 +82,12 @@ public struct QuickRepeatMealIntent: AppIntent {
 
         try context.save()
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_quick_repeat_meal",
+            properties: ["meal_id": mealID.uuidString]
+        )
+
         let label = remembered.items.first?.name ?? "Meal"
         return .result(dialog: "Logged \(label) again.")
     }

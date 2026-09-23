@@ -53,6 +53,13 @@ struct Screen1Hook: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            // docs/spec.md §23 "Instrument from day one: every screen view..."
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "hook", "screen_number": 1]
+            )
+        }
     }
 }
 

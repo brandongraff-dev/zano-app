@@ -80,6 +80,12 @@ public struct EndLockIntent: AppIntent {
 
         try await LockEngineManager.shared.endLock(sessionID: session.id, unlockKind: reason.engineValue)
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_end_lock",
+            properties: ["reason": reason.rawValue, "session_id": session.id.uuidString]
+        )
+
         return .result(dialog: "Unlocked. Nice work.")
     }
 }

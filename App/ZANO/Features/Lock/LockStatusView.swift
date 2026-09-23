@@ -20,6 +20,11 @@
 //
 // Copy note: see TodayView.swift's header comment — same rationale applies here for why copy is a
 // private `Copy` enum in this file rather than a new Core/Sources/Core/Copy file.
+//
+// Analytics (gap-fill wave, spec §23): this screen logs its own screen view and flushes
+// `SharedDefaults.shieldImpressionCount` — the on-device-only tally `ShieldConfigurationExtension`
+// increments locally since shield extensions cannot do networking (spec §11, §27) — into a single
+// aggregate `Analytics` event the next time this screen opens. See the "Analytics" MARK below.
 
 import Foundation
 import SwiftUI
@@ -74,6 +79,41 @@ struct LockStatusView: View {
         .task(id: timeBankTaskKey) {
             timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
         }
+        .task {
+            logScreenView()
+            flushShieldImpressions()
+        }
+    }
+
+    // MARK: - Analytics (spec §23: "Instrument from day one: every screen view, every intent,
+    // every unlock kind, every shield impression").
+    //
+    // This screen is the natural place to flush ``SharedDefaults/shieldImpressionCount``: shield
+    // extensions cannot do networking (spec §11, §27) so `ShieldConfigurationExtension` only
+    // increments that on-device counter locally, and the main app reports the accumulated total
+    // via `Analytics` the next time it opens the Lock screen — count-only, no per-impression
+    // detail, per spec §23/§24.
+
+    /// Fires once per appearance of this screen, in a plain (non-`id`-keyed) `.task` so it isn't
+    /// re-triggered by `timeBankTaskKey` changing underneath it.
+    private func logScreenView() {
+        Analytics.shared.capture(
+            event: "lock_screen_viewed",
+            properties: [
+                "is_locked": activeSession != nil,
+                "mode": activeSession?.mode?.rawValue ?? "none",
+                "goals_remaining": remainingRequiredGoalCount
+            ]
+        )
+    }
+
+    /// Reads and resets ``SharedDefaults/shieldImpressionCount`` and reports the total as a
+    /// single aggregate event. No-op (and no event fired) when the count is already `0`, so
+    /// opening this screen with no shield impressions to report doesn't spam an empty event.
+    private func flushShieldImpressions() {
+        let count = SharedDefaults.flushShieldImpressionCount()
+        guard count > 0 else { return }
+        Analytics.shared.capture(event: "shield_impression", properties: ["count": count])
     }
 
     // MARK: - Lock status card
@@ -250,12 +290,18 @@ struct LockStatusView: View {
     private func performEmergencyUnlock() {
         guard let session = activeSession else { return }
         isEmergencyUnlocking = true
+        Analytics.shared.capture(event: "lock_emergency_unlock_started")
         Task {
             defer { isEmergencyUnlocking = false }
             do {
                 try await LockEngineManager.shared.emergencyUnlock(sessionID: session.id)
+                Analytics.shared.capture(event: "lock_emergency_unlock_succeeded")
             } catch {
                 actionError = error.localizedDescription
+                Analytics.shared.capture(
+                    event: "lock_emergency_unlock_failed",
+                    properties: ["reason": error.localizedDescription]
+                )
             }
         }
     }

@@ -102,6 +102,12 @@ struct Screen13Paywall: View {
             }
             .padding(Theme.Spacing.md)
         }
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "paywall", "screen_number": 13]
+            )
+        }
     }
 
     private var header: some View {

@@ -54,6 +54,12 @@ public struct EmergencyUnlockIntent: AppIntent {
 
         try await LockEngineManager.shared.emergencyUnlock(sessionID: session.id)
 
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent").
+        Analytics.shared.capture(
+            event: "intent_emergency_unlock",
+            properties: ["session_id": session.id.uuidString]
+        )
+
         return .result(dialog: "Unlocked early. That's okay — tomorrow's a new lock.")
     }
 }

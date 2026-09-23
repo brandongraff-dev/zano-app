@@ -69,7 +69,20 @@ struct TodayView: View {
     @State private var isPerformingPrimaryAction = false
     @State private var actionError: String?
     @State private var showLockDetail = false
-    @State private var showCelebration = false
+    /// Drives `UnlockCelebrationView`'s `.fullScreenCover` below (docs/spec.md §16 P3). Set only
+    /// for an *earned* unlock (`lastUnlockWasEarned`) by the `onChange(of: isLocked)` handler —
+    /// manual/emergency/schedule-end unlocks never get the celebration moment.
+    ///
+    /// Known gap (flagged, not built here): spec §8 rule 4's "1 in ~6 unlocks" variable-reward
+    /// surprise (`UnlockCelebrationBadge`) has no gating logic anywhere in the codebase yet, so
+    /// this always presents with `badge: nil`. Wiring the odds belongs to whichever session owns
+    /// that reward logic (not this screen's own presentation hook).
+    @State private var showUnlockCelebration = false
+    /// Today vs. "Ghost You" (docs/spec.md §5.4), loaded/refreshed by the `.task(id:
+    /// completedGoalCount)` below. `nil` until the first load completes, which keeps
+    /// `GhostProgressBanner` (a required-`comparison` view, no loading state of its own) off
+    /// screen for that one frame instead of handing it a fabricated empty comparison.
+    @State private var ghostComparison: GhostMode.GhostComparison?
 
     var body: some View {
         NavigationStack {
@@ -78,6 +91,9 @@ struct TodayView: View {
                     header
                     lockStatusCard
                     ringsSection
+                    if let ghostComparison {
+                        GhostProgressBanner(comparison: ghostComparison, title: Copy.ghostModeTitle)
+                    }
                     if let actionError {
                         Text(actionError)
                             .font(Theme.Typography.caption)
@@ -101,12 +117,16 @@ struct TodayView: View {
             .task(id: trackingGymID) {
                 await pollGymDwell()
             }
-            .overlay(alignment: .top) {
-                if showCelebration {
-                    celebrationBanner
-                        .padding(.top, Theme.Spacing.sm)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
+            .task(id: completedGoalCount) {
+                // Refetches whenever today's completed-goal count changes, which is the only
+                // input that can move `currentCompletedCount` for *today* (docs/spec.md §5.4);
+                // also covers the initial load since `.task(id:)` runs immediately for the
+                // current id.
+                ghostComparison = await GhostMode.shared.ghostComparison(for: .now)
+            }
+            .task {
+                // docs/spec.md §23: "every screen view... (count only, on device → aggregate)".
+                Analytics.shared.capture(event: "screen_viewed", properties: ["screen": "today"])
             }
         }
         .preferredColorScheme(.dark)
@@ -117,12 +137,26 @@ struct TodayView: View {
             newValue > oldValue
         }
         .onChange(of: isLocked) { oldValue, newValue in
-            guard oldValue == true, newValue == false, lastUnlockWasEarned else { return }
-            withAnimation(Theme.Motion.springCelebration) { showCelebration = true }
-            Task {
-                try? await Task.sleep(for: .milliseconds(Int(Theme.Motion.unlockCelebrationMaxDuration * 1000)))
-                withAnimation(Theme.Motion.springStandard) { showCelebration = false }
+            guard oldValue == true, newValue == false else { return }
+            // docs/spec.md §23: "every... unlock kind". Every lock-session end this screen
+            // observes, not only earned ones — manual/emergency/schedule-end unlocks are still an
+            // "unlock kind" worth counting even though only an earned one gets the celebration
+            // moment below.
+            if let kind = mostRecentlyEndedSession?.unlockKind {
+                Analytics.shared.capture(
+                    event: "unlock_completed",
+                    properties: ["kind": kind.rawValue, "screen": "today"]
+                )
             }
+            guard lastUnlockWasEarned else { return }
+            showUnlockCelebration = true
+        }
+        .fullScreenCover(isPresented: $showUnlockCelebration) {
+            UnlockCelebrationView(
+                goalName: unlockCelebrationGoalName,
+                timeBankRemainingMinutes: todaysTimeBank?.remainingMin ?? 0,
+                timeBankTotalMinutes: todaysTimeBank?.earnedMin ?? 0
+            )
         }
     }
 
@@ -149,7 +183,10 @@ struct TodayView: View {
             isLocked: isLocked,
             statusLine: Copy.lockStatusLine(isLocked: isLocked, goalsRemaining: remainingRequiredGoalCount),
             detailLine: lockDetailLine,
-            action: { showLockDetail = true }
+            action: {
+                Analytics.shared.capture(event: "today_lock_status_tapped")
+                showLockDetail = true
+            }
         )
     }
 
@@ -196,13 +233,19 @@ struct TodayView: View {
 
     // MARK: - Celebration
 
-    private var celebrationBanner: some View {
-        Text(Copy.celebrationText)
-            .font(Theme.Typography.numeralMedium())
-            .foregroundStyle(Theme.Colors.background)
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.vertical, Theme.Spacing.sm)
-            .background(Theme.Colors.accent, in: Capsule())
+    /// `UnlockCelebrationView.goalName` for the just-ended session (spec §16 P3): the single
+    /// required goal's own `Goal.title` when the lock only required one, otherwise a generic
+    /// fallback — this screen has no single "the goal that verified" when a lock required several
+    /// (e.g. workout + protein + focus all feeding the same unlock), and guessing which one to
+    /// name would misrepresent what actually happened.
+    private var unlockCelebrationGoalName: String {
+        guard let session = mostRecentlyEndedSession else { return Copy.unlockCelebrationFallbackGoalName }
+        let requiredIDs = Set(session.requiredGoalIDs)
+        let required = goals.filter { requiredIDs.contains($0.id) }
+        guard required.count == 1, let only = required.first else {
+            return Copy.unlockCelebrationFallbackGoalName
+        }
+        return only.title
     }
 
     // MARK: - Primary button (contextual — spec §16 P1: "a single primary button")
@@ -294,6 +337,10 @@ struct TodayView: View {
     private func performPrimaryAction() {
         switch primaryAction {
         case .beginLock(let lockSetID, let requiredGoalIDs):
+            Analytics.shared.capture(
+                event: "today_begin_lock_tapped",
+                properties: ["required_goal_count": requiredGoalIDs.count]
+            )
             isPerformingPrimaryAction = true
             Task {
                 defer { isPerformingPrimaryAction = false }
@@ -310,6 +357,10 @@ struct TodayView: View {
             }
 
         case .startFocus(let goalID, let minutes):
+            Analytics.shared.capture(
+                event: "today_start_focus_tapped",
+                properties: ["planned_minutes": minutes]
+            )
             isPerformingPrimaryAction = true
             Task {
                 defer { isPerformingPrimaryAction = false }
@@ -322,6 +373,7 @@ struct TodayView: View {
             }
 
         case .verifyAtGym(let gymID):
+            Analytics.shared.capture(event: "today_verify_at_gym_tapped")
             trackingGymID = gymID
             Task { await GymVerifier.shared.beginDwellTracking(gymID: gymID) }
 
@@ -449,7 +501,8 @@ struct TodayView: View {
         static func verifyingAtGymTitle(minutes: Int) -> String { "Verifying at the gym… (\(minutes) min so far)" }
         static let allDoneTitle = "All goals done — unlocking…"
         static let openFuelTitle = "Log the rest on Fuel"
-        static let celebrationText = "Earned."
+        static let ghostModeTitle = "Ghost Mode"
+        static let unlockCelebrationFallbackGoalName = "Today's goals"
     }
 }
 

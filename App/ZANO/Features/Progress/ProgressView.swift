@@ -68,6 +68,38 @@
 // Badge icon (SF Symbol) mapping is kept as small, file-scoped reference data — identifiers, not
 // copy, matching how `Core/Sources/Core/UI/Components/GoalRow.swift`'s `icon` parameter is a plain
 // string rather than routed through `Copy` (see that file's own doc comments).
+//
+// This task (orchestrator batch, 2026-09-22) confirmed two spec §5.15/§5.17 requirements and closed
+// one real gap:
+//
+// 1. "Time Reclaimed" was already computed from real `LockSession` durations, not a placeholder —
+//    `lifetimeReclaimedMinutes` below sums every *ended* session's `endedAt - startedAt` across the
+//    full on-device history (no `unlockKind` filter, so an emergency-unlocked session still counts:
+//    distracting apps were shielded for that whole span regardless of how the lock ended, which is
+//    the actual thing spec §5.15 wants reclaimed). A currently-active lock's elapsed-so-far time is
+//    intentionally *not* included — this is a `@Query`-driven counter that recomputes when a
+//    `LockSession` row changes (i.e., when a lock ends), not a live-ticking timer; making the active
+//    lock count would need a `Timer`/`.onReceive` tick to move the number while a lock is in
+//    progress, which is real added scope this task didn't touch. Flagged, not fixed.
+// 2. This screen had **no real navigation into the full Trophy Case screen**
+//    (`App/ZANO/Features/Trophy/TrophyCaseView.swift`, wave 3 — read in full, not owned, by this
+//    task) — `badgesSection` below only ever rendered its own small inline preview with no way to
+//    reach the richer dedicated screen. Fixed: the section header itself is now a `NavigationLink`
+//    to `TrophyCaseView()`, with a trailing chevron affordance copying `TrophyCaseView.headerCard`'s
+//    own NavigationLink-row convention (`HStack` + `chevron.right` in `Theme.Colors.muted`,
+//    `.buttonStyle(.plain)`) for visual consistency between the two screens. Deliberately no added
+//    "See All" copy: `Copy.progress.badgesSectionTitle` is already documented as rendering "Trophy
+//    Case", so a second copy of that exact string next to it would be redundant chrome, not a new
+//    assumed `Copy` key — keeps this task from adding to the `Copy.progress` gap another session
+//    still has to fill.
+//
+// Also added `Analytics.shared.capture(event: "progress_viewed")` on `.onAppear` (`.task` isn't
+// needed — this call is synchronous and fire-and-forget, matching every other `Analytics.shared.
+// capture` call site in this codebase), following the `"<screen>_viewed"` naming this codebase
+// already uses for screen-view events (`"paywall_viewed"` in
+// `Core/Sources/Core/Monetization/PaywallViewModel.swift`, `"gym_leaderboard_viewed"` in
+// `Core/Sources/Core/Social/GymLeaderboard.swift`) — per spec §23 / CLAUDE.md's "instrument from day
+// one," which `docs/spec.md` §23 itself says is wired screen-by-screen rather than all at once.
 
 import SwiftUI
 import SwiftData
@@ -101,6 +133,9 @@ struct ProgressView: View {
         .scrollContentBackground(.hidden)
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.progress.screenTitle)
+        .onAppear {
+            Analytics.shared.capture(event: "progress_viewed")
+        }
     }
 
     // MARK: - Time Reclaimed (spec §5.15)
@@ -177,11 +212,27 @@ struct ProgressView: View {
 
     // MARK: - Badges / Trophy Case (spec §5.17)
 
+    /// The section header doubles as a `NavigationLink` into the full, dedicated Trophy Case screen
+    /// (`TrophyCaseView`, `App/ZANO/Features/Trophy/TrophyCaseView.swift`) — this card's own grid
+    /// below only ever shows badges already earned, never the full spec §5.17 milestone set with
+    /// locked tiles, so a real way to reach that richer screen belongs here.
     private var badgesSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.progress.badgesSectionTitle)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
+            NavigationLink {
+                TrophyCaseView()
+            } label: {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Text(Copy.progress.badgesSectionTitle)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.Colors.muted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             if badges.isEmpty {
                 Text(Copy.progress.badgesEmptyMessage)

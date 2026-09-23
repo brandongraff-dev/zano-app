@@ -11,7 +11,26 @@
 // tiers, "restore purchases visible" is an App Review requirement per §24), §25.6 (In-app store
 // behavior — "Settings → Gear, contextual offers ... Sunrise Alarm setup prompting a tag pack,
 // reorder prompts..., earned-card shipping prompts at milestones"), §24 (Safety — privacy
-// visibility).
+// visibility), §5.10 (★ Bedtime Gate & Sunrise Alarm — this screen's entry points into both setup
+// screens), §5.17 (Trophy Case & Cosmetics — this screen's entry points into both), §20.2/§27
+// (Always-Allowed immunity gotcha — "add an onboarding check for Always Allowed"; this screen
+// surfaces it, not just onboarding), §23 (Instrument from day one — every screen view should flow
+// through `Analytics.shared.capture`).
+//
+// This batch's gap-filling pass (2026-09-22) added four navigation rows this screen never had —
+// Sunrise Alarm setup, Bedtime Gate setup, Trophy Case, Cosmetics Shop were each built in earlier
+// waves (`App/ZANO/Features/SunriseAlarm/{SunriseAlarmSetupView,BedtimeGateSetupView}.swift`,
+// `App/ZANO/Features/Trophy/{TrophyCaseView,CosmeticsShopView}.swift` — all read in full before
+// this edit) with literally nothing in the app linking to them; each of those files' own header
+// comments already flagged this exact gap (e.g. `SunriseAlarmSetupView.swift`: "this task
+// explicitly does not add that row — `SettingsView.swift` is owned by another, still-settling
+// session; see this task's `knownIssues`"). Also added: an `Always-Allowed` warning
+// (`Core/Sources/Core/LockEngine/AlwaysAllowedCheck.swift` /
+// `App/ZANO/Features/LockSetup/AlwaysAllowedWarningView.swift`, this same batch's Phase A, both
+// read in full before this edit) computed from every saved `LockSet`'s decoded app selection —
+// see `alwaysAllowedSection` below — and an `Analytics.shared.capture(event: "settings_viewed")`
+// call on `.onAppear`, mirroring `ProgressView.swift`'s exact `"<screen>_viewed"` precedent (read,
+// not edited, for that convention).
 //
 // Reads `User` / `Subscription` / `Gym` / `Streak` / `GoalEvent` / `LockSet` directly via `@Query`
 // — all Session 1's frozen models (`Core/Sources/Core/Models`, read in full before writing this
@@ -84,7 +103,20 @@
 //   Copy.settings.gearOfferEarnedCard(streakDays: Int) -> String
 //   Copy.settings.aboutSectionTitle / .versionLabel / .privacyPolicyButtonLabel: String
 //   Copy.settings.finishSetupFooter: String
+//   Copy.settings.dailyRhythmSectionTitle: String             // e.g. "Sleep & Mornings" — new,
+//                                                              // this task (§5.10 nav rows)
+//   Copy.settings.sunriseAlarmRowLabel: String                // e.g. "Sunrise Alarm"
+//   Copy.settings.bedtimeGateRowLabel: String                 // e.g. "Bedtime Gate"
+//   Copy.settings.rewardsSectionTitle: String                 // e.g. "Rewards" — new, this task
+//                                                              // (§5.17 nav rows)
+//   Copy.settings.trophyCaseRowLabel: String                  // e.g. "Trophy Case"
+//   Copy.settings.cosmeticsShopRowLabel: String                // e.g. "Cosmetics Shop"
 //   Copy.common.ok / .cancel / .save / .delete: String   // ok/cancel/save already assumed by LockSetupView
+//
+// The Always-Allowed warning below (see `alwaysAllowedSection`) needs no new `Copy.settings.*`
+// members of its own — it renders `AlwaysAllowedWarningView`, which is entirely driven by
+// `Copy.alwaysAllowed.*` (`Core/Sources/Core/Copy/AlwaysAllowedCopy.swift`, real and already on
+// disk — confirmed by reading it before this edit, not assumed).
 
 import SwiftUI
 import SwiftData
@@ -92,6 +124,11 @@ import SwiftData
 // `Core/Sources/Core/Verification/NFCReader.swift` documents for `@preconcurrency import CoreNFC` —
 // mirrored here for `GymOneShotLocationFetcher`'s `CLLocationManagerDelegate` conformance below.
 @preconcurrency import CoreLocation
+// Needed for `FamilyActivitySelection` (`LockSetManager.shared.selection(for:)`'s return type) in
+// `alwaysAllowedAssessment` below — same import `App/ZANO/Features/LockSetup/
+// AlwaysAllowedWarningView.swift` and `AppPickerView.swift` (this same app target) already carry
+// for the same reason.
+import FamilyControls
 import Core
 #if canImport(RevenueCat)
 import RevenueCat
@@ -102,11 +139,17 @@ struct SettingsView: View {
     @Query private var subscriptions: [Subscription]
     @Query(sort: \GoalEvent.ts, order: .reverse) private var recentEvents: [GoalEvent]
     @Query private var streaks: [Streak]
+    // Read only for `alwaysAllowedSection` below — same `LockSet` model/sort
+    // `MapTagSheet` (this file, further down) already queries for its lock-set picker.
+    @Query(sort: \LockSet.name) private var lockSets: [LockSet]
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
 
     @State private var errorAlert: SettingsErrorAlert?
+    // Seeded once from the persisted flag so a user who already acknowledged the warning in a
+    // past session doesn't see it again this session either — see `alwaysAllowedSection` below.
+    @State private var alwaysAllowedWarningDismissed = AlwaysAllowedCheck.hasAcknowledgedWarning
 
     private var currentUser: User? { users.first }
     private var subscription: Subscription? { subscriptions.first }
@@ -114,7 +157,10 @@ struct SettingsView: View {
     var body: some View {
         List {
             coachVoiceSection
+            alwaysAllowedSection
             verificationSetupSection
+            dailyRhythmSection
+            rewardsSection
             subscriptionSection
             gearSection
             aboutSection
@@ -123,6 +169,12 @@ struct SettingsView: View {
         .background(Theme.Colors.background)
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.settings.screenTitle)
+        .onAppear {
+            // Mirrors `ProgressView.swift`'s exact `"<screen>_viewed"` precedent (read, not
+            // edited, for the convention) — synchronous, fire-and-forget, so `.onAppear` over
+            // `.task` (no async work needed just to fire this).
+            Analytics.shared.capture(event: "settings_viewed")
+        }
         .alert(
             errorAlert?.title ?? "",
             isPresented: Binding(
@@ -201,6 +253,99 @@ struct SettingsView: View {
             if currentUser == nil {
                 Text(Copy.settings.finishSetupFooter)
             }
+        }
+    }
+
+    // MARK: - Always-Allowed warning (spec §20.2, §27)
+    //
+    // Computed from every saved `LockSet`'s decoded app selection — a real, on-device signal
+    // (not a guess) for whether this warning is actually relevant right now, using the exact
+    // public entry points `AlwaysAllowedCheck`/`LockSetManager` already expose for this
+    // (`AlwaysAllowedCheck.assessment(for:)`, `LockSetManager.shared.selection(for:)` — both read
+    // in full before this edit; this file never hand-decodes `LockSet.appTokensBlob` itself,
+    // matching that model's own header: "LockEngine owns encoding/decoding... this type is
+    // storage only"). This screen has no "Lock Setup" entry point of its own to sit directly next
+    // to (`LockSetupView.swift` has none wired in anywhere in this app either — a separate,
+    // already-flagged gap outside this task's file list) — this is the closest sensible spot: the
+    // section directly above already owns this screen's other lock-adjacent setup entries (Gym,
+    // NFC), and this warning is specifically about the apps a saved `LockSet` locks.
+    @ViewBuilder
+    private var alwaysAllowedSection: some View {
+        if shouldShowAlwaysAllowedWarning {
+            Section {
+                AlwaysAllowedWarningView(assessment: alwaysAllowedAssessment) {
+                    AlwaysAllowedCheck.recordAcknowledged()
+                    alwaysAllowedWarningDismissed = true
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+        }
+    }
+
+    /// Every saved `LockSet`'s app/category/web-domain token counts, summed — a user can have
+    /// several lock sets, and Always Allowed can plausibly affect any app across all of them, not
+    /// just whichever one happens to be currently armed.
+    private var alwaysAllowedAssessment: AlwaysAllowedCheck.Assessment {
+        let selections = lockSets.map { LockSetManager.shared.selection(for: $0) }
+        return AlwaysAllowedCheck.Assessment(
+            appCount: selections.reduce(0) { $0 + $1.applicationTokens.count },
+            categoryCount: selections.reduce(0) { $0 + $1.categoryTokens.count },
+            webDomainCount: selections.reduce(0) { $0 + $1.webDomainTokens.count }
+        )
+    }
+
+    private var shouldShowAlwaysAllowedWarning: Bool {
+        !alwaysAllowedWarningDismissed && alwaysAllowedAssessment.shouldWarn
+    }
+
+    // MARK: - Sunrise Alarm + Bedtime Gate entries (spec §5.10)
+    //
+    // Both screens were fully built in an earlier wave with no entry point anywhere in the app —
+    // see this file's header. Neither owns navigation chrome itself (both push cleanly onto this
+    // screen's existing `NavigationStack`, same convention `GymSetupDetailView`/
+    // `NFCTagSetupDetailView` below already use).
+    private var dailyRhythmSection: some View {
+        Section {
+            NavigationLink {
+                SunriseAlarmSetupView()
+            } label: {
+                Label(Copy.settings.sunriseAlarmRowLabel, systemImage: "sunrise.fill")
+            }
+
+            NavigationLink {
+                BedtimeGateSetupView()
+            } label: {
+                Label(Copy.settings.bedtimeGateRowLabel, systemImage: "moon.zzz.fill")
+            }
+        } header: {
+            Text(Copy.settings.dailyRhythmSectionTitle)
+        }
+    }
+
+    // MARK: - Trophy Case + Cosmetics Shop entries (spec §5.17)
+    //
+    // Same gap as Sunrise Alarm/Bedtime Gate above: both screens exist, fully built, with no entry
+    // point anywhere in the app until this edit (`TrophyCaseView.swift`'s own header already links
+    // onward to `CosmeticsShopView`, but nothing linked *into* either from outside the Trophy
+    // module itself). "paintpalette.fill" (not "bag.fill") for the Cosmetics Shop row so it can't
+    // be visually confused with `gearSection`'s physical gear-store row below, which also uses
+    // "bag.fill" for an entirely different (real-world merch) destination.
+    private var rewardsSection: some View {
+        Section {
+            NavigationLink {
+                TrophyCaseView()
+            } label: {
+                Label(Copy.settings.trophyCaseRowLabel, systemImage: "trophy.fill")
+            }
+
+            NavigationLink {
+                CosmeticsShopView()
+            } label: {
+                Label(Copy.settings.cosmeticsShopRowLabel, systemImage: "paintpalette.fill")
+            }
+        } header: {
+            Text(Copy.settings.rewardsSectionTitle)
         }
     }
 

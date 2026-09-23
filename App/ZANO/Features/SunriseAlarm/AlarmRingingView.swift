@@ -80,6 +80,15 @@ import Core
 @MainActor
 struct AlarmRingingView: View {
     @Environment(\.dismiss) private var dismiss
+    /// Gates the background tint pulse (and the pulse-linked spring this used to drive on the
+    /// header clock — see `header` below) per this task's hard rule and
+    /// `docs/design/animation-opportunities.md`'s Sunrise Alarm section, Part 1 refinement #1: a
+    /// full-screen, escalating, strobing background with zero reduced-motion path was the single
+    /// highest-stakes instance of that doc's Part 0 systemic gap in the whole safe set. The
+    /// escalating *haptic* cadence (`pulseHapticTick`, below) is unaffected by Reduce Motion and
+    /// deliberately keeps running unchanged — it should carry more of the urgency signal when
+    /// visuals are dialed back, not be silenced too.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The 3-minute Focus-dismiss timer's total duration (spec §5.10: "3-minute journal/stretch
     /// timer").
@@ -124,8 +133,11 @@ struct AlarmRingingView: View {
         ZStack {
             Theme.Colors.background.ignoresSafeArea()
 
+            // `reduceMotion` holds at 0.22 — the midpoint of the pulsing 0.10...0.32 range — same
+            // phase-tint color, same legibility, just held still instead of looping. See
+            // `runPulseLoop()` for the matching gate on the animation that drives `isPulsing`.
             phase.tint
-                .opacity(isPulsing ? 0.32 : 0.10)
+                .opacity(reduceMotion ? 0.22 : (isPulsing ? 0.32 : 0.10))
                 .ignoresSafeArea()
 
             ScrollView {
@@ -180,14 +192,22 @@ struct AlarmRingingView: View {
             Text(now, format: .dateTime.hour().minute())
                 .font(Theme.Typography.numeralLarge())
                 .foregroundStyle(Theme.Colors.text)
-                .scaleEffect(isPulsing ? 1.04 : 1.0)
 
             Text(Copy.alarmRinging.headline)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.muted)
                 .multilineTextAlignment(.center)
         }
-        .animation(Theme.Motion.springStandard, value: isPulsing)
+        // No `.scaleEffect`/`.animation` on `isPulsing` here anymore — see
+        // `docs/design/animation-opportunities.md` Sunrise Alarm Part 1, refinement #2. The clock
+        // used to wobble 1.0→1.04 on a `springStandard` spring (~0.4-0.5s settle) while the
+        // background tint above pulses on its own `.easeInOut(phase.pulseDuration)` (0.45-1.6s
+        // depending on phase) — two different curves keyed off the same `isPulsing` boolean that
+        // visibly fell out of phase at the `.critical` cadence (0.45s), reading as an incoherent
+        // "double pulse" instead of one coherent escalating beat. The clock is the one piece of
+        // information this screen must stay perfectly legible under stress (deciding whether
+        // there's time to snooze); color (`phase.tint` on the eyebrow) + the background pulse +
+        // the escalating haptics already carry the urgency signal without it.
     }
 
     private var eyebrowText: String {
@@ -430,7 +450,14 @@ struct AlarmRingingView: View {
     /// task's `knownIssues`.
     private func runPulseLoop() async {
         while !Task.isCancelled {
-            withAnimation(.easeInOut(duration: phase.pulseDuration)) {
+            // `nil`, not a zero-duration animation, under Reduce Motion — same idiom as
+            // `Theme.Motion.standard(reduceMotion:)`: fully disables implicit animation for this
+            // toggle rather than still running the animation machinery for no visible benefit.
+            // `isPulsing` itself still flips (the tint's `.opacity` reads `reduceMotion` directly
+            // and ignores this value anyway — see `body` — but other call sites, and a future
+            // reader of this state, shouldn't have to know that), and the haptic tick below is
+            // unconditional either way.
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: phase.pulseDuration)) {
                 isPulsing.toggle()
             }
             if phase != .waking {

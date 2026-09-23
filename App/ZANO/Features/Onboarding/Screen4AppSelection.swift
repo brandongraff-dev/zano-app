@@ -31,6 +31,10 @@ struct Screen4AppSelection: View {
 
     @State private var isPickerPresented = false
     @State private var authorizationAlert: Screen4AuthorizationAlert?
+    /// Tracks a same-session dismiss of `AlwaysAllowedWarningView` below, so tapping its close
+    /// button hides it immediately without waiting for `AlwaysAllowedCheck.hasAcknowledgedWarning`
+    /// (a `UserDefaults`-backed value, not `@Observable`) to be re-read on the next render.
+    @State private var alwaysAllowedWarningDismissed = false
 
     private var hasSelection: Bool {
         !flowState.selectedApps.applicationTokens.isEmpty
@@ -38,35 +42,63 @@ struct Screen4AppSelection: View {
             || !flowState.selectedApps.webDomainTokens.isEmpty
     }
 
+    /// docs/spec.md §20.2's `dsadriel-pocs/screen-time-app-blocker-ios` row: "add an onboarding
+    /// check for Always Allowed." This is that check's one call site — the moment the user is
+    /// actually picking apps to lock is the moment the gotcha (apps in Settings > Screen Time >
+    /// Always Allowed can never be shielded, no matter what ZANO configures) is most actionable.
+    /// See `AlwaysAllowedCheck.swift` (Core/Sources/Core/LockEngine) for exactly what this can and
+    /// can't detect.
+    private var alwaysAllowedAssessment: AlwaysAllowedCheck.Assessment {
+        AlwaysAllowedCheck.assessment(for: flowState.selectedApps)
+    }
+
+    private var shouldShowAlwaysAllowedWarning: Bool {
+        hasSelection
+            && !alwaysAllowedWarningDismissed
+            && !AlwaysAllowedCheck.hasAcknowledgedWarning
+            && alwaysAllowedAssessment.shouldWarn
+    }
+
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.q2Title, subtitle: Copy.onboarding.q2Subtitle) {
-            Button {
-                Task { await requestAuthorizationThenPresentPicker() }
-            } label: {
-                HStack {
-                    Image(systemName: "apps.iphone")
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text(hasSelection ? selectionSummary : Copy.onboarding.q2PickerButtonLabel)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.Colors.muted)
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Button {
+                    Task { await requestAuthorizationThenPresentPicker() }
+                } label: {
+                    HStack {
+                        Image(systemName: "apps.iphone")
+                            .foregroundStyle(Theme.Colors.accent)
+                        Text(hasSelection ? selectionSummary : Copy.onboarding.q2PickerButtonLabel)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                            .multilineTextAlignment(.leading)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.Colors.muted)
+                    }
+                    .padding(Theme.Spacing.md)
+                    .background(Theme.Colors.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+                            .strokeBorder(
+                                hasSelection ? Theme.Colors.accent : Theme.Colors.hairline,
+                                lineWidth: hasSelection ? 2 : 1
+                            )
+                    )
                 }
-                .padding(Theme.Spacing.md)
-                .background(Theme.Colors.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .strokeBorder(
-                            hasSelection ? Theme.Colors.accent : Theme.Colors.hairline,
-                            lineWidth: hasSelection ? 2 : 1
-                        )
-                )
+                .buttonStyle(.plain)
+
+                // spec §20.2 / §27: surface the Always Allowed gotcha right where the user is
+                // picking apps, not buried in a settings screen they may never visit.
+                if shouldShowAlwaysAllowedWarning {
+                    AlwaysAllowedWarningView(assessment: alwaysAllowedAssessment) {
+                        AlwaysAllowedCheck.recordAcknowledged()
+                        alwaysAllowedWarningDismissed = true
+                    }
+                }
             }
-            .buttonStyle(.plain)
         }
         .safeAreaInset(edge: .bottom) {
             PrimaryButton(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
@@ -89,6 +121,12 @@ struct Screen4AppSelection: View {
             Text(alert.message)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "app_selection", "screen_number": 4]
+            )
+        }
     }
 
     private var selectionSummary: String {

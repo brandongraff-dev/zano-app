@@ -28,6 +28,9 @@ public struct OpenTodayIntent: AppIntent {
     public init() {}
 
     public func perform() async throws -> some IntentResult {
-        .result()
+        // Instrumentation (spec §23: "Instrument from day one: ... every intent"). No
+        // `@Parameter`s on this intent, so no key-parameter properties to attach.
+        Analytics.shared.capture(event: "intent_open_today")
+        return .result()
     }
 }

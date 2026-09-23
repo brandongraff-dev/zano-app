@@ -60,42 +60,66 @@ public struct RingCluster: View {
     private let items: [RingClusterItem]
     private let ringSize: GoalRing.Size
     private let layout: Layout
+    /// Opt-in entrance stagger, default `false`. Deliberately off by default: the Frequency Gate
+    /// cuts two ways for this component — `RingCluster` renders tens of times/day on Today/Fuel
+    /// (a concurrent wave's screens, not touched here), where a stagger would be the wrong call,
+    /// but occasional/weekly callers in this file's own safe set (`RecapCard`) are exactly the
+    /// tier this skill's Gate says delight is earned. Keeping the default `false` means those
+    /// high-frequency screens are unaffected unless they explicitly opt in
+    /// (docs/design/animation-opportunities.md row 5).
+    private let staggerAppearance: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameters:
     ///   - items: The rings to display, in order.
     ///   - ringSize: Size preset applied to every ring in the cluster. Defaults to `.medium`.
     ///   - layout: `.row` or `.grid`. Defaults to `.row`.
+    ///   - staggerAppearance: When `true`, each cell fades/scales in with a small per-index
+    ///     delay on first appearance (capped at ~5 items / 200ms total). Defaults to `false` —
+    ///     see this property's doc comment above for why high-frequency callers should leave it
+    ///     off.
     public init(
         items: [RingClusterItem],
         ringSize: GoalRing.Size = .medium,
-        layout: Layout = .row
+        layout: Layout = .row,
+        staggerAppearance: Bool = false
     ) {
         self.items = items
         self.ringSize = ringSize
         self.layout = layout
+        self.staggerAppearance = staggerAppearance
     }
 
     public var body: some View {
-        switch layout {
-        case .row:
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: Theme.Spacing.lg) {
-                    ForEach(items) { item in
-                        RingClusterCell(item: item, size: ringSize)
+        Group {
+            switch layout {
+            case .row:
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: Theme.Spacing.lg) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            RingClusterCell(item: item, size: ringSize, staggerAppearance: staggerAppearance, index: index)
+                                .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+                        }
                     }
+                    .padding(.horizontal, Theme.Spacing.xxs)
                 }
-                .padding(.horizontal, Theme.Spacing.xxs)
-            }
-        case .grid:
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: ringSize.diameter + Theme.Spacing.xl), spacing: Theme.Spacing.lg)],
-                spacing: Theme.Spacing.lg
-            ) {
-                ForEach(items) { item in
-                    RingClusterCell(item: item, size: ringSize)
+            case .grid:
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: ringSize.diameter + Theme.Spacing.xl), spacing: Theme.Spacing.lg)],
+                    spacing: Theme.Spacing.lg
+                ) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        RingClusterCell(item: item, size: ringSize, staggerAppearance: staggerAppearance, index: index)
+                            .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+                    }
                 }
             }
         }
+        // If a caller mutates `items` in place (add/remove a ring) without itself wrapping that
+        // in `withAnimation`, this keeps insert/remove from teleporting — each cell's own
+        // `.transition` above supplies the actual visual (docs/design/apple-design-review.md §6.2).
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: items)
     }
 }
 
@@ -103,6 +127,11 @@ public struct RingCluster: View {
 private struct RingClusterCell: View {
     let item: RingClusterItem
     let size: GoalRing.Size
+    let staggerAppearance: Bool
+    let index: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
 
     /// Written as an explicit if/return rather than `item.centerIcon.map { .icon(...) } ?? .none`
     /// to avoid any ambiguity between `Optional.none` and `GoalRingCenter.none` at the call site.
@@ -133,5 +162,25 @@ private struct RingClusterCell: View {
             }
         }
         .frame(width: max(size.diameter, 64))
+        // Without this, VoiceOver swipes through the ring, title, and value as three disconnected
+        // stops ("72%," "Workout," "72/150g") — combining them reads as one coherent announcement
+        // instead. See `docs/design/ui-stress-test-findings.md` §2.2.
+        .accessibilityElement(children: .combine)
+        .opacity(staggerAppearance && !appeared ? 0 : 1)
+        .scaleEffect(staggerAppearance && !reduceMotion && !appeared ? 0.85 : 1)
+        .onAppear {
+            guard staggerAppearance, !appeared else { return }
+            if reduceMotion {
+                // Reduced motion: a plain fade, no per-item delay, no scale.
+                withAnimation(.easeOut(duration: 0.15)) { appeared = true }
+            } else {
+                // Cap the stagger window at ~5 items / 200ms total so a long list doesn't drag
+                // the reveal out (docs/design/animation-opportunities.md row 5).
+                let cappedIndex = min(index, 5)
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75).delay(Double(cappedIndex) * 0.04)) {
+                    appeared = true
+                }
+            }
+        }
     }
 }

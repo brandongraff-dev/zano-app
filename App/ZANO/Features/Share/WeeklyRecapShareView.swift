@@ -74,6 +74,10 @@
 //       // by `LockedOutMomentView.swift` — spec §5.16's literal "Share this".
 //   Copy.share.preparingShareTitle: String                                     // already assumed
 //       // by `LockedOutMomentView.swift`.
+//   Copy.share.shareFailedRetryLabel: String                                   // new, added by
+//       // the accessibility/stress-test pass (docs/design/ui-stress-test-findings.md §3.6);
+//       // already assumed by `LockedOutMomentView.swift` (this folder) — same key, same nil-
+//       // render-failure gap in both files.
 //   Copy.share.dismissButtonTitle: String                                      // "Close"
 //   Copy.share.footerWordmark: String                                         // already assumed
 //       // by `LockedOutMomentView.swift` — same small bottom-right logo text on every export.
@@ -108,6 +112,23 @@ public struct WeeklyRecapShareView: View {
     private let onDismiss: () -> Void
 
     @State private var renderedImage: UIImage?
+    /// `true` once `ShareCard.renderImage` has returned `nil` — see the `.task` below and
+    /// `docs/design/ui-stress-test-findings.md` §3.6 (identical gap `LockedOutMomentView.swift`,
+    /// this folder, had). Previously nothing branched on this case, so a render failure left this
+    /// screen stuck on `preparingShareLabel` forever, indistinguishable from "still working."
+    @State private var shareRenderFailed = false
+    /// Bumped by `retryShareRender()` to re-run the `.task(id:)` below on demand.
+    @State private var renderAttempt = 0
+    /// Drives the card's one-shot entrance reveal below — see `body`'s `.onAppear`. Deliberately
+    /// **not** anything `ShareCard.swift` itself knows about (this view only ever applies
+    /// `.scaleEffect`/`.opacity` to the `ShareCard(content:)` instance it composes here) — that
+    /// file is also constructed a second, separate time by `ShareCard.renderImage` purely for
+    /// off-screen `ImageRenderer` capture, per `docs/design/animation-opportunities.md` row 10's
+    /// explicit constraint: an animation baked into `ShareCard`'s own `body` would risk being
+    /// mid-flight when that separate instance is rasterized. Animating at this call site instead
+    /// leaves that off-screen instance untouched.
+    @State private var cardAppeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameters:
     ///   - recap: The week's `Recap`, typically the same instance a `@Query(sort: \Recap.weekStart,
@@ -139,6 +160,8 @@ public struct WeeklyRecapShareView: View {
                     .frame(maxWidth: 320)
                     .padding(.horizontal, Theme.Spacing.lg)
                     .padding(.top, Theme.Spacing.md)
+                    .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
+                    .opacity(cardAppeared ? 1 : 0)
             }
 
             actions
@@ -146,14 +169,38 @@ public struct WeeklyRecapShareView: View {
                 .padding(.bottom, Theme.Spacing.lg)
         }
         .background(Theme.Colors.background.ignoresSafeArea())
-        .task {
+        .task(id: renderAttempt) {
             guard renderedImage == nil else { return }
+            shareRenderFailed = false
             // See `LockedOutMomentView.swift` (this folder) for why this is `await`ed even though
             // `ShareCard.renderImage` isn't `async` — it's `@MainActor`-isolated, and `await` here
             // is correct whether or not `.task`'s closure is itself MainActor-isolated on the SDK
             // this project targets (unverifiable without a Mac/Swift compiler in this environment).
-            renderedImage = await ShareCard.renderImage(content: shareCardContent)
+            if let image = await ShareCard.renderImage(content: shareCardContent) {
+                renderedImage = image
+            } else {
+                shareRenderFailed = true
+            }
         }
+        // The card's one-shot arrival, per docs/design/animation-opportunities.md row 10: scale
+        // 0.92→1.0 + fade in, `springStandard`-family spring, fired once on appear. Reduce Motion:
+        // opacity-only, no scale — same Part 0 pattern as everywhere else in this wave.
+        .onAppear {
+            guard !cardAppeared else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.8)) {
+                cardAppeared = true
+            }
+        }
+        // `Theme.swift`'s own header: fixed, dark-only design system — see
+        // `docs/design/ui-stress-test-findings.md` §2.1 and `LockSetupView.swift`'s comment for
+        // the full rationale.
+        .preferredColorScheme(.dark)
+    }
+
+    private func retryShareRender() {
+        renderedImage = nil
+        shareRenderFailed = false
+        renderAttempt += 1
     }
 
     // MARK: - Header
@@ -181,26 +228,65 @@ public struct WeeklyRecapShareView: View {
     @ViewBuilder
     private var actions: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            if let renderedImage {
-                ShareLink(
-                    item: Image(uiImage: renderedImage),
-                    preview: SharePreview(
-                        Copy.share.weeklyRecapTitle(weekNumber: weekNumber, rankTierLabel: rankTierLabel),
-                        image: Image(uiImage: renderedImage)
-                    )
-                ) {
-                    shareLabel
+            Group {
+                if let renderedImage {
+                    ShareLink(
+                        item: Image(uiImage: renderedImage),
+                        preview: SharePreview(
+                            Copy.share.weeklyRecapTitle(weekNumber: weekNumber, rankTierLabel: rankTierLabel),
+                            image: Image(uiImage: renderedImage)
+                        )
+                    ) {
+                        shareLabel
+                    }
+                    .buttonStyle(.plain)
+                    .transition(shareControlTransition)
+                } else if shareRenderFailed {
+                    // Terminal failure state instead of an indefinite spinner — see
+                    // `docs/design/ui-stress-test-findings.md` §3.6.
+                    Button(action: retryShareRender) {
+                        shareFailedLabel
+                    }
+                    .buttonStyle(.plain)
+                    .transition(shareControlTransition)
+                } else {
+                    preparingShareLabel
+                        .transition(shareControlTransition)
                 }
-                .buttonStyle(.plain)
-            } else {
-                preparingShareLabel
             }
+            // The "Preparing…" spinner crossfades into the real Share control the moment
+            // `ShareCard.renderImage` finishes, instead of a hard cut — docs/design/
+            // animation-opportunities.md row 10's "satisfying share-sheet transition." Keyed on a
+            // small `Equatable` state enum, not the image itself: `UIImage` isn't `Equatable`,
+            // which `.animation(_:value:)` requires.
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard,
+                value: shareRenderState
+            )
 
             Button(Copy.share.dismissButtonTitle, action: onDismiss)
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
                 .buttonStyle(.plain)
         }
+    }
+
+    /// The three states `actions` renders — see the `.animation(value:)` above.
+    private enum ShareRenderState: Equatable {
+        case preparing
+        case ready
+        case failed
+    }
+
+    private var shareRenderState: ShareRenderState {
+        if renderedImage != nil { return .ready }
+        if shareRenderFailed { return .failed }
+        return .preparing
+    }
+
+    /// Reduce Motion: plain fade, no scale — same Part 0 pattern as the card reveal above.
+    private var shareControlTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .center))
     }
 
     /// Same visual treatment as `LockedOutMomentView.shareLabel` (this folder) — see that file's
@@ -239,6 +325,27 @@ public struct WeeklyRecapShareView: View {
         .padding(.vertical, Theme.Spacing.sm)
         .foregroundStyle(Theme.Colors.background)
         .background(Theme.Colors.accent.opacity(0.5), in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+    }
+
+    /// The terminal render-failure state — same visual treatment as
+    /// `LockedOutMomentView.shareFailedLabel` (this folder). Wrapped in a `Button` by its caller
+    /// in `actions`.
+    private var shareFailedLabel: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 16, weight: .semibold))
+            Text(Copy.share.shareFailedRetryLabel)
+                .font(Theme.Typography.headline)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Spacing.sm)
+        .foregroundStyle(Theme.Colors.text)
+        .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                .strokeBorder(Theme.Colors.danger.opacity(0.5), lineWidth: 1)
+        )
     }
 
     // MARK: - ShareCard content

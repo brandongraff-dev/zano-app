@@ -78,6 +78,12 @@ struct Screen3MainGoal: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            Analytics.shared.capture(
+                event: "onboarding_screen_viewed",
+                properties: ["screen": "main_goal", "screen_number": 3]
+            )
+        }
     }
 
     private func optionRow(_ goal: MainGoal) -> some View {

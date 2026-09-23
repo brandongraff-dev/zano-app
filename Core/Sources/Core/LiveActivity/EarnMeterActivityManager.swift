@@ -174,7 +174,10 @@ public final class EarnMeterActivityManager {
             goalsRemaining: goalsRemaining ?? SharedDefaults.goalsRemainingForActiveLock,
             nextLockTime: resolvedNextLockTime
         )
-        await activity?.update(ActivityContent(state: state, staleDate: nil))
+        // Activity is not Sendable; it never leaves this class (see the other Live Activity managers).
+        guard let liveActivity = activity else { return }
+        nonisolated(unsafe) let unsafeActivity = liveActivity
+        await unsafeActivity.update(ActivityContent(state: state, staleDate: nil))
     }
 
     /// Deposits earned minutes via `TimeBankEngine.shared.deposit(minutes:for:)` (spec §5.2: a
@@ -235,7 +238,8 @@ public final class EarnMeterActivityManager {
             goalsRemaining: SharedDefaults.goalsRemainingForActiveLock,
             nextLockTime: SharedDefaults.nextScheduledLockAt
         )
-        await activity.end(ActivityContent(state: finalState, staleDate: nil), dismissalPolicy: dismissalPolicy)
+        nonisolated(unsafe) let unsafeActivity = activity
+        await unsafeActivity.end(ActivityContent(state: finalState, staleDate: nil), dismissalPolicy: dismissalPolicy)
         logger.notice("Ended Earn Meter Live Activity.")
     }
 }

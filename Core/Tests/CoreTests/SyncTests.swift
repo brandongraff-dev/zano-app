@@ -143,17 +143,18 @@ struct SyncTests {
 
     @Test func enqueuePersistsAnUnsyncedOutboxEventWithItsJSONPayload() async throws {
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
         let entityID = UUID()
         let payload = FakePayload(value: 42)
-        let eventID = try await SyncEngine.shared.enqueue(
+        let eventID = try await engine.enqueue(
             entityName: "Goal",
             entityID: entityID,
             payload: payload
         )
 
-        let pending = try await SyncEngine.shared.pendingCount()
+        let pending = try await engine.pendingCount()
         #expect(pending == 1)
 
         let stored = try #require(try fetchEvent(id: eventID, in: container))
@@ -167,13 +168,14 @@ struct SyncTests {
 
     @Test func enqueueAssignsADistinctIDToEachCallEvenForTheSameEntity() async throws {
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
         let entityID = UUID()
-        let firstEventID = try await SyncEngine.shared.enqueue(
+        let firstEventID = try await engine.enqueue(
             entityName: "TimeBank", entityID: entityID, payload: FakePayload(value: 1)
         )
-        let secondEventID = try await SyncEngine.shared.enqueue(
+        let secondEventID = try await engine.enqueue(
             entityName: "TimeBank", entityID: entityID, payload: FakePayload(value: 2)
         )
 
@@ -190,27 +192,28 @@ struct SyncTests {
     @Test func flushPushesOldestFirstAndMarksEveryPushedEventSynced() async throws {
         let container = try makeContainer()
         let backend = FakeSyncBackend()
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
         let older = Date(timeIntervalSince1970: 1_000)
         let newer = Date(timeIntervalSince1970: 2_000)
 
         // Enqueued newer-first, on purpose, so a passing test actually proves flush() sorts by
         // `createdAt` rather than happening to match insertion order.
-        let newerID = try await SyncEngine.shared.enqueue(
+        let newerID = try await engine.enqueue(
             entityName: "Goal", entityID: UUID(), payload: FakePayload(value: 2), createdAt: newer
         )
-        let olderID = try await SyncEngine.shared.enqueue(
+        let olderID = try await engine.enqueue(
             entityName: "Goal", entityID: UUID(), payload: FakePayload(value: 1), createdAt: older
         )
 
-        let pushedCount = try await SyncEngine.shared.flush()
+        let pushedCount = try await engine.flush()
         #expect(pushedCount == 2)
 
         let pushedIDs = await backend.pushedEventIDs
         #expect(pushedIDs == [[olderID, newerID]])
 
-        #expect(try await SyncEngine.shared.pendingCount() == 0)
+        #expect(try await engine.pendingCount() == 0)
         #expect(try #require(try fetchEvent(id: olderID, in: container)).synced)
         #expect(try #require(try fetchEvent(id: newerID, in: container)).synced)
     }
@@ -218,9 +221,10 @@ struct SyncTests {
     @Test func flushWithNothingPendingIsANoOpThatReturnsZero() async throws {
         let container = try makeContainer()
         let backend = FakeSyncBackend()
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
-        let pushedCount = try await SyncEngine.shared.flush()
+        let pushedCount = try await engine.flush()
         #expect(pushedCount == 0)
         #expect(await backend.pushCallCount == 0)
     }
@@ -232,40 +236,42 @@ struct SyncTests {
         // 205 events should therefore produce exactly two `push` calls (200, then 5).
         let container = try makeContainer()
         let backend = FakeSyncBackend()
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
         let total = 205
         for i in 0..<total {
-            _ = try await SyncEngine.shared.enqueue(
+            _ = try await engine.enqueue(
                 entityName: "Nudge",
                 entityID: UUID(),
                 payload: FakePayload(value: i),
                 createdAt: Date(timeIntervalSince1970: Double(i))
             )
         }
-        #expect(try await SyncEngine.shared.pendingCount() == total)
+        #expect(try await engine.pendingCount() == total)
 
-        let pushedCount = try await SyncEngine.shared.flush()
+        let pushedCount = try await engine.flush()
         #expect(pushedCount == total)
         #expect(await backend.pushCallCount == 2)
 
         let batches = await backend.pushedEventIDs
         #expect(batches.map(\.count) == [200, 5])
-        #expect(try await SyncEngine.shared.pendingCount() == 0)
+        #expect(try await engine.pendingCount() == 0)
     }
 
     // MARK: - Flush: failure / retry path
 
     @Test func flushThrowsBackendUnavailableAndLeavesTheEventUnsyncedWhenNoBackendIsConfigured() async throws {
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
-        let eventID = try await SyncEngine.shared.enqueue(
+        let eventID = try await engine.enqueue(
             entityName: "LockSession", entityID: UUID(), payload: FakePayload(value: 7)
         )
 
         do {
-            _ = try await SyncEngine.shared.flush()
+            _ = try await engine.flush()
             Issue.record("Expected flush() to throw SyncEngineError.backendUnavailable")
         } catch let error as SyncEngineError {
             #expect(error == .backendUnavailable)
@@ -281,14 +287,15 @@ struct SyncTests {
         let container = try makeContainer()
         let backend = FakeSyncBackend()
         await backend.script([.fail(FakeBackendError(message: "network down"))])
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
-        let eventID = try await SyncEngine.shared.enqueue(
+        let eventID = try await engine.enqueue(
             entityName: "Meal", entityID: UUID(), payload: FakePayload(value: 3)
         )
 
         do {
-            _ = try await SyncEngine.shared.flush()
+            _ = try await engine.flush()
             Issue.record("Expected flush() to rethrow the backend's error")
         } catch is FakeBackendError {
             // Expected — SyncEngine rethrows whatever the backend throws, per its doc comment.
@@ -300,17 +307,17 @@ struct SyncTests {
         // still be there, still unsynced, ready to retry.
         let afterFailure = try #require(try fetchEvent(id: eventID, in: container))
         #expect(afterFailure.synced == false)
-        #expect(try await SyncEngine.shared.pendingCount() == 1)
+        #expect(try await engine.pendingCount() == 1)
 
         // The scripted failure was consumed; the backend now defaults to succeeding, so the exact
         // same row is retried (not skipped, not duplicated) on the next flush.
-        let pushedCount = try await SyncEngine.shared.flush()
+        let pushedCount = try await engine.flush()
         #expect(pushedCount == 1)
         #expect(await backend.pushedEventIDs == [[eventID], [eventID]])
 
         let afterRetry = try #require(try fetchEvent(id: eventID, in: container))
         #expect(afterRetry.synced == true)
-        #expect(try await SyncEngine.shared.pendingCount() == 0)
+        #expect(try await engine.pendingCount() == 0)
     }
 
     @Test func flushOnlyMarksThePriorBatchSyncedWhenALaterBatchFails() async throws {
@@ -320,11 +327,12 @@ struct SyncTests {
         let container = try makeContainer()
         let backend = FakeSyncBackend()
         await backend.script([.succeed, .fail(FakeBackendError(message: "second batch rejected"))])
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
         var eventIDs: [UUID] = []
         for i in 0..<205 {
-            let id = try await SyncEngine.shared.enqueue(
+            let id = try await engine.enqueue(
                 entityName: "Badge",
                 entityID: UUID(),
                 payload: FakePayload(value: i),
@@ -334,7 +342,7 @@ struct SyncTests {
         }
 
         do {
-            _ = try await SyncEngine.shared.flush()
+            _ = try await engine.flush()
             Issue.record("Expected flush() to rethrow the second batch's error")
         } catch is FakeBackendError {
             // Expected.
@@ -351,7 +359,7 @@ struct SyncTests {
         for id in secondBatchIDs {
             #expect(try #require(try fetchEvent(id: id, in: container)).synced == false)
         }
-        #expect(try await SyncEngine.shared.pendingCount() == 5)
+        #expect(try await engine.pendingCount() == 5)
     }
 
     // MARK: - Flush: reentrancy guard
@@ -361,13 +369,14 @@ struct SyncTests {
         let backend = FakeSyncBackend()
         let gate = AsyncGate()
         await backend.holdNextPush { await gate.wait() }
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
-        _ = try await SyncEngine.shared.enqueue(
+        _ = try await engine.enqueue(
             entityName: "Squad", entityID: UUID(), payload: FakePayload(value: 1)
         )
 
-        async let firstFlush = SyncEngine.shared.flush()
+        async let firstFlush = engine.flush()
 
         // There's no observable "isFlushing" signal exposed to tests; a short delay is the
         // least-invasive way to let the first flush() reach (and suspend on) the gate before the
@@ -375,20 +384,21 @@ struct SyncTests {
         // the test timing-sensitive in principle — flagged in knownIssues.
         try await Task.sleep(nanoseconds: 50_000_000)
 
-        let secondFlushResult = try await SyncEngine.shared.flush()
+        let secondFlushResult = try await engine.flush()
         #expect(secondFlushResult == 0)
 
         await gate.open()
         let firstFlushResult = try await firstFlush
         #expect(firstFlushResult == 1)
-        #expect(try await SyncEngine.shared.pendingCount() == 0)
+        #expect(try await engine.pendingCount() == 0)
     }
 
     // MARK: - pruneSyncedEvents
 
     @Test func pruneSyncedEventsDeletesOnlySyncedRowsOlderThanTheGivenDate() async throws {
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
         // Built directly against the container (bypassing `enqueue`) so this test exercises exactly
         // `pruneSyncedEvents`'s own predicate — `synced == true && createdAt < date` — independent
@@ -412,7 +422,7 @@ struct SyncTests {
         try context.save()
 
         let cutoff = Date(timeIntervalSince1970: 10_000)
-        try await SyncEngine.shared.pruneSyncedEvents(olderThan: cutoff)
+        try await engine.pruneSyncedEvents(olderThan: cutoff)
 
         #expect(try fetchEvent(id: oldSynced.id, in: container) == nil)
         #expect(try fetchEvent(id: newSynced.id, in: container) != nil)
@@ -424,23 +434,24 @@ struct SyncTests {
 
     @Test func setBackendSwapsTheBackendWithoutDisturbingAlreadyQueuedEvents() async throws {
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
-        let eventID = try await SyncEngine.shared.enqueue(
+        let eventID = try await engine.enqueue(
             entityName: "RiskScore", entityID: UUID(), payload: FakePayload(value: 9)
         )
 
         // No backend yet — flush() must fail without touching the queued row.
         await #expect(throws: SyncEngineError.self) {
-            try await SyncEngine.shared.flush()
+            try await engine.flush()
         }
         #expect(try #require(try fetchEvent(id: eventID, in: container)).synced == false)
 
         // Swapping in a backend (the seam a real Supabase-backed implementation uses) lets the
         // exact same previously-queued row flush successfully.
         let backend = FakeSyncBackend()
-        await SyncEngine.shared.setBackend(backend)
-        let pushedCount = try await SyncEngine.shared.flush()
+        await engine.setBackend(backend)
+        let pushedCount = try await engine.flush()
         #expect(pushedCount == 1)
         #expect(await backend.pushedEventIDs == [[eventID]])
         #expect(try #require(try fetchEvent(id: eventID, in: container)).synced == true)
@@ -480,16 +491,17 @@ struct SyncTests {
         }
 
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
         await #expect(throws: (any Error).self) {
-            _ = try await SyncEngine.shared.enqueue(
+            _ = try await engine.enqueue(
                 entityName: "Goal",
                 entityID: UUID(),
                 payload: BadPayload(ratio: .infinity)
             )
         }
-        #expect(try await SyncEngine.shared.pendingCount() == 0)
+        #expect(try await engine.pendingCount() == 0)
     }
 
     // MARK: - Flush: idempotent once fully drained
@@ -501,16 +513,17 @@ struct SyncTests {
         // a periodic background task firing on its normal cadence with nothing new to send).
         let container = try makeContainer()
         let backend = FakeSyncBackend()
-        await SyncEngine.shared.configure(modelContainer: container, backend: backend)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: backend)
 
-        _ = try await SyncEngine.shared.enqueue(
+        _ = try await engine.enqueue(
             entityName: "Streak", entityID: UUID(), payload: FakePayload(value: 5)
         )
-        let firstPush = try await SyncEngine.shared.flush()
+        let firstPush = try await engine.flush()
         #expect(firstPush == 1)
         #expect(await backend.pushCallCount == 1)
 
-        let secondPush = try await SyncEngine.shared.flush()
+        let secondPush = try await engine.flush()
         #expect(secondPush == 0)
         // No new `push` call at all — the already-synced row must not be re-fetched into a batch.
         #expect(await backend.pushCallCount == 1)
@@ -524,12 +537,13 @@ struct SyncTests {
         // (and, by extension, `flush`'s single unsorted-by-entity fetch) actually treats a mix of
         // entity names as one queue rather than needing to be called per entity type.
         let container = try makeContainer()
-        await SyncEngine.shared.configure(modelContainer: container, backend: nil)
+        let engine = SyncEngine()
+        await engine.configure(modelContainer: container, backend: nil)
 
-        _ = try await SyncEngine.shared.enqueue(entityName: "Goal", entityID: UUID(), payload: FakePayload(value: 1))
-        _ = try await SyncEngine.shared.enqueue(entityName: "Meal", entityID: UUID(), payload: FakePayload(value: 2))
-        _ = try await SyncEngine.shared.enqueue(entityName: "Duel", entityID: UUID(), payload: FakePayload(value: 3))
+        _ = try await engine.enqueue(entityName: "Goal", entityID: UUID(), payload: FakePayload(value: 1))
+        _ = try await engine.enqueue(entityName: "Meal", entityID: UUID(), payload: FakePayload(value: 2))
+        _ = try await engine.enqueue(entityName: "Duel", entityID: UUID(), payload: FakePayload(value: 3))
 
-        #expect(try await SyncEngine.shared.pendingCount() == 3)
+        #expect(try await engine.pendingCount() == 3)
     }
 }

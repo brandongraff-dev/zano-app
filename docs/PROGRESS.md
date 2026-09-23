@@ -9,14 +9,25 @@ conversation. Every agent updates their own row after every coding task — see 
 - `Blocked` — can't proceed, blocker named below
 - `Scaffolded — Unverified` — code/config written but the session's real definition-of-done
   (per `docs/spec.md` §17) hasn't been verified (usually: needs a Mac/device we don't have yet)
+- `Compiles + tested in CI` — (added 2026-09-23) builds on a real Xcode toolchain for the iOS
+  Simulator and its unit tests pass in GitHub Actions. Still NOT verified on a device, and anything
+  needing FamilyControls / DeviceActivity / NFC / HealthKit workouts cannot run in the Simulator at
+  all (spec §27) — so the session's device-level definition-of-done is still open.
 - `Done` — definition-of-done met and verified
+
+**Where things actually stand (2026-09-23):** the whole app — main target, all 5 extensions, and
+`Core` — compiles on real Xcode, and `Core`'s 231 tests pass, on every push (GitHub Actions run
+35934393207 was the first fully green run). Getting there took 12 CI rounds: ~41 → 12 → 4 → 8 → … → 0
+compiler errors, plus 6 test failures (1 real bug, 5 wrong test assumptions). The per-session rows
+below still say `Scaffolded — Unverified` because they describe device-level verification; treat
+"compiles + unit tests pass" as the new floor for all of them.
 
 ## Environment & accounts
 
 | Item | Status | Note |
 |---|---|---|
-| Mac (for Xcode) | ❌ Not available | Blocks all real builds/device testing. See `docs/setup/windows-workflow.md` for what proceeds anyway. |
-| GitHub | ✅ Ready | Repo is local-only so far — push only when asked. |
+| Mac (for Xcode) | ❌ Not available locally | GitHub Actions macOS runners act as the compiler/test host (see below) — a Mac is only needed for device testing and the Simulator UI. |
+| GitHub + CI | ✅ Live | Private repo `brandongraff-dev/zano-app`; `.github/workflows/ci.yml` builds, tests, and screenshots the app in the iOS Simulator on every push. |
 | Apple Developer Program | ❌ Not enrolled | Blocks Family Controls entitlement filing + TestFlight/App Store. See `docs/setup/apple-developer.md`. Local device testing works without it once a Mac+device exist (Family Controls Development capability). |
 | Family Controls entitlement (4 requests) | ❌ Not filed | Needs Apple Developer enrollment first. Can take days–weeks once filed — file it the day enrollment completes. |
 | Supabase project | ❌ Not created | Schema/migrations scaffolded locally in `backend/supabase/` ahead of time (Session 0). Needs `supabase` CLI + a project to actually run against. |

@@ -160,7 +160,10 @@ public actor SyncEngine {
 
     private let pullLogger = Logger(subsystem: "com.zano.app.Core", category: "SyncEngine")
 
-    private init() {}
+    /// `internal`, not `private`, only so `CoreTests` can construct an isolated instance per test —
+    /// `.shared` is process-wide, and other suites' managers enqueue into it concurrently. Every
+    /// real call site uses `.shared`.
+    init() {}
 
     // MARK: - Configuration
 

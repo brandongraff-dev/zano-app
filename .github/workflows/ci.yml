@@ -68,7 +68,7 @@ jobs:
       # launch is diagnosable without a Mac.
       - name: Screenshot tour (iOS Simulator)
         id: shots
-        if: steps.build.outcome == 'success'
+        if: always() && steps.build.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p shots

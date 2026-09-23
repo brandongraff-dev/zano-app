@@ -112,6 +112,9 @@ struct BedtimeGateSetupView: View {
         } message: { alert in
             Text(alert.message)
         }
+        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
+        // `LockSetupView.swift`'s comment for the full rationale.
+        .preferredColorScheme(.dark)
     }
 
     private func save() {

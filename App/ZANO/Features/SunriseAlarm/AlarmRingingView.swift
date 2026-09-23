@@ -422,10 +422,25 @@ struct AlarmRingingView: View {
                 .onChanged { _ in beginEscapeHatchHold() }
                 .onEnded { _ in endEscapeHatchHold() }
         )
-        .animation(Theme.Motion.springStandard, value: isHoldingEscapeHatch)
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard, value: isHoldingEscapeHatch)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.alarmRinging.escapeHatchHoldLabel)
         .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Copy.alarmRinging.escapeHatchHoldHint)
+        // VoiceOver's double-tap activates this accessibility action rather than driving the
+        // `DragGesture` above — a sustained physical hold has no VoiceOver equivalent. Without
+        // this, a VoiceOver user could not fire the escape hatch at all: a raw `DragGesture` does
+        // not respond to double-tap activation, and `.isButton` alone adds no activation path.
+        // This is the one control spec §5.10 point 6 / CLAUDE.md's "no one gets trapped" guarantee
+        // most depends on, so it fires immediately on activation rather than requiring VoiceOver
+        // users to somehow sustain a touch-and-hold — exactly mirroring
+        // `PrimaryButton.holdToCommit`'s identical, already-shipped fix (see that file's own
+        // comment on `.accessibilityAction`). See `docs/design/ui-stress-test-findings.md` §1.1.
+        .accessibilityAction {
+            guard !isHoldingEscapeHatch else { return }
+            escapeHapticTick += 1
+            Task { await completeEscapeHatchHold() }
+        }
     }
 
     private var escapeHatchSecondsLabel: String {
@@ -607,7 +622,10 @@ struct AlarmRingingView: View {
         holdTask?.cancel()
         holdTask = nil
         isHoldingEscapeHatch = false
-        withAnimation(Theme.Motion.springStandard) {
+        // Previously ungated — mirrors `PrimaryButton.endHold()`'s identical cancel-spring, which
+        // already guards this exact reset with `reduceMotion`. See
+        // `docs/design/ui-stress-test-findings.md` §2.5.
+        withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
             holdProgress = 0
         }
     }
@@ -618,7 +636,8 @@ struct AlarmRingingView: View {
             try await manager.triggerEscapeHatch(reason: isNotHome ? .imNotHome : .other)
         } catch {
             escapeError = error.localizedDescription
-            withAnimation(Theme.Motion.springStandard) {
+            // Same gate as `endEscapeHatchHold()` above — see that call's comment.
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
                 holdProgress = 0
             }
         }

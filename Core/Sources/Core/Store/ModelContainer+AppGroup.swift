@@ -77,6 +77,17 @@ extension ModelContainer {
         RiskScore.self,
         Subscription.self,
         OutboxEvent.self,
+
+        // Additive tables not in spec §13's original list (same situation OutboxEvent documents
+        // above): `KitchenStaple` (`Core/Sources/Core/Models/KitchenStaple.swift`, backed by
+        // `backend/supabase/migrations/0005_kitchen_staples.sql`) was missing from this array,
+        // which `KitchenStaple.swift`, `Verification/ProteinGapPlanner.swift`,
+        // `Monetization/GearOffersEngine.swift`, and `App/ZANO/Features/Fuel/FuelView.swift` each
+        // independently flagged as a real integration gap: without this entry, every fetch/insert
+        // against the real App Group container silently sees/persists zero rows (SwiftData only
+        // knows about the types listed in this array's `Schema` — see this array's own doc comment
+        // above). Registered here to close that gap for all four call sites at once.
+        KitchenStaple.self,
     ]
 
     /// The schema built from `appGroupModelTypes`. A `let`-style computed property (not cached)

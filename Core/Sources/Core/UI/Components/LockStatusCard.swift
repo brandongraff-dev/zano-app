@@ -22,6 +22,8 @@ public struct LockStatusCard: View {
     private let detailLine: String?
     private let action: (() -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// - Parameters:
     ///   - isLocked: Drives the padlock icon/color only — never rendered as text by this view.
     ///   - statusLine: Caller-composed headline (see property doc above).
@@ -44,7 +46,12 @@ public struct LockStatusCard: View {
         content
             .padding(Theme.Spacing.md)
             .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            .animation(Theme.Motion.springStandard, value: isLocked)
+            // Previously ungated — this card is the app's single most-visible state indicator
+            // (every screen's lock/unlock summary), and the icon/tint swap it animates on
+            // `isLocked` is exactly the "spring with no reduced-motion fallback" pattern this
+            // wave's task brief calls out by name. See `docs/design/ui-stress-test-findings.md`
+            // §2.5 (the same blanket gap flagged for the rest of this safe set).
+            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isLocked)
     }
 
     private var content: some View {

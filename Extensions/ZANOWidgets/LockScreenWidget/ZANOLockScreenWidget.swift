@@ -143,17 +143,23 @@ private struct ZANOLockScreenCircularView: View {
     var body: some View {
         switch metric {
         case .protein:
-            ring(for: snapshot.protein, unitLabel: "g")
+            ring(for: snapshot.protein, systemImage: "fork.knife")
         case .water:
-            ring(for: snapshot.water, unitLabel: "ml")
+            ring(for: snapshot.water, systemImage: "drop.fill")
         case .streak:
             streakGauge
         }
     }
 
-    private func ring(for progress: ZANORingProgress, unitLabel: String) -> some View {
+    // Switches on `metric` (already known at every call site above) rather than re-deriving the
+    // icon from `progress.title == "Protein"` — a string-equality check against `title`, which is
+    // permanently the hardcoded English literal "Protein" today (see `ZANOWidgetSnapshot.swift`).
+    // The moment that title is localized for real, the old check would silently break: every
+    // non-English locale's protein ring would render the water icon instead. See
+    // `docs/design/ui-stress-test-findings.md` §2.3.
+    private func ring(for progress: ZANORingProgress, systemImage: String) -> some View {
         Gauge(value: progress.fraction) {
-            Image(systemName: progress.title == "Protein" ? "fork.knife" : "drop.fill")
+            Image(systemName: systemImage)
         } currentValueLabel: {
             Text(Self.intText(progress.current))
         }
@@ -166,6 +172,12 @@ private struct ZANOLockScreenCircularView: View {
                 .font(.system(size: 14))
             Text("\(snapshot.currentStreak)")
                 .font(.system(.body, design: .rounded, weight: .bold))
+                // `.accessoryCircular` is one of the smallest possible widget surfaces, and a
+                // streak count is unbounded — matches the Home Widget's own
+                // `ZANOGoalRingView`/`.minimumScaleFactor(0.7)` precedent for the same reason. See
+                // `docs/design/ui-stress-test-findings.md` §3.7.
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
         }
         .widgetAccentable()
     }

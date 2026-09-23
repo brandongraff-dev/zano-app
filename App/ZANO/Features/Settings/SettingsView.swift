@@ -55,13 +55,14 @@
 // exact guarded-import pattern `Core/Sources/Core/Analytics/Analytics.swift` already established
 // for PostHog/Sentry, so this file compiles cleanly both before and after that package is linked.
 //
-// ASSUMED API — `PaywallCard` (`Core/Sources/Core/UI/Components`, spec §15's component list, not
-// yet on disk / not in this batch's fixed SYSTEM CONTRACTS). Used once, for the Free-tier upsell
-// row, with a deliberately simple guessed initializer per this task's own instruction ("if you must
-// guess an initializer, keep it simple"):
-//
-//     PaywallCard(headline: String, benefits: [String], priceLabel: String, ctaTitle: String, onContinue: @escaping () -> Void)
-//
+// Repo-wide Copy/API sweep (2026-09-22): the Free-tier upsell row previously guessed a
+// `PaywallCard(headline:benefits:priceLabel:ctaTitle:onContinue:)` initializer that never matched
+// the real, now-on-disk `Core/Sources/Core/UI/Components/PaywallCard.swift` (a single selectable
+// plan row — `title:priceLine:detailLine:badgeLabel:isHighlighted:isSelected:action:` — built to
+// match `PaywallView.swift`'s own per-plan-row usage, not a headline/benefits/CTA promo card). Fixed
+// by replacing that call with `proUpsellCard`, a small file-local view (see its own doc comment,
+// next to `subscriptionSection` below) rather than forcing this screen's teaser into a component
+// built for a different job.
 // ASSUMED API — `Copy.settings.*` / `Copy.common.*` (`Core/Sources/Core/Copy`, not owned by this
 // session). Follows the same precedent `LockSetupView.swift` set: reference `Copy.<feature>.*` by
 // name, list every assumed member here. Every Copy member below takes only primitive parameters
@@ -378,19 +379,56 @@ struct SettingsView: View {
             }
 
             if currentUser?.planTier != .pro {
-                PaywallCard(
-                    headline: Copy.settings.proHeadline,
-                    benefits: Copy.settings.proBenefits,
-                    priceLabel: Copy.settings.proPriceLabel,
-                    ctaTitle: Copy.settings.proCtaLabel,
-                    onContinue: presentPaywall
-                )
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+                proUpsellCard
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
             }
         } header: {
             Text(Copy.settings.subscriptionSectionTitle)
         }
+    }
+
+    /// Free-tier upsell row (spec §21, §16 P5 "annual plan card"). Repo-wide Copy/API sweep
+    /// (2026-09-22): this used to call `Core.PaywallCard` with a guessed initializer
+    /// (`headline:benefits:priceLabel:ctaTitle:onContinue:`) that never matched the real,
+    /// already-built `PaywallCard` — that component is a single *selectable plan row*
+    /// (`title:priceLine:detailLine:badgeLabel:isHighlighted:isSelected:action:`, no `benefits`
+    /// list, no CTA button of its own; see `Core/Sources/Core/UI/Components/PaywallCard.swift`'s
+    /// header — its shape is inferred from `PaywallView.swift`'s own per-plan row usage, not from
+    /// a headline/benefits/CTA promo card), so the two could never have compiled together. Rather
+    /// than force this screen's "here's why to upgrade" teaser into a component built for a
+    /// different job, this is a small file-local view, composed entirely from `Copy.settings.*`
+    /// (still no hardcoded UI strings) using the same Theme tokens every other row in this file
+    /// already uses.
+    private var proUpsellCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.settings.proHeadline)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+
+            ForEach(Copy.settings.proBenefits, id: \.self) { benefit in
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Theme.Colors.accent)
+                    Text(benefit)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.text)
+                }
+            }
+
+            Text(Copy.settings.proPriceLabel)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+
+            PrimaryButton(
+                title: Copy.settings.proCtaLabel,
+                systemImage: "sparkles",
+                action: presentPaywall
+            )
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
     }
 
     private func restorePurchases() async {

@@ -65,8 +65,14 @@ struct ZANOEarnMeterLiveActivity: Widget {
                 Image(systemName: "bolt.fill")
                     .foregroundStyle(ZANOWidgetColor.accent)
             } compactTrailing: {
+                // `earnedMinutesRemaining` is explicitly unbounded (no fixed daily maximum — see
+                // `EarnMeterActivityAttributes`'s own header), and this compact region is only
+                // comfortably wide enough for ~3 characters. See
+                // `docs/design/ui-stress-test-findings.md` §3.7.
                 Text("\(context.state.earnedMinutesRemaining)m")
                     .foregroundStyle(ZANOWidgetColor.accent)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
             } minimal: {
                 Image(systemName: "bolt.fill")
                     .foregroundStyle(ZANOWidgetColor.accent)

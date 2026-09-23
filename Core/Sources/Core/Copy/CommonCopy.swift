@@ -26,6 +26,17 @@ extension Copy {
         /// with this one later.
         public static let cancel = "Cancel"
 
+        /// A plain "commit this edit" button label — `LockSetupView.swift`'s editor sheet,
+        /// `FuelView.swift`'s Kitchen Staple add sheet, and `SettingsView.swift`'s Gym add sheet
+        /// each already call `Copy.common.save` (repo-wide Copy sweep, 2026-09-22: referenced by
+        /// three call sites, never declared anywhere in `Core/Sources/Core/Copy`).
+        public static let save = "Save"
+
+        /// A plain destructive "remove this row" button/label — `FuelView.swift`'s Kitchen Staple
+        /// swipe-to-delete and `SettingsView.swift`'s Gym swipe-to-delete both already call
+        /// `Copy.common.delete` (same 2026-09-22 sweep as `save` above).
+        public static let delete = "Delete"
+
         /// Generic failure alert title/message, for a screen that has nothing more specific to say
         /// about why an action failed (e.g. `CosmeticsShopView.swift`'s `.noSignedInUser`/
         /// `.unknownItem`/`.storeFailure` catch-all). Added here, not a one-off in that file, per

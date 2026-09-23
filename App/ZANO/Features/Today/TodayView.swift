@@ -21,14 +21,12 @@
 // run here (no Mac/Swift toolchain in this environment either way). See this task's "decisions" /
 // "knownIssues" output for the assumptions made where this screen guesses at an unbuilt API.
 //
-// Copy note: CLAUDE.md requires user-facing strings to live in Core/Sources/Core/Copy, but this
-// task's owned-file list is only this file and LockStatusView.swift — adding new Core/Copy files
-// isn't in scope here (risk of colliding with another parallel session's file). Structural labels
-// (ring titles, button titles) are centralized in the private `Copy` enum below instead, and
-// anything with real "coach voice" (streak/goals-remaining phrasing) reuses the already-built
-// `CoachVoiceTone` helpers from Core/Sources/Core/Copy/CoachVoice.swift rather than inventing new
-// phrasing here. Flagged as a known deviation — recommend a follow-up moves `Copy` below into
-// `Core/Sources/Core/Copy/TodayCopy.swift` once that file has a clear owner.
+// Copy note: user-facing strings go through `Copy.today.*` (`Core/Sources/Core/Copy/TodayCopy.swift`),
+// following the `Copy.<area>` umbrella convention `Copy.swift` documents — moved there from this
+// file's own private nested `Copy` enum by the repo-wide Copy sweep (2026-09-22); see that file's
+// header for why. Anything with real "coach voice" (streak/goals-remaining phrasing) still reuses
+// the already-built `CoachVoiceTone` helpers from Core/Sources/Core/Copy/CoachVoice.swift rather
+// than inventing new phrasing here.
 
 import Foundation
 import SwiftUI
@@ -92,7 +90,7 @@ struct TodayView: View {
                     lockStatusCard
                     ringsSection
                     if let ghostComparison {
-                        GhostProgressBanner(comparison: ghostComparison, title: Copy.ghostModeTitle)
+                        GhostProgressBanner(comparison: ghostComparison, title: Copy.today.ghostModeTitle)
                     }
                     if let actionError {
                         Text(actionError)
@@ -164,7 +162,7 @@ struct TodayView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(Copy.screenTitle)
+            Text(Copy.today.screenTitle)
                 .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)
             Spacer()
@@ -181,7 +179,7 @@ struct TodayView: View {
     private var lockStatusCard: some View {
         LockStatusCard(
             isLocked: isLocked,
-            statusLine: Copy.lockStatusLine(isLocked: isLocked, goalsRemaining: remainingRequiredGoalCount),
+            statusLine: Copy.today.lockStatusLine(isLocked: isLocked, goalsRemaining: remainingRequiredGoalCount),
             detailLine: lockDetailLine,
             action: {
                 Analytics.shared.capture(event: "today_lock_status_tapped")
@@ -217,15 +215,15 @@ struct TodayView: View {
 
     private var ringItems: [RingClusterItem] {
         [
-            ringItem(for: workoutGoal, fallbackID: RingSlotID.workout, title: Copy.ringTitleWorkout, color: Theme.Colors.Ring.workout, icon: "dumbbell.fill"),
-            ringItem(for: proteinGoal, fallbackID: RingSlotID.protein, title: Copy.ringTitleProtein, color: Theme.Colors.Ring.protein, icon: "fork.knife"),
-            ringItem(for: focusGoal, fallbackID: RingSlotID.focus, title: Copy.ringTitleFocus, color: Theme.Colors.Ring.focus, icon: "timer")
+            ringItem(for: workoutGoal, fallbackID: RingSlotID.workout, title: Copy.today.ringTitleWorkout, color: Theme.Colors.Ring.workout, icon: "dumbbell.fill"),
+            ringItem(for: proteinGoal, fallbackID: RingSlotID.protein, title: Copy.today.ringTitleProtein, color: Theme.Colors.Ring.protein, icon: "fork.knife"),
+            ringItem(for: focusGoal, fallbackID: RingSlotID.focus, title: Copy.today.ringTitleFocus, color: Theme.Colors.Ring.focus, icon: "timer")
         ]
     }
 
     private func ringItem(for goal: Goal?, fallbackID: UUID, title: String, color: Color, icon: String) -> RingClusterItem {
         guard let goal else {
-            return RingClusterItem(id: fallbackID, title: title, progress: 0, color: Theme.Colors.muted, valueText: Copy.ringNotSet, centerIcon: icon)
+            return RingClusterItem(id: fallbackID, title: title, progress: 0, color: Theme.Colors.muted, valueText: Copy.today.ringNotSet, centerIcon: icon)
         }
         let p = progress(for: goal)
         return RingClusterItem(id: goal.id, title: title, progress: p.fraction, color: color, valueText: p.valueText, centerIcon: icon)
@@ -239,11 +237,11 @@ struct TodayView: View {
     /// (e.g. workout + protein + focus all feeding the same unlock), and guessing which one to
     /// name would misrepresent what actually happened.
     private var unlockCelebrationGoalName: String {
-        guard let session = mostRecentlyEndedSession else { return Copy.unlockCelebrationFallbackGoalName }
+        guard let session = mostRecentlyEndedSession else { return Copy.today.unlockCelebrationFallbackGoalName }
         let requiredIDs = Set(session.requiredGoalIDs)
         let required = goals.filter { requiredIDs.contains($0.id) }
         guard required.count == 1, let only = required.first else {
-            return Copy.unlockCelebrationFallbackGoalName
+            return Copy.today.unlockCelebrationFallbackGoalName
         }
         return only.title
     }
@@ -295,10 +293,10 @@ struct TodayView: View {
     private var primaryButtonView: some View {
         switch primaryAction {
         case .setupIncomplete:
-            PrimaryButton(title: Copy.setupIncompleteTitle, systemImage: "gearshape.fill", isEnabled: false, action: {})
+            PrimaryButton(title: Copy.today.setupIncompleteTitle, systemImage: "gearshape.fill", isEnabled: false, action: {})
         case .beginLock:
             PrimaryButton(
-                title: Copy.beginLockTitle,
+                title: Copy.today.beginLockTitle,
                 systemImage: "lock.fill",
                 style: .holdToCommit,
                 isEnabled: !isPerformingPrimaryAction,
@@ -306,31 +304,31 @@ struct TodayView: View {
             )
         case .startFocus(_, let minutes):
             PrimaryButton(
-                title: Copy.startFocusTitle(minutes: minutes),
+                title: Copy.today.startFocusTitle(minutes: minutes),
                 systemImage: "timer",
                 isEnabled: !isPerformingPrimaryAction,
                 action: performPrimaryAction
             )
         case .focusRunning:
-            PrimaryButton(title: Copy.focusRunningTitle, systemImage: "timer", isEnabled: false, action: {})
+            PrimaryButton(title: Copy.today.focusRunningTitle, systemImage: "timer", isEnabled: false, action: {})
         case .verifyAtGym:
             PrimaryButton(
-                title: Copy.goToGymTitle,
+                title: Copy.today.goToGymTitle,
                 systemImage: "figure.strengthtraining.traditional",
                 isEnabled: !isPerformingPrimaryAction,
                 action: performPrimaryAction
             )
         case .verifyingAtGym:
             PrimaryButton(
-                title: Copy.verifyingAtGymTitle(minutes: gymDwellMinutes),
+                title: Copy.today.verifyingAtGymTitle(minutes: gymDwellMinutes),
                 systemImage: "location.fill",
                 isEnabled: false,
                 action: {}
             )
         case .waitingToUnlock:
-            PrimaryButton(title: Copy.allDoneTitle, systemImage: "checkmark.circle.fill", isEnabled: false, action: {})
+            PrimaryButton(title: Copy.today.allDoneTitle, systemImage: "checkmark.circle.fill", isEnabled: false, action: {})
         case .openFuel:
-            PrimaryButton(title: Copy.openFuelTitle, systemImage: "fork.knife", isEnabled: false, action: {})
+            PrimaryButton(title: Copy.today.openFuelTitle, systemImage: "fork.knife", isEnabled: false, action: {})
         }
     }
 
@@ -475,34 +473,6 @@ struct TodayView: View {
         let unit = goal.unit ?? ""
         let valueText = "\(Int(loggedSum.rounded()))/\(Int(target.rounded()))\(unit)"
         return (fraction, valueText)
-    }
-
-    // MARK: - Copy
-
-    /// See the file-level header comment for why this is here instead of `Core/Sources/Core/Copy`.
-    private enum Copy {
-        static let screenTitle = "Today"
-
-        static func lockStatusLine(isLocked: Bool, goalsRemaining: Int) -> String {
-            guard isLocked else { return "Unlocked" }
-            return goalsRemaining == 1 ? "Locked · 1 goal left" : "Locked · \(goalsRemaining) goals left"
-        }
-
-        static let ringTitleWorkout = "Workout"
-        static let ringTitleProtein = "Protein"
-        static let ringTitleFocus = "Focus"
-        static let ringNotSet = "Not set"
-
-        static let setupIncompleteTitle = "Finish setup to start locking"
-        static let beginLockTitle = "Hold to start today's lock"
-        static func startFocusTitle(minutes: Int) -> String { "Start \(minutes)-min focus session" }
-        static let focusRunningTitle = "Focus session running…"
-        static let goToGymTitle = "I'm at the gym"
-        static func verifyingAtGymTitle(minutes: Int) -> String { "Verifying at the gym… (\(minutes) min so far)" }
-        static let allDoneTitle = "All goals done — unlocking…"
-        static let openFuelTitle = "Log the rest on Fuel"
-        static let ghostModeTitle = "Ghost Mode"
-        static let unlockCelebrationFallbackGoalName = "Today's goals"
     }
 }
 

@@ -50,8 +50,13 @@ struct ZANOGymDwellLiveActivity: Widget {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .foregroundStyle(ZANOWidgetColor.ringWorkout)
             } compactTrailing: {
+                // A long gym visit can run past 2 digits, and this compact region is only
+                // comfortably wide enough for ~3 characters. See
+                // `docs/design/ui-stress-test-findings.md` §3.7.
                 Text("\(context.state.elapsedMinutes)m")
                     .foregroundStyle(ZANOWidgetColor.ringWorkout)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
             } minimal: {
                 Image(systemName: context.state.isVerified ? "checkmark.seal.fill" : "figure.strengthtraining.traditional")
                     .foregroundStyle(context.state.isVerified ? ZANOWidgetColor.accent : ZANOWidgetColor.ringWorkout)

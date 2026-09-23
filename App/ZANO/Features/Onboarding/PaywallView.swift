@@ -73,17 +73,17 @@
 //
 // `PrimaryButton` and `GoalRow` are **not** assumed here — both already exist for real in
 // `Core/Sources/Core/UI/Components` (this task read them before writing this file) and are used
-// with their actual shipped signatures below. Note for the orchestrator: `PrimaryButton`'s real
-// initializer is `init(title: String, systemImage: String? = nil, style: Style = .standard,
-// isEnabled: Bool = true, action: @escaping () -> Void)` — a **labeled** `title:` parameter. The
-// screens-1-8 onboarding session's own `ASSUMED API` note (`Screen3MainGoal.swift`) guessed
-// `init(_ title: String, isEnabled: Bool = true, action: @escaping () -> Void)` — an
-// **unlabeled** first parameter — before the real component existed, and `Screen1Hook.swift`/
-// `Screen3MainGoal.swift`/`Screen5PhoneTime.swift` all call it positionally (`PrimaryButton(Copy.
-// ..., ...)`). That will not compile against the real, shipped `PrimaryButton` without a
-// `title:` label added at each of those call sites — flagged here since this task noticed it
-// while reading sibling files, but those files are outside this task's owned list and are not
-// edited by this change.
+// with their actual shipped signatures below: `init(title: String, systemImage: String? = nil,
+// style: Style = .standard, isEnabled: Bool = true, action: @escaping () -> Void)` — a **labeled**
+// `title:` parameter.
+//
+// RESOLVED (repo-wide Copy/API sweep, 2026-09-22): this note originally flagged that
+// `Screen1Hook.swift`/`Screen3MainGoal.swift`/`Screen5PhoneTime.swift` called `PrimaryButton`
+// positionally (`PrimaryButton(Copy...., ...)`), matching a guessed unlabeled-first-parameter
+// shape from before the real component existed, which would not have compiled against the real,
+// labeled initializer above. Re-checked by this sweep: all three call sites now pass `title:`
+// explicitly and match the real signature — already fixed (by another session, between this
+// note's original writing and this sweep), not by this change.
 
 import SwiftUI
 import Core

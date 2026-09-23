@@ -18,8 +18,10 @@
 // exactly; none of those files exist on disk in this session (parallel work), and nothing here has
 // been compiled (no Mac/Swift toolchain available). See this task's "decisions"/"knownIssues".
 //
-// Copy note: see TodayView.swift's header comment — same rationale applies here for why copy is a
-// private `Copy` enum in this file rather than a new Core/Sources/Core/Copy file.
+// Copy note: user-facing strings go through `Copy.lockStatus.*`
+// (`Core/Sources/Core/Copy/LockStatusCopy.swift`), following the `Copy.<area>` umbrella convention
+// `Copy.swift` documents — moved there from this file's own private nested `Copy` enum by the
+// repo-wide Copy sweep (2026-09-22); see that file's header for why.
 //
 // Analytics (gap-fill wave, spec §23): this screen logs its own screen view and flushes
 // `SharedDefaults.shieldImpressionCount` — the on-device-only tally `ShieldConfigurationExtension`
@@ -74,7 +76,7 @@ struct LockStatusView: View {
         }
         .background(Theme.Colors.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .navigationTitle(Copy.screenTitle)
+        .navigationTitle(Copy.lockStatus.screenTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: timeBankTaskKey) {
             timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
@@ -127,10 +129,10 @@ struct LockStatusView: View {
     }
 
     private var statusLine: String {
-        guard activeSession != nil else { return Copy.unlockedHeadline }
+        guard activeSession != nil else { return Copy.lockStatus.unlockedHeadline }
         return remainingRequiredGoalCount == 1
-            ? Copy.lockedHeadlineSingular
-            : Copy.lockedHeadlinePlural(remainingRequiredGoalCount)
+            ? Copy.lockStatus.lockedHeadlineSingular
+            : Copy.lockStatus.lockedHeadlinePlural(remainingRequiredGoalCount)
     }
 
     private var detailLine: String? {
@@ -149,14 +151,14 @@ struct LockStatusView: View {
                 HStack(spacing: Theme.Spacing.xs) {
                     Image(systemName: "clock.fill")
                         .foregroundStyle(Theme.Colors.muted)
-                    Text(Copy.lockedSincePrefix)
+                    Text(Copy.lockStatus.lockedSincePrefix)
                         .foregroundStyle(Theme.Colors.text)
                     Text(session.startedAt, style: .time)
                         .foregroundStyle(Theme.Colors.text)
                 }
                 .font(Theme.Typography.body)
 
-                Text(Copy.triggerLine(session.trigger))
+                Text(Copy.lockStatus.triggerLine(session.trigger))
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
 
@@ -166,7 +168,7 @@ struct LockStatusView: View {
             } else if let nextLockAt = SharedDefaults.nextScheduledLockAt {
                 nextLockRow(nextLockAt)
             } else {
-                Text(Copy.noScheduleLine)
+                Text(Copy.lockStatus.noScheduleLine)
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.muted)
             }
@@ -180,7 +182,7 @@ struct LockStatusView: View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: "calendar")
                 .foregroundStyle(Theme.Colors.muted)
-            Text(Copy.nextLockPrefix)
+            Text(Copy.lockStatus.nextLockPrefix)
                 .foregroundStyle(Theme.Colors.muted)
             Text(date, style: .time)
                 .foregroundStyle(Theme.Colors.muted)
@@ -198,7 +200,7 @@ struct LockStatusView: View {
 
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.requiredGoalsHeading)
+            Text(Copy.lockStatus.requiredGoalsHeading)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)
 
@@ -242,14 +244,14 @@ struct LockStatusView: View {
             TimeBankBar(
                 remainingMinutes: displayedRemainingMinutes,
                 totalMinutes: todaysTimeBank?.earnedMin ?? 0,
-                label: Copy.timeBankHeading
+                label: Copy.lockStatus.timeBankHeading
             )
 
             Text("\(displayedRemainingMinutes) min available")
                 .font(Theme.Typography.numeralSmall())
                 .foregroundStyle(Theme.Colors.text)
 
-            Text(Copy.timeBankFootnote)
+            Text(Copy.lockStatus.timeBankFootnote)
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
         }
@@ -273,13 +275,13 @@ struct LockStatusView: View {
         if activeSession != nil {
             VStack(spacing: Theme.Spacing.xs) {
                 PrimaryButton(
-                    title: Copy.emergencyUnlockTitle,
+                    title: Copy.lockStatus.emergencyUnlockTitle,
                     systemImage: "exclamationmark.triangle.fill",
                     style: .holdToCommit,
                     isEnabled: !isEmergencyUnlocking,
                     action: performEmergencyUnlock
                 )
-                Text(Copy.emergencyUnlockFootnote)
+                Text(Copy.lockStatus.emergencyUnlockFootnote)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
                     .multilineTextAlignment(.center)
@@ -348,36 +350,6 @@ struct LockStatusView: View {
         let unit = goal.unit ?? ""
         let valueText = "\(Int(loggedSum.rounded()))/\(Int(target.rounded()))\(unit)"
         return (fraction, valueText)
-    }
-
-    // MARK: - Copy
-
-    /// See TodayView.swift's header comment for why this is here instead of `Core/Sources/Core/Copy`.
-    private enum Copy {
-        static let screenTitle = "Lock"
-        static let unlockedHeadline = "Unlocked"
-        static let lockedHeadlineSingular = "Locked · 1 goal left"
-        static func lockedHeadlinePlural(_ count: Int) -> String { "Locked · \(count) goals left" }
-
-        static let requiredGoalsHeading = "Required to unlock"
-        static let timeBankHeading = "Time Bank"
-        static let timeBankFootnote = "Unused minutes expire at midnight — spec §5.2, no hoarding."
-        static let lockedSincePrefix = "Locked since"
-        static let nextLockPrefix = "Next lock:"
-        static let noScheduleLine = "No lock scheduled right now."
-
-        static func triggerLine(_ trigger: LockTrigger?) -> String {
-            switch trigger {
-            case .nfc: "Started by NFC tap"
-            case .schedule: "Started by your schedule"
-            case .manual: "Started manually"
-            case .auto: "Started automatically"
-            case nil: ""
-            }
-        }
-
-        static let emergencyUnlockTitle = "Hold to emergency unlock"
-        static let emergencyUnlockFootnote = "Always available. No streak penalty, no judgment."
     }
 }
 

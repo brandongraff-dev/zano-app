@@ -28,18 +28,18 @@
 // for a simple, flat, user-owned row: `ProteinGapPlanner` looks staples up by `userID: UUID`
 // from the shared `ModelContext`, not via a `User.kitchenStaples` inverse.
 //
-// *** INTEGRATION GAP — flagged, not fixed here (out of this task's owned file list) ***
+// *** INTEGRATION GAP — was flagged here, now closed ***
 // `Core/Sources/Core/Store/ModelContainer+AppGroup.swift`'s `appGroupModelTypes` array is the
 // fixed list of every `@Model` type the shared App Group `Schema` knows about; that file's own
 // header comment is explicit that a type left off the list "compile[s] fine ... but silently
 // drop[s] every ... row at runtime" the moment something fetches/inserts it via
-// `ModelContainer.appGroup`. `KitchenStaple.self` is NOT yet added to that array — this task's
-// own scope is exactly three files (this model, the migration, `ProteinGapPlanner.swift`) and
-// does not include `Store/ModelContainer+AppGroup.swift`, so it is deliberately left untouched
-// here rather than guessed at. Whoever next owns that file (or a dedicated follow-up task) must
-// add `KitchenStaple.self` to `appGroupModelTypes` before any real on-device fetch/insert of this
-// model will work; until then `ProteinGapPlanner`'s Tier 1 will silently see zero staples against
-// the real App Group container. See this task's `knownIssues`.
+// `ModelContainer.appGroup`. This file, `ProteinGapPlanner.swift`, `Monetization/
+// GearOffersEngine.swift`, and `App/ZANO/Features/Fuel/FuelView.swift` had each independently
+// flagged `KitchenStaple.self` as missing from that array; a later cross-check of this same batch
+// (see that array's own doc comment) added it, so a real on-device fetch/insert of this model now
+// works against the App Group container. `FuelView.swift`'s own `try?`-guarded (not `@Query`)
+// read pattern was a defensive degrade for the gap, not a hard dependency on it — it keeps working
+// unchanged now that the array lists this type.
 
 import Foundation
 import SwiftData

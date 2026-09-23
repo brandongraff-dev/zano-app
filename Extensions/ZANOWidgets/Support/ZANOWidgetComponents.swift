@@ -93,6 +93,12 @@ struct ZANOStreakPillView: View {
                 .font(.footnote)
         }
         .foregroundStyle(ZANOWidgetColor.textPrimary)
+        // Previously no accessibility modifiers at all: VoiceOver read the numeral and the emoji
+        // as two separate stops. `WidgetCopy.streak(_:)` already composes this exact pair for the
+        // rectangular Lock Screen widget's own accessible text elsewhere in this file's sibling —
+        // reusing it here gives one combined announcement instead of a new hardcoded string.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(WidgetCopy.streak(streak))
     }
 }
 
@@ -104,6 +110,12 @@ struct ZANOLockBadgeView: View {
         Image(systemName: isLocked ? "lock.fill" : "lock.open.fill")
             .font(.footnote.weight(.semibold))
             .foregroundStyle(isLocked ? ZANOWidgetColor.danger : ZANOWidgetColor.accent)
+            // No explicit label previously — VoiceOver fell back to the SF Symbol's own default
+            // glyph description ("padlock" / "unlocked padlock"), not guaranteed to convey the
+            // app-semantic Locked/Unlocked state as clearly as `LockStatusCard`'s in-app
+            // equivalent does. Both keys already exist and are used elsewhere in
+            // `ZANOControls.swift`. See `docs/design/ui-stress-test-findings.md` §3.2.
+            .accessibilityLabel(isLocked ? WidgetCopy.controlLockedLabel : WidgetCopy.controlUnlockedLabel)
     }
 }
 

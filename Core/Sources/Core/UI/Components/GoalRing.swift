@@ -127,7 +127,13 @@ public struct GoalRing: View {
         // Motion rather than swapped for a static variant: the ring is already visibly full, so no
         // information is lost by skipping the pulse (docs/design/animation-opportunities.md row 4b).
         .scaleEffect(justCompleted && !reduceMotion ? 1.06 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.55), value: justCompleted)
+        // Previously ungated on its own — harmless today only because the `scaleEffect` value
+        // above already collapses to a constant `1.0` under Reduce Motion (so there's nothing
+        // for this spring to actually animate), but that's an indirect guarantee, not the
+        // explicit `reduceMotion ? nil : ...` idiom every other animation in this safe set uses
+        // (see `Theme.Motion.standard(reduceMotion:)`'s own doc comment on why `nil`, not a
+        // value-parity trick, is the deliberate pattern). Matched here for the same reason.
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.55), value: justCompleted)
         .frame(width: size.diameter, height: size.diameter)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label ?? "")

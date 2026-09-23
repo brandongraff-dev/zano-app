@@ -83,6 +83,7 @@ public struct CosmeticsShopView: View {
     @State private var pendingPurchaseKey: String?
     @State private var activeAlert: ShopAlert?
     @State private var purchaseSuccessTick = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
 
@@ -107,6 +108,11 @@ public struct CosmeticsShopView: View {
                 dismissButton: .default(Text(Copy.common.ok))
             )
         }
+        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
+        // `LockSetupView.swift`'s comment for the full rationale. Also matters here specifically:
+        // this screen's `.alert` above would otherwise follow the *system* appearance while the
+        // rest of the screen stays dark.
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header
@@ -140,14 +146,48 @@ public struct CosmeticsShopView: View {
 
     // MARK: - Category picker
 
+    /// A horizontally scrolling chip row, not a `.segmented` `Picker` — a 4-segment segmented
+    /// control (`Copy.cosmetics.categoryTitle`'s real values: "Themes," "Ring Styles," "Shield
+    /// Backgrounds," "Coach Voice Packs," per this file's own catalog-key checklist) is a known
+    /// iOS layout squeeze even at standard text size; segmented controls truncate/compress rather
+    /// than wrap. This can't be fixed by shortening the labels themselves — that text lives in
+    /// `Copy.cosmetics.categoryTitle(_:)`, outside this file — so the fix is the layout `FuelView`
+    /// already uses elsewhere in this codebase for an open-ended set of options. See
+    /// `docs/design/ui-stress-test-findings.md` §3.3.
     private var categoryPicker: some View {
-        Picker(Copy.cosmetics.categoryPickerAccessibilityLabel, selection: $selectedCategory) {
-            ForEach(CosmeticCategory.allCases, id: \.self) { category in
-                Text(Copy.cosmetics.categoryTitle(category)).tag(category)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Spacing.xs) {
+                ForEach(CosmeticCategory.allCases, id: \.self) { category in
+                    categoryChip(category)
+                }
             }
+            .padding(.horizontal, Theme.Spacing.md)
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, Theme.Spacing.md)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Copy.cosmetics.categoryPickerAccessibilityLabel)
+    }
+
+    private func categoryChip(_ category: CosmeticCategory) -> some View {
+        let isSelected = selectedCategory == category
+        return Button {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
+                selectedCategory = category
+            }
+        } label: {
+            Text(Copy.cosmetics.categoryTitle(category))
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(isSelected ? Theme.Colors.background : Theme.Colors.text)
+                .lineLimit(1)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background(isSelected ? Theme.Colors.accent : Theme.Colors.surface2, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        // Neither state was previously distinguishable to VoiceOver beyond tint (which it can't
+        // read at all) — the same "no selected signal" gap §3.4 flags for
+        // `SunriseAlarmSetupView.variantRow`, fixed here too since this control is being rebuilt
+        // anyway.
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Item list

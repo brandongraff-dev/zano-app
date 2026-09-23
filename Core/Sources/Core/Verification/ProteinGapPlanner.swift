@@ -155,14 +155,13 @@ public final class ProteinGapPlanner {
     /// container — mirrors `QuickRepeatSuggester`/`GymAutoDetect`'s own convention. Every real
     /// call site uses `.shared`.
     ///
-    /// *** KNOWN GAP (flagged, not fixed here) *** — `modelContainer: ModelContainer = .appGroup`
-    /// is the same App Group container every other Verification/ engine defaults to, but
-    /// `KitchenStaple.self` is not yet registered in that container's schema
-    /// (`Core/Sources/Core/Store/ModelContainer+AppGroup.swift`'s `appGroupModelTypes` — see
-    /// `KitchenStaple.swift`'s own header comment for the full explanation). Until that array is
-    /// updated, `kitchenStapleOption(gapGrams:userID:)` below will fetch zero rows against the
-    /// real on-device store, not because there are no staples but because the schema doesn't know
-    /// the type — this shows up as a silently-empty Tier 1, not a crash or a thrown error.
+    /// `modelContainer: ModelContainer = .appGroup` is the same App Group container every other
+    /// Verification/ engine defaults to. `KitchenStaple.self` was briefly missing from that
+    /// container's schema (`Core/Sources/Core/Store/ModelContainer+AppGroup.swift`'s
+    /// `appGroupModelTypes` — see `KitchenStaple.swift`'s own header comment) — flagged
+    /// independently here and in three other files, then closed in that array — so
+    /// `kitchenStapleOption(gapGrams:userID:)` below now fetches real rows against the on-device
+    /// store rather than silently seeing an empty Tier 1.
     init(modelContainer: ModelContainer = .appGroup) {
         self.modelContainer = modelContainer
     }

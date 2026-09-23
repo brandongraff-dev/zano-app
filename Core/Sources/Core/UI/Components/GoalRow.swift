@@ -89,7 +89,15 @@ public struct GoalRow: View {
         .padding(.vertical, Theme.Spacing.sm)
         .padding(.horizontal, Theme.Spacing.md)
         .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-        .sensoryFeedback(.success, trigger: status == .complete)
+        // `trigger: status == .complete` fires on *any* change of that `Bool`, not only when it
+        // becomes `true` — a row that flips back from `.complete` (a day rolling over on a
+        // recurring goal, a logged event retracted/edited) would replay the same "you did it!"
+        // haptic on the way back down. Gated to the forward transition only, matching
+        // `TodayView.swift`'s already-correct identical-shape fix for `isLocked`. See
+        // `docs/design/ui-stress-test-findings.md` §3.8.
+        .sensoryFeedback(.success, trigger: status) { oldValue, newValue in
+            oldValue != .complete && newValue == .complete
+        }
     }
 
     private var rowBody: some View {

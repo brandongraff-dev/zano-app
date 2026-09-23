@@ -137,6 +137,8 @@ struct SunriseAlarmSetupView: View {
     @State private var mySquads: [SquadSnapshot] = []
     @State private var squadsLoadFailed = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// Which alarm technology this OS/device supports, per spec §5.10's technical path: "iOS 26+:
     /// AlarmKit... iOS 17–18 fallback: scheduled local notifications... Be explicit in onboarding
     /// about which tier the user's phone supports." Computed locally with `#available` rather than
@@ -197,6 +199,11 @@ struct SunriseAlarmSetupView: View {
             }
             Button(Copy.common.cancel, role: .cancel) { pendingTagRemoval = nil }
         }
+        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
+        // `LockSetupView.swift`'s comment for the full rationale. Matters especially here: this
+        // screen's `.alert`/`.confirmationDialog` above are both real, frequently-hit paths
+        // (forget-tag, save error).
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Wake time
@@ -226,15 +233,16 @@ struct SunriseAlarmSetupView: View {
     }
 
     private func variantRow(_ variant: SunriseAlarmManager.DismissVariant) -> some View {
-        Button {
-            withAnimation(Theme.Motion.springStandard) {
+        let isSelected = settings.dismissVariant == variant
+        return Button {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
                 settings.dismissVariant = variant
             }
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: variant.systemImage)
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(settings.dismissVariant == variant ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
                     .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -248,13 +256,18 @@ struct SunriseAlarmSetupView: View {
 
                 Spacer()
 
-                if settings.dismissVariant == variant {
+                if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Theme.Colors.accent)
                 }
             }
         }
         .buttonStyle(.plain)
+        // The checkmark above is the only visual "this is the current choice" signal, and tint
+        // alone isn't read by VoiceOver — without this, all four Tag/Steps/Focus/Squad rows
+        // announce identically with no way to tell which is active. See
+        // `docs/design/ui-stress-test-findings.md` §3.4.
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Per-variant configuration
@@ -522,6 +535,8 @@ private struct NFCStepList: View {
                     Text("\(step.id)")
                         .font(Theme.Typography.captionEmphasized)
                         .foregroundStyle(Theme.Colors.background)
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
                         .frame(width: 18, height: 18)
                         .background(Theme.Colors.accent, in: Circle())
 

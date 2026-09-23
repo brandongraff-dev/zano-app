@@ -41,7 +41,7 @@ enum ZANOCircularMetric: String, AppEnum {
         TypeDisplayRepresentation(name: LocalizedStringResource(stringLiteral: WidgetCopy.lockScreenConfigTitle))
     }
 
-    static var caseDisplayRepresentations: [ZANOCircularMetric: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [ZANOCircularMetric: DisplayRepresentation] = [
         .protein: DisplayRepresentation(title: LocalizedStringResource(stringLiteral: WidgetCopy.metricProtein)),
         .water: DisplayRepresentation(title: LocalizedStringResource(stringLiteral: WidgetCopy.metricWater)),
         .streak: DisplayRepresentation(title: LocalizedStringResource(stringLiteral: WidgetCopy.metricStreak))
@@ -49,8 +49,8 @@ enum ZANOCircularMetric: String, AppEnum {
 }
 
 struct ZANOLockScreenMetricIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Choose Stat"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Choose Stat"
+    static let description = IntentDescription(
         LocalizedStringResource(stringLiteral: WidgetCopy.lockScreenConfigDescription)
     )
 

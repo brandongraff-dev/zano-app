@@ -55,8 +55,8 @@ enum ZANOControlError: LocalizedError {
 /// §5.2) is the safer, least-surprising default for a single tap (it can only ever unlock, never
 /// additionally restrict, matching CLAUDE.md's "no restrictive goals" spirit at the UX level too).
 struct ZANOStartLockIntent: AppIntent {
-    static var title: LocalizedStringResource = "Start Lock"
-    static var description = IntentDescription("Start your default ZANO lock in Earn Mode.")
+    static let title: LocalizedStringResource = "Start Lock"
+    static let description = IntentDescription("Start your default ZANO lock in Earn Mode.")
 
     @Parameter(title: "Lock Set ID")
     var lockSetIDString: String?
@@ -101,7 +101,7 @@ struct ZANOStartLockIntent: AppIntent {
 /// "always keep an emergency-unlock path" rule — it just can't add the extra confirmation tap spec
 /// §6 describes. Flagged in this task's knownIssues.
 struct ZANOSetLockStateIntent: SetValueIntent {
-    static var title: LocalizedStringResource = "Set ZANO Lock"
+    static let title: LocalizedStringResource = "Set ZANO Lock"
 
     @Parameter(title: "Locked")
     var value: Bool

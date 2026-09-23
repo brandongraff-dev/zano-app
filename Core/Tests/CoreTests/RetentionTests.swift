@@ -119,7 +119,7 @@ struct AdaptiveGoalEngineThresholdTests {
     /// threshold), these paddings are chosen so that mistake would flip the expected `expectedDelta`
     /// — exactly the class of bug docs/sessions/09-retention.md flagged this suite as worth catching
     /// before it ships.
-    private struct ThresholdScenario: Sendable, CustomStringConvertible {
+    struct ThresholdScenario: Sendable, CustomStringConvertible {
         let name: String
         let completedWithinTenDayWindow: Set<Int>
         let paddingDaysAllCompleted: Bool

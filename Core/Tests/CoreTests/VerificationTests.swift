@@ -114,6 +114,10 @@ private final class MockVisit: CLVisit {
         super.init()
     }
 
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used by these tests")
+    }
+
     override var arrivalDate: Date { mockArrivalDate }
     override var departureDate: Date { mockDepartureDate }
     override var coordinate: CLLocationCoordinate2D { mockCoordinate }

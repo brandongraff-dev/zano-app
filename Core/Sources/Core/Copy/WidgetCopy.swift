@@ -63,9 +63,44 @@ public enum WidgetCopy {
         return "\(mins) min left"
     }
 
+    // MARK: - Charged star (Home + Lock Screen)
+    //
+    // Widgets can't read Screen Time numbers (only the DeviceActivityReport extension can), so the
+    // star's charge is goal progress, and this copy says "goals", never "screen time".
+
+    public static let widgetDescription = "Your goals charge the star. Finish them to unlock."
+    public static let allGoalsDone = "All goals done"
+
+    /// "Locked · Social" — the status line above the medium/large widget's big number.
+    public static func lockStatusLine(lockSetName: String?) -> String {
+        guard let lockSetName, !lockSetName.isEmpty else { return "Locked" }
+        return "Locked · \(lockSetName)"
+    }
+
+    /// The unit under the big "2" on the medium/large widget.
+    public static func goalsLeftUnit(_ count: Int) -> String {
+        count == 1 ? "goal left" : "goals left"
+    }
+
+    /// "2 goals to unlock" — the rectangular Lock Screen headline.
+    public static func goalsToUnlock(_ count: Int) -> String {
+        count == 1 ? "1 goal to unlock" : "\(count) goals to unlock"
+    }
+
+    /// "1 of 3 goals" — progress when no lock is running.
+    public static func goalsDone(_ done: Int, of total: Int) -> String {
+        "\(done) of \(total) goals"
+    }
+
+    /// VoiceOver label for the charged star.
+    public static func chargeAccessibility(done: Int, total: Int) -> String {
+        total == 0 ? "No goals yet" : "\(done) of \(total) goals done"
+    }
+
     // MARK: - Lock Screen widget
 
     public static let lockScreenConfigTitle = "ZANO Stat"
+    public static let metricGoals = "Goals"
     public static let lockScreenConfigDescription = "Choose which stat this Lock Screen widget shows."
     public static let metricProtein = "Protein"
     public static let metricWater = "Water"

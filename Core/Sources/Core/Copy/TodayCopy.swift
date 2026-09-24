@@ -174,5 +174,32 @@ extension Copy {
         public static let statusDone = "Done"
 
         public static let logFailedTitle = "Couldn't log that. Try again."
+
+        // MARK: - First-day state (empty-states pass 2026-09-24)
+        //
+        // The setup hero and the checklist under it, shown until the first lock has ever started.
+        // Step titles are deliberately not `beginLockStandardTitle`: the UI tests find the bottom
+        // bar's begin-lock button by that exact text, so a second match would make it ambiguous.
+
+        /// Under the setup hero's headline.
+        public static let heroSetupSubtitle = "Three steps and your first lock is live."
+
+        public static let firstDayTitle = "Get set up"
+        /// `"1 of 3 done"` beside the checklist title.
+        public static func firstDayProgress(done: Int, total: Int) -> String { "\(done) of \(total) done" }
+
+        public static let firstDayStepGoalsTitle = "Pick your goals"
+        public static let firstDayStepGoalsDetail = "What you'll do to earn your apps back."
+        public static let firstDayStepAppsTitle = "Choose apps to lock"
+        public static let firstDayStepAppsDetail = "They stay shielded until your goals are done."
+        public static let firstDayStepLockTitle = "Start your first lock"
+        public static let firstDayStepLockDetail = "Lock in now, unlock by finishing today's goals."
+        /// The last step before the steps above it are done.
+        public static let firstDayStepLockWaiting = "Unlocks once the steps above are done."
+
+        /// VoiceOver for a step: `"Step 2 of 3, Choose apps to lock, done"`.
+        public static func firstDayStepAccessibility(index: Int, total: Int, title: String, isDone: Bool) -> String {
+            "Step \(index) of \(total), \(title)" + (isDone ? ", done" : "")
+        }
     }
 }

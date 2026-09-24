@@ -80,6 +80,9 @@ struct TodayView: View {
     @State private var isPerformingAction = false
     @State private var actionError: String?
     @State private var showLockDetail = false
+    /// The first-day checklist's "Choose apps to lock" step pushes the same `LockSetupView` the
+    /// Settings "Lock sets" row opens.
+    @State private var showLockSetup = false
     /// Drives `UnlockCelebrationView` (spec §16 P3). Set only for an *earned* unlock.
     ///
     /// Known gap (flagged, not built here): spec §8 rule 4's "1 in ~6 unlocks" variable-reward
@@ -94,6 +97,9 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     header
                     heroCard
+                    if showsFirstDayChecklist {
+                        firstDayChecklist
+                    }
                     goalSections
                     screenTimeSection
                     if let ghostComparison {
@@ -114,6 +120,9 @@ struct TodayView: View {
             }
             .navigationDestination(isPresented: $showLockDetail) {
                 LockStatusView()
+            }
+            .navigationDestination(isPresented: $showLockSetup) {
+                LockSetupView()
             }
             .task(id: trackingGymID) {
                 await pollGymDwell()
@@ -303,10 +312,15 @@ struct TodayView: View {
     private var heroNumber: some View {
         switch heroState {
         case .setup:
-            Text(Copy.today.setupIncompleteTitle)
-                .font(Theme.Typography.titleLarge)
-                .foregroundStyle(Theme.Colors.text)
-                .multilineTextAlignment(.center)
+            VStack(spacing: Theme.Spacing.xxs) {
+                Text(Copy.today.setupIncompleteTitle)
+                    .font(Theme.Typography.titleLarge)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(Copy.today.heroSetupSubtitle)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            .multilineTextAlignment(.center)
         case .unlocking:
             Text(Copy.today.allDoneTitle)
                 .font(Theme.Typography.titleLarge)
@@ -425,6 +439,103 @@ struct TodayView: View {
                 Copy.today.heroFractionDoneSpoken(done: done, total: total)
             ].joined(separator: ". ")
         }
+    }
+
+    // MARK: - First day (what's left before the first lock)
+
+    /// Shown while setup is incomplete, and on the first day until a lock has ever started: the
+    /// hero says what's missing, this says how to get there, one tappable step at a time. Gone for
+    /// good once any `LockSession` exists (a lock that ran, even one that ended).
+    private var showsFirstDayChecklist: Bool {
+        if case .setup = heroState { return true }
+        return !isLocked && lockSessions.isEmpty
+    }
+
+    private struct FirstDayStep: Identifiable {
+        let id: Int
+        let title: String
+        let detail: String
+        let isDone: Bool
+        /// `nil` when nothing in the app can take this step from here yet (no goal picker exists
+        /// outside onboarding unless the shell supplies `onFinishSetup`).
+        let action: (() -> Void)?
+    }
+
+    private var firstDaySteps: [FirstDayStep] {
+        let goalsDone = !activeGoals.isEmpty
+        let appsDone = defaultLockSet != nil
+        let lockDone = !lockSessions.isEmpty
+        let lockAction: (() -> Void)?
+        if case .beginLock(let lockSetID, let requiredGoalIDs) = barState {
+            lockAction = { beginLock(lockSetID: lockSetID, requiredGoalIDs: requiredGoalIDs) }
+        } else {
+            lockAction = nil
+        }
+        return [
+            FirstDayStep(
+                id: 1,
+                title: Copy.today.firstDayStepGoalsTitle,
+                detail: Copy.today.firstDayStepGoalsDetail,
+                isDone: goalsDone,
+                action: goalsDone ? nil : onFinishSetup
+            ),
+            FirstDayStep(
+                id: 2,
+                title: Copy.today.firstDayStepAppsTitle,
+                detail: Copy.today.firstDayStepAppsDetail,
+                isDone: appsDone,
+                action: {
+                    Analytics.shared.capture(event: "today_first_day_step_tapped", properties: ["step": "apps"])
+                    showLockSetup = true
+                }
+            ),
+            FirstDayStep(
+                id: 3,
+                title: Copy.today.firstDayStepLockTitle,
+                detail: goalsDone && appsDone ? Copy.today.firstDayStepLockDetail : Copy.today.firstDayStepLockWaiting,
+                isDone: lockDone,
+                action: lockDone || isPerformingAction ? nil : lockAction
+            )
+        ]
+    }
+
+    private var firstDayChecklist: some View {
+        let steps = firstDaySteps
+        let doneCount = steps.filter(\.isDone).count
+        let currentID = steps.first(where: { !$0.isDone })?.id
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(Copy.today.firstDayTitle)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Theme.Spacing.sm)
+                Text(Copy.today.firstDayProgress(done: doneCount, total: steps.count))
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .monospacedDigit()
+            }
+            .padding(.leading, Theme.Spacing.xxs)
+
+            VStack(spacing: 0) {
+                ForEach(steps) { step in
+                    FirstDayStepRow(
+                        index: step.id,
+                        total: steps.count,
+                        title: step.title,
+                        detail: step.detail,
+                        isDone: step.isDone,
+                        isCurrent: step.id == currentID,
+                        isLast: step.id == steps.last?.id,
+                        action: step.action
+                    )
+                }
+            }
+            .padding(.vertical, Theme.Spacing.xs)
+            .padding(.horizontal, Theme.Spacing.md)
+            .zanoCard()
+        }
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: doneCount)
     }
 
     // MARK: - Goals (rows with their action in place)
@@ -644,15 +755,23 @@ struct TodayView: View {
         return DeviceActivityFilter(segment: .hourly(during: day))
     }
 
+    /// Before Screen Time access: the same star, uncharged, beside what granting access buys.
     private var screenTimeAccessCard: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.screenTime.accessTitle)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
-            Text(Copy.screenTime.accessDetail)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                ZanoLivingMark(charge: 0, height: 34)
+                    .padding(.top, Theme.Spacing.xxs)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(Copy.screenTime.accessTitle)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Text(Copy.screenTime.accessDetail)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             PrimaryButton(title: Copy.screenTime.accessButton, style: .secondary) {
                 Task { try? await AuthorizationCenter.shared.requestAuthorization(for: .individual) }
             }
@@ -1004,6 +1123,103 @@ struct SegmentedProgress: View {
 }
 
 // MARK: - Private pieces
+
+/// One step of the first-day checklist: a numbered disc (a blue check once done, a blue ring on
+/// the step that's next), the step and one line of why, a chevron when it can be tapped. The disc
+/// column is joined by a thin rail so the three read as one path, not three unrelated rows.
+private struct FirstDayStepRow: View {
+    let index: Int
+    let total: Int
+    let title: String
+    let detail: String
+    let isDone: Bool
+    let isCurrent: Bool
+    let isLast: Bool
+    let action: (() -> Void)?
+
+    @ScaledMetric(relativeTo: .body) private var discSize: CGFloat = 28
+
+    @ViewBuilder
+    var body: some View {
+        if let action {
+            Button(action: action) { spokenContent }
+                .buttonStyle(.pressable)
+        } else {
+            spokenContent
+        }
+    }
+
+    /// One announcement per step (the Button, when there is one, adds its own trait and action).
+    private var spokenContent: some View {
+        content
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.today.firstDayStepAccessibility(index: index, total: total, title: title, isDone: isDone))
+            .accessibilityHint(detail)
+    }
+
+    private var content: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            VStack(spacing: 0) {
+                disc
+                if !isLast {
+                    Rectangle()
+                        .fill(isDone ? Theme.Colors.accentDim : Theme.Colors.hairline)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                        .padding(.vertical, Theme.Spacing.xxs)
+                }
+            }
+            .frame(width: discSize)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(isDone ? Theme.Colors.muted : Theme.Colors.text)
+                    .strikethrough(isDone, color: Theme.Colors.muted)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 3)
+            .padding(.bottom, isLast ? Theme.Spacing.xs : Theme.Spacing.md)
+
+            Spacer(minLength: Theme.Spacing.xs)
+
+            if action != nil, !isDone {
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(isCurrent ? Theme.Colors.accent : Theme.Colors.muted)
+                    .padding(.top, 6)
+            }
+        }
+        .padding(.top, Theme.Spacing.xs)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var disc: some View {
+        if isDone {
+            Image(systemName: "checkmark")
+                .font(Theme.Typography.icon(.small, weight: .bold))
+                .foregroundStyle(Theme.Colors.onAccent)
+                .frame(width: discSize, height: discSize)
+                .background(Theme.Colors.accent, in: Circle())
+        } else {
+            Text("\(index)")
+                .font(Theme.Typography.numeralSmall())
+                .foregroundStyle(isCurrent ? Theme.Colors.accent : Theme.Colors.muted)
+                .frame(width: discSize, height: discSize)
+                .background(isCurrent ? Theme.Colors.accentWash : Color.clear, in: Circle())
+                .overlay(
+                    Circle().strokeBorder(
+                        isCurrent ? Theme.Colors.accent : Theme.Colors.hairlineStrong,
+                        lineWidth: isCurrent ? 1.5 : Theme.Metrics.edgeWidth
+                    )
+                )
+        }
+    }
+}
 
 /// A non-interactive state row for bottom-bar states that used to be a dead, half-opacity accent
 /// button. Same height and shape as `PrimaryButton` (a capsule, `primaryButtonHeight`) so the bar

@@ -1,27 +1,24 @@
 // ZANOHomeWidget.swift
 // Extensions/ZANOWidgets/HomeWidget
 //
-// Home Screen widget — docs/spec.md §6:
-//   Small:  streak + lock status + "Start Lock" button
-//   Medium: 3 goal rings + buttons: "+25g", "+500ml", "Start Focus"
-//   Large:  Today's plan, Time Bank, next lock time, quick actions
+// Home Screen widget, built around the charged star (the ZANO mark filling with silver as goals
+// get done — see `ZANOChargedStar` in Support/ZANOWidgetComponents.swift):
+//   Small:  the star centred, "2 goals left" / "Unlocked" under it, streak flame in the corner.
+//   Medium: star on the left; lock status, the big number of goals left, and one capsule row per
+//           goal in its ring color, each with its quick-log button.
+//   Large:  the medium layout's header, the goal rows with amounts, Time Bank, next lock time,
+//           and "Start lock" when nothing is locked.
 //
-// One `Widget`/`TimelineProvider` supporting all three system families (`.systemSmall`,
-// `.systemMedium`, `.systemLarge`) — the entry view switches on `@Environment(\.widgetFamily)`,
-// the standard WidgetKit pattern for "one widget, three sizes" (all three read the exact same
-// `ZANOWidgetSnapshot`).
+// The star's charge is goal progress (`ZANOWidgetCharge`): widgets can't read Screen Time.
 //
-// Buttons run real App Intents via `Button(intent:)` (interactive widgets, iOS 17+ — spec §27:
-// "Interactive widgets can only run App Intents; no navigation, and updates need a timeline
-// reload after the intent."):
-//   - `LogProteinIntent`, `LogWaterIntent`, `StartFocusIntent` — exact CONTRACTS names from this
-//     task, called with the exact quantities spec §6 prints on the buttons themselves ("+25g",
-//     "+500ml").
-//   - `StartLockIntent` — spec §14's catalog intent for the Small widget's "Start Lock" button.
-//     Not one of this task's 4 frozen CONTRACTS names, so its initializer below is this session's
-//     best-effort guess (mirrors the given `LockEngineManager.startLock` contract exactly) —
-//     flagged in this task's decisions/knownIssues for reconciliation with whichever session
-//     actually authors Core/Sources/Core/Intents/StartLockIntent.swift.
+// One `Widget`/`TimelineProvider` for all three families; the entry view switches on
+// `@Environment(\.widgetFamily)` and sets the matching container background (the glow sits
+// behind wherever the star is).
+//
+// Buttons run real App Intents via `Button(intent:)` (interactive widgets, iOS 17+; spec §27):
+// Core's `LogProteinIntent` / `LogWaterIntent` / `StartFocusIntent` with the quantities printed
+// on the chips, and this extension's `ZANOStartLockIntent` (Support/ZANOWidgetIntents.swift).
+// No new intents.
 
 import AppIntents
 import Core
@@ -37,12 +34,12 @@ struct ZANOHomeWidgetProvider: TimelineProvider {
     typealias Entry = ZANOHomeWidgetEntry
 
     func placeholder(in context: Context) -> ZANOHomeWidgetEntry {
-        ZANOHomeWidgetEntry(date: .now, snapshot: .placeholder)
+        ZANOHomeWidgetEntry(date: .now, snapshot: .galleryPreview)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ZANOHomeWidgetEntry) -> Void) {
         if context.isPreview {
-            completion(ZANOHomeWidgetEntry(date: .now, snapshot: .placeholder))
+            completion(ZANOHomeWidgetEntry(date: .now, snapshot: .galleryPreview))
             return
         }
         // `loadSnapshot()` is a synchronous App Group read, so no Task is needed (and wrapping
@@ -70,10 +67,9 @@ struct ZANOHomeWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ZANOHomeWidgetProvider()) { entry in
             ZANOHomeWidgetEntryView(entry: entry)
-                .containerBackground(ZANOWidgetColor.background, for: .widget)
         }
         .configurationDisplayName(Text(WidgetCopy.appName))
-        .description(Text(WidgetCopy.todaysPlanTitle))
+        .description(Text(WidgetCopy.widgetDescription))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -83,14 +79,93 @@ struct ZANOHomeWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
+        let charge = entry.snapshot.charge
         switch family {
         case .systemMedium:
-            ZANOHomeMediumView(snapshot: entry.snapshot)
+            ZANOHomeMediumView(snapshot: entry.snapshot, charge: charge)
+                .containerBackground(for: .widget) {
+                    ZANOWidgetBackground(glowCenter: UnitPoint(x: 0.2, y: 0.5), charge: charge.fraction)
+                }
         case .systemLarge:
-            ZANOHomeLargeView(snapshot: entry.snapshot)
+            ZANOHomeLargeView(snapshot: entry.snapshot, charge: charge)
+                .containerBackground(for: .widget) {
+                    ZANOWidgetBackground(glowCenter: UnitPoint(x: 0.18, y: 0.12), charge: charge.fraction)
+                }
         default:
-            ZANOHomeSmallView(snapshot: entry.snapshot)
+            ZANOHomeSmallView(snapshot: entry.snapshot, charge: charge)
+                .containerBackground(for: .widget) {
+                    ZANOWidgetBackground(glowCenter: UnitPoint(x: 0.5, y: 0.4), charge: charge.fraction, glowRadius: 90)
+                }
         }
+    }
+}
+
+// MARK: - Shared pieces
+
+/// "2 goals left" / "All goals done" / "Unlocked".
+private func headline(for charge: ZANOWidgetCharge) -> String {
+    guard charge.isLocked else { return WidgetCopy.noActiveLock }
+    return charge.remaining > 0 ? WidgetCopy.goalsRemaining(charge.remaining) : WidgetCopy.allGoalsDone
+}
+
+/// The big number of goals left (locked), or "Unlocked" in the same weight.
+private struct ZANOBigCountView: View {
+    let charge: ZANOWidgetCharge
+    var size: CGFloat = 34
+
+    var body: some View {
+        if charge.isLocked {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text("\(charge.remaining)")
+                    .font(.system(size: size, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(ZANOWidgetColor.textPrimary)
+                    .contentTransition(.numericText())
+                Text(WidgetCopy.goalsLeftUnit(charge.remaining))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(ZANOWidgetColor.textMuted)
+                    .lineLimit(1)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(WidgetCopy.goalsRemaining(charge.remaining))
+        } else {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(WidgetCopy.noActiveLock)
+                    .font(.system(size: size * 0.7, weight: .bold, design: .rounded))
+                    .foregroundStyle(ZANOWidgetColor.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if charge.total > 0 {
+                    Text(WidgetCopy.goalsDone(charge.done, of: charge.total))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(ZANOWidgetColor.textMuted)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+}
+
+/// The quick-log chip for a goal row, running that goal's existing App Intent.
+@ViewBuilder
+private func quickLogButton(for goal: ZANOTrackedGoal) -> some View {
+    switch goal.kind {
+    case .protein:
+        Button(intent: LogProteinIntent(grams: 25, source: .widget)) {
+            ZANOQuickLogChip(color: goal.color, text: WidgetCopy.logProteinButton)
+        }
+        .buttonStyle(.plain)
+    case .water:
+        Button(intent: LogWaterIntent(milliliters: 500, source: .widget)) {
+            ZANOQuickLogChip(color: goal.color, text: WidgetCopy.logWaterButton)
+        }
+        .buttonStyle(.plain)
+    case .focus:
+        Button(intent: StartFocusIntent(minutes: 25)) {
+            ZANOQuickLogChip(color: goal.color, systemImage: "play.fill")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(WidgetCopy.startFocusButton)
     }
 }
 
@@ -98,39 +173,45 @@ struct ZANOHomeWidgetEntryView: View {
 
 private struct ZANOHomeSmallView: View {
     let snapshot: ZANOWidgetSnapshot
+    let charge: ZANOWidgetCharge
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                ZANOStreakPillView(streak: snapshot.currentStreak)
-                Spacer()
-                ZANOLockBadgeView(isLocked: snapshot.isLocked)
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 10) {
+                Spacer(minLength: 0)
+                ZANOChargedStar(charge: charge.fraction, glowRadius: 12)
+                    .frame(height: 58)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
+                VStack(spacing: 2) {
+                    Text(headline(for: charge))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(ZANOWidgetColor.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    if let caption {
+                        Text(caption)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ZANOWidgetColor.textMuted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
-            Text(snapshot.isLocked
-                ? WidgetCopy.lockedStatus(lockSetName: snapshot.lockSetName)
-                : WidgetCopy.noActiveLock)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(ZANOWidgetColor.textPrimary)
-                .lineLimit(2)
-            if snapshot.isLocked && snapshot.goalsRemainingForActiveLock > 0 {
-                Text(WidgetCopy.goalsRemaining(snapshot.goalsRemainingForActiveLock))
-                    .font(.caption2)
-                    .foregroundStyle(ZANOWidgetColor.textMuted)
-            }
-            Spacer(minLength: 0)
-            Button(intent: ZANOStartLockIntent(
-                lockSetID: snapshot.defaultLockSetID,
-                requiredGoalIDs: snapshot.todaysActiveGoalIDs
-            )) {
-                Text(WidgetCopy.startLockButton)
-                    .font(.caption.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-            }
-            .tint(ZANOWidgetColor.accent)
-            .buttonStyle(.borderedProminent)
-            .disabled(snapshot.isLocked)
+            .frame(maxWidth: .infinity)
+
+            ZANOStreakFlameView(streak: snapshot.currentStreak)
         }
+    }
+
+    /// The lock set's name while locked; "1 of 3 goals" otherwise.
+    private var caption: String? {
+        if snapshot.isLocked {
+            guard let name = snapshot.lockSetName, !name.isEmpty else { return nil }
+            return name
+        }
+        return charge.total > 0 ? WidgetCopy.goalsDone(charge.done, of: charge.total) : nil
     }
 }
 
@@ -138,47 +219,32 @@ private struct ZANOHomeSmallView: View {
 
 private struct ZANOHomeMediumView: View {
     let snapshot: ZANOWidgetSnapshot
+    let charge: ZANOWidgetCharge
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ZANOStreakPillView(streak: snapshot.currentStreak)
-                Spacer()
-                ZANOLockBadgeView(isLocked: snapshot.isLocked)
-                Text(snapshot.isLocked
-                    ? WidgetCopy.lockedStatus(lockSetName: snapshot.lockSetName)
-                    : WidgetCopy.noActiveLock)
-                    .font(.caption2)
-                    .foregroundStyle(ZANOWidgetColor.textMuted)
-                    .lineLimit(1)
-            }
+        HStack(spacing: 14) {
+            ZANOChargedStar(charge: charge.fraction, glowRadius: 16)
+                .frame(width: 104)
+                .frame(maxHeight: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
 
-            HStack(spacing: 14) {
-                ZANOGoalRingView(progress: snapshot.protein, color: ZANOWidgetColor.ringProtein)
-                ZANOGoalRingView(progress: snapshot.water, color: ZANOWidgetColor.ringWater)
-                ZANOGoalRingView(progress: snapshot.focus, color: ZANOWidgetColor.ringFocus)
-            }
-            .frame(maxHeight: .infinity)
-
-            HStack(spacing: 8) {
-                Button(intent: LogProteinIntent(grams: 25, source: .widget)) {
-                    Text(WidgetCopy.logProteinButton)
-                        .font(.caption2.weight(.semibold))
-                        .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    ZANOLockStatusLine(snapshot: snapshot)
+                    Spacer(minLength: 4)
+                    ZANOStreakFlameView(streak: snapshot.currentStreak)
                 }
-                Button(intent: LogWaterIntent(milliliters: 500, source: .widget)) {
-                    Text(WidgetCopy.logWaterButton)
-                        .font(.caption2.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                Button(intent: StartFocusIntent(minutes: 25)) {
-                    Text(WidgetCopy.startFocusButton)
-                        .font(.caption2.weight(.semibold))
-                        .frame(maxWidth: .infinity)
+                ZANOBigCountView(charge: charge, size: 30)
+                Spacer(minLength: 0)
+                VStack(spacing: 5) {
+                    ForEach(snapshot.displayGoals) { goal in
+                        ZANOGoalCapsuleRow(goal: goal) {
+                            quickLogButton(for: goal)
+                        }
+                    }
                 }
             }
-            .buttonStyle(.bordered)
-            .tint(ZANOWidgetColor.textPrimary)
         }
     }
 }
@@ -187,70 +253,76 @@ private struct ZANOHomeMediumView: View {
 
 private struct ZANOHomeLargeView: View {
     let snapshot: ZANOWidgetSnapshot
+    let charge: ZANOWidgetCharge
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                ZANOStreakPillView(streak: snapshot.currentStreak)
-                Spacer()
-                ZANOLockBadgeView(isLocked: snapshot.isLocked)
-                Text(snapshot.isLocked
-                    ? WidgetCopy.lockedStatus(lockSetName: snapshot.lockSetName)
-                    : WidgetCopy.noActiveLock)
-                    .font(.caption)
-                    .foregroundStyle(ZANOWidgetColor.textMuted)
+            HStack(alignment: .center, spacing: 14) {
+                ZANOChargedStar(charge: charge.fraction, glowRadius: 14)
+                    .frame(width: 92)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        ZANOLockStatusLine(snapshot: snapshot)
+                        Spacer(minLength: 4)
+                        ZANOStreakFlameView(streak: snapshot.currentStreak)
+                    }
+                    ZANOBigCountView(charge: charge, size: 34)
+                }
             }
 
             Text(WidgetCopy.todaysPlanTitle)
-                .font(.caption.weight(.bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(ZANOWidgetColor.textMuted)
                 .textCase(.uppercase)
 
-            VStack(spacing: 8) {
-                ZANOGoalRowView(progress: snapshot.protein, color: ZANOWidgetColor.ringProtein)
-                ZANOGoalRowView(progress: snapshot.water, color: ZANOWidgetColor.ringWater)
-                ZANOGoalRowView(progress: snapshot.focus, color: ZANOWidgetColor.ringFocus)
+            VStack(spacing: 10) {
+                ForEach(snapshot.displayGoals) { goal in
+                    ZANOGoalCapsuleRow(goal: goal, showsAmount: true) {
+                        quickLogButton(for: goal)
+                    }
+                }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Text(WidgetCopy.timeBankTitle)
-                        .font(.caption.weight(.bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(ZANOWidgetColor.textMuted)
                         .textCase(.uppercase)
                     Spacer()
                     Text(WidgetCopy.minutesRemaining(snapshot.earnedMinutesRemainingToday))
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(ZANOWidgetColor.textPrimary)
                 }
                 ZANOTimeBankBarView(remainingMinutes: snapshot.earnedMinutesRemainingToday)
             }
 
-            Text(WidgetCopy.nextLock(snapshot.nextScheduledLockAt))
-                .font(.caption2)
-                .foregroundStyle(ZANOWidgetColor.textMuted)
-
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                Button(intent: LogProteinIntent(grams: 25, source: .widget)) {
-                    Text(WidgetCopy.logProteinButton)
-                        .font(.caption2.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                Button(intent: LogWaterIntent(milliliters: 500, source: .widget)) {
-                    Text(WidgetCopy.logWaterButton)
-                        .font(.caption2.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                Button(intent: StartFocusIntent(minutes: 25)) {
-                    Text(WidgetCopy.startFocusButton)
-                        .font(.caption2.weight(.semibold))
-                        .frame(maxWidth: .infinity)
+                Text(WidgetCopy.nextLock(snapshot.nextScheduledLockAt))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(ZANOWidgetColor.textMuted)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                if !snapshot.isLocked && snapshot.defaultLockSetID != nil {
+                    Button(intent: ZANOStartLockIntent(
+                        lockSetID: snapshot.defaultLockSetID,
+                        requiredGoalIDs: snapshot.todaysActiveGoalIDs
+                    )) {
+                        Label(WidgetCopy.startLockButton, systemImage: "lock.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(ZANOWidgetColor.accent))
+                    }
+                    .buttonStyle(.plain)
+                    .widgetAccentable()
                 }
             }
-            .buttonStyle(.bordered)
-            .tint(ZANOWidgetColor.textPrimary)
         }
     }
 }
@@ -258,17 +330,17 @@ private struct ZANOHomeLargeView: View {
 #Preview(as: .systemSmall) {
     ZANOHomeWidget()
 } timeline: {
-    ZANOHomeWidgetEntry(date: .now, snapshot: .placeholder)
+    ZANOHomeWidgetEntry(date: .now, snapshot: .galleryPreview)
 }
 
 #Preview(as: .systemMedium) {
     ZANOHomeWidget()
 } timeline: {
-    ZANOHomeWidgetEntry(date: .now, snapshot: .placeholder)
+    ZANOHomeWidgetEntry(date: .now, snapshot: .galleryPreview)
 }
 
 #Preview(as: .systemLarge) {
     ZANOHomeWidget()
 } timeline: {
-    ZANOHomeWidgetEntry(date: .now, snapshot: .placeholder)
+    ZANOHomeWidgetEntry(date: .now, snapshot: .galleryPreview)
 }

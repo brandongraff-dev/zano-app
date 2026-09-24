@@ -78,5 +78,68 @@ extension Copy {
         }
 
         public static let dismissButtonTitle = "Close"
+
+        // MARK: Weekly recap story (WeeklyRecapShareView.swift, RecapStoryPages.swift)
+        //
+        // The recap is a swipeable story: one idea per page, one big number per page. Every string
+        // here is additive and shame-free: a light week gets an encouraging line, never a zero hero.
+
+        /// "Sep 14 – Sep 20". Both dates are caller-formatted.
+        public static func storyDateRange(start: String, end: String) -> String {
+            "\(start) – \(end)"
+        }
+
+        // Page 1: intro.
+        public static let storyIntroHeadline = "This was your week."
+        public static let storyIntroSubline = "Seven days of earning your screen time back."
+        public static let storyTapHint = "Tap to continue"
+
+        // Page 2: time reclaimed. The eyebrow reuses `Copy.progress.timeReclaimedTitle`.
+        /// Unit under the giant numeral: hours (to one decimal) once there is at least one, minutes
+        /// before that. 60-62 minutes displays as "1", hence singular.
+        public static func storyTimeUnit(minutes: Int) -> String {
+            if minutes >= 60 { return minutes < 63 ? "hour" : "hours" }
+            return minutes == 1 ? "minute" : "minutes"
+        }
+        public static let storyTimeCaption = "Locked away from the apps that eat your day, while you did the work."
+        public static let storyTimeEmptyHeadline = "Your locks are warming up."
+        public static let storyTimeEmptyCaption = "Set a lock next week and watch this number grow."
+
+        // Page 3: goals earned and streak.
+        public static let storyGoalsEyebrow = "Goals earned"
+        public static func storyGoalsCaption(planned: Int) -> String {
+            planned > 0 ? "of \(planned) planned" : "this week"
+        }
+        public static let storyGoalsEmptyHeadline = "Next week starts fresh."
+        public static let storyGoalsEmptyCaption = "Pick one goal and earn your first unlock."
+        public static func storyStreakLine(days: Int) -> String { "\(days)-day streak" }
+        public static func storyRankUpLine(places: Int) -> String {
+            "Up \(places) \(places == 1 ? "place" : "places")"
+        }
+
+        // Page 4: best day and the goal that pushed back hardest.
+        public static let storyDaysEyebrow = "Highs and lows"
+        public static let storyBestDayTitle = "Best day"
+        public static let storyBestDayCaption = "Your strongest day of the week."
+        public static let storyToughestTitle = "Toughest goal"
+        public static func storyToughestCaption(goal: String, percent: Int) -> String {
+            "\(goal) landed \(percent)% of the week. That's next week's win."
+        }
+
+        // Page 5: the rings.
+        public static let storyRingsEyebrow = "Your rings"
+        public static func storyRingsHeadline(closed: Int, total: Int) -> String {
+            "\(closed) of \(total) closed"
+        }
+        public static func storyPercent(_ percent: Int) -> String { "\(percent)%" }
+
+        // Page 6: the share card.
+        public static let storyShareEyebrow = "Share your week"
+        public static let storyShareHeadline = "Ready to post."
+
+        /// VoiceOver value for the story, e.g. "Page 2 of 6".
+        public static func storyPageAccessibilityValue(page: Int, total: Int) -> String {
+            "Page \(page) of \(total)"
+        }
     }
 }

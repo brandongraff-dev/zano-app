@@ -86,6 +86,12 @@
 // session verifies (celebration, week dot, streak flame). The widget mock's "+" badge is white: it is
 // an affordance, not a reward.
 //
+// Liveliness pass (2026-09-24): the payoff is the star. The celebration's hero is `ZanoLivingMark`,
+// arriving nearly charged (where the header left it) and filling to FULL charge as the session
+// verifies, with a ZANO Blue bloom that swells behind it and the accent burst firing as it lands. The
+// streak numeral now sits under the star instead of inside a ring. The intro's backdrop is the
+// scaffold's flow ambient (brightest at step 14) instead of a flat `zanoAmbient(.neutral)`.
+//
 // Every animation is gated on `accessibilityReduceMotion`. The header chrome is hidden on this
 // screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
 // shared action bar.
@@ -201,7 +207,6 @@ struct Screen14FirstWin: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .zanoAmbient(.neutral)
         .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.firstWinStartButton,
@@ -643,18 +648,23 @@ private struct FirstWinCelebration: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sealProgress: Double = 0
+    @State private var starCharge: Double = FirstWinCelebration.arrivalCharge
     @State private var shownStreak = 0
     @State private var showText = false
     @State private var showBurst = false
     @State private var weekDone = false
     @State private var hapticTick = 0
 
-    /// Where the particles radiate from: a frame centred on the ring, bigger than it.
+    /// Where the particles radiate from: a frame centred on the star, bigger than it.
     private static let burstFrame: CGFloat = 320
+    private static let starHeight: CGFloat = 132
+    /// The star arrives where the header left it (step 13 of 14) and fills to full on the win.
+    static let arrivalCharge = 13.0 / 14.0
+    /// `ZanoLivingMark` eases a charge change over 1.2s; the burst fires as the fill lands.
+    private static let fillLandMilliseconds = 850
 
     /// Reduce Motion shows the final state from the first frame, with no flash of the unearned one.
-    private var progress: Double { reduceMotion ? 1 : sealProgress }
+    private var charge: Double { reduceMotion ? 1 : starCharge }
     private var streakValue: Int { reduceMotion ? streak : shownStreak }
     private var isTextShown: Bool { reduceMotion || showText }
     private var isWeekDone: Bool { reduceMotion || weekDone }
@@ -669,6 +679,8 @@ private struct FirstWinCelebration: View {
                     .accessibilityAddTraits(.isHeader)
 
                 seal
+
+                streakBadge
 
                 Text(Copy.onboardingReveal.firstWinCelebrationBody)
                     .font(Theme.Typography.body)
@@ -698,33 +710,46 @@ private struct FirstWinCelebration: View {
         .task { await play() }
     }
 
-    /// The streak ring: the burst behind it, the ring closing, the streak numeral inside it.
+    /// The star reaching full charge: the blue bloom swelling behind it, the burst from it.
     private var seal: some View {
         ZStack {
+            OnboardingKit.StarBloom(diameter: Self.burstFrame * 1.2)
+                .opacity(showBurst ? 1 : 0.35)
+                .scaleEffect(showBurst || reduceMotion ? 1 : 0.8)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showBurst)
+
             if showBurst {
                 // Mounted at the unlock beat so the burst fires exactly once, from the moment the
-                // ring closes. Accent-only; it handles Reduce Motion itself (in-place cross-fade).
+                // star fills. Accent-only; it handles Reduce Motion itself (in-place cross-fade).
                 CelebrationBurst(trigger: 0)
                     .frame(width: Self.burstFrame, height: Self.burstFrame)
             }
 
-            GoalRing(progress: progress, color: Theme.Colors.accent, size: .hero, center: .none)
+            ZanoLivingMark(charge: charge, height: Self.starHeight)
+                .scaleEffect(showBurst && !reduceMotion ? 1.04 : 1)
+                .animation(reduceMotion ? nil : Theme.Motion.springCelebration, value: showBurst)
                 .accessibilityHidden(true)
-
-            VStack(spacing: 0) {
-                OnboardingKit.HeroNumeral(text: "\(streakValue)", color: Theme.Colors.text)
-                Text(Copy.onboardingReveal.firstWinStreakUnit)
-                    .zanoText(.unit)
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-            .accessibilityElement(children: .combine)
         }
+        .frame(height: Self.burstFrame * 0.62)
     }
 
-    /// 0.25s beat (the ring is seen empty while the phase cross-fades in) -> the ring fills over
-    /// 0.6s -> at ~0.85s the burst fires, the streak ticks 0 to 1, today's dot checks, and one
-    /// success haptic lands. Inside `Theme.Motion.unlockCelebrationMaxDuration`, and nothing here
-    /// gates the "Done" button.
+    /// The streak: the hero numeral counting 0 to 1, its unit beside it.
+    private var streakBadge: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+            OnboardingKit.HeroNumeral(text: "\(streakValue)", color: Theme.Colors.text, tier: .large)
+                .fixedSize()
+            Text(Copy.onboardingReveal.firstWinStreakUnit)
+                .zanoText(.unit)
+                .foregroundStyle(Theme.Colors.muted)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 0.25s beat (the nearly-charged star is seen while the phase cross-fades in) -> the star fills to
+    /// full (it eases the fill itself) -> as it lands (~1.1s) the burst fires, the bloom swells, the
+    /// streak ticks 0 to 1, today's dot checks, and one success haptic lands. Inside
+    /// `Theme.Motion.unlockCelebrationMaxDuration` (give or take the star's own ease tail), and
+    /// nothing here gates the "Done" button.
     private func play() async {
         guard !reduceMotion else {
             showBurst = true
@@ -734,10 +759,10 @@ private struct FirstWinCelebration: View {
 
         try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
-        withAnimation(Theme.Motion.ringFill) { sealProgress = 1 }
+        starCharge = 1
         withAnimation(Theme.Motion.springStandard) { showText = true }
 
-        try? await Task.sleep(for: .milliseconds(600))
+        try? await Task.sleep(for: .milliseconds(Self.fillLandMilliseconds))
         guard !Task.isCancelled else { return }
         showBurst = true
         hapticTick += 1

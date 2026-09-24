@@ -69,6 +69,26 @@ extension Copy {
 
         public static let unknownGoalLabel = "A goal"
 
+        // MARK: - First week (empty-states pass 2026-09-24)
+        //
+        // Before any lock has ended: the hero at 0, a row of seven empty days starting today, and a
+        // short list of what this screen will show once there is data.
+
+        /// Over the seven empty day dots.
+        public static let firstWeekStartsToday = "Your first week starts today"
+        /// VoiceOver for the seven dots.
+        public static let firstWeekDotsAccessibility = "Your first week starts today. Seven days to fill."
+        /// Heading over the preview list.
+        public static let firstWeekComingUpTitle = "What shows up here"
+        public static let firstWeekComingUpDaily = "Time reclaimed, day by day"
+        public static let firstWeekComingUpStreak = "Your streak, one earned day at a time"
+        public static let firstWeekComingUpRecap = "A weekly recap you can share"
+
+        /// The streak numeral before any earned day: today is day one, not "0 days".
+        public static let streakDayOne = "Day 1"
+        /// VoiceOver for the streak header before any earned day.
+        public static let streakDayOneAccessibility = "Streak, day 1. Your first earned unlock starts it."
+
         private static let weekLabelFormatter: DateFormatter = {
             let formatter = DateFormatter()
             formatter.calendar = Calendar(identifier: .gregorian)

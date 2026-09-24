@@ -34,6 +34,14 @@
 //     does not have — a glow with an anchor, a 96pt display numeral, a centered-or-scroll layout
 //     and the coach-voice glyph map.
 //
+// Liveliness pass (2026-09-24, founder: "onboarding feels dull and lifeless"): the header carries a
+// small `ZanoLivingMark` that charges with progress (charge = step / 14), the product line ("the star
+// charges while you're off your phone") played out while the user answers. The scaffold paints one
+// continuous ambient (`OnboardingKit.Ambient`): deep navy from above that warms toward ZANO Blue as
+// the steps advance, so screens no longer paint their own flat `zanoAmbient(.neutral)`. The progress
+// fill is blue with a soft glow, and advancing a step ticks a soft haptic. The "Step N of 14"
+// element is unchanged (the star is hidden from VoiceOver so it adds no second element).
+//
 // Order note (decision 2026-09-23): the hard paywall is screen 12, directly after Commitment, so
 // nothing sits between the peak and the payment ask; notification priming is screen 13. The file
 // `Screen12PermissionPriming.swift` keeps its name but is now the 13th screen.
@@ -154,11 +162,18 @@ struct OnboardingScaffold<Content: View>: View {
                     .accessibilityLabel(progressLabel)
             }
         }
-        .background(Theme.Colors.background.ignoresSafeArea())
+        .background {
+            OnboardingKit.Ambient(progress: flowState.progressFraction)
+                .ignoresSafeArea()
+        }
+        // A soft tick each time the star takes on charge (forward only; Back is silent).
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: flowState.currentScreen) { oldValue, newValue in
+            newValue > oldValue
+        }
         .preferredColorScheme(.dark)
     }
 
-    /// [back 44pt][progress bar]. The back glyph is centered in its 44pt target, which puts the
+    /// [back 44pt][living star][progress bar]. The back glyph is centered in its 44pt target, which puts the
     /// chevron's visible edge on the same 16pt margin the cards below use; the bar's trailing edge
     /// is on that margin too.
     private var header: some View {
@@ -175,6 +190,12 @@ struct OnboardingScaffold<Content: View>: View {
             .buttonStyle(.pressable(scale: 0.92))
             .accessibilityLabel(Copy.onboarding.backButtonAccessibilityLabel)
 
+            // The star charges with every answer. Decorative here: the progress bar's
+            // "Step N of 14" element already says where the user is.
+            ZanoLivingMark(charge: flowState.progressFraction, height: OnboardingKit.headerStarHeight)
+                .padding(.trailing, Theme.Spacing.xs)
+                .accessibilityHidden(true)
+
             progressBar
                 .padding(.trailing, Theme.Spacing.md)
         }
@@ -186,10 +207,17 @@ struct OnboardingScaffold<Content: View>: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Theme.Colors.track)
-                // Progress through setup is chrome, not an earned state, so it is white (decision
-                // 2026-09-24: the accent is for earned states only).
+                // ZANO Blue, brightening toward its leading edge, with a soft glow: the charge
+                // the star in front of it is taking on.
                 Capsule()
-                    .fill(Theme.Colors.interactive)
+                    .fill(
+                        LinearGradient(
+                            colors: [Theme.Colors.accent.opacity(0.55), Theme.Colors.accent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: Theme.Colors.accent.opacity(0.55), radius: 4)
                     .frame(width: max(0, proxy.size.width * flowState.progressFraction))
                     .animation(
                         reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill,
@@ -210,6 +238,77 @@ struct OnboardingScaffold<Content: View>: View {
 /// screen defines. Everything here is built from `Theme` tokens and Core components.
 enum OnboardingKit {
     static let progressBarHeight: CGFloat = 6
+    /// The header star: small enough to sit in the 44pt row, big enough to read as the mark.
+    static let headerStarHeight: CGFloat = 24
+
+    // MARK: Ambient
+
+    /// The whole-flow backdrop: near-black, a pool of deep navy (`lockedAmbient`) falling from above,
+    /// and ZANO Blue light that grows in as `progress` (0...1) advances, from the top-right corner
+    /// and, late in the flow, rising from the floor. Only layer opacities change, eased once per
+    /// step; nothing loops, so it is the same under Reduce Motion (just a shorter fade).
+    struct Ambient: View {
+        let progress: Double
+
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        private var p: Double { min(1, max(0, progress)) }
+
+        var body: some View {
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                ZStack {
+                    Theme.Colors.background
+                    RadialGradient(
+                        colors: [Theme.Colors.lockedAmbient, Theme.Colors.lockedAmbient.opacity(0)],
+                        center: UnitPoint(x: 0.35, y: -0.08),
+                        startRadius: 0,
+                        endRadius: width * 1.3
+                    )
+                    .opacity(0.45 + 0.30 * p)
+                    RadialGradient(
+                        colors: [Theme.Colors.accent.opacity(0.20), Theme.Colors.accent.opacity(0)],
+                        center: UnitPoint(x: 0.95, y: 0.0),
+                        startRadius: 0,
+                        endRadius: width * 1.05
+                    )
+                    .opacity(0.15 + 0.85 * p)
+                    RadialGradient(
+                        colors: [Theme.Colors.accent.opacity(0.12), Theme.Colors.accent.opacity(0)],
+                        center: .bottom,
+                        startRadius: 0,
+                        endRadius: width * 0.95
+                    )
+                    .opacity(p * p)
+                }
+            }
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : .easeInOut(duration: 0.9), value: p)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// A soft blue bloom behind a hero star: the star's light spilling onto the page. Static
+    /// gradient; callers change only its opacity.
+    struct StarBloom: View {
+        var diameter: CGFloat = 360
+
+        var body: some View {
+            RadialGradient(
+                colors: [
+                    Theme.Colors.accent.opacity(0.32),
+                    Theme.Colors.accent.opacity(0.10),
+                    Theme.Colors.accent.opacity(0),
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: diameter / 2
+            )
+            .frame(width: diameter, height: diameter)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
 
     /// The glyph for each coach voice, shared by the voice picker, the plan build beat and the
     /// mock notification (same vocabulary `CosmeticsShopView` already uses for coach packs).
@@ -277,6 +376,7 @@ enum OnboardingKit {
                 .multilineTextAlignment(alignment)
                 .fixedSize(horizontal: false, vertical: true)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .onboardingEntrance()
         }
     }
 
@@ -326,7 +426,33 @@ enum OnboardingKit {
     }
 }
 
+/// A screen's title (or question block) springs up into place once when it appears: a short rise
+/// and fade on `springCelebration`. One-shot, never gates input; nothing under Reduce Motion.
+private struct OnboardingEntrance: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    private var isShown: Bool { appeared || reduceMotion }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isShown ? 1 : 0)
+            .offset(y: isShown ? 0 : Theme.Spacing.md)
+            .scaleEffect(isShown ? 1 : 0.98, anchor: .top)
+            .onAppear {
+                guard !reduceMotion, !appeared else { return }
+                withAnimation(Theme.Motion.springCelebration.delay(0.06)) { appeared = true }
+            }
+    }
+}
+
 extension View {
+    /// The shared one-shot spring entrance for an onboarding title/question (see
+    /// `OnboardingEntrance`).
+    func onboardingEntrance() -> some View {
+        modifier(OnboardingEntrance())
+    }
+
     /// Pins `bar` to the bottom of the screen as the onboarding action bar — Core's
     /// `zanoActionBar` (`StickyActionBar`: 16pt gutters, a background fade instead of a blurred
     /// material strip) with the bar's views stacked `Theme.Spacing.xs` apart. One position and one

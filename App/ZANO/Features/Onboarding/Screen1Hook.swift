@@ -4,29 +4,20 @@
 // docs/spec.md §7.1 (screen 1, Hook): "Full-bleed. 'Your phone is fighting your goals. Let's flip
 // that.' CTA: 'I'm ready.'" Both strings are spec-verbatim (`Copy.onboarding.hookHeadline/hookCTA`).
 //
-// DESIGN PASS 2 (docs/design/*, 2026-09-23; nothing here has been rendered - there is no Mac).
+// LIVELINESS PASS (2026-09-24; the founder: onboarding "feels dull and lifeless"). Nothing here has
+// been rendered - there is no Mac.
 //
-// The hero is the product's whole loop in about a second: an empty ring fills, then the padlock inside
-// it opens (one-shot, never loops). That is the "flip" the headline promises, and it puts the app's ring
-// language on screen before any explanation. "Earned" is the accent, so the one-accent rule holds.
+// The hero is now the brand's signature object, `ZanoLivingMark`: the silver swoosh star, big (150pt),
+// charging from empty to ~85% over ~1.2s as the screen opens, then idling (float, turn, light sweep,
+// breathing blue glow - all inside the component, all Reduce Motion aware). That is the product line
+// ("the star charges while you're off your phone") shown before it is said, and it is the same star
+// the header then carries through the next 12 screens. A blue bloom behind it brightens with the
+// charge (opacity only), and one soft haptic lands as the charge settles.
 //
-// What changed in this pass, and why:
-//   - The ring is the real `GoalRing(.hero)` now, not a private copy. It brings the ring's own hue
-//     track (the empty ring is visible: the old file drew its own track because the shared ring's was
-//     ~1.16:1), the arc glow, the Reduce Motion handling and its completion pulse.
-//   - That pulse used to fire at the START of the fill (progress jumped 0 -> 1 instantly and only the
-//     drawing animated), i.e. while nothing was visible. The fill now runs to 0.999 and closes to 1.0
-//     when it lands, so the pulse, the padlock flip and the haptic all happen at the moment the ring
-//     actually completes: one beat, on the payoff.
-//   - The headline is `Theme.Typography.display` (Dynamic Type aware, -0.4 tracking) instead of a
-//     file-local `@ScaledMetric` rounded font. Copy stays one string in `Copy.onboarding`; only the
-//     styling splits it at the sentence boundary (the problem quiet, "Let's flip that." in white).
-//   - The backdrop is the shared `zanoBackdrop(glow:)` plus a static halo behind the ring that
-//     brightens (opacity only, never an animated blur radius) when the padlock opens.
-//   - The padlock swap is gated on Reduce Motion (it was an ungated `.symbolEffect(.replace)`).
-//   - Content is centered and scrolls only when it must (large Dynamic Type, small phones) instead of a
-//     fixed `Spacer` stack that could clip. It sits a touch above true center (optical center).
-//   - The CTA is pinned and live from frame one; the sequence never gates it (spec §8 rule 8).
+// Layout: the wordmark sits above the star, the spec-verbatim headline below (split at the sentence
+// boundary: the problem quiet in `textSecondary`, "Let's flip that." in `text`). Centered, scrolling
+// only when it must. The CTA is pinned and live from frame one; the intro never gates it (spec §8
+// rule 8). The old ring-and-padlock hero is gone: two hero objects on the first screen split the eye.
 //
 // Handoff (not editable here): spec §7.1 calls this screen full-bleed and `OnboardingContainerView`
 // already hides its header on screen 1. The straight apostrophes in the stored headline
@@ -44,47 +35,49 @@ struct Screen1Hook: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var revealed = false
-    @State private var ringProgress: Double = 0
-    @State private var isUnlocked = false
-    @State private var unlockTick = 0
+    @State private var charge: Double = 0
+    @State private var chargedTick = 0
 
-    /// The ring fill runs on `Theme.Motion.ringFill` (0.6s); the unlock beat waits for it.
-    private static let fillMilliseconds = 600
+    /// Where the intro leaves the star: nearly full, so there is still something left to earn.
+    private static let introCharge = 0.85
+    /// `ZanoLivingMark` eases a charge change over 1.2s; the haptic lands as it settles.
+    private static let chargeMilliseconds = 1200
+    private static let starHeight: CGFloat = 150
 
     private var isShown: Bool { revealed || reduceMotion }
+
+    /// Under Reduce Motion the star is drawn charged from the first frame (derived here, not set in
+    /// `.task`, so there is no frame of an empty star).
+    private var shownCharge: Double { reduceMotion ? Self.introCharge : charge }
 
     var body: some View {
         HookCenteredScroll {
             VStack(spacing: Theme.Spacing.xl) {
-                // Under Reduce Motion the hero is drawn in its final state from the first frame
-                // (deriving it here, not setting state in `.task`, avoids one frame of empty ring).
-                HookHero(progress: reduceMotion ? 1 : ringProgress, isUnlocked: reduceMotion || isUnlocked)
+                // The brand's first appearance: the wordmark, then the star it names.
+                ZanoWordmark(height: 15)
                     .opacity(isShown ? 1 : 0)
-                    .scaleEffect(isShown ? 1 : 0.92)
                     .animation(reveal(delay: 0), value: revealed)
+
+                HookStar(charge: shownCharge, height: Self.starHeight)
+                    .opacity(isShown ? 1 : 0)
+                    .scaleEffect(isShown ? 1 : 0.9)
+                    .animation(reduceMotion ? nil : Theme.Motion.springCelebration.delay(0.05), value: revealed)
+                    .padding(.vertical, Theme.Spacing.md)
 
                 headline
                     .opacity(isShown ? 1 : 0)
                     .offset(y: isShown ? 0 : Theme.Spacing.sm)
-                    .animation(reveal(delay: 0.12), value: revealed)
+                    .animation(reveal(delay: 0.35), value: revealed)
             }
             .padding(.horizontal, Theme.Spacing.md)
             // Bottom-heavy padding lifts the group above true center, where the eye rests.
             .padding(.bottom, Theme.Spacing.xl * 2)
         }
-        // The brand's first appearance: the wordmark, alone at the top (docs/brand/brand-kit.md).
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ZanoWordmark(height: 15)
-                .padding(.top, Theme.Spacing.md)
-                .opacity(isShown ? 1 : 0)
-                .animation(reveal(delay: 0), value: revealed)
-        }
-        .zanoAmbient(.neutral)
         .onboardingPinnedContinue(title: Copy.onboarding.hookCTA) {
             flowState.advance()
         }
         .preferredColorScheme(.dark)
-        .sensoryFeedback(.impact(weight: .medium, intensity: 0.7), trigger: unlockTick)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: chargedTick)
         .task { await playIntro() }
         .onAppear {
             // docs/spec.md §23 "Instrument from day one: every screen view..."
@@ -98,7 +91,7 @@ struct Screen1Hook: View {
     // MARK: - Pieces
 
     /// Two beats, same size: the problem quiet (`textSecondary`), the flip loud (`text`). White, not
-    /// accent: the ring's green is the promise of the unlock, the headline is not an earned state.
+    /// accent: the star's blue light is the promise, the headline is not an earned state.
     /// Stacked so the second sentence always starts its own line instead of dangling after a wrap.
     private var headline: some View {
         let parts = Self.headlineParts(from: Copy.onboarding.hookHeadline)
@@ -132,60 +125,38 @@ struct Screen1Hook: View {
 
     // MARK: - Intro sequence
 
-    /// ~1.1s total, one-shot: fade in, fill the ring, then - as it lands - pulse, flip the padlock and
-    /// tick the haptic. Under Reduce Motion there is no sequence and no haptic: `body` already draws
-    /// the final state.
+    /// One-shot: fade the star in, then charge it to `introCharge` (the star eases the fill itself,
+    /// ~1.2s), and tick one soft haptic as it settles. Under Reduce Motion there is no sequence and no
+    /// haptic: `body` already draws the charged star.
     @MainActor
     private func playIntro() async {
         revealed = true
         guard !reduceMotion else { return }
-        try? await Task.sleep(for: .milliseconds(450))
+        try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
-        // 0.999, not 1: `GoalRing` plays its completion pulse when progress crosses 1.0, and that
-        // should happen when the arc lands, not when it starts drawing. The 0.36 degree gap is
-        // invisible under the round cap.
-        ringProgress = 0.999
-        try? await Task.sleep(for: .milliseconds(Self.fillMilliseconds))
+        charge = Self.introCharge
+        try? await Task.sleep(for: .milliseconds(Self.chargeMilliseconds))
         guard !Task.isCancelled else { return }
-        ringProgress = 1
-        isUnlocked = true
-        unlockTick += 1
+        chargedTick += 1
     }
 }
 
-/// The hero: the real hero ring with a padlock at its center, over a static halo that brightens when
-/// the lock opens. The halo only ever changes opacity (HIG Reduce Motion: no animated blur/depth).
-private struct HookHero: View {
-    let progress: Double
-    let isUnlocked: Bool
+/// The hero: the living star over a blue bloom that brightens with its charge. The bloom only ever
+/// changes opacity (never an animated blur or radius). Decorative; the headline carries the meaning.
+private struct HookStar: View {
+    let charge: Double
+    let height: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GoalRing(progress: progress, color: Theme.Colors.accent, size: .hero, center: .none)
-            .overlay {
-                Image(systemName: isUnlocked ? "lock.open.fill" : "lock.fill")
-                    .font(.system(size: 64, weight: .semibold))
-                    .foregroundStyle(isUnlocked ? Theme.Colors.accent : Theme.Colors.text)
-                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
-            }
+        ZanoLivingMark(charge: charge, height: height)
             .background {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Theme.Colors.accent.opacity(isUnlocked ? 0.26 : 0.12),
-                                Theme.Colors.accent.opacity(0),
-                            ],
-                            center: .center,
-                            startRadius: 40,
-                            endRadius: 210
-                        )
-                    )
-                    // Bigger than the ring on purpose; a `background` never affects layout.
-                    .frame(width: 420, height: 420)
+                // Bigger than the star on purpose; a `background` never affects layout.
+                OnboardingKit.StarBloom(diameter: height * 3)
+                    .opacity(0.2 + 0.8 * charge)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 1.2), value: charge)
             }
-            .animation(reduceMotion ? nil : Theme.Motion.iconSwap, value: isUnlocked)
             .accessibilityHidden(true)
     }
 }

@@ -480,7 +480,7 @@ struct ShareMomentHeader: View {
 
 /// The share action's face. A capsule at least `Theme.Metrics.primaryButtonHeight` tall (it mirrors
 /// `PrimaryButton`, which cannot wrap a `ShareLink`: the link must own the tap). Ready is the one
-/// accent-filled control on the screen, with the same top-lit edge as `PrimaryButton`; preparing is a
+/// white-filled control on the screen (sharing is an action, not an earned state), with the same top-lit edge as `PrimaryButton`; preparing is a
 /// neutral `surface2` state, not a dimmed accent slab (`docs/design/better-ui-findings.md` MOT-04);
 /// failed is a neutral retry with a danger edge, so it does not read as another affirmative "share
 /// now". Wrap it in a `Button`/`ShareLink` styled with `.pressable`.
@@ -532,7 +532,7 @@ struct ShareActionLabel: View {
         }
     }
 
-    /// `onFill` (16.4:1) on the accent fill, never `text` (1.11:1).
+    /// `onFill` on the white fill, never `text`.
     private var foreground: Color {
         switch state {
         case .ready: Theme.Colors.onFill
@@ -543,7 +543,7 @@ struct ShareActionLabel: View {
 
     private var fill: Color {
         switch state {
-        case .ready: Theme.Colors.accent
+        case .ready: Theme.Colors.interactive
         case .preparing, .failed: Theme.Colors.surface2
         }
     }

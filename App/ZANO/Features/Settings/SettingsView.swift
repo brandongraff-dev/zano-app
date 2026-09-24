@@ -1029,7 +1029,7 @@ private struct SettingsChoiceTile: View {
             VStack(spacing: Theme.Spacing.xxs) {
                 Image(systemName: systemImage)
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.muted)
                     .frame(height: 24)
                 Text(title)
                     .font(Theme.Typography.captionEmphasized)
@@ -1040,10 +1040,11 @@ private struct SettingsChoiceTile: View {
             }
             .padding(.horizontal, Theme.Spacing.xxs)
             .frame(maxWidth: .infinity, minHeight: SettingsMetrics.choiceTileHeight)
-            .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface2, in: shape)
+            // Selection is chrome, so it's white (decision 2026-09-24: green only for earned states).
+            .background(isSelected ? Theme.Colors.interactiveWash : Theme.Colors.surface2, in: shape)
             .overlay(
                 shape.strokeBorder(
-                    isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
+                    isSelected ? Theme.Colors.interactive : Theme.Colors.hairline,
                     lineWidth: isSelected ? 1.5 : Theme.Metrics.edgeWidth
                 )
             )
@@ -1084,7 +1085,7 @@ private struct SettingsChoiceRow: View {
                 // as `SelectableCard`'s trailing indicator.
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.muted)
                     .contentTransition(indicatorTransition)
                     .accessibilityHidden(true)
             }

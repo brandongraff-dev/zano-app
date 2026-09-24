@@ -47,6 +47,8 @@ struct LockVaultCard: View {
     var numeralLine: String? = nil
     /// Used instead of `numeralLine` for states that are a sentence ("Finish setup to start locking").
     var message: String? = nil
+    /// A quiet line under the hero number naming what's left ("Gym session + Protein").
+    var caption: String? = nil
     var segments: [VaultSegment] = []
     /// A small accent chip (Earn Mode's banked minutes).
     var chip: String? = nil
@@ -64,6 +66,7 @@ struct LockVaultCard: View {
         detail: String? = nil,
         numeralLine: String? = nil,
         message: String? = nil,
+        caption: String? = nil,
         segments: [VaultSegment] = [],
         chip: String? = nil,
         appTokensBlob: Data? = nil,
@@ -75,6 +78,7 @@ struct LockVaultCard: View {
         self.detail = detail
         self.numeralLine = numeralLine
         self.message = message
+        self.caption = caption
         self.segments = segments
         self.chip = chip
         self.appTokensBlob = appTokensBlob
@@ -89,7 +93,15 @@ struct LockVaultCard: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             topRow
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                heroLine
+                VStack(alignment: .leading, spacing: 0) {
+                    heroLine
+                    if let caption {
+                        Text(caption)
+                            .font(Theme.Typography.body)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .lineLimit(2)
+                    }
+                }
                 LockedAppsStrip(blob: appTokensBlob, isLocked: status == .locked)
                 if !segments.isEmpty {
                     HStack(spacing: Theme.Spacing.sm) {
@@ -177,10 +189,18 @@ struct LockVaultCard: View {
     }
 
     private var watermark: some View {
-        Image(systemName: status == .locked ? "lock.fill" : "lock.open.fill")
-            .font(.system(size: 150, weight: .black))
-            .foregroundStyle(Color.white.opacity(0.035))
-            .offset(x: 28, y: -18)
+        // An outline, not a filled glyph: at card scale a filled lock read as a grey placeholder
+        // block. The thin outline reads as an emblem pressed into the surface.
+        Image(systemName: status == .locked ? "lock" : "lock.open")
+            .font(.system(size: 170, weight: .ultraLight))
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.07), Color.white.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .offset(x: 34, y: -26)
             .accessibilityHidden(true)
     }
 

@@ -122,14 +122,39 @@ extension Copy {
         /// Section over every goal when nothing is locked.
         public static let sectionTodaysGoals = "Today's goals"
 
-        /// A numeric goal's line under its title: `"72 of 150g"`.
+        /// A numeric goal's line under its title: `"72 of 150g"`. Water past a liter reads in liters
+        /// (`"1.5 of 3 L"`): "1500 of 3000ml" truncated in a row.
         public static func goalProgressLine(current: Int, target: Int, unit: String) -> String {
-            "\(current) of \(amount(target, unit: unit))"
+            if target >= 1000, let currentL = liters(current, unit: unit), let targetL = liters(target, unit: unit) {
+                return "\(currentL) of \(targetL) L"
+            }
+            return "\(current) of \(amount(target, unit: unit))"
         }
 
-        /// What's left, beside the progress line: `"78g to go"`.
+        /// What's left, beside the progress line: `"78g to go"`, `"1.5 L to go"`.
         public static func goalRemainingLine(remaining: Int, unit: String) -> String {
-            "\(amount(remaining, unit: unit)) to go"
+            if remaining >= 1000, let value = liters(remaining, unit: unit) {
+                return "\(value) L to go"
+            }
+            return "\(amount(remaining, unit: unit)) to go"
+        }
+
+        /// `1500` ml -> `"1.5"`; `3000` -> `"3"`. Nil for any other unit.
+        private static func liters(_ milliliters: Int, unit: String) -> String? {
+            guard unit.lowercased() == "ml" else { return nil }
+            let value = Double(milliliters) / 1000
+            return value.formatted(.number.precision(.fractionLength(0...1)))
+        }
+
+        /// Under the hero number while locked: what the lock is waiting on, by name.
+        /// `"Gym session + Protein"`, `"Gym session, Protein + 1 more"`.
+        public static func heroRemainingGoals(_ titles: [String]) -> String? {
+            switch titles.count {
+            case 0: return nil
+            case 1: return titles[0]
+            case 2: return "\(titles[0]) + \(titles[1])"
+            default: return "\(titles[0]), \(titles[1]) + \(titles.count - 2) more"
+            }
         }
 
         /// Inline quick-log buttons (log straight from Today, no trip to Fuel).

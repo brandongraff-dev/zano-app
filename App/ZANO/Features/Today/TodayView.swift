@@ -254,6 +254,7 @@ struct TodayView: View {
                     Copy.today.heroLockedSince($0.startedAt.formatted(date: .omitted, time: .shortened))
                 },
                 numeralLine: Copy.today.heroGoalsToUnlockLine(count: remaining),
+                caption: Copy.today.heroRemainingGoals(openFirst(requiredGoals).filter { !isGoalDoneToday($0) }.map(\.title)),
                 segments: segments(for: requiredGoals),
                 chip: bankChipText,
                 appTokensBlob: activeLockSet?.appTokensBlob,

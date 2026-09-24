@@ -67,7 +67,7 @@ import Core
 //     selection could be affected by it (it uses `AlwaysAllowedCheck`'s own acknowledgement flag, so a
 //     user who dismissed it once is not nagged). The name field is an input well that lights an accent
 //     ring while focused.
-//   * `.tint(Theme.Colors.accent)` at this screen's root so the toolbar "+"/Save/Cancel are not system
+//   * `.tint(Theme.Colors.interactive)` at this screen's root so the toolbar "+"/Save/Cancel are not system
 //     blue (`docs/design/typography-color-findings.md` C2). The app-wide tint belongs in `ZANOApp`/
 //     `ContentView`, which this wave does not own; this is the local fix until that lands.
 //
@@ -133,7 +133,7 @@ struct LockSetupView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .zanoBackdrop(glow: ordered.isEmpty ? Theme.Colors.accent : nil, intensity: 0.12)
+        .zanoAmbient(.neutral)
         // Explicit row insertion/removal/reorder choreography, distinct from `List`'s own default row
         // animation: a new lock set (created via the "+" sheet), a deleted one (swipe-to-delete) or a
         // change of default now settles with this design system's own spring rather than the system
@@ -190,7 +190,7 @@ struct LockSetupView: View {
         } message: { alert in
             Text(alert.message)
         }
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.interactive)
         // `Theme.swift`'s own header: this is a fixed, dark-only design system, not
         // light/dark-adaptive — screens force `.preferredColorScheme(.dark)` themselves. Without
         // this, a Light/Automatic system appearance leaves this screen's own dark surfaces intact
@@ -279,11 +279,11 @@ struct LockSetupView: View {
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .zanoCard(radius: Theme.Radius.medium, tint: isDefault ? Theme.Colors.accent : nil)
+            .zanoCard(radius: Theme.Radius.medium, fill: isDefault ? Theme.Colors.surface2 : Theme.Colors.surface)
             .overlay {
                 if isDefault {
                     RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .strokeBorder(Theme.Colors.accentDim, lineWidth: 1.5)
+                        .strokeBorder(Theme.Colors.hairlineStrong, lineWidth: 1.5)
                         .allowsHitTesting(false)
                 }
             }
@@ -319,11 +319,11 @@ struct LockSetupView: View {
         } label: {
             Image(systemName: isDefault ? "star.fill" : "star")
                 .font(Theme.Typography.icon(.small))
-                // `onFill`, not `background`: the one label color for anything drawn on an accent fill.
+                // `onFill`: the dark label color for anything drawn on a light (white) fill.
                 .foregroundStyle(isDefault ? Theme.Colors.onFill : Theme.Colors.muted)
                 .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                 .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                .background(isDefault ? Theme.Colors.accent : Theme.Colors.track, in: Circle())
+                .background(isDefault ? Theme.Colors.interactive : Theme.Colors.track, in: Circle())
                 .minTapTarget()
         }
         .buttonStyle(.pressable(scale: 0.92))
@@ -541,7 +541,7 @@ private struct LockSetEditorSheet: View {
                 Text(alert.message)
             }
         }
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.interactive)
         // Same fixed-dark rationale as `LockSetupView`; a presented sheet does not reliably inherit
         // the presenter's `preferredColorScheme`.
         .preferredColorScheme(.dark)
@@ -566,7 +566,7 @@ private struct LockSetEditorSheet: View {
                 .zanoCard(radius: Theme.Radius.medium, fill: Theme.Colors.surface2)
                 .overlay {
                     RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .strokeBorder(Theme.Colors.accent, lineWidth: 1.5)
+                        .strokeBorder(Theme.Colors.interactive, lineWidth: 1.5)
                         .opacity(isNameFocused ? 1 : 0)
                         .allowsHitTesting(false)
                 }

@@ -492,11 +492,18 @@ struct AlarmRingingView: View {
         .padding(.vertical, Theme.Spacing.sm)
         .frame(maxWidth: .infinity)
         .background {
-            Theme.Colors.background.opacity(0.94)
+            // Opaque, with a fade above it: at 94% the scrolled content read through the dock as
+            // overlapping text, and the snooze button looked clipped rather than scrollable.
+            Theme.Colors.background
                 .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Theme.Colors.hairline)
-                        .frame(height: Theme.Metrics.edgeWidth)
+                    LinearGradient(
+                        colors: [Theme.Colors.background.opacity(0), Theme.Colors.background],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Theme.Spacing.xl)
+                    .offset(y: -Theme.Spacing.xl)
+                    .allowsHitTesting(false)
                 }
                 .ignoresSafeArea(edges: .bottom)
         }

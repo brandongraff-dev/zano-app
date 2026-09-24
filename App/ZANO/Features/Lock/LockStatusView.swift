@@ -222,6 +222,7 @@ struct LockStatusView: View {
                     Copy.today.heroLockedSince($0.startedAt.formatted(date: .omitted, time: .shortened))
                 },
                 numeralLine: Copy.today.heroGoalsToUnlockLine(count: remaining),
+                caption: Copy.today.heroRemainingGoals(orderedRequiredGoals.filter { !isGoalDoneToday($0) }.map(\.title)),
                 segments: vaultSegments,
                 appTokensBlob: shownLockSet?.appTokensBlob,
                 changeKey: remaining

@@ -50,8 +50,12 @@ struct Screen9NFCTags: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                // Scaled down so the question and all three answers fit above the fold, even on
+                // an iPhone SE.
                 NFCTapIllustration()
+                    .scaleEffect(0.68)
+                    .frame(height: NFCTapGeometry.size.height * 0.68)
                     .frame(maxWidth: .infinity)
 
                 header

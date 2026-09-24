@@ -76,7 +76,11 @@ targets:
     info:
       path: App/ZANO/Info.plist
       properties:
-        UILaunchScreen: {}
+        # Launch screen: the ZANO wordmark centred on the app background (docs/brand/brand-kit.md).
+        UILaunchScreen:
+          UIImageName: LaunchLogo
+          UIColorName: LaunchBackground
+          UIImageRespectsSafeAreaInsets: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSLocationWhenInUseUsageDescription: "ZANO uses your location to verify gym visits so you can earn your apps back."

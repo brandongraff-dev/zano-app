@@ -121,16 +121,9 @@ struct PosterChassis<Content: View>: View {
                 Spacer(minLength: Theme.Spacing.lg)
 
                 if let footerLabel {
-                    HStack(spacing: Theme.Spacing.xs) {
-                        Circle()
-                            .fill(Theme.Colors.accent)
-                            .frame(width: 8, height: 8)
-                        Text(footerLabel)
-                            .font(Theme.Typography.headline)
-                            .tracking(2)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
-                    }
+                    // The real wordmark (docs/brand/brand-kit.md), not the name typed in a font.
+                    ZanoWordmark(height: 22)
+                        .accessibilityLabel(footerLabel)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

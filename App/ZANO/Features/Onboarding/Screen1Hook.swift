@@ -72,6 +72,13 @@ struct Screen1Hook: View {
             // Bottom-heavy padding lifts the group above true center, where the eye rests.
             .padding(.bottom, Theme.Spacing.xl * 2)
         }
+        // The brand's first appearance: the wordmark, alone at the top (docs/brand/brand-kit.md).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            ZanoWordmark(height: 28)
+                .padding(.top, Theme.Spacing.md)
+                .opacity(isShown ? 1 : 0)
+                .animation(reveal(delay: 0), value: revealed)
+        }
         .zanoAmbient(.neutral)
         .onboardingPinnedContinue(title: Copy.onboarding.hookCTA) {
             flowState.advance()

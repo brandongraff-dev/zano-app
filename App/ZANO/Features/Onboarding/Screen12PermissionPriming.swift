@@ -192,14 +192,11 @@ struct Screen12PermissionPriming: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Stand-in for the real app icon (which lives in the asset catalog, not addressable as an
-    /// image): the same "Z" on near-black, with the edge iOS draws around a dark icon. The accent
-    /// here is the brand mark itself, not UI chrome.
+    /// The real app icon, drawn from the same vector as the asset (docs/brand/brand-kit.md): the
+    /// wordmark on near-black, with the edge iOS draws around a dark icon.
     private var appIcon: some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Radius.small * 0.75, style: .continuous)
-        return Text(Copy.onboardingReveal.notificationPreviewAppMonogram)
-            .font(.system(size: Self.appIconSide * 0.55, weight: .black).width(.expanded))
-            .foregroundStyle(Theme.Colors.accent)
+        return ZanoWordmark(height: Self.appIconSide * 0.26)
             .frame(width: Self.appIconSide, height: Self.appIconSide)
             .background(Theme.Colors.background, in: shape)
             .overlay(shape.strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))

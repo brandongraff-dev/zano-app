@@ -90,9 +90,10 @@ body {
 }
 
 .logo {
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  font-size: 15px;
+  /* The wordmark SVG (docs/brand/zano-wordmark.svg); 18px cap height, width follows. */
+  display: block;
+  height: 18px;
+  width: auto;
 }
 
 .kicker {

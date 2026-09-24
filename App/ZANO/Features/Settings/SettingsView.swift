@@ -137,6 +137,26 @@ struct SettingsView: View {
     @State private var isRestoringPurchases = false
     @State private var isPaywallPresented = false
 
+    /// The sign-off at the bottom of Settings: the wordmark, the tagline and the build, the way
+    /// premium apps close their settings (docs/brand/brand-kit.md).
+    private var brandFooter: some View {
+        VStack(spacing: Theme.Spacing.xs) {
+            ZanoWordmark(height: 22, style: .mono(Theme.Colors.muted))
+            Text(Copy.brand.taglineEarn)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.muted)
+            Text(Copy.brand.versionLine(
+                version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0",
+                build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+            ))
+            .font(Theme.Typography.caption)
+            .foregroundStyle(Theme.Colors.muted.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Theme.Spacing.lg)
+        .accessibilityElement(children: .combine)
+    }
+
     private var currentUser: User? { users.first }
     private var subscription: Subscription? { subscriptions.first }
     private var isPro: Bool { currentUser?.planTier == .pro }
@@ -153,6 +173,7 @@ struct SettingsView: View {
                 rewardsSection
                 subscriptionSection
                 aboutSection
+                brandFooter
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.xs)

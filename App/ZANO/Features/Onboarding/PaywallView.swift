@@ -163,6 +163,13 @@ struct PaywallView: View {
     // MARK: - Headline
 
     private var headline: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            ZanoWordmark(height: 22)
+            headlineText
+        }
+    }
+
+    private var headlineText: some View {
         VStack(spacing: 2) {
             Text(selectedTrialDays.map { Copy.paywall.trialHeadline(days: $0) } ?? Copy.paywall.subscribeHeadline)
                 .foregroundStyle(Theme.Colors.text)

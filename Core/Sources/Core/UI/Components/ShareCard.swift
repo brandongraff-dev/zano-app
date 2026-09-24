@@ -184,16 +184,11 @@ public struct ShareCard: View {
                 }
 
                 if let footerLabel = content.footerLabel {
-                    HStack(spacing: Theme.Spacing.xs) {
+                    // The real wordmark (docs/brand/brand-kit.md), not the name typed in a font.
+                    HStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        Circle()
-                            .fill(Theme.Colors.accent)
-                            .frame(width: Theme.Spacing.xs, height: Theme.Spacing.xs)
-                        Text(footerLabel)
-                            .font(Theme.Typography.headline)
-                            .tracking(2)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
+                        ZanoWordmark(height: 20)
+                            .accessibilityLabel(footerLabel)
                     }
                 }
             }

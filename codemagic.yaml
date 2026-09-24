@@ -1,0 +1,80 @@
+# Codemagic: the second Mac builder (free tier), used when GitHub Actions' macOS minutes run out.
+# Mirrors .github/workflows/ci.yml, trimmed to save minutes: lint, build, Core tests, and a short
+# screenshot tour (set SCREENS / SE_SCREENS to change it). Results are pushed to the `ci-results`
+# branch by scripts/ci/push-results.sh when the "github" env group holds a GITHUB_TOKEN.
+workflows:
+  ios-simulator:
+    name: iOS simulator build + screenshots
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    environment:
+      xcode: latest
+      groups:
+        - github
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+        - pattern: 'ci-results'
+          include: false
+      cancel_previous_builds: true
+    when:
+      changeset:
+        includes:
+          - 'App/**'
+          - 'Core/**'
+          - 'Extensions/**'
+          - 'Watch/**'
+          - 'ZANOUITests/**'
+          - 'project.yml'
+          - 'codemagic.yaml'
+          - 'scripts/ci/**'
+    scripts:
+      - name: Lint user-facing strings (no spec references)
+        script: |
+          HITS=$(grep -rnE '"[^"]*(§|docs/spec)[^"]*"' --include=*.swift App Core/Sources Extensions Watch | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' | grep -vE 'Logger|logger\.|///|assert|fatalError|precondition|#Preview' || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"; echo "A user-facing string contains a spec reference."
+            echo "lint failed" > build.log
+            scripts/ci/push-results.sh "lint-failed"
+            exit 1
+          fi
+      - name: Generate Xcode project
+        script: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -version
+      - name: Build ZANO (iOS Simulator; compiles Core and every extension)
+        script: |
+          set -o pipefail
+          if xcodebuild -project ZANO.xcodeproj -scheme ZANO \
+               -destination 'generic/platform=iOS Simulator' \
+               -derivedDataPath build/DerivedData \
+               CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log; then
+            echo "success" > .build-status
+          else
+            echo "build-failed" > .build-status
+            scripts/ci/push-results.sh "build-failed"
+            exit 1
+          fi
+      - name: Core unit tests (iOS Simulator)
+        ignore_failure: true
+        script: |
+          set -o pipefail
+          cd Core
+          SIM_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
+          xcodebuild test -scheme Core -destination "id=$SIM_ID" \
+            -derivedDataPath ../build/DerivedDataTests CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../test.log \
+            || echo "tests-failed" > ../.build-status
+      - name: Screenshot tour
+        ignore_failure: true
+        script: scripts/ci/screenshots.sh
+      - name: Push results to GitHub
+        ignore_failure: true
+        script: scripts/ci/push-results.sh "$(cat .build-status 2>/dev/null || echo unknown)"
+    artifacts:
+      - shots/**
+      - build.log
+      - test.log

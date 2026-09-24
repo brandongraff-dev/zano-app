@@ -11,8 +11,9 @@ Product decisions stay in `docs/spec.md`; this file never overrides it.
 Two parts, traced to vectors from the founder's master artwork:
 
 - **The mark:** a four-point swoosh star with a teardrop counter. Brushed silver on black.
-- **The wordmark:** thin geometric capitals, Λ-shaped A (no crossbar), rounded-rectangle O.
-  Pearl white.
+- **The wordmark:** rounded geometric capitals, Λ-shaped A (no crossbar), soft terminals and a
+  stadium O. Pearl white. Replaced the thinner first version the same day (founder: friendlier,
+  less cold).
 
 | File | Use |
 |---|---|
@@ -26,15 +27,14 @@ Two parts, traced to vectors from the founder's master artwork:
 
 In code: `ZanoWordmark(height:style:)` and `ZanoMark(height:style:)` in
 `Core/Sources/Core/UI/Components/ZanoLogo.swift`, drawn from the same paths as the SVGs (unit space
-100 high: mark 155.75 wide, wordmark 879.78 wide). `Theme.Colors.metallic` is the mark's gradient.
+100 high: mark 155.75 wide, wordmark 815.59 wide). `Theme.Colors.metallic` is the mark's gradient.
 
-**Proportions:** wordmark 8.8 : 1, mark 1.56 : 1. In the lockup the wordmark's cap height is a fifth
+**Proportions:** wordmark 8.16 : 1, mark 1.56 : 1. In the lockup the wordmark's cap height is a fifth
 of the mark's height, with a third of the mark's height between them.
 
 **Clear space:** the wordmark's cap height on every side. Nothing else inside it.
 
-**Minimum size:** wordmark 10 pt cap height (88 pt wide); mark 16 pt high. The wordmark's strokes are
-thin: below 10 pt use the mark.
+**Minimum size:** wordmark 9 pt cap height (73 pt wide); mark 16 pt high. Below that, use the mark.
 
 **Don't:**
 - retype it in a font, or change letter spacing;

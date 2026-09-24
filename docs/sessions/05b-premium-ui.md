@@ -108,3 +108,10 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
   glyph); goal progress is a segment bar under the number, plus the rows below. Lock keeps its rings.
 - **Unverified (device only):** TimelineView animation inside a DeviceActivityReport-hosted view,
   whether the hosted view's background is transparent over the halo, and tap pass-through.
+
+### 2026-09-24 — Wordmark v3 (friendlier)
+
+- Founder supplied a rounder wordmark (soft terminals, heavier strokes, stadium O) as "more friendly
+  and less cold". Traced to vectors (815.59 × 100 units, 8.16 : 1) and swapped into
+  `ZanoWordmarkShape`, `docs/brand/zano-wordmark*.svg`, the lockup + launch images and the landing
+  page. The mark and app icon are unchanged.

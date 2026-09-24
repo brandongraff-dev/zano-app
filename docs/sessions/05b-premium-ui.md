@@ -3,7 +3,7 @@
 - **Branch:** `claude/sharp-euler-npwt08`
 - **Spec sections:** §15 (design system, amended 2026-09-24), §16 P1/P3/P4/P5, §5.1, §5.15, §5.17, §7, §21
 - **Plan:** `docs/design/premium-ui-plan.md`
-- **Status:** In Progress
+- **Status:** Compiles + tested in CI (device verification open)
 - **Started:** 2026-09-24
 - **Last updated:** 2026-09-24
 
@@ -57,3 +57,18 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
 - **Known issues / TODOs left behind:** Settings and Fuel only got the system-level changes.
 - **Needs verification on:** CI build + screenshots (pending), real device for locked-app icons,
   haptics, 120Hz motion.
+
+### 2026-09-24 — Round 1 CI + round 2 fixes
+
+- **CI:** run 35945717141 (commit 53ce3fe) green on the first try: app build, Core tests, 38
+  screenshots. DemoData log confirms 15 sessions / 14 ended / 14 earned in the store.
+- **Round 2 (commit 4385ffe), from reviewing those screenshots:** the vault's filled lock watermark
+  read as a grey placeholder block → thin outline emblem with a fade; hero gained a line naming what
+  the lock waits on; water progress in liters (the ml line truncated); alarm escape dock made opaque
+  with a fade (content bled through it, snooze looked clipped; pre-existing); remaining green
+  chrome made neutral (lock-set default star/tint, Settings coach-voice selection, share CTAs).
+- **Known issues left:** Settings/Fuel got system-level changes only; `ZANOUITests/Flow1PaywallFreePathUITests.swift`
+  still targets the removed free path (pre-existing, UI tests are compile-only in CI); workout ring
+  is green by spec (§15 ring colors) even though it's not an earned state.
+- **Needs verification on:** real device — locked-app icons in the vault (FamilyControls tokens),
+  haptics, motion at 120 Hz, shield/widgets.

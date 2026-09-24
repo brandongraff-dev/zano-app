@@ -19,8 +19,12 @@ extension Copy {
         public static func offlineShare(percent: Int) -> String { "\(percent)% of your day so far" }
         public static let noUsageYet = "No screen time yet today."
         public static let accessTitle = "See your screen time here"
-        public static let accessDetail = "Allow Screen Time access and ZANO shows today's usage, pickups and time in locked apps. It never leaves your phone."
+        public static let accessDetail = "Allow Screen Time access and your ZANO star charges with every hour you spend off your phone. Usage, pickups and time in locked apps never leave your phone."
         public static let accessButton = "Allow access"
+        /// Under the living star on Today: how charged it is.
+        public static func chargeLine(percent: Int) -> String { "Charged \(percent)% · time off your phone" }
+        /// Under the star before Screen Time access.
+        public static let chargeHint = "Your star charges while you're off your phone"
 
         /// `2h 30m`, `45m`, `0m`. Minutes are floored; under a minute reads `<1m`.
         public static func duration(_ seconds: TimeInterval) -> String {

@@ -25,6 +25,10 @@ struct ZANOReportExtension: DeviceActivityReportExtension {
         TodayScreenTimeReport { summary in
             ScreenTimeSummaryView(summary: summary)
         }
+        // The living ZANO star on Today's hero, charged by the same numbers.
+        ChargeMarkReport { summary in
+            ScreenTimeChargeView(summary: summary)
+        }
     }
 }
 
@@ -33,6 +37,22 @@ struct TodayScreenTimeReport: DeviceActivityReportScene {
     let content: (ScreenTimeSummary) -> ScreenTimeSummaryView
 
     func makeConfiguration(representing data: DeviceActivityResults<DeviceActivityData>) async -> ScreenTimeSummary {
+        await ScreenTimeSummaryBuilder.build(from: data)
+    }
+}
+
+struct ChargeMarkReport: DeviceActivityReportScene {
+    let context: DeviceActivityReport.Context = .zanoMark
+    let content: (ScreenTimeSummary) -> ScreenTimeChargeView
+
+    func makeConfiguration(representing data: DeviceActivityResults<DeviceActivityData>) async -> ScreenTimeSummary {
+        await ScreenTimeSummaryBuilder.build(from: data)
+    }
+}
+
+/// Turns the raw results into the small `ScreenTimeSummary` both scenes draw.
+enum ScreenTimeSummaryBuilder {
+    static func build(from data: DeviceActivityResults<DeviceActivityData>) async -> ScreenTimeSummary {
         let locked = LockedSelection.load()
         var total: TimeInterval = 0
         var lockedTotal: TimeInterval = 0

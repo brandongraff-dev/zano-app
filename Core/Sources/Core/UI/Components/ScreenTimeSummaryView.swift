@@ -23,6 +23,8 @@ extension DeviceActivityReport.Context {
     /// Computed, not a stored `static let`: a stored static of a type that may not be `Sendable`
     /// is an error under Swift 6 strict concurrency (Core's mode).
     public static var zanoToday: DeviceActivityReport.Context { .init(rawValue: "ZANOToday") }
+    /// The charged ZANO star on Today's hero (`ZANOReport`'s `ChargeMarkReport`).
+    public static var zanoMark: DeviceActivityReport.Context { .init(rawValue: "ZANOMark") }
 }
 
 /// Everything the view shows, computed on device.
@@ -74,6 +76,21 @@ public struct ScreenTimeSummary: Equatable {
         self.apps = apps
         self.hours = hours
         self.asOf = asOf
+    }
+
+    /// The waking day starts here for the star's charge: sleep isn't "time off your phone".
+    public static let wakingDayStartHour = 6
+
+    /// 0...1: the share of today's waking hours (from 6 AM to `asOf`) not spent on the phone. Time
+    /// in locked apps counts double: the star should dim fastest on the apps you chose to lock.
+    /// Before 6 AM the waking day hasn't started, so the star is full.
+    public var charge: Double {
+        let calendar = Calendar.current
+        guard let start = calendar.date(bySettingHour: Self.wakingDayStartHour, minute: 0, second: 0, of: asOf) else { return 0 }
+        let elapsed = asOf.timeIntervalSince(start)
+        guard elapsed > 0 else { return 1 }
+        let used = total + lockedTime
+        return min(1, max(0, 1 - used / elapsed))
     }
 }
 

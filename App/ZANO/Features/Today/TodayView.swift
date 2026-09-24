@@ -240,9 +240,9 @@ struct TodayView: View {
         .buttonStyle(.pressable)
     }
 
-    /// The hero is an object, not a card (Opal's gem, ZANO's rings): the day's goals as concentric
-    /// rings in their own colors, floating in a halo whose light follows the state, with the lock
-    /// glyph at the centre and the one big number under it. Tapping it opens Lock.
+    /// The hero is an object, not a card (Opal's gem): the living ZANO star, charged by today's time
+    /// off the phone, floating in a halo whose light follows the lock state. Under it the one big
+    /// number, a segment per goal, and the lock status. Tapping it opens Lock.
     private var vault: some View {
         VStack(spacing: Theme.Spacing.sm) {
             ZStack {
@@ -256,21 +256,17 @@ struct TodayView: View {
                         )
                     )
                     .frame(width: 350, height: 350)
-                if heroSegments.isEmpty {
-                    Circle()
-                        .stroke(Theme.Colors.track, style: StrokeStyle(lineWidth: 14, dash: [3, 9]))
-                        .frame(width: 180, height: 180)
-                } else {
-                    ConcentricGoalRings(segments: heroSegments, diameter: 204)
-                }
-                Image(systemName: heroGlyph)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(heroIsEarned ? Theme.Colors.accent : Theme.Colors.text)
-                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                heroStar
             }
             .frame(height: 236)
 
             heroNumber
+
+            if !heroSegments.isEmpty {
+                VaultSegmentBar(segments: heroSegments)
+                    .frame(width: 160)
+                    .padding(.vertical, Theme.Spacing.xxs)
+            }
 
             HStack(spacing: Theme.Spacing.xs) {
                 Circle()
@@ -342,20 +338,27 @@ struct TodayView: View {
         .multilineTextAlignment(.center)
     }
 
+    /// The star's charge is screen time, which only the `ZANOReport` extension can read (spec §27),
+    /// so on a device the star is that extension's view. It can't take taps, so the card's button
+    /// still gets them. Screenshots use demo data; without access the star is uncharged.
+    @ViewBuilder
+    private var heroStar: some View {
+        if ScreenshotMode.screen != nil {
+            ScreenTimeChargeView(summary: DemoData.screenTime, height: 110)
+        } else if AuthorizationCenter.shared.authorizationStatus == .approved {
+            DeviceActivityReport(.zanoMark, filter: Self.todayFilter)
+                .frame(height: 236)
+                .allowsHitTesting(false)
+        } else {
+            ScreenTimeChargeView(height: 110)
+        }
+    }
+
     private var heroSegments: [VaultSegment] {
         switch heroState {
         case .setup: []
         case .locked, .unlocking: segments(for: requiredGoals)
         case .unlocked: segments(for: activeGoals)
-        }
-    }
-
-    private var heroGlyph: String {
-        switch heroState {
-        case .setup: "gearshape.fill"
-        case .locked: "lock.fill"
-        case .unlocking: "checkmark"
-        case .unlocked: "lock.open.fill"
         }
     }
 

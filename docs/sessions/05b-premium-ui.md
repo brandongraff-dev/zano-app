@@ -92,3 +92,19 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
 - **Known issues:** logo paths are traced from a raster (a vector master would be cleaner); the
   screen-time report is unverified on device (Simulator has no Screen Time data); code comments
   still mention "green" in places (history, harmless); shield/widget branding not done.
+
+### 2026-09-24 — Living star: the logo charged by screen time (Opal's gem)
+
+- **What:** `ZanoLivingMark` (Core) draws the ZANO star as Today's hero object. Its brushed
+  silver fills left to right with `ScreenTimeSummary.charge`: the share of today's waking hours
+  (from 6 AM) not spent on the phone, with locked-app time counted double. Animation: the glow
+  breathes, a light sweep crosses the charged metal every 4 s, and the star slowly floats and turns.
+  Low charge is dim graphite with a cold glow. Reduce Motion: still.
+- **Data path:** only the report extension can read screen time (spec §27), so `ZANOReport` gains
+  a second scene, `ChargeMarkReport` (`.zanoMark`), that renders `ScreenTimeChargeView`; Today
+  embeds it with `DeviceActivityReport(.zanoMark, ...)`. Without access the star is uncharged with
+  a hint; CI screenshots use demo data (charge 70%).
+- **Hero change:** the concentric goal rings leave the hero (the star replaces them and the lock
+  glyph); goal progress is a segment bar under the number, plus the rows below. Lock keeps its rings.
+- **Unverified (device only):** TimelineView animation inside a DeviceActivityReport-hosted view,
+  whether the hosted view's background is transparent over the halo, and tap pass-through.

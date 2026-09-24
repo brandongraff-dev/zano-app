@@ -43,9 +43,8 @@
 // Copy note: user-facing strings go through `Copy.lockStatus.*` (`Core/Sources/Core/Copy/
 // LockStatusCopy.swift`). Strings this pass added (`hero*`, `goal*`, `timeBankExpiryNote`) briefly
 // lived in an `extension Copy.lockStatus` at the bottom of this file; the review pass moved them into
-// `LockStatusCopy.swift` verbatim, so call sites are unchanged. The screen calls `timeBankExpiryNote`,
-// not `timeBankFootnote` (same words now). The emergency button's text is load-bearing for the UI
-// tests ("Hold to unlock in an emergency").
+// `LockStatusCopy.swift` verbatim, so call sites are unchanged. The emergency control's spoken label
+// is load-bearing for the UI tests ("Hold to unlock in an emergency").
 //
 // The Time Bank fill is Core's `TimeBankBar` (review pass): this file used to carry a private
 // `BankBar` for a taller bar with a visible track, but `TimeBankBar` now has both (12 pt,

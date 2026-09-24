@@ -209,6 +209,8 @@ extension Copy {
         public static let pauseMessage = "If you're sick, injured, or need a break from anything around food or your body, take it. Nothing here is worth pushing through that."
         public static let pauseStopLockTitle = "Stop a lock now"
         public static let pauseStopLockMessage = "Emergency unlock on the Lock tab always works."
+        public static let pauseStopLockButtonLabel = "Go to Lock"
+        public static let pauseEditGoalsButtonLabel = "Edit goals"
         public static let pauseEditGoalsTitle = "Change or remove goals"
         public static let pauseEditGoalsMessage = "Lower a target or remove a goal for as long as you need."
         public static let pauseContactTitle = "Talk to us"

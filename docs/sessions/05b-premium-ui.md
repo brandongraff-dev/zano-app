@@ -72,3 +72,23 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
   is green by spec (§15 ring colors) even though it's not an earned state.
 - **Needs verification on:** real device — locked-app icons in the vault (FamilyControls tokens),
   haptics, motion at 120 Hz, shield/widgets.
+
+### 2026-09-24 — Rounds 3–5: paywall v4, brand, Opal-style Today, brand v2 palette
+
+- **Paywall v4** (`PaywallView.swift`, `PaywallCopy.swift`): rebuilt from the founder's reference
+  (trial headline, vertical trial timeline, Monthly/Annual tiles, "No payment due now", one CTA,
+  terms, Terms · Privacy · Restore). Demo offerings for screenshots (`PaywallViewModel.loadDemoOfferings`, DEBUG).
+- **Brand v1 → v2:** v1 was a custom wordmark (concept D). v2 uses the founder's own artwork: the
+  swoosh-star mark and the geometric wordmark, traced to vectors (`ZanoLogo.swift`, `docs/brand/*`).
+  New app icon (silver mark on black), launch lockup, landing logo. `docs/brand/brand-kit.md` v2.
+- **Palette (decision 2026-09-24, founder):** acid green removed as not premium. Accent is platinum
+  `#E4E2DC`, text pearl `#F2F1ED`, `Theme.Colors.metallic` (silver gradient), muted danger/warning,
+  low-chroma goal rings (bronze / slate / glacier + sage, rose, champagne...). Mirrored in
+  `ZANOWidgetColor`, `WatchTheme`, `landing/style.css`, `AccentColor` asset. Spec §15 amended.
+- **Today (Opal reference):** concentric goal rings in a state-lit halo, status pill, and a new
+  Screen time section drawn by the `ZANOReport` DeviceActivityReport extension (`ScreenTimeSummaryView`,
+  `ScreenTimeCopy`); the default lock set is mirrored to `SharedDefaults.lockedSelectionData`.
+- **CI:** runs 26/27 failed (report closure type; then demo-data `Int` → `TimeInterval`), both fixed.
+- **Known issues:** logo paths are traced from a raster (a vector master would be cleaner); the
+  screen-time report is unverified on device (Simulator has no Screen Time data); code comments
+  still mention "green" in places (history, harmless); shield/widget branding not done.

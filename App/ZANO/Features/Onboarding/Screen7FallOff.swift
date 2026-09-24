@@ -26,7 +26,7 @@
 import SwiftUI
 import Core
 
-/// Screen 7 of 14 (spec §7.7) - Q5, single-select fall-off pattern.
+/// Screen 7 of 15 (spec §7.7) - Q5, single-select fall-off pattern.
 struct Screen7FallOff: View {
     @Bindable var flowState: OnboardingFlowState
 

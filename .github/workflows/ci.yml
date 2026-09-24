@@ -124,6 +124,7 @@ jobs:
           # demo data and renders that screen through the real code paths.
           SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7
                    onboarding-8 onboarding-9 onboarding-10 onboarding-11 onboarding-12 onboarding-13 onboarding-14
+                   onboarding-15
                    paywall tab-today tab-lock tab-fuel tab-progress tab-settings
                    locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing
                    celebration lockedout recap"
@@ -152,7 +153,7 @@ jobs:
             xcrun simctl boot "$SE_ID" || true
             xcrun simctl bootstatus "$SE_ID" -b
             xcrun simctl install "$SE_ID" "$APP"
-            for SCREEN in tab-today tab-lock tab-fuel tab-progress onboarding-5 onboarding-12 alarm-ringing; do
+            for SCREEN in tab-today tab-lock tab-fuel tab-progress onboarding-5 onboarding-9 onboarding-13 alarm-ringing; do
               xcrun simctl terminate "$SE_ID" com.zano.app 2>/dev/null || true
               xcrun simctl launch "$SE_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "SE LAUNCH FAILED: $SCREEN"
               sleep 5

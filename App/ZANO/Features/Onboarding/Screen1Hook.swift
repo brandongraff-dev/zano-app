@@ -26,7 +26,7 @@
 import SwiftUI
 import Core
 
-/// Screen 1 of 14 (spec §7.1). Full-bleed hero: headline + single CTA that advances the flow.
+/// Screen 1 of 15 (spec §7.1). Full-bleed hero: headline + single CTA that advances the flow.
 /// No FamilyControls/HealthKit/etc. here - this screen only ever mutates `flowState.currentScreen`
 /// (via `advance()`).
 struct Screen1Hook: View {

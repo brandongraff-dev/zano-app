@@ -32,7 +32,7 @@
 import SwiftUI
 import Core
 
-/// Screen 3 of 14 (spec §7.3) - Q1, single-select main goal.
+/// Screen 3 of 15 (spec §7.3) - Q1, single-select main goal.
 struct Screen3MainGoal: View {
     @Bindable var flowState: OnboardingFlowState
 

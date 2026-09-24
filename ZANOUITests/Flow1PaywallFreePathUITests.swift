@@ -5,7 +5,8 @@
 // more, so this scenario no longer taps through it. (The file keeps its old name so the scenario
 // order Flow1 -> Flow2 -> Flow3 is unchanged.) What it guards now, from
 // App/ZANO/Features/Onboarding/PaywallView.swift:
-//   1. Onboarding reaches the paywall as screen 12, straight after Commitment.
+//   1. Onboarding reaches the paywall as screen 13, straight after Commitment (screen 12; the NFC
+//      tags screen at 9 moved everything after it up by one on 2026-09-24).
 //   2. The headline ("Earn your phone back") renders.
 //   3. Restore purchases is on screen without scrolling (App Review, and "restore purchases
 //      visible"), as are the Terms and Privacy links.
@@ -18,9 +19,8 @@
 // It never buys anything and stops on the paywall, so the install stays un-onboarded for the next
 // scenario (no `onFinished`, no lock started).
 //
-// DEVICE-ONLY: reaching screen 12 passes screen 4's FamilyActivityPicker. It drives screens 1-11
-// itself because `driveOnboardingToPaywall` in ZANOUIScenarioSupport.swift still expects the old
-// order (permission priming at 12, paywall at 13).
+// DEVICE-ONLY: reaching screen 13 passes screen 4's FamilyActivityPicker. It drives screens 1-12
+// itself (the same path `driveOnboardingToPaywall` in ZANOUIScenarioSupport.swift now takes).
 //
 // UNVERIFIED -- see ZANOUIScenarioSupport.swift header. Lookups are label-based.
 
@@ -28,8 +28,9 @@ import XCTest
 
 final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
 
-    /// Paywall screen number since the 2026-09-23 reorder (`OnboardingContainerView.screen(for:)`).
-    private static let paywallStep = 12
+    /// Paywall screen number (`OnboardingContainerView.screen(for:)`): 12 after the 2026-09-23
+    /// reorder, 13 since the NFC tags screen went in at 9 (2026-09-24).
+    private static let paywallStep = 13
 
     /// Test-side lookups for strings `ZANOUILabel.Paywall` does not mirror yet (NOT app copy).
     private enum Label {
@@ -108,9 +109,9 @@ final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
         )
     }
 
-    // MARK: - Driving screens 1-11
+    // MARK: - Driving screens 1-12
 
-    /// Screens 1-11 in the current order, ending on the paywall (screen 12).
+    /// Screens 1-12 in the current order, ending on the paywall (screen 13).
     @MainActor
     private func driveOnboardingToHardPaywall(_ app: XCUIApplication) throws {
         let L = ZANOUILabel.Onboarding.self
@@ -141,12 +142,14 @@ final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
         advance(app, from: 7, tapping: continueButton)
 
         advance(app, from: 8, tapping: continueButton)
-        advance(app, from: 9, tapping: app.button(labelContaining: L.wakeUpContinue))
-        advance(app, from: 10, tapping: app.button(labelContaining: L.planContinue))
+        chooseNFCSkip(app)
+        advance(app, from: 9, tapping: continueButton)
+        advance(app, from: 10, tapping: app.button(labelContaining: L.wakeUpContinue))
+        advance(app, from: 11, tapping: app.button(labelContaining: L.planContinue))
 
-        XCTAssertTrue(waitForOnboardingStep(11, in: app), "Expected onboarding step 11.")
+        XCTAssertTrue(waitForOnboardingStep(12, in: app), "Expected onboarding step 12.")
         let commit = app.button(labelContaining: L.holdToCommit)
-        XCTAssertTrue(commit.waitForExistence(timeout: 10), "Step 11: 'Hold to commit' button not found.")
+        XCTAssertTrue(commit.waitForExistence(timeout: 10), "Step 12: 'Hold to commit' button not found.")
         commit.holdToCommit()
         XCTAssertTrue(
             waitForOnboardingStep(Self.paywallStep, in: app, timeout: 20),

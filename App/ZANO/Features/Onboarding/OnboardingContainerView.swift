@@ -1,14 +1,14 @@
 // OnboardingContainerView.swift
 // App / Features / Onboarding
 //
-// docs/spec.md §7 (Onboarding Flow, screen by screen) lists all 14 screens; §17 Session 6
+// docs/spec.md §7 (Onboarding Flow, screen by screen) lists 14 screens (15 here, with the NFC tags screen); §17 Session 6
 // (`feat/onboarding`) owns "Onboarding (14 screens) + permission priming + RevenueCat paywall +
 // first-win flow" as one unit. This file is the single root that wires every screen into one
 // sequential flow, plus the shared chrome and the small design toolkit (`OnboardingKit`, below)
 // that screens 8-14 build on.
 //
 // `OnboardingFlowState` (`OnboardingFlowState.swift`, read here, never edited) is the shared state:
-// `currentScreen` (1...14), the Q1-Q6 answers, `advance()`/`goBack()`, `progressFraction`,
+// `currentScreen` (1...15), the Q1-Q6 answers, `advance()`/`goBack()`, `progressFraction`,
 // `recordCommitment(at:)`. Every screen takes `@Bindable var flowState: OnboardingFlowState` and
 // advances itself via `flowState.advance()`; this container never drives navigation from the
 // outside beyond the back button.
@@ -17,11 +17,11 @@
 // composition-audit, competitive-research, 2026-ios-trends), applied to this file:
 //   - One header row instead of two: [back 44pt][progress bar]. Saves ~48pt per screen
 //     (better-layout 7.6) and the back target is 44pt (better-ui HIT-01).
-//   - The header is hidden on screen 1 (the full-bleed hook, spec §7.1) and on screen 14 (the live
+//   - The header is hidden on screen 1 (the full-bleed hook, spec §7.1) and on the last screen (the live
 //     first-win lock: a Back there used to return to the paywall mid-session — better-layout 7.6).
-//     The "Step N of 14" accessibility element is NOT hidden with it: on those two screens it is
+//     The "Step N of 15" accessibility element is NOT hidden with it: on those two screens it is
 //     kept as a 1pt invisible marker, so VoiceOver still announces where the user is and the UI-test
-//     harness (`ZANOUITests`, which detects onboarding and waits on steps 1 and 14 through that
+//     harness (`ZANOUITests`, which detects onboarding and waits on steps 1 and 15 through that
 //     label) keeps working.
 //   - The progress track is the shared `Theme.Colors.track` (it was a `surface2` fill at 1.16:1,
 //     invisible) and its fill carries the static accent glow that spec §16 asks of active elements.
@@ -35,22 +35,23 @@
 //     and the coach-voice glyph map.
 //
 // Liveliness pass (2026-09-24, founder: "onboarding feels dull and lifeless"): the header carries a
-// small `ZanoLivingMark` that charges with progress (charge = step / 14), the product line ("the star
+// small `ZanoLivingMark` that charges with progress (charge = step / 15), the product line ("the star
 // charges while you're off your phone") played out while the user answers. The scaffold paints one
 // continuous ambient (`OnboardingKit.Ambient`): deep navy from above that warms toward ZANO Blue as
 // the steps advance, so screens no longer paint their own flat `zanoAmbient(.neutral)`. The progress
-// fill is blue with a soft glow, and advancing a step ticks a soft haptic. The "Step N of 14"
+// fill is blue with a soft glow, and advancing a step ticks a soft haptic. The "Step N of 15"
 // element is unchanged (the star is hidden from VoiceOver so it adds no second element).
 //
-// Order note (decision 2026-09-23): the hard paywall is screen 12, directly after Commitment, so
-// nothing sits between the peak and the payment ask; notification priming is screen 13. The file
-// `Screen12PermissionPriming.swift` keeps its name but is now the 13th screen.
+// Order note (decision 2026-09-23): the hard paywall sits directly after Commitment, so nothing sits
+// between the peak and the payment ask; notification priming follows it. Since the NFC tag screen
+// was added as screen 9 (2026-09-24) the flow is 15 screens: tags 9, wake-up 10, plan 11, commitment
+// 12, paywall 13, notifications 14, first win 15. File names keep their older numbers.
 
 import SwiftUI
 import SwiftData
 import Core
 
-/// Root of the 14-screen onboarding flow (docs/spec.md §7). Owns the one shared
+/// Root of the 15-screen onboarding flow (docs/spec.md §7). Owns the one shared
 /// `OnboardingFlowState` for the whole flow and renders whichever screen
 /// `flowState.currentScreen` names, wrapped in `OnboardingScaffold`'s chrome.
 ///
@@ -59,14 +60,14 @@ import Core
 /// after `onFinished` fires, belong to that caller, not this file.
 @MainActor
 struct OnboardingContainerView: View {
-    /// Called once, after Screen 14's widget-add prompt is dismissed. Defaults to a no-op so this
+    /// Called once, after the first-win screen's widget-add prompt is dismissed. Defaults to a no-op so this
     /// view compiles and behaves standalone (e.g. in `#Preview`).
     var onFinished: () -> Void = {}
 
     @State private var flowState: OnboardingFlowState
 
     /// `initialScreen` exists so the CI screenshot gallery (`ScreenshotGallery.swift`) can photograph
-    /// any of the 14 screens directly; every real caller leaves it at the first screen.
+    /// any of the 15 screens directly; every real caller leaves it at the first screen.
     init(onFinished: @escaping () -> Void = {}, initialScreen: Int = OnboardingFlowState.firstScreen) {
         self.onFinished = onFinished
         let state = OnboardingFlowState()
@@ -98,11 +99,12 @@ struct OnboardingContainerView: View {
         case 6: Screen6Workouts(flowState: flowState)
         case 7: Screen7FallOff(flowState: flowState)
         case 8: Screen8CoachVoice(flowState: flowState)
-        case 9: Screen9WakeUp(flowState: flowState)
-        case 10: Screen10PlanReveal(flowState: flowState)
-        case 11: Screen11Commitment(flowState: flowState)
-        case 12: PaywallView(flowState: flowState)
-        case 13: Screen12PermissionPriming(flowState: flowState)
+        case 9: Screen9NFCTags(flowState: flowState)
+        case 10: Screen9WakeUp(flowState: flowState)
+        case 11: Screen10PlanReveal(flowState: flowState)
+        case 12: Screen11Commitment(flowState: flowState)
+        case 13: PaywallView(flowState: flowState)
+        case 14: Screen12PermissionPriming(flowState: flowState)
         default: Screen14FirstWin(flowState: flowState, onFinished: onFinished)
         }
     }
@@ -120,8 +122,8 @@ struct OnboardingContainerView: View {
 
 // MARK: - Shared chrome
 
-/// Consistent back button + progress bar wrapped around screens 2-13, per docs/spec.md §7's
-/// framing ("under 3 minutes") — a visible progress bar is what makes a 14-screen flow feel short.
+/// Consistent back button + progress bar wrapped around screens 2-14, per docs/spec.md §7's
+/// framing ("under 3 minutes") — a visible progress bar is what makes a 15-screen flow feel short.
 /// `internal` (not `private`) so the per-screen `#Preview`s can wrap themselves in the same chrome.
 @MainActor
 struct OnboardingScaffold<Content: View>: View {
@@ -130,7 +132,7 @@ struct OnboardingScaffold<Content: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Screen 1 is the full-bleed hook and screen 14 is the live first-win lock; both own the whole
+    /// Screen 1 is the full-bleed hook and the last screen is the live first-win lock; both own the whole
     /// screen (better-layout 7.6).
     private var showsChrome: Bool {
         flowState.currentScreen != OnboardingFlowState.firstScreen
@@ -155,7 +157,7 @@ struct OnboardingScaffold<Content: View>: View {
         }
         .overlay(alignment: .top) {
             if !showsChrome {
-                // The header is gone; its "Step N of 14" element is not. 1pt, invisible, no layout.
+                // The header is gone; its "Step N of 15" element is not. 1pt, invisible, no layout.
                 Color.clear
                     .frame(width: 1, height: 1)
                     .accessibilityElement(children: .ignore)
@@ -191,7 +193,7 @@ struct OnboardingScaffold<Content: View>: View {
             .accessibilityLabel(Copy.onboarding.backButtonAccessibilityLabel)
 
             // The star charges with every answer. Decorative here: the progress bar's
-            // "Step N of 14" element already says where the user is.
+            // "Step N of 15" element already says where the user is.
             ZanoLivingMark(charge: flowState.progressFraction, height: OnboardingKit.headerStarHeight)
                 .padding(.trailing, Theme.Spacing.xs)
                 .accessibilityHidden(true)

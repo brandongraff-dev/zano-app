@@ -31,8 +31,8 @@
 import SwiftUI
 import Core
 
-/// Screen 8 of 14 (spec §7.8). Selecting a voice sets `flowState.coachVoice`; screen 9 picks up
-/// from here (and screens 10 and 12 echo the choice back).
+/// Screen 8 of 15 (spec §7.8). Selecting a voice sets `flowState.coachVoice`; the NFC tags screen (9) picks up
+/// from here (and the plan reveal and notification priming echo the choice back).
 struct Screen8CoachVoice: View {
     @Bindable var flowState: OnboardingFlowState
 

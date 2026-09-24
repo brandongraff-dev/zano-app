@@ -43,7 +43,7 @@ tour() {
   done
 }
 
-SCREENS=${SCREENS:-"onboarding-1 onboarding-10 onboarding-14 paywall tab-today tab-lock tab-fuel tab-progress tab-settings celebration recap"}
+SCREENS=${SCREENS:-"onboarding-1 onboarding-9 onboarding-11 onboarding-15 paywall tab-today tab-lock tab-fuel tab-progress tab-settings celebration recap"}
 SE_SCREENS=${SE_SCREENS:-"tab-today"}
 
 SIM_ID=$(pick_sim pro)

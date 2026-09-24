@@ -96,7 +96,7 @@ struct Screen9WakeUp: View {
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "wake_up", "screen_number": 9]
+                properties: ["screen": "wake_up", "screen_number": 10]
             )
         }
     }

@@ -19,7 +19,7 @@
 // screens DO expose:
 //   * accessibility LABELS -- SwiftUI derives them from the visible Text of a Button, plus the
 //     explicit `.accessibilityLabel(...)` on the onboarding Back button, the hold-to-commit
-//     `PrimaryButton`, and the onboarding progress bar ("Step N of 14");
+//     `PrimaryButton`, and the onboarding progress bar ("Step N of 15");
 //   * system control types (`sliders`, `tabBars`, `navigationBars`, `alerts`).
 // Labels are matched with `CONTAINS`, never `==`, because a `Button` that also holds an
 // `Image(systemName:)` can carry the symbol's auto-generated name in its label.
@@ -44,7 +44,7 @@
 // PRECONDITIONS THE SCENARIOS ASSUME (each is checked at runtime and skipped, not silently faked)
 // ============================================================================================
 //  1. The app shell is wired: a fresh launch shows `OnboardingContainerView` (progress label
-//     "Step 1 of 14"), and a launch after onboarding shows a tab bar with a "Today" tab.
+//     "Step 1 of 15"), and a launch after onboarding shows a tab bar with a "Today" tab.
 //     `App/ZANO/ContentView.swift` now does this (gates on `AppRouter.hasCompletedOnboarding`,
 //     persisted in `UserDefaults.standard`, then hosts a five-tab `TabView`: Today / Lock / Fuel /
 //     Progress / Settings). NOT run yet -- if a first Mac run finds neither, `detectLaunchState`
@@ -69,8 +69,8 @@ import XCTest
 /// Test-side lookup strings. NOT app copy. Each entry names the `Copy` key it mirrors.
 enum ZANOUILabel {
 
-    /// `OnboardingFlowState.lastScreen` / docs/spec.md §7 (14 screens).
-    static let onboardingScreenCount = 14
+    /// `OnboardingFlowState.lastScreen`: 15 since the NFC tags screen went in at 9 (spec §7 lists 14).
+    static let onboardingScreenCount = 15
 
     enum Onboarding {
         /// Copy.onboarding.hookCTA. Spec §7.1 quotes it as "I'm ready." WITH a trailing period, but
@@ -86,6 +86,8 @@ enum ZANOUILabel {
         static let fallOffEvenings = "Evenings"
         /// CoachVoice.toughLove.displayName -- spec §5.13 / §7.8 verbatim.
         static let coachVoiceToughLove = "Tough Love"
+        /// Copy.onboarding.nfcChoiceSkipTitle (screen 9, NFC tags). Continue is gated on an answer.
+        static let nfcSkip = "Skip for now"
         /// Copy.onboarding.wakeUpContinueButton.
         static let wakeUpContinue = "See my plan"
         /// Copy.onboarding.planContinueButton (the same word as `continueButton`).
@@ -182,7 +184,7 @@ enum ZANOUILabel {
 // MARK: - Launch state
 
 enum ZANOLaunchState {
-    /// `OnboardingContainerView` is showing ("Step N of 14" progress label present).
+    /// `OnboardingContainerView` is showing ("Step N of 15" progress label present).
     case onboarding
     /// A tab bar is showing (onboarding already completed).
     case main
@@ -210,7 +212,7 @@ extension XCUIApplication {
 
     /// The onboarding chrome's progress element for `step`. `OnboardingScaffold` gives its
     /// progress bar `.accessibilityLabel(Copy.onboarding.progressAccessibilityLabel(screen:total:))`
-    /// = "Step N of 14"; type-agnostic because the element has no button/text trait.
+    /// = "Step N of 15"; type-agnostic because the element has no button/text trait.
     func onboardingStep(_ step: Int) -> XCUIElement {
         let label = "Step \(step) of \(ZANOUILabel.onboardingScreenCount)"
         return descendants(matching: .any)
@@ -380,10 +382,10 @@ class ZANOScenarioTestCase: XCTestCase {
         add(attachment)
     }
 
-    // MARK: Onboarding driver (screens 1-12)
+    // MARK: Onboarding driver (screens 1-13)
 
     /// Taps `button` on onboarding screen `step` and waits for screen `step + 1`.
-    /// Waits for the button to be ENABLED first: Continue on screens 3, 4 and 7 is disabled until
+    /// Waits for the button to be ENABLED first: Continue on screens 3, 4, 7 and 9 is disabled until
     /// the user answers, and XCUITest will happily tap a disabled button as a no-op.
     @MainActor
     func advance(
@@ -406,7 +408,8 @@ class ZANOScenarioTestCase: XCTestCase {
         settle()
     }
 
-    /// Drives a fresh install from onboarding screen 1 to the paywall (screen 13, docs/spec.md §7).
+    /// Drives a fresh install from onboarding screen 1 to the hard paywall (screen 13: the NFC tags
+    /// screen is 9, and the paywall follows Commitment directly since the 2026-09-23 reorder).
     /// Device-only: screen 4 needs a real FamilyControls selection to enable Continue.
     /// Leaves the app on screen 13.
     @MainActor
@@ -460,31 +463,30 @@ class ZANOScenarioTestCase: XCTestCase {
         voice.tap()
         advance(app, from: 8, tapping: continueButton)
 
-        // 9 Wake-up moment -> 10 Plan reveal (creates User + Goal + default LockSet)
-        advance(app, from: 9, tapping: app.button(labelContaining: L.wakeUpContinue))
-        advance(app, from: 10, tapping: app.button(labelContaining: L.planContinue))
+        // 9 NFC tags: Continue is gated on an answer; take "Skip for now".
+        chooseNFCSkip(app)
+        advance(app, from: 9, tapping: continueButton)
 
-        // 11 Commitment: 2-second hold, not a tap.
-        XCTAssertTrue(waitForOnboardingStep(11, in: app), "Expected onboarding step 11.")
+        // 10 Wake-up moment -> 11 Plan reveal (creates User + Goal + default LockSet)
+        advance(app, from: 10, tapping: app.button(labelContaining: L.wakeUpContinue))
+        advance(app, from: 11, tapping: app.button(labelContaining: L.planContinue))
+
+        // 12 Commitment: 2-second hold, not a tap. The hard paywall follows it directly.
+        XCTAssertTrue(waitForOnboardingStep(12, in: app), "Expected onboarding step 12.")
         let commit = app.button(labelContaining: L.holdToCommit)
-        XCTAssertTrue(commit.waitForExistence(timeout: 10), "Step 11: 'Hold to commit' button not found.")
+        XCTAssertTrue(commit.waitForExistence(timeout: 10), "Step 12: 'Hold to commit' button not found.")
         commit.holdToCommit()
-        XCTAssertTrue(waitForOnboardingStep(12, in: app), "Held 'Hold to commit' but never reached step 12.")
-        settle()
-
-        // 12 Permission priming. Advances whether the system prompt is allowed, denied, or was
-        // already answered on a previous install, so handle the prompt if it shows and move on.
-        let allow = app.button(labelContaining: L.allowNotifications)
-        XCTAssertTrue(allow.waitForExistence(timeout: 10), "Step 12: 'Allow notifications' button not found.")
-        allow.tap()
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let systemAlert = springboard.alerts.firstMatch
-        if systemAlert.waitForExistence(timeout: 6) {
-            let systemAllow = systemAlert.buttons["Allow"]
-            if systemAllow.exists { systemAllow.tap() }
-        }
         XCTAssertTrue(waitForOnboardingStep(13, in: app, timeout: 20), "Never reached the paywall (step 13).")
         settle()
+    }
+
+    /// Screen 9 (NFC tags): picks "Skip for now" so its gated Continue enables.
+    @MainActor
+    func chooseNFCSkip(_ app: XCUIApplication) {
+        XCTAssertTrue(waitForOnboardingStep(9, in: app), "Expected onboarding step 9 (NFC tags).")
+        let skip = app.button(labelContaining: ZANOUILabel.Onboarding.nfcSkip)
+        XCTAssertTrue(skip.waitForExistence(timeout: 10), "Step 9: '\(ZANOUILabel.Onboarding.nfcSkip)' option not found.")
+        skip.tap()
     }
 
     /// Opens the system `FamilyActivityPicker` from `opener`, picks the first thing it offers, and

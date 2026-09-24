@@ -34,7 +34,7 @@
 import SwiftUI
 import Core
 
-/// Screen 6 of 14 (spec §7.6) - Q4, two independent counters (current, target workouts/week).
+/// Screen 6 of 15 (spec §7.6) - Q4, two independent counters (current, target workouts/week).
 struct Screen6Workouts: View {
     @Bindable var flowState: OnboardingFlowState
 

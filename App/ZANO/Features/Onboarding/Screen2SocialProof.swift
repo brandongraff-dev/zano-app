@@ -39,7 +39,7 @@
 import SwiftUI
 import Core
 
-/// Screen 2 of 14 (spec §7.2). Auto-rotating proof card with a manual Continue CTA.
+/// Screen 2 of 15 (spec §7.2). Auto-rotating proof card with a manual Continue CTA.
 struct Screen2SocialProof: View {
     @Bindable var flowState: OnboardingFlowState
 

@@ -31,7 +31,7 @@
 import SwiftUI
 import Core
 
-/// Screen 5 of 14 (spec §7.5) - Q3, a single slider bound directly to
+/// Screen 5 of 15 (spec §7.5) - Q3, a single slider bound directly to
 /// `flowState.dailyPhoneTimeHours`. No validation gate: any value in 1...10 is a valid answer, so
 /// Continue is always enabled here.
 struct Screen5PhoneTime: View {

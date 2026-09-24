@@ -1,7 +1,7 @@
 // Flow2OnboardingCompletionUITests.swift
 // ZANOUITests -- scenario 1: complete onboarding end to end and land on the Today tab.
 //
-// docs/spec.md §7 (14 screens, hook -> first win) and §2 (core loop). Screen 14 IS the core loop
+// docs/spec.md §7 (15 screens here, hook -> first win) and §2 (core loop). Screen 15 IS the core loop
 // run once inside onboarding: lock -> 10-minute focus goal -> verified -> unlock + streak Day 1
 // (spec §7.14, §8 rule 11).
 //
@@ -94,6 +94,8 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
 
         // 13 Paywall: take the free path, the way a reviewer with no subscription would.
         // (Flow1 covers the paywall's own guarantees in depth.)
+        // STALE: the paywall is hard since 2026-09-23 and this link no longer exists, so this test
+        // cannot pass as written; it needs a sandbox purchase (or a test-only bypass) here.
         XCTAssertTrue(waitForOnboardingStep(13, in: app), "Expected to be on the paywall (step 13).")
         let freeLink = app.button(labelContaining: ZANOUILabel.Paywall.continueWithLimitedFree)
         XCTAssertTrue(
@@ -104,7 +106,21 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
         XCTAssertTrue(waitForOnboardingStep(14, in: app, timeout: 15), "Free path did not advance to step 14.")
         settle()
 
-        // 14 First win: the core loop, once.
+        // 14 Permission priming. Advances whether the system prompt is allowed, denied, or was
+        // already answered on a previous install, so handle the prompt if it shows and move on.
+        let allow = app.button(labelContaining: ZANOUILabel.Onboarding.allowNotifications)
+        XCTAssertTrue(allow.waitForExistence(timeout: 10), "Step 14: 'Allow notifications' button not found.")
+        allow.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let systemAlert = springboard.alerts.firstMatch
+        if systemAlert.waitForExistence(timeout: 6) {
+            let systemAllow = systemAlert.buttons["Allow"]
+            if systemAllow.exists { systemAllow.tap() }
+        }
+        XCTAssertTrue(waitForOnboardingStep(15, in: app, timeout: 20), "Never reached the first win (step 15).")
+        settle()
+
+        // 15 First win: the core loop, once.
         completeFirstWin(app)
 
         // Landed on Today...
@@ -122,13 +138,13 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
 
     // MARK: - Helpers
 
-    /// Screen 14 (spec §7.14): start the 10-minute focus session, wait it out, finish.
+    /// Screen 15 (spec §7.14): start the focus session, wait it out, finish.
     @MainActor
     private func completeFirstWin(_ app: XCUIApplication) {
         let L = ZANOUILabel.Onboarding.self
 
         let start = app.button(labelContaining: L.firstWinStart)
-        XCTAssertTrue(start.waitForExistence(timeout: 10), "Step 14: '\(L.firstWinStart)' button not found.")
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "Step 15: '\(L.firstWinStart)' button not found.")
         start.tap()
 
         // `start()` failing shows an alert (errorMessage) and stays on the intro; success shows the
@@ -161,7 +177,7 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
         // "Done" on the celebration / not-verified screen. A verified win then shows the widget
         // prompt with a second "Done"; a not-verified one finishes straight away.
         let done = app.button(labelContaining: L.firstWinDone)
-        XCTAssertTrue(done.waitForExistence(timeout: 10), "Step 14: '\(L.firstWinDone)' button not found after the timer.")
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "Step 15: '\(L.firstWinDone)' button not found after the timer.")
         done.tap()
         settle()
         if app.anyElement(labelContaining: L.widgetPromptHeadline).waitForExistence(timeout: 4) {

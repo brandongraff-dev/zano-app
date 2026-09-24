@@ -111,7 +111,7 @@ struct Screen11Commitment: View {
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "commitment", "screen_number": 11]
+                properties: ["screen": "commitment", "screen_number": 12]
             )
         }
     }

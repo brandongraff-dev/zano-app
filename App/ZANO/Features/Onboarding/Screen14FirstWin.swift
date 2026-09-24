@@ -159,7 +159,7 @@ struct Screen14FirstWin: View {
             .onAppear {
                 Analytics.shared.capture(
                     event: "onboarding_screen_viewed",
-                    properties: ["screen": "first_win", "screen_number": 14]
+                    properties: ["screen": "first_win", "screen_number": 15]
                 )
             }
     }
@@ -677,8 +677,8 @@ private struct FirstWinCelebration: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The star arrives where the header left it (step 13 of 14) and fills to full on the win.
-    @State private var starCharge: Double = 13.0 / 14.0
+    /// The star arrives where the header left it (step 14 of 15) and fills to full on the win.
+    @State private var starCharge: Double = 14.0 / 15.0
     @State private var shownStreak = 0
     @State private var showText = false
     @State private var showBurst = false

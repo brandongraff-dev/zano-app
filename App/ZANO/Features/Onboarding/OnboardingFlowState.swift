@@ -18,15 +18,18 @@
 //   6  Q4 Current vs target workouts/week    <- Screen6Workouts.swift        (this session)
 //   7  Q5 When do you usually fall off       <- Screen7FallOff.swift         (this session)
 //   8  Q6 Coach voice                        <- Screen8CoachVoice.swift      (this session)
-//   9  Wake-up moment                        <- onboarding-2
-//   10 Plan reveal                           <- onboarding-2
-//   11 Commitment (hold to commit)           <- onboarding-2
-//   12 Paywall (hard; PaywallView.swift)     <- onboarding-2
-//   13 Permission priming (notifications;    <- onboarding-2
-//      Screen12PermissionPriming.swift keeps its old name)
+//   9  ZANO tags ("Tap to prove it")         <- Screen9NFCTags.swift (added 2026-09-24)
+//   10 Wake-up moment                        <- Screen9WakeUp.swift
+//   11 Plan reveal                           <- Screen10PlanReveal.swift
+//   12 Commitment (hold to commit)           <- Screen11Commitment.swift
+//   13 Paywall (hard; PaywallView.swift)
+//   14 Permission priming (notifications)    <- Screen12PermissionPriming.swift
+//   15 First win                             <- Screen14FirstWin.swift
 //   (Order per decision 2026-09-23: nothing sits between Commitment and the paywall. Wired in
 //   `OnboardingContainerView.screen(for:)`; numbers are the CI `-ZANOScreen onboarding-N` ids.)
-//   14 First win                             <- onboarding-2
+//   The NFC tag screen (founder request 2026-09-24: tags are "a huge part" of ZANO) made the flow
+//   15 screens, one over spec §7's "10-14" target, and shifted every later screen up by one. The
+//   file names keep their old numbers; the numbers in this table are the real positions.
 //
 // Scope note: only `currentScreen`, the six Q1-Q6 answer properties, and `committedAt` (screen 11
 // explicitly "Records committed_at" per spec §7.11, and nothing else in the flow can hold that
@@ -66,8 +69,8 @@ final class OnboardingFlowState {
 
     /// Spec §7's first screen number (Hook).
     static let firstScreen = 1
-    /// Spec §7's last screen number (First win).
-    static let lastScreen = 14
+    /// The last screen number (First win). 15 since the NFC tag screen was added at 9.
+    static let lastScreen = 15
 
     /// 1-indexed, matching spec §7's own screen numbering exactly (see file header table).
     var currentScreen: Int = 1
@@ -104,7 +107,14 @@ final class OnboardingFlowState {
     /// `SharedDefaults.coachVoice`'s and `User.coachVoice`'s own documented defaults.
     var coachVoice: CoachVoice = .hype
 
-    // MARK: - Screen 11: Commitment (spec §7.11)
+    // MARK: - Screen 9: ZANO tags (spec §6, §25.1)
+
+    /// "Do you have ZANO tags?" (screen 9): have tags / get tags / skip. `nil` until answered.
+    /// Plan Reveal reads it to say how a protein goal is verified. Transient like every answer here;
+    /// screen 9 also sends it as an analytics event, the only record of tag interest today.
+    var nfcTagAnswer: NFCTagAnswer?
+
+    // MARK: - Screen 12: Commitment (spec §7.11)
 
     /// "Records `committed_at`" (spec §7.11) — the moment the user completed the 2-second
     /// hold-to-commit gesture. `nil` until screen 11 (onboarding-2) sets it via

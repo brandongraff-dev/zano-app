@@ -206,3 +206,36 @@ email (placeholder `support@zano.app`), product calls (streak freeze in emergenc
 verification, pause-for-health mechanism).
 **Unverified:** all of it is syntax-checked only; Flow2 UI test still expects the old free path.
 - **CI green (2026-09-24):** after the repo went public, run 36053520709 (bc74bf4) built everything; only fix needed was a @MainActor on the widget quick-log helper. Screenshots reviewed.
+
+### 2026-09-24 — NFC tags in onboarding (founder: tags are "a huge part" of ZANO)
+
+Spec §3 (protein/water/creatine verified by NFC tap), §5.10 (Sunrise Tag), §6 (NFC), §7, §25.1,
+§25.5–§25.6 (Tag Pack, gear store).
+- **New screen 9, "Tap to prove it"** (`App/ZANO/Features/Onboarding/Screen9NFCTags.swift`): a
+  SwiftUI-drawn illustration (phone, top edge first, taps a round silver tag with the ZANO star; blue
+  NFC rings pulse, the goal ring around the tag fills, a check lands; three runs then rests; Reduce
+  Motion = finished state, static), two lines + a proof line, three glass chips (Shaker / Water
+  bottle / Sunrise alarm), and "Do you have ZANO tags?" — I have ZANO tags / Get tags / Skip for now.
+  Continue is gated on an answer. The answer lives in `OnboardingFlowState.nfcTagAnswer` (transient)
+  and goes out as analytics `onboarding_nfc_choice`; there is no persisted home for it.
+- **Placement:** after the six questions (coach voice, 8), before wake-up and the plan. Flow is now
+  **15 screens** (tags 9, wake-up 10, plan 11, commitment 12, paywall 13, notifications 14, first win
+  15). Spec §7 targets 10–14 — **founder decision needed** (keep 15, or fold a screen).
+- **Plan reveal:** a protein goal row now says "Verified by: NFC tap" (have tags), "… once your tags
+  arrive" (get tags), or "Verified by: meal photo or barcode" (skip). Water/creatine get the NFC line
+  too if they ever appear in the plan. Wake-up (screen 10) left alone: it is phone-time math, not
+  mornings, so the Sunrise Tag has no natural place there (it is on the tags screen instead).
+- **"Get tags" has no link:** `SettingsReferenceData.gearStoreURL` is `nil`, so the answer says tag
+  packs aren't on sale yet; the screen shows an "Open the ZANO gear store" link automatically once
+  that URL is set. No price and no "free with annual" claim (neither is offered anywhere yet).
+- **Renumbering:** `OnboardingFlowState.lastScreen` 14 → 15; container switch; analytics
+  `screen_number` for screens after 8 (+1); first-win star start charge 14/15; UI tests
+  (`onboardingScreenCount` 15, new `chooseNFCSkip`, `driveOnboardingToPaywall` now matches the hard
+  paywall order and ends on 13, Flow1 `paywallStep` 13, Flow2 permission 14 / first win 15); CI
+  screenshot lists add `onboarding-15` (GitHub) and `onboarding-9/11/15` (Codemagic default), SE pass
+  shoots `onboarding-9` and the paywall at `onboarding-13`.
+- Copy: `Core/Sources/Core/Copy/OnboardingNFCCopy.swift` (`extension Copy.onboarding`).
+
+**Unverified:** syntax-checked only (`swiftc -frontend -parse`); needs a CI compile and a look at the
+screenshots (illustration geometry, chip wrap on SE). Flow2 test2 still taps the removed free-path
+link (hard paywall), so it cannot pass as written — flagged in the test.

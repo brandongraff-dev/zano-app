@@ -56,8 +56,12 @@
 // Liveliness pass (2026-09-24): the build beat's hero is the living star (`ZanoLivingMark`) instead
 // of a white ring: it takes on charge as each of the user's answers checks off, over a ZANO Blue
 // bloom that brightens with it, so "building your plan" reads as the star being built. The revealed
-// plan carries a small star above its title, charged to where the flow is (10 of 14). The backdrop
+// plan carries a small star above its title, charged to where the flow is (11 of 15). The backdrop
 // is the scaffold's flow ambient, not a flat `zanoAmbient(.neutral)`.
+//
+// NFC pass (2026-09-24): this is now screen 11 (the NFC tags screen went in at 9). A protein goal row
+// says how it is verified, from the tags answer: "Verified by: NFC tap" with tags, "... once your tags
+// arrive" if the user wants them, and meal photo or barcode otherwise (`verificationLine(for:)`).
 //
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
@@ -121,7 +125,7 @@ struct Screen10PlanReveal: View {
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "plan_reveal", "screen_number": 10]
+                properties: ["screen": "plan_reveal", "screen_number": 11]
             )
         }
     }
@@ -443,10 +447,47 @@ struct Screen10PlanReveal: View {
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
                 .fixedSize(horizontal: false, vertical: true)
+
+                if let verification = verificationLine(for: goal.type) {
+                    HStack(spacing: Theme.Spacing.xxs) {
+                        Image(systemName: verificationSymbol)
+                            .font(Theme.Typography.icon(.xsmall))
+                            .accessibilityHidden(true)
+                        Text(verification)
+                            .font(Theme.Typography.captionEmphasized)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .padding(.top, Theme.Spacing.xxs)
+                }
             }
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// How a tag-able goal gets verified, from the NFC tags answer (screen 9, spec §3: protein, water
+    /// and creatine verify by an NFC tap). `nil` for goals a tag doesn't verify (workout, focus), and
+    /// for water/creatine without tags (their fallback is a widget button, not a verification).
+    private func verificationLine(for type: GoalType) -> String? {
+        switch type {
+        case .protein, .water, .creatine:
+            switch flowState.nfcTagAnswer {
+            case .haveTags: return Copy.onboarding.planVerifiedByNFC
+            case .wantTags: return Copy.onboarding.planVerifiedByNFCWhenTagsArrive
+            case .skip, nil: return type == .protein ? Copy.onboarding.planVerifiedByPhotoOrBarcode : nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    /// SF Symbol for the verification line: NFC waves with tags, a camera for the photo fallback.
+    private var verificationSymbol: String {
+        switch flowState.nfcTagAnswer {
+        case .haveTags, .wantTags: "wave.3.right"
+        case .skip, nil: "camera.fill"
+        }
     }
 
     /// Spec §16 P4's "Starting easy on purpose" tag — the day-one targets really are ~70% of stated.

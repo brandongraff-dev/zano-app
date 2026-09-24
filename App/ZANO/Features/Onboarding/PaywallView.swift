@@ -1,7 +1,7 @@
 // PaywallView.swift
 // App / Features / Onboarding
 //
-// Screen 12 of 14 in the onboarding flow (docs/spec.md §7.12), directly after Commitment: a HARD
+// Screen 13 of 15 in the onboarding flow (docs/spec.md §7.12), directly after Commitment: a HARD
 // paywall (decision 2026-09-23) — free trial (7 days) with a reminder before it ends. Annual is the
 // default. There is no free path. It is also shown standalone by `ContentView` when a subscription
 // lapses. Spec §21's copy rules: a clear dated trial timeline (today / reminder / charge date), a
@@ -23,7 +23,7 @@
 //   CTA block   "✓ No payment due now", one white button, the full terms paragraph, then Terms ·
 //               Privacy · Restore purchases (spec §24).
 //
-// `context`: `.onboarding` (screen 12) or `.lapsed` (the app shell, after a subscription or trial
+// `context`: `.onboarding` (screen 13) or `.lapsed` (the app shell, after a subscription or trial
 // ran out). Lapsed swaps the first headline line for "Welcome back." and sends no onboarding
 // analytics and never advances the onboarding flow.
 //
@@ -40,14 +40,14 @@
 import SwiftUI
 import Core
 
-/// Screen 12 of 14 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
+/// Screen 13 of 15 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
 /// `PaywallViewModel` with the annual plan selected (spec §21). The only ways forward are to start
 /// the trial, subscribe, or restore an existing purchase.
 struct PaywallView: View {
     /// Where the paywall is shown. Changes the first headline line and whether onboarding
     /// analytics and `flowState.advance()` run.
     enum Context: Sendable, Equatable {
-        /// Screen 12 of onboarding.
+        /// Screen 13 of onboarding.
         case onboarding
         /// Shown by the app shell after a subscription or trial lapsed.
         case lapsed
@@ -153,7 +153,7 @@ struct PaywallView: View {
                 if isOnboarding {
                     Analytics.shared.capture(
                         event: "onboarding_screen_viewed",
-                        properties: ["screen": "paywall", "screen_number": 12]
+                        properties: ["screen": "paywall", "screen_number": 13]
                     )
                 }
             }

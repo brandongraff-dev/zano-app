@@ -47,6 +47,7 @@ struct Screen7FallOff: View {
             }
             .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: flowState.fallOffPattern)
         }
+        .onboardingEntrance()
         .onboardingPinnedContinue(
             title: Copy.common.continueButtonLabel,
             isEnabled: flowState.fallOffPattern != nil

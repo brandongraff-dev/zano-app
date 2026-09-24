@@ -86,7 +86,6 @@ struct Screen2SocialProof: View {
         }
         .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .zanoAmbient(.neutral)
         .onboardingPinnedContinue(title: Copy.common.continueButtonLabel) {
             flowState.advance()
         }

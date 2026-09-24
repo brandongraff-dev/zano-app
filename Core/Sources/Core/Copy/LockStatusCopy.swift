@@ -88,5 +88,19 @@ extension Copy {
         public static let goalStatusComplete = "Complete"
         public static let goalStatusInProgress = "In progress"
         public static let goalStatusPending = "Not started"
+
+        // MARK: - Idle state (empty-states pass 2026-09-24)
+        //
+        // The Lock tab with nothing running. The start button's title is deliberately not
+        // `Copy.today.beginLockStandardTitle`: the UI tests find Today's begin-lock button by that
+        // exact text. The hero's spoken label still leads with `unlockedHeadline`, which the tests
+        // wait for after an emergency unlock.
+
+        public static let idleHeadline = "No lock running"
+        /// Under the headline when a lock could start right now.
+        public static let idleReadyDetail = "Your apps are open. Lock in whenever you're ready."
+        /// Under the headline when there's no default lock set or no active goal yet.
+        public static let idleSetupDetail = "Pick your goals and the apps to lock on Today, then start your first lock."
+        public static let idleStartLockTitle = "Start a lock now"
     }
 }

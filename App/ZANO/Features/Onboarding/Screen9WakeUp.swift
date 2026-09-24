@@ -74,8 +74,8 @@ struct Screen9WakeUp: View {
             .padding(.vertical, Theme.Spacing.lg)
         }
         .background {
+            // No opaque fill: the scaffold's flow ambient shows through under the two glows.
             ZStack {
-                Theme.Colors.background.ignoresSafeArea()
                 OnboardingKit.Glow(tint: Theme.Colors.danger, opacity: 0.10, anchor: .top)
                 OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.12, anchor: .bottom)
                     .opacity(visibleStage >= 2 ? 1 : 0)
@@ -134,6 +134,11 @@ struct Screen9WakeUp: View {
 
     private var gainBlock: some View {
         VStack(spacing: Theme.Spacing.xs) {
+            // The reclaim, as the star: it charges as the "+N days" beat lands. Decorative.
+            ZanoLivingMark(charge: visibleStage >= 2 ? 0.8 : 0.1, height: 44)
+                .padding(.bottom, Theme.Spacing.xs)
+                .accessibilityHidden(true)
+
             Text(
                 Copy.onboardingReveal.wakeUpReclaimLeadIn(
                     hoursLabel: Copy.onboarding.q3HoursValue(reclaimHours)

@@ -53,6 +53,12 @@
 // The schedule line stays "Locks each morning until your goals are done": the app has no default
 // lock time yet, so a "Locks at 7:00 AM" line would state something untrue.
 //
+// Liveliness pass (2026-09-24): the build beat's hero is the living star (`ZanoLivingMark`) instead
+// of a white ring: it takes on charge as each of the user's answers checks off, over a ZANO Blue
+// bloom that brightens with it, so "building your plan" reads as the star being built. The revealed
+// plan carries a small star above its title, charged to where the flow is (10 of 14). The backdrop
+// is the scaffold's flow ambient, not a flat `zanoAmbient(.neutral)`.
+//
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
 
@@ -106,7 +112,6 @@ struct Screen10PlanReveal: View {
             }
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: visiblePhase)
-        .zanoAmbient(.neutral)
         .task {
             await persistPlanIfNeeded()
         }
@@ -158,17 +163,33 @@ struct Screen10PlanReveal: View {
         return Double(builtRows) / Double(total)
     }
 
+    private static let buildStarHeight: CGFloat = 88
+    private static let revealStarHeight: CGFloat = 30
+
+    /// The build beat's star: 0.1 before anything checks off, 0.75 when every answer has.
+    private var buildStarCharge: Double {
+        0.1 + 0.65 * buildProgress
+    }
+
+    /// Where the revealed plan's star sits: the flow's own progress at this screen.
+    private var revealStarCharge: Double {
+        flowState.progressFraction
+    }
+
     private var buildingView: some View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer(minLength: Theme.Spacing.lg)
 
-            GoalRing(
-                progress: buildProgress,
-                color: Theme.Colors.interactive,
-                size: .medium,
-                center: .icon(systemName: "sparkles")
-            )
-            .accessibilityHidden(true)
+            // The star charges as the answers check off: from a glimmer to where the plan will
+            // leave it. It eases each step itself; the bloom brightens with it.
+            ZanoLivingMark(charge: buildStarCharge, height: Self.buildStarHeight)
+                .background {
+                    OnboardingKit.StarBloom(diameter: Self.buildStarHeight * 3.2)
+                        .opacity(0.25 + 0.75 * buildProgress)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.8), value: buildProgress)
+                }
+                .padding(.vertical, Theme.Spacing.sm)
+                .accessibilityHidden(true)
 
             Text(Copy.onboardingReveal.planBuildingTitle)
                 .font(Theme.Typography.title)
@@ -225,6 +246,12 @@ struct Screen10PlanReveal: View {
     private var revealedView: some View {
         OnboardingKit.CenteredScroll {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                ZanoLivingMark(charge: revealStarCharge, height: Self.revealStarHeight)
+                    .background {
+                        OnboardingKit.StarBloom(diameter: Self.revealStarHeight * 4)
+                            .opacity(0.6)
+                    }
+                    .accessibilityHidden(true)
                 OnboardingKit.DisplayTitle(text: Copy.onboarding.planRevealHeadline, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityAddTraits(.isHeader)

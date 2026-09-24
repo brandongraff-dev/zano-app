@@ -46,7 +46,7 @@ struct Screen8CoachVoice: View {
                 }
             }
         }
-        .zanoAmbient(.neutral)
+        .onboardingEntrance()
         .onboardingKitActionBar {
             PrimaryButton(title: Copy.common.continueButtonLabel) {
                 flowState.advance()
@@ -99,7 +99,8 @@ struct Screen8CoachVoice: View {
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Theme.Colors.surface2 : Theme.Colors.surface, in: shape)
+            // Selected: a deep blue wash under the ZANO Blue edge, so the choice glows a little.
+            .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface, in: shape)
             .overlay(
                 shape.strokeBorder(
                     isSelected ? Theme.Colors.interactive : Theme.Colors.hairline,

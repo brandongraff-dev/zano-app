@@ -61,8 +61,8 @@ import Foundation
 import SwiftUI
 import Core
 
-/// Renders a `Recap` (docs/spec.md §5.14, §9.6; `Core/Sources/Core/Models/Recap.swift`) as an
-/// exportable 9:16 poster, per the P7 mockup (§16). See this file's header for exactly how each
+/// Renders a `Recap` (docs/spec.md §5.14, §9.6; `Core/Sources/Core/Models/Recap.swift`) as a
+/// swipeable story that ends on the exportable 9:16 poster. See this file's header for how each
 /// mockup element maps onto the frozen `RecapStats` shape.
 public struct WeeklyRecapShareView: View {
     private let recap: Recap
@@ -80,6 +80,23 @@ public struct WeeklyRecapShareView: View {
     private let rankTierLabel: String?
     private let onDismiss: () -> Void
 
+    // MARK: Story state
+
+    /// Seconds each page stays up before auto-advancing.
+    private static let pageDuration: Double = 4
+    private static let tick: Double = 0.05
+
+    @State private var pageIndex = 0
+    /// Fill of the current page's top segment, 0...1.
+    @State private var segmentProgress: Double = 0
+    /// True while a finger is down on the story: auto-advance pauses, like any stories UI.
+    @State private var isHolding = false
+    @State private var pressStart: Date?
+    /// Direction of the last page change, for the insertion edge.
+    @State private var movingForward = true
+
+    // MARK: Share state
+
     @State private var renderedImage: UIImage?
     /// `true` once the poster render has returned `nil` — see the `.task` below and
     /// `docs/design/ui-stress-test-findings.md` §3.6. Without a branch on this case, a render failure
@@ -88,12 +105,9 @@ public struct WeeklyRecapShareView: View {
     @State private var shareRenderFailed = false
     /// Bumped by `retryShareRender()` to re-run the `.task(id:)` below on demand.
     @State private var renderAttempt = 0
-    /// Drives the poster's one-shot entrance reveal below — see `body`'s `.onAppear`. Applied only to
-    /// the on-screen preview instance: the poster `SharePosterRenderer` rasterizes is a separate,
-    /// untransformed instance, so an animation can never be mid-flight when it is captured
-    /// (`docs/design/animation-opportunities.md` row 10's explicit constraint).
-    @State private var cardAppeared = false
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     /// - Parameters:
     ///   - recap: The week's `Recap`, typically the same instance a `@Query(sort: \Recap.weekStart,
@@ -117,24 +131,61 @@ public struct WeeklyRecapShareView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            ShareMomentHeader(
-                title: Copy.share.weeklyRecapScreenTitle,
-                dismissLabel: Copy.share.dismissButtonTitle,
-                onDismiss: onDismiss
-            )
+        let story = storyData
+        let pages = storyPages(for: story)
+        let index = min(pageIndex, pages.count - 1)
+        let page = pages[index]
 
-            // The poster fills whatever room the pinned action bar leaves and scales down to fit, so
-            // the share button is on screen at every phone height (it used to be the last item in a
-            // scroll view under a fixed-width card).
-            SharePosterPreview(poster: poster)
-                .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
-                .opacity(cardAppeared ? 1 : 0)
+        ZStack {
+            StoryBackdrop(glow: page.glow)
+                .animation(reduceMotion ? .easeInOut(duration: 0.3) : .easeInOut(duration: 0.9), value: page)
+
+            VStack(spacing: 0) {
+                StoryProgressSegments(
+                    count: pages.count,
+                    index: index,
+                    progress: autoAdvances && index < pages.count - 1 ? segmentProgress : 1
+                )
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.top, Theme.Spacing.xs)
+
+                ShareMomentHeader(
+                    title: nil,
+                    dismissLabel: Copy.share.dismissButtonTitle,
+                    onDismiss: onDismiss
+                )
+
+                GeometryReader { proxy in
+                    ZStack {
+                        pageView(page, story: story)
+                            .id(page)
+                            .transition(pageTransition)
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+
+                        tapLayer(width: proxy.size.width, pageCount: pages.count)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(Copy.share.storyPageAccessibilityValue(page: index + 1, total: pages.count))
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment: go(to: index + 1, pageCount: pages.count)
+                    case .decrement: go(to: index - 1, pageCount: pages.count)
+                    @unknown default: break
+                    }
+                }
+
+                if page == .share {
+                    actions
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.bottom, Theme.Spacing.sm)
+                        .transition(.opacity)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .zanoBackdrop()
-        .zanoActionBar {
-            actions
+        // Auto-advance: one timer per page, restarted whenever the page changes.
+        .task(id: index) {
+            await runPageTimer(pageCount: pages.count)
         }
         .task(id: renderAttempt) {
             guard renderedImage == nil else { return }
@@ -150,19 +201,130 @@ public struct WeeklyRecapShareView: View {
                 shareRenderFailed = true
             }
         }
-        // The poster's one-shot arrival, per docs/design/animation-opportunities.md row 10: scale
-        // 0.92→1.0 + fade in, a `springStandard`-family spring, fired once on appear. Reduce Motion:
-        // opacity-only, no scale.
-        .onAppear {
-            guard !cardAppeared else { return }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.8)) {
-                cardAppeared = true
-            }
-        }
         // `Theme.swift`'s own header: fixed, dark-only design system — see
         // `docs/design/ui-stress-test-findings.md` §2.1 and `LockSetupView.swift`'s comment for
         // the full rationale.
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Story
+
+    /// Auto-advance is off for VoiceOver users (they page with swipe up/down on the adjustable
+    /// element) and for CI screenshot launches, which must capture a complete first page.
+    private var autoAdvances: Bool {
+        !voiceOverEnabled && ScreenshotMode.screen == nil
+    }
+
+    /// Pages with nothing honest to show are skipped (no best day and no goal to compare; no rings).
+    private func storyPages(for story: RecapStoryData) -> [RecapStoryPage] {
+        var pages: [RecapStoryPage] = [.intro, .time, .goals]
+        if story.bestDay != nil || story.toughest != nil { pages.append(.days) }
+        if !story.rings.isEmpty { pages.append(.rings) }
+        pages.append(.share)
+        return pages
+    }
+
+    @ViewBuilder
+    private func pageView(_ page: RecapStoryPage, story: RecapStoryData) -> some View {
+        switch page {
+        case .intro: RecapIntroPage(data: story)
+        case .time: RecapTimePage(data: story)
+        case .goals: RecapGoalsPage(data: story)
+        case .days: RecapDaysPage(data: story)
+        case .rings: RecapRingsPage(data: story)
+        case .share: RecapSharePage(poster: poster)
+        }
+    }
+
+    /// Tap the left third to go back, anywhere else to go forward; swipe left/right; hold to pause.
+    /// One zero-distance drag handles all three so they never fight each other. Sits above the
+    /// page, which has no controls of its own (the share button lives below this area).
+    private func tapLayer(width: CGFloat, pageCount: Int) -> some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isHolding else { return }
+                        isHolding = true
+                        pressStart = .now
+                    }
+                    .onEnded { value in
+                        let held = pressStart.map { Date.now.timeIntervalSince($0) } ?? 0
+                        isHolding = false
+                        pressStart = nil
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+                        let current = min(pageIndex, pageCount - 1)
+                        if abs(dx) > 40, abs(dx) > abs(dy) {
+                            go(to: dx < 0 ? current + 1 : current - 1, pageCount: pageCount)
+                        } else if held < 0.3, abs(dx) < 12, abs(dy) < 12 {
+                            let back = value.location.x < width / 3
+                            go(to: back ? current - 1 : current + 1, pageCount: pageCount)
+                        }
+                    }
+            )
+            .accessibilityHidden(true)
+    }
+
+    private func go(to newIndex: Int, pageCount: Int) {
+        let current = min(pageIndex, pageCount - 1)
+        guard newIndex != current, (0 ..< pageCount).contains(newIndex) else { return }
+        movingForward = newIndex > current
+        segmentProgress = 0
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : Theme.Motion.springStandard) {
+            pageIndex = newIndex
+        }
+    }
+
+    private func runPageTimer(pageCount: Int) async {
+        segmentProgress = 0
+        guard autoAdvances, pageIndex < pageCount - 1 else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(Int(Self.tick * 1000)))
+            guard !Task.isCancelled else { return }
+            if isHolding { continue }
+            segmentProgress = min(1, segmentProgress + Self.tick / Self.pageDuration)
+            if segmentProgress >= 1 {
+                go(to: pageIndex + 1, pageCount: pageCount)
+                return
+            }
+        }
+    }
+
+    /// Forward: the next page slides in from the right. Back: from the left. Reduce Motion: fade.
+    private var pageTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .offset(x: movingForward ? 48 : -48).combined(with: .opacity),
+            removal: .opacity
+        )
+    }
+
+    private var storyData: RecapStoryData {
+        let calendar = Calendar.current
+        let start = recap.weekStart
+        let end = calendar.date(byAdding: .day, value: 6, to: start) ?? start
+        let dateStyle = Date.FormatStyle.dateTime.month(.abbreviated).day()
+        let rings = recap.stats.goalCompletionRings
+            .compactMap { key, progress -> RecapStoryData.Ring? in
+                guard let goalID = UUID(uuidString: key) else { return nil }
+                let title = goalTitles[goalID] ?? Copy.progress.unknownGoalLabel
+                return RecapStoryData.Ring(id: goalID, title: title, progress: progress)
+            }
+            .sorted { $0.title < $1.title }
+        return RecapStoryData(
+            weekTitle: Copy.share.weeklyRecapTitle(weekNumber: weekNumber, rankTierLabel: rankTierLabel),
+            dateRange: Copy.share.storyDateRange(start: start.formatted(dateStyle), end: end.formatted(dateStyle)),
+            timeReclaimedMinutes: recap.stats.timeReclaimedMinutes,
+            goalsCompleted: recap.stats.goalsCompleted,
+            goalsPlanned: recap.stats.goalsPlanned,
+            streak: recap.stats.streak,
+            rankMovement: recap.stats.rankMovement,
+            bestDay: recap.stats.bestDay,
+            rings: rings,
+            insight: recap.text
+        )
     }
 
     private func retryShareRender() {
@@ -220,7 +382,7 @@ public struct WeeklyRecapShareView: View {
         return .preparing
     }
 
-    /// Reduce Motion: plain fade, no scale — same pattern as the poster reveal above.
+    /// Reduce Motion: plain fade, no scale.
     private var shareControlTransition: AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .center))
     }

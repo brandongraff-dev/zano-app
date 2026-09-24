@@ -73,7 +73,6 @@ struct Screen12PermissionPriming: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .zanoAmbient(.neutral)
         .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.permissionAllowButton,

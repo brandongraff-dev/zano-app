@@ -53,6 +53,7 @@ struct Screen5PhoneTime: View {
             }
             .sensoryFeedback(.selection, trigger: hours)
         }
+        .onboardingEntrance()
         .onboardingPinnedContinue(title: Copy.common.continueButtonLabel) {
             flowState.advance()
         }

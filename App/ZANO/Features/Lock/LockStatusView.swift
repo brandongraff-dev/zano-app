@@ -77,6 +77,8 @@ struct LockStatusView: View {
     // MARK: - Local state
 
     @State private var isEmergencyUnlocking = false
+    /// The idle state's "Start a lock now" is running `StartLockIntent`.
+    @State private var isStartingLock = false
     @State private var actionError: String?
     @State private var timeBankRemainingMinutes: Int?
 
@@ -194,26 +196,9 @@ struct LockStatusView: View {
     private var heroCard: some View {
         switch heroState {
         case .unlocked:
-            if let next = SharedDefaults.nextScheduledLockAt {
-                LockVaultCard(
-                    status: .unlocked,
-                    eyebrow: Copy.lockStatus.unlockedHeadline,
-                    detail: nextLockLabel(next),
-                    numeralLine: next.formatted(date: .omitted, time: .shortened),
-                    appTokensBlob: shownLockSet?.appTokensBlob,
-                    changeKey: Int(next.timeIntervalSince1970)
-                )
+            idleHero
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(heroAccessibilityLabel)
-            } else {
-                LockVaultCard(
-                    status: .unlocked,
-                    eyebrow: Copy.lockStatus.unlockedHeadline,
-                    message: Copy.lockStatus.noScheduleLine
-                )
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(heroAccessibilityLabel)
-            }
         case .goals(let remaining, _):
             LockVaultCard(
                 status: .locked,
@@ -241,6 +226,92 @@ struct LockStatusView: View {
             .accessibilityLabel(heroAccessibilityLabel)
         case .bank:
             bankHeroCard
+        }
+    }
+
+    // MARK: - Idle (nothing locked)
+
+    /// Nothing running: the ZANO star at rest (uncharged: the Lock tab can't read screen time, and
+    /// "at rest" is the point), an "Unlocked" status pill, "No lock running", then either the next
+    /// scheduled lock as a numeral or a line saying what to do. The start action sits in the bottom
+    /// bar (`bottomBar`), where the emergency hold lives while locked, so the bar never jumps
+    /// position between the two states.
+    private var idleHero: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Theme.Colors.lockedAmbient.opacity(reduceTransparency ? 0 : 0.55), Theme.Colors.lockedAmbient.opacity(0)],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 120
+                        )
+                    )
+                    .frame(width: 240, height: 240)
+                ZanoLivingMark(charge: 0, height: 84)
+            }
+            .frame(height: 190)
+
+            HStack(spacing: Theme.Spacing.xs) {
+                Circle()
+                    .fill(Theme.Colors.accent)
+                    .frame(width: 7, height: 7)
+                Text(Copy.lockStatus.unlockedHeadline)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .padding(.horizontal, Theme.Spacing.sm)
+            .padding(.vertical, 6)
+            .background(Theme.Colors.surface.opacity(0.8), in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+
+            Text(Copy.lockStatus.idleHeadline)
+                .font(Theme.Typography.titleLarge)
+                .foregroundStyle(Theme.Colors.text)
+                .padding(.top, Theme.Spacing.xxs)
+
+            if let next = SharedDefaults.nextScheduledLockAt {
+                VStack(spacing: 2) {
+                    Text(nextLockLabel(next))
+                        .zanoText(.eyebrow)
+                        .foregroundStyle(Theme.Colors.muted)
+                    NumeralText(next.formatted(date: .omitted, time: .shortened), size: .large)
+                        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: Int(next.timeIntervalSince1970))
+                }
+                .padding(.top, Theme.Spacing.xs)
+            } else {
+                Text(canStartLock ? Copy.lockStatus.idleReadyDetail : Copy.lockStatus.idleSetupDetail)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.bottom, Theme.Spacing.sm)
+    }
+
+    /// `StartLockIntent` resolves the default lock set and every active goal itself; it throws with
+    /// no default set, so the button only shows when both exist.
+    private var canStartLock: Bool {
+        activeSession == nil && lockSets.contains(where: \.isDefault) && goals.contains(where: \.active)
+    }
+
+    /// Same App Intent Siri, Shortcuts and the Control use (CLAUDE.md: every user action is an
+    /// intent), in Earn Mode like Today's begin-lock.
+    private func startLock() {
+        actionError = nil
+        isStartingLock = true
+        Analytics.shared.capture(event: "lock_idle_start_tapped")
+        Task {
+            defer { isStartingLock = false }
+            do {
+                _ = try await StartLockIntent(mode: .earn).perform()
+            } catch {
+                actionError = error.localizedDescription
+            }
         }
     }
 
@@ -427,10 +498,11 @@ struct LockStatusView: View {
         var parts = [heroEyebrow]
         switch heroState {
         case .unlocked:
+            parts.append(Copy.lockStatus.idleHeadline)
             if let next = SharedDefaults.nextScheduledLockAt {
                 parts.append("\(Copy.lockStatus.nextLockPrefix) \(next.formatted(date: .omitted, time: .shortened))")
             } else {
-                parts.append(Copy.lockStatus.noScheduleLine)
+                parts.append(canStartLock ? Copy.lockStatus.idleReadyDetail : Copy.lockStatus.idleSetupDetail)
             }
         case .bank(let minutes, _, let goalsLeft):
             parts.append(Copy.lockStatus.heroBankLine(minutes: minutes))
@@ -549,7 +621,7 @@ struct LockStatusView: View {
     /// failed emergency unlock is never off-screen behind a scroll.
     @ViewBuilder
     private var emergencyBar: some View {
-        if activeSession != nil || actionError != nil {
+        if activeSession != nil || actionError != nil || canStartLock {
             StickyActionBar {
                 VStack(spacing: Theme.Spacing.xs) {
                     if let actionError {
@@ -571,6 +643,13 @@ struct LockStatusView: View {
                             .font(Theme.Typography.caption)
                             .foregroundStyle(Theme.Colors.muted)
                             .multilineTextAlignment(.center)
+                    } else if canStartLock {
+                        PrimaryButton(
+                            title: Copy.lockStatus.idleStartLockTitle,
+                            systemImage: "lock.fill",
+                            isEnabled: !isStartingLock,
+                            action: startLock
+                        )
                     }
                 }
             }

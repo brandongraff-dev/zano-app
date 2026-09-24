@@ -50,6 +50,7 @@ struct Screen3MainGoal: View {
                 )
             }
         }
+        .onboardingEntrance()
         .onboardingPinnedContinue(
             title: Copy.common.continueButtonLabel,
             isEnabled: flowState.mainGoal != nil

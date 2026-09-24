@@ -59,6 +59,7 @@ struct Screen6Workouts: View {
             }
             .zanoCard()
         }
+        .onboardingEntrance()
         .onboardingPinnedContinue(title: Copy.common.continueButtonLabel) {
             flowState.advance()
         }

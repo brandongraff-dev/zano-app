@@ -112,6 +112,7 @@ struct Screen4AppSelection: View {
                 }
             }
         }
+        .onboardingEntrance()
         .onboardingPinnedContinue(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
             flowState.advance()
         }
@@ -173,11 +174,11 @@ struct Screen4AppSelection: View {
                         )
                         .frame(width: tileSize, height: tileSize)
                 }
-                // The one live slot: the action. White, not accent: an affordance is chrome, not an
-                // earned state (decision 2026-09-24).
+                // The one live slot: the action, on the ZANO Blue fill with a white glyph
+                // (`onAccent`: near-black on blue read muddy).
                 Image(systemName: "plus")
                     .font(Theme.Typography.icon(.large, weight: .bold))
-                    .foregroundStyle(Theme.Colors.onFill)
+                    .foregroundStyle(Theme.Colors.onAccent)
                     .frame(width: tileSize, height: tileSize)
                     .background(Theme.Colors.interactive, in: slotShape)
             }

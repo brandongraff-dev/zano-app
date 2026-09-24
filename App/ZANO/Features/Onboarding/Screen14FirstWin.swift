@@ -648,7 +648,8 @@ private struct FirstWinCelebration: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var starCharge: Double = FirstWinCelebration.arrivalCharge
+    /// The star arrives where the header left it (step 13 of 14) and fills to full on the win.
+    @State private var starCharge: Double = 13.0 / 14.0
     @State private var shownStreak = 0
     @State private var showText = false
     @State private var showBurst = false
@@ -658,8 +659,6 @@ private struct FirstWinCelebration: View {
     /// Where the particles radiate from: a frame centred on the star, bigger than it.
     private static let burstFrame: CGFloat = 320
     private static let starHeight: CGFloat = 132
-    /// The star arrives where the header left it (step 13 of 14) and fills to full on the win.
-    static let arrivalCharge = 13.0 / 14.0
     /// `ZanoLivingMark` eases a charge change over 1.2s; the burst fires as the fill lands.
     private static let fillLandMilliseconds = 850
 
@@ -828,7 +827,7 @@ private struct FirstWinWeekRow: View {
                     .overlay {
                         Image(systemName: "checkmark")
                             .font(Theme.Typography.icon(.small))
-                            .foregroundStyle(Theme.Colors.onFill)
+                            .foregroundStyle(Theme.Colors.onAccent)
                     }
                     .scaleEffect(isDone ? 1 : 0.4)
                     .opacity(isDone ? 1 : 0)
@@ -905,7 +904,7 @@ private struct FirstWinWidgetPrompt: View {
 
             Image(systemName: "plus")
                 .font(Theme.Typography.icon(.small))
-                .foregroundStyle(Theme.Colors.onFill)
+                .foregroundStyle(Theme.Colors.onAccent)
                 .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
                 .background(Theme.Colors.interactive, in: Circle())
                 .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))

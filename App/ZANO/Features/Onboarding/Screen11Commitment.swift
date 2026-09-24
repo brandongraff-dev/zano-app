@@ -96,7 +96,6 @@ struct Screen11Commitment: View {
                 anchor: .center
             )
         }
-        .zanoAmbient(.neutral)
         .alert(
             "",
             isPresented: Binding(

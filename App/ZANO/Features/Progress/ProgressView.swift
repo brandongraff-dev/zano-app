@@ -236,6 +236,7 @@ struct ProgressView: View {
         let week = last7DaysReclaim
         let weekMinutes = week.reduce(0) { $0 + $1.minutes }
         let hasHistory = minutes > 0
+        let isFirstWeek = !hasEndedLock
         return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: "clock.arrow.circlepath")
@@ -256,8 +257,9 @@ struct ProgressView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                // Day 1: the number would be "0m", so the space says what fills it instead.
-                NumeralText(formatDuration(minutes: 0), size: .hero, color: Theme.Colors.hairlineStrong)
+                // Day 1: the number is an honest, quiet 0 (muted, not accent: nothing is earned
+                // yet), and the line under it says what fills it.
+                NumeralText(formatDuration(minutes: 0), size: .hero, color: Theme.Colors.muted)
                     .accessibilityHidden(true)
                 Text(Copy.progress.timeReclaimedEmptyMessage)
                     .font(Theme.Typography.body)
@@ -265,12 +267,26 @@ struct ProgressView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            ProgressWeekBars(days: week, accessibilityText: last7DaysAccessibilityText)
-                .padding(.top, Theme.Spacing.sm)
+            if isFirstWeek {
+                // No lock has ever ended: seven bars of nothing would read as a broken chart, so the
+                // strip becomes the week ahead (today first) and a short preview of this screen.
+                ProgressFirstWeekDots(startingAt: Calendar.current.startOfDay(for: .now))
+                    .padding(.top, Theme.Spacing.sm)
+                ProgressComingUpList()
+                    .padding(.top, Theme.Spacing.xs)
+            } else {
+                ProgressWeekBars(days: week, accessibilityText: last7DaysAccessibilityText)
+                    .padding(.top, Theme.Spacing.sm)
+            }
         }
         .padding(Theme.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zanoHero(radius: Theme.Radius.large, tint: hasHistory ? Theme.Colors.accent : nil, active: hasHistory)
+    }
+
+    /// Any lock has ever ended (however it ended). `false` is the first-week state.
+    private var hasEndedLock: Bool {
+        allLockSessions.contains { $0.endedAt != nil }
     }
 
     private var lifetimeReclaimedMinutes: Int {
@@ -354,6 +370,9 @@ struct ProgressView: View {
         let freezesLeft = currentStreak?.freezesLeft ?? 0
         let bestLabel = Copy.progress.streakBestLabel(best: best)
         let freezesLabel = Copy.progress.streakFreezesLabel(freezesLeft: freezesLeft)
+        // Before the first earned day the header reads "Day 1", not a grey "0 days": today is the
+        // first day of the streak, it just hasn't been earned yet.
+        let isDayOne = current == 0 && earnedDays.isEmpty
 
         return HStack(alignment: .center, spacing: Theme.Spacing.sm) {
             // Lit while a streak is running, a muted outline when it is not — the disc swaps
@@ -363,11 +382,19 @@ struct ProgressView: View {
                 tint: current > 0 ? Theme.Colors.accent : Theme.Colors.muted
             )
 
-            NumeralText(
-                Copy.progress.streakValue(days: current),
-                size: .large,
-                color: current > 0 ? Theme.Colors.text : Theme.Colors.muted
-            )
+            if isDayOne {
+                Text(Copy.progress.streakDayOne)
+                    .font(Theme.Typography.numeral(size: 40, weight: .heavy))
+                    .foregroundStyle(Theme.Colors.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            } else {
+                NumeralText(
+                    Copy.progress.streakValue(days: current),
+                    size: .large,
+                    color: current > 0 ? Theme.Colors.text : Theme.Colors.muted
+                )
+            }
 
             Spacer(minLength: Theme.Spacing.sm)
 
@@ -389,7 +416,11 @@ struct ProgressView: View {
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: current)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Copy.progress.streakSectionTitle) \(current). \(bestLabel). \(freezesLabel)")
+        .accessibilityLabel(
+            isDayOne
+                ? "\(Copy.progress.streakDayOneAccessibility) \(freezesLabel)"
+                : "\(Copy.progress.streakSectionTitle) \(current). \(bestLabel). \(freezesLabel)"
+        )
     }
 
     /// The set of calendar days (local midnight) that had at least one earned unlock — the exact
@@ -586,7 +617,13 @@ private enum ProgressMetrics {
     /// 7-day strip: bar width, and the tallest/shortest bar.
     static let barWidth: CGFloat = 22
     static let barMaxHeight: CGFloat = 52
-    static let barMinHeight: CGFloat = 6
+    /// The shortest bar a day with ANY reclaimed time gets, so a 3-minute day never looks like a
+    /// zero day.
+    static let barMinHeight: CGFloat = 10
+    /// A zero day: a flat baseline stub, visibly not a bar.
+    static let barZeroHeight: CGFloat = 3
+    /// First-week dots: diameter.
+    static let firstWeekDotDiameter: CGFloat = 22
     /// Streak grid: cell aspect (wider than tall keeps four rows compact) and the concentric corner
     /// radius — a `.medium` card holding cells at `Spacing.md` inset (20 - 16 = 4).
     static let cellAspect: CGFloat = 1.4
@@ -650,9 +687,15 @@ private struct ProgressDayReclaim: Identifiable, Equatable {
 }
 
 /// Seven bars, oldest to today, with weekday initials underneath. A day with an earned unlock is the
-/// accent (green means earned); every other day, including locked time that ended another way, is
-/// `track`; an empty day is a short `track` stub, so the strip reads as seven days even before there
-/// is any data. Today's initial is `text`. Bar height is proportional to the busiest day.
+/// accent (blue means earned); every other day, including locked time that ended another way, is
+/// `track`; a zero day is a flat 3pt baseline stub, so the strip reads as seven days and a zero is
+/// unmistakable. Today's initial is `text`.
+///
+/// Scaling (empty-states pass 2026-09-24): heights are linear in `minutes / busiest day`, into a
+/// fixed-height plot so every column shares one baseline. The screenshot demo's equal bars were the
+/// DATA (every demo day is the same 7 AM - 11 AM lock, 240 min), not this view; what the view did
+/// get wrong was the floor: a 1-minute day and a zero day were both the 6pt minimum and looked
+/// identical. Non-zero days now start at 10pt and zero days are a 3pt stub.
 private struct ProgressWeekBars: View {
     let days: [ProgressDayReclaim]
     let accessibilityText: String
@@ -662,7 +705,7 @@ private struct ProgressWeekBars: View {
     private var maxMinutes: Int { max(days.map(\.minutes).max() ?? 0, 1) }
 
     private func barHeight(for day: ProgressDayReclaim) -> CGFloat {
-        guard day.minutes > 0 else { return ProgressMetrics.barMinHeight }
+        guard day.minutes > 0 else { return ProgressMetrics.barZeroHeight }
         let fraction = CGFloat(day.minutes) / CGFloat(maxMinutes)
         return max(ProgressMetrics.barMinHeight, fraction * ProgressMetrics.barMaxHeight)
     }
@@ -675,9 +718,12 @@ private struct ProgressWeekBars: View {
         HStack(alignment: .bottom, spacing: Theme.Spacing.xs) {
             ForEach(days) { day in
                 VStack(spacing: Theme.Spacing.xxs) {
+                    // A fixed-height plot per column, bar pinned to its floor: every bar grows up
+                    // from the same baseline whatever the label row does.
                     Capsule()
                         .fill(barFill(for: day))
                         .frame(width: ProgressMetrics.barWidth, height: barHeight(for: day))
+                        .frame(height: ProgressMetrics.barMaxHeight, alignment: .bottom)
                     Text(day.initial)
                         .font(Theme.Typography.caption)
                         .foregroundStyle(day.isToday ? Theme.Colors.text : Theme.Colors.muted)
@@ -689,6 +735,99 @@ private struct ProgressWeekBars: View {
         .animation(reduceMotion ? nil : Theme.Motion.ringFill, value: days.map(\.minutes))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+}
+
+/// The first week, before any lock has ended: seven dots starting today (outlined in blue, with a
+/// soft wash) and running into the six days ahead (dashed, empty), weekday initials under them, and
+/// "Your first week starts today" above. Static; one VoiceOver sentence for the whole row.
+private struct ProgressFirstWeekDots: View {
+    let startingAt: Date
+
+    private var days: [(day: Date, initial: String)] {
+        let calendar = Calendar.current
+        let symbols = calendar.veryShortWeekdaySymbols
+        return (0..<7).compactMap { offset in
+            guard let shifted = calendar.date(byAdding: .day, value: offset, to: startingAt) else { return nil }
+            let day = calendar.startOfDay(for: shifted)
+            let index = calendar.component(.weekday, from: day) - 1
+            return (day, symbols.indices.contains(index) ? symbols[index] : "")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.progress.firstWeekStartsToday)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.text)
+
+            HStack(spacing: Theme.Spacing.xs) {
+                ForEach(Array(days.enumerated()), id: \.offset) { index, entry in
+                    VStack(spacing: Theme.Spacing.xxs) {
+                        dot(isToday: index == 0)
+                        Text(entry.initial)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(index == 0 ? Theme.Colors.text : Theme.Colors.muted)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.progress.firstWeekDotsAccessibility)
+    }
+
+    @ViewBuilder
+    private func dot(isToday: Bool) -> some View {
+        let size = ProgressMetrics.firstWeekDotDiameter
+        if isToday {
+            Circle()
+                .fill(Theme.Colors.accentWash)
+                .overlay(Circle().strokeBorder(Theme.Colors.accent, lineWidth: 1.5))
+                .frame(width: size, height: size)
+        } else {
+            Circle()
+                .strokeBorder(
+                    Theme.Colors.hairlineStrong,
+                    style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [2, 3])
+                )
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+/// What this screen will show once there is data, as three quiet rows inside a recessed well: the
+/// preview that replaces a first-week user's empty chart. Icons are identifiers, not copy.
+private struct ProgressComingUpList: View {
+    private let rows: [(icon: String, text: String)] = [
+        ("chart.bar.fill", Copy.progress.firstWeekComingUpDaily),
+        ("flame", Copy.progress.firstWeekComingUpStreak),
+        ("square.and.arrow.up", Copy.progress.firstWeekComingUpRecap),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Copy.progress.firstWeekComingUpTitle)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: row.icon)
+                        .font(Theme.Typography.icon(.small))
+                        .foregroundStyle(Theme.Colors.muted)
+                        .frame(width: Theme.Spacing.lg)
+                        .accessibilityHidden(true)
+                    Text(row.text)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoWell()
     }
 }
 

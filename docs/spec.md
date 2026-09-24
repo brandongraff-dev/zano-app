@@ -529,7 +529,7 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 **Tokens (starting point, tune after image-gen exploration)**
 - Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
 - Text: `#F5F5F7` ; Muted: `#8E8E93`
-- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only
+- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only. **Earned states only** (decision 2026-09-24): completed rings, the unlock moment, "Earned" badges. Never on navigation or chrome (tab bar, neutral buttons, icons), which stay achromatic so goal colors carry the screen. See `docs/design/premium-ui-plan.md`.
 - Danger/locked: `#FF453A` ; Warning: `#FFB020`
 - Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32

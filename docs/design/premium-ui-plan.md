@@ -1,6 +1,8 @@
 # Premium UI plan: making ZANO feel like a top-tier app
 
-**Date:** 2026-09-24 · **Status:** Plan, awaiting approval (CLAUDE.md working rule 3). No Swift changed.
+**Date:** 2026-09-24 · **Status:** Plan approved in direction; Phase 0 next. No Swift changed.
+
+**Decisions (2026-09-24):** palette **option A** (keep dark + acid green, green only for earned states; spec §15 amended). Phase 0 references: **Spotify** (content-first darkness, achromatic chrome, pill/circle geometry) and **Nike** (extreme condensed display-type contrast).
 **Spec sections:** §15 (design system), §16 (UI exploration), §5.1 (Living Shield), §7 (onboarding),
 §8 (retention psychology), §21 (paywall), §24 (safety), §27 (platform gotchas).
 **Input:** the 25 CI screenshots from run 35935594714 (commit `aa04f093`), the 10 audits already in
@@ -41,7 +43,7 @@ checkable requirement for every ZANO screen:
 
 Spec §15 locks **near-black plus a single acid-green accent**. Anthropic's `frontend-design` skill
 names exactly that combination as one of the five most common looks of AI-generated UI.
-CLAUDE.md says to stop and ask when a spec decision is in tension, so this is not decided here.
+Decided 2026-09-24: **option A**.
 
 | Option | What changes | Spec impact |
 |---|---|---|
@@ -86,7 +88,7 @@ artifact you reviewed) and a stop for your approval.
 
 ### Phase 0: Direction (HTML only, about 1 session)
 1. Generate and persist `design-system/zano/MASTER.md` (ui-ux-pro-max), reconciled with §15.
-2. Pull 3 brand references (make-mobile-design), and write the token plan (frontend-design pass 1).
+2. Ground the direction in the Spotify and Nike `DESIGN.md` references (make-mobile-design), and write the token plan (frontend-design pass 1).
 3. Build **Today** in 3 directions as iPhone-frame HTML mockups, each honoring the concept above.
 4. Self-critique each against the brief (frontend-design pass 2) and publish them side by side.
 5. **You pick one.** It becomes `design-system.html` and the reference for everything after.

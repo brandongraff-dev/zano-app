@@ -27,14 +27,17 @@
 // competitive-research 3.3}). This is the app's most-seen surface (every blocked-app attempt), and
 // it was a flat black rectangle with a 96pt grey circle and a 22pt title:
 //
-//   * It has a backdrop: a faint static `danger` glow from the top (`zanoBackdrop`), so the screen
-//     reads as "blocked" from across the room. Static — no animated blur or radius.
+//   * It has a backdrop: a static navy `lockedAmbient` glow from the top (`zanoBackdrop`), the
+//     same cool "locked" light the real shield and Today's locked state sit in. It used to be a red
+//     `danger` glow; red now means only time spent in locked apps, not "you are locked" (a lock is
+//     a choice the user made, not an error). Static — no animated blur or radius.
 //   * The headline is a focal message (`titleLarge`, 28pt), and it wraps instead of truncating. A
 //     subline that opens with a number ("1 goal left · Streak 14") leads with that number as a
 //     numeral — the one sec finding is that the *count* is what changes behaviour, not persuasive
 //     prose (competitive-research 3.3) — with the rest as a quiet unit line.
-//   * The lock badge label was `text` on `danger` (#F5F5F7 on #FF453A: 3.13:1, fails AA); it is
-//     `onFill` now (5.8:1). The glyph disc has a lit edge instead of a bare 1.08:1 fill.
+//   * The lock badge is a brushed-silver `metallic` disc (the logo's metal) with an `onFill`
+//     near-black glyph (at least 7:1 across the gradient); it was a red `danger` disc. The glyph
+//     disc has a lit edge instead of a bare 1.08:1 fill.
 //   * The Emergency affordance is the control the "never trap the user" rule most depends on, and
 //     it was the smallest, dimmest text on the screen (13pt `muted`). It is `body` in
 //     `textSecondary` (still low-emphasis, per the P2 mockup's "small text"), with a full 44x44pt
@@ -163,7 +166,8 @@ public struct ShieldPreview: View {
             .padding(.bottom, Theme.Spacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .zanoBackdrop(glow: Theme.Colors.danger, intensity: 0.12)
+        // `lockedAmbient` is itself a dark navy, so it needs a much higher peak than a bright hue.
+        .zanoBackdrop(glow: Theme.Colors.lockedAmbient, intensity: 0.7)
         .onAppear { hasAppeared = true }
     }
 
@@ -208,11 +212,11 @@ public struct ShieldPreview: View {
                 .animation(reduceMotion ? reducedMotionReveal : .spring(response: 0.45, dampingFraction: 0.7), value: hasAppeared)
 
             Circle()
-                .fill(Theme.Colors.danger)
+                .fill(Theme.Colors.metallic)
                 .frame(width: lockDiameter, height: lockDiameter)
                 .overlay(
-                    // `onFill`, not `text`: #F5F5F7 on danger is 3.13:1 (fails AA); `background` is
-                    // 5.8:1.
+                    // `onFill` (near-black) on the silver disc: pearl-to-silver is light, so a
+                    // light glyph would vanish.
                     Image(systemName: "lock.fill")
                         .font(.system(size: lockDiameter * 0.44, weight: .bold))
                         .foregroundStyle(Theme.Colors.onFill)
@@ -238,9 +242,9 @@ public struct ShieldPreview: View {
         glyph: ShieldPreviewGlyph(systemImage: "play.tv.fill", caption: "TikTok"),
         headline: "TikTok unlocks after your workout",
         subline: "1 goal left · Streak 14",
-        primaryActionTitle: "Show my goals",
+        primaryActionTitle: ShieldCopy.Buttons.showGoals,
         primaryAction: {},
-        emergencyActionTitle: "Emergency",
+        emergencyActionTitle: ShieldCopy.Buttons.emergency,
         emergencyAction: {}
     )
     .preferredColorScheme(.dark)

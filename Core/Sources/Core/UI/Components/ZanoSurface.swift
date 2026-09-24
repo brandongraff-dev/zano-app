@@ -93,7 +93,7 @@ struct ZanoSurface: ViewModifier {
                                     endPoint: .bottom
                                 )
                             )
-                            .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
+                            .shadow(color: Theme.Colors.shadow, radius: 28, y: 18)
                             .shadow(color: glowColor, radius: 24)
                     } else {
                         shape

@@ -18,6 +18,8 @@ extension Copy {
         public static let timeOffline = "Time offline"
         public static func offlineShare(percent: Int) -> String { "\(percent)% of your day so far" }
         public static let noUsageYet = "No screen time yet today."
+        /// An app the system reports without a display name.
+        public static let unnamedApp = "App"
         public static let accessTitle = "See your screen time here"
         public static let accessDetail = "Allow Screen Time access and your ZANO star charges with every hour you spend off your phone. Usage, pickups and time in locked apps never leave your phone."
         public static let accessButton = "Allow access"

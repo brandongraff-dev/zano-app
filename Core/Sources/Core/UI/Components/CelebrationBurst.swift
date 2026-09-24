@@ -1,9 +1,9 @@
 // CelebrationBurst.swift
 // Core / UI / Components
 //
-// A lightweight, self-contained particle/confetti burst, per docs/spec.md §16's P3 mockup ("burst
-// of acid-green particles") and §8 rule 4 (variable reward: "1 in ~6 unlocks triggers a surprise
-// [...] Keep it tasteful"). Pure SwiftUI — no external animation library: `docs/dependencies.md`
+// A lightweight, self-contained particle/confetti burst, per docs/spec.md §16's P3 mockup (a burst
+// of particles in the accent; the spec's original acid green is now ZANO Blue, 2026-09-24) and §8
+// rule 4 (variable reward: "1 in ~6 unlocks triggers a surprise [...] Keep it tasteful"). Pure SwiftUI — no external animation library: `docs/dependencies.md`
 // lists Lottie as planned for "Session 5 or 9 (first celebration animation)" but it is not yet
 // added to `project.yml`, so this file cannot depend on it (per this task's brief). Every
 // particle's motion is derived from a single animated `progress` value rather than a per-particle
@@ -71,7 +71,7 @@ public struct CelebrationBurst: View {
     ///   - trigger: Change this value to fire another burst without the view disappearing and
     ///     reappearing (e.g. a second surprise moment layered later in the same screen).
     ///   - colors: Particle fill colors, sampled per-particle. Defaults to a single-color burst in
-    ///     `Theme.Colors.accent` — spec §16 P3's "burst of acid-green particles". Pass more than
+    ///     `Theme.Colors.accent` (ZANO Blue) — spec §16 P3's particle burst. Pass more than
     ///     one color for an occasion that wants a slightly richer mix; empty input falls back to
     ///     the same accent default rather than rendering invisible particles.
     ///   - particleCount: How many particles per burst. Defaults to 28 — enough to read as a

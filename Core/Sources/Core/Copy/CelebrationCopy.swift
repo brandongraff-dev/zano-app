@@ -55,7 +55,9 @@ extension Copy {
         /// surfaces), and this is a different, in-app feature area that happens to want the exact
         /// same sentence shape — not a shared dependency on that file.
         public static func timeBankUnlockedLabel(minutes: Int) -> String {
-            guard minutes > 0 else { return "0 min unlocked" }
+            // Never "0 min unlocked": with nothing banked the moment is still an unlock, so it
+            // says that with no figure.
+            guard minutes > 0 else { return appsUnlockedEyebrow }
             let hours = minutes / 60
             let mins = minutes % 60
             if hours > 0 && mins > 0 { return "\(hours)h \(mins)m unlocked" }

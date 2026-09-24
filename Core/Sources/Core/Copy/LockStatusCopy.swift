@@ -25,7 +25,6 @@ extension Copy {
 
         public static let requiredGoalsHeading = "Required to unlock"
         public static let timeBankHeading = "Time Bank"
-        public static let timeBankFootnote = "Unused minutes expire at midnight."
         public static let lockedSincePrefix = "Locked since"
         /// No trailing colon: `lockedSincePrefix` and `WidgetCopy.nextLock` have none, and the time
         /// follows in its own `Text`.
@@ -42,13 +41,48 @@ extension Copy {
             }
         }
 
+        /// The UI tests find the emergency control by this exact text; it stays the control's
+        /// spoken label for the whole hold.
         public static let emergencyUnlockTitle = "Hold to unlock in an emergency"
-        /// Deliberately makes no promise about the streak: the two emergency paths disagree on
-        /// whether a penalty applies (`EmergencyUnlock.appliesStreakPenalty` defaults to `true`;
-        /// `LockStatusView` calls `LockEngineManager.emergencyUnlock` directly), so "no streak
-        /// penalty" was an unverified guarantee. State the exact rule here once it is settled
-        /// (docs/design/writing-findings.md §5.1 and §9.3).
-        public static let emergencyUnlockFootnote = "Always available."
+        /// Visible title while the 60-second hold runs: `"Keep holding · 42s"`.
+        public static func emergencyUnlockHolding(secondsRemaining: Int) -> String {
+            "Keep holding · \(secondsRemaining)s"
+        }
+        /// Visible title once the hold completed and the lock is being ended.
+        public static let emergencyUnlockCompleting = "Ending the lock…"
+        /// VoiceOver value while holding: `"42 seconds left"`.
+        public static func emergencyUnlockSecondsLeftSpoken(_ seconds: Int) -> String {
+            seconds == 1 ? "1 second left" : "\(seconds) seconds left"
+        }
+        /// VoiceOver hint. A sustained touch has no VoiceOver equivalent, so a double-tap starts the
+        /// same 60-second countdown and a second double-tap stops it.
+        public static let emergencyUnlockHint = "Hold for 60 seconds to end this lock. With VoiceOver, double-tap to start the countdown and double-tap again to stop it."
+        /// Announced when the countdown starts or stops from VoiceOver.
+        public static let emergencyUnlockCountdownStarted = "Emergency unlock in 60 seconds. Double-tap again to stop."
+        public static let emergencyUnlockCountdownStopped = "Emergency unlock stopped. Your lock is still on."
+        /// Announced once the lock has ended.
+        public static let emergencyUnlockDone = "Lock ended. Your apps are open."
+        /// The streak-penalty option (EmergencyUnlock.appliesStreakPenalty). On by default.
+        public static let emergencyPenaltyToggle = "Count this as a slip on my streak"
+        /// Footnote under the hold, matching the shield's "60-second hold" copy.
+        public static func emergencyUnlockFootnote(appliesStreakPenalty: Bool) -> String {
+            appliesStreakPenalty
+                ? "Always available. Hold for 60 seconds to end this lock. It counts as a slip on your streak."
+                : "Always available. Hold for 60 seconds to end this lock. Your streak stays as it is."
+        }
+        public static let emergencyUnlockFailed = "Couldn't end the lock. Hold again to retry."
+
+        /// Shown above the paywall when a subscription lapsed while a lock is still on.
+        public static let paywallLockStillOn = "A lock is still on. You can always end it here."
+
+        /// The start-lock button's failure line.
+        public static let lockStartFailed = "Couldn't start the lock. Try again."
+
+        /// Under Lock's read-only goal list: goals are acted on from Today.
+        public static let goToTodayTitle = "Go to Today to log these"
+
+        /// The tab bar's Lock item while a lock is running (VoiceOver value).
+        public static let tabLockRunningValue = "Lock running"
 
         // MARK: - Design pass 2026-09-23 (moved here from `LockStatusView.swift`'s `extension Copy.lockStatus`)
         //
@@ -71,9 +105,6 @@ extension Copy {
         /// The hero line for the Time Bank ("45 min available"): the number leads, the words trail.
         public static func heroBankLine(minutes: Int) -> String { "\(minutes) min available" }
 
-        /// The Lock screen's Time Bank footnote. `timeBankFootnote` above carries the same words (its
-        /// old text cited "spec §5.2" and was cleaned up in the copy pass); this is the key the screen
-        /// calls, kept so no call site changes.
         public static let timeBankExpiryNote = "Unused minutes expire at midnight."
 
         /// `"72/150g"`, `"25/50 min"`. Same shape as Today's ring value.
@@ -81,13 +112,9 @@ extension Copy {
             Copy.today.progressValue(current: current, target: target, unit: unit)
         }
 
+        /// Goal status words, the same two Today uses.
         public static let goalDone = "Done"
         public static let goalNotYet = "Not yet"
-
-        /// Spoken status for a goal row (the row's own glyph carries no words).
-        public static let goalStatusComplete = "Complete"
-        public static let goalStatusInProgress = "In progress"
-        public static let goalStatusPending = "Not started"
 
         // MARK: - Idle state (empty-states pass 2026-09-24)
         //

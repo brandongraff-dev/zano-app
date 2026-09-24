@@ -30,6 +30,6 @@ extension Copy.paywallTimeline {
 
 extension Copy.onboardingReveal {
 
-    /// The unit on the first-win intro ring ("10" over "min"): the ring the user is about to fill.
+    /// The unit on the first-win intro ring ("2" over "min"): the ring the user is about to fill.
     public static let firstWinRingUnit = "min"
 }

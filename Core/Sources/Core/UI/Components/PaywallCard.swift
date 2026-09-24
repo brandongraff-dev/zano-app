@@ -26,9 +26,10 @@
 //     Reduce Motion (it was one of four Core UI components with no gate at all).
 //
 // Premium pass (2026-09-24, "light is earned"; spec §15 as amended): buying is not an earned state,
-// so nothing on this card is acid green any more. Selection is the app-wide white selection (a 2pt
-// `interactive` edge, the radio filling to a white check, a lifted fill); the badge is a white pill
-// with dark text in sentence case; the highlighted plan's trial ("7 days free") gets its own quiet
+// so nothing on this card is an earned colour. Selection is the app-wide selection (a 2pt
+// `interactive` blue edge, the radio filling to a check, a lifted fill); the badge is a blue
+// `accentFill` pill with a white `onAccent` label in sentence case (white on `accentFill` is
+// 5.3:1; on `accent`/`interactive` itself it would be 3.8:1, below AA at 13pt); the highlighted plan's trial ("7 days free") gets its own quiet
 // pill so the offer is readable at a glance; an unselected highlighted plan keeps a stronger
 // neutral edge so it still reads as the recommended one. `PaywallView` now uses this component
 // instead of a private copy of it.
@@ -182,12 +183,12 @@ public struct PaywallCard: View {
         if let badgeLabel {
             Text(badgeLabel)
                 .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(Theme.Colors.onFill)
+                .foregroundStyle(Theme.Colors.onAccent)
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, Theme.Spacing.xs)
                 .padding(.vertical, Theme.Spacing.xxs / 2)
-                .background(Theme.Colors.interactive, in: Capsule())
+                .background(Theme.Colors.accentFill, in: Capsule())
         }
     }
 

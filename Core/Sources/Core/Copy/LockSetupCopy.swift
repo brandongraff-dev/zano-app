@@ -34,13 +34,19 @@ extension Copy {
         public static let noAppsSelected = "No apps selected"
         public static func selectionSummary(appCount: Int, categoryCount: Int, webDomainCount: Int) -> String {
             var parts: [String] = []
-            if appCount > 0 { parts.append("\(appCount) app\(appCount == 1 ? "" : "s")") }
-            if categoryCount > 0 { parts.append("\(categoryCount) categor\(categoryCount == 1 ? "y" : "ies")") }
-            if webDomainCount > 0 { parts.append("\(webDomainCount) site\(webDomainCount == 1 ? "" : "s")") }
+            if appCount > 0 { parts.append(appCount == 1 ? "1 app" : "\(appCount) apps") }
+            if categoryCount > 0 { parts.append(categoryCount == 1 ? "1 category" : "\(categoryCount) categories") }
+            if webDomainCount > 0 { parts.append(webDomainCount == 1 ? "1 website" : "\(webDomainCount) websites") }
             return parts.joined(separator: ", ")
         }
 
+        /// Explains the star on each lock set card.
+        public static let defaultStarFooter = "The starred set is your default. It's the one that locks when you don't pick a set, like when a lock starts from an NFC tag."
+
         public static let saveErrorTitle = "Couldn't save"
+        public static let saveErrorMessage = "Your change wasn't saved. Try again."
+        public static let deleteLastLockSetMessage = "You need at least one lock set. Create another one before deleting this."
+        public static let deleteErrorTitle = "Couldn't delete"
 
         public static let newLockSetTitle = "New lock set"
         public static let editLockSetTitle = "Edit lock set"
@@ -51,13 +57,14 @@ extension Copy {
         public static let selectAppsButtonLabel = "Apps & categories"
         public static let appPickerFooter = "Choose the apps, categories, and websites to lock."
 
-        // Same wording as `Copy.onboarding.q2Authorization*` — one failure, one phrasing. No
-        // Settings breadcrumb: the exact path differs across iOS versions and none of it has been
-        // verified on a device (CLAUDE.md rule 5).
+        // Plain-language path to the iPhone Settings app (Screen Time lives there; it can be restricted
+        // by a parent or an MDM profile, which is the case "Try again" can't fix).
         public static let authorizationErrorTitle = "Couldn't turn on Screen Time access"
         public static let authorizationErrorMessage = "Check your connection and try again."
-        public static let authorizationDeniedTitle = "Screen Time access needed"
+        public static let authorizationDeniedTitle = "Screen Time access is off"
         public static let authorizationDeniedMessage =
-            "ZANO needs Screen Time access to lock apps. Turn it on in Settings, then come back."
+            "Screen Time access wasn't turned on. Try again, or check the iPhone Settings app > Screen Time if it's restricted."
+        public static let openSettingsButtonLabel = "Open Settings"
+        public static let tryAgainButtonLabel = "Try again"
     }
 }

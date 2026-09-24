@@ -194,10 +194,7 @@ extension Copy {
             "Buy for \(priceCoins) \(priceCoins == 1 ? "coin" : "coins")"
         }
 
-        public static let proUpsellBannerText = "Cosmetics purchases are a Pro perk. Upgrade to spend your coins."
-
-        public static let proRequiredAlertTitle = "Pro required"
-        public static let proRequiredAlertMessage = "Upgrade to Pro to spend coins on cosmetics. Badges and Trophy Case stay free."
+        // No Pro-gate copy: the paywall is hard, so everyone who reaches the shop is subscribed.
 
         public static let insufficientCoinsAlertTitle = "Not enough coins"
         public static func insufficientCoinsAlertMessage(shortBy: Int) -> String {

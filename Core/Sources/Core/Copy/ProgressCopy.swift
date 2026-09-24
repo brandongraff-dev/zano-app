@@ -69,6 +69,29 @@ extension Copy {
 
         public static let unknownGoalLabel = "A goal"
 
+        // MARK: - Durations (shared by Progress and the weekly recap share)
+
+        /// Compact duration for numerals, bars and cards: "45m", "1h 10m".
+        public static func duration(minutes: Int) -> String {
+            let safe = max(0, minutes)
+            let hours = safe / 60
+            let mins = safe % 60
+            guard hours > 0 else { return "\(mins)m" }
+            return "\(hours)h \(mins)m"
+        }
+
+        /// The same duration as VoiceOver should say it: "45 minutes", "1 hour 10 minutes", "2 hours".
+        /// "12m" read aloud is "12 meters".
+        public static func spokenDuration(minutes: Int) -> String {
+            let safe = max(0, minutes)
+            let hours = safe / 60
+            let mins = safe % 60
+            let minutePart = "\(mins) \(mins == 1 ? "minute" : "minutes")"
+            guard hours > 0 else { return minutePart }
+            let hourPart = "\(hours) \(hours == 1 ? "hour" : "hours")"
+            return mins == 0 ? hourPart : "\(hourPart) \(minutePart)"
+        }
+
         // MARK: - First week (empty-states pass 2026-09-24)
         //
         // Before any lock has ended: the hero at 0, a row of seven empty days starting today, and a

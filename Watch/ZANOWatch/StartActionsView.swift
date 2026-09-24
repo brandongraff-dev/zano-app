@@ -163,7 +163,7 @@ private struct StartLockCard: View {
                 start()
             }
             .buttonStyle(.borderedProminent)
-            .tint(WatchTheme.Colors.accent)
+            .tint(WatchTheme.Colors.accentFill)
             .disabled(store.snapshot.suggestedLockSetID == nil)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

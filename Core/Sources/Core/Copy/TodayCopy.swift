@@ -166,11 +166,40 @@ extension Copy {
         }
 
         public static let actionStart = "Start"
-        public static let actionGo = "I'm here"
+        /// Same words as `goToGymTitle`: one name for one action.
+        public static let actionGo = "I'm at the gym"
         public static let statusRunning = "Running"
         public static func statusDwell(minutes: Int) -> String { "\(minutes) min" }
-        /// A gym workout with no confirmed gym yet: it will verify on its own once one is set.
-        public static let statusVerifiesAtGym = "Auto at gym"
+        /// A gym workout's row: it verifies on its own at the gym.
+        public static let statusVerifiesAtGym = "Verifies at the gym"
+        /// A gym workout with no saved gym: the row's action opens gym setup.
+        public static let actionSetUpGym = "Set up your gym"
+        /// Goals verified with no tap (HealthKit workouts, steps, sleep, the alarm).
+        public static let statusVerifiesAutomatically = "Verifies automatically"
+        /// One-tap log for goals marked done on your word (creatine, custom, reading…).
+        public static let actionLog = "Log"
+        /// VoiceOver label for a row's action capsule: `"Start, Focus"`, `"Log, Reading"`.
+        public static func startActionSpoken(label: String, goal: String) -> String { "\(label), \(goal)" }
+        /// Between a row's progress and what's left ("72 of 150g · 78g to go").
+        public static let goalLineSeparator = "·"
+
+        /// Confirmation before an honor-system log (the small friction spec'd for these goals).
+        public static func logGoalConfirmTitle(goal: String) -> String { "Mark \(goal) done for today?" }
+        public static let logGoalConfirmAction = "Mark done"
+        public static let logGoalConfirmMessage = "This one runs on your word. Keep it honest."
+
+        /// Undo toast after a quick-log: `"Logged 25g of Protein"`.
+        public static func quickLogConfirmation(_ value: Int, unit: String, goal: String) -> String {
+            "Logged \(amount(value, unit: unit)) of \(goal)"
+        }
+        public static let undoTitle = "Undo"
+        public static let undoHint = "Removes that log"
+        public static let undoDone = "Log removed"
+        public static let undoFailed = "Couldn't undo that. Try again."
+
+        /// Error lines (never a raw system error).
+        public static let lockStartFailed = "Couldn't start the lock. Try again."
+        public static let focusStartFailed = "Couldn't start focus. Try again."
         public static let statusDone = "Done"
 
         public static let logFailedTitle = "Couldn't log that. Try again."

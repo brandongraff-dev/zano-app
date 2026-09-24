@@ -76,7 +76,7 @@ enum ScreenTimeSummaryBuilder {
                         pickups += appActivity.numberOfPickups
 
                         let key = app.bundleIdentifier ?? app.localizedDisplayName ?? UUID().uuidString
-                        var entry = perApp[key] ?? (app.localizedDisplayName ?? "App", app.token, 0, isLocked)
+                        var entry = perApp[key] ?? (app.localizedDisplayName ?? Copy.screenTime.unnamedApp, app.token, 0, isLocked)
                         entry.duration += duration
                         perApp[key] = entry
 

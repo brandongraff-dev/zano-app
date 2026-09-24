@@ -317,7 +317,7 @@ private struct ZANOHomeLargeView: View {
                             .foregroundStyle(Color.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Capsule().fill(ZANOWidgetColor.accent))
+                            .background(Capsule().fill(ZANOWidgetColor.accentFill))
                     }
                     .buttonStyle(.plain)
                     .widgetAccentable()

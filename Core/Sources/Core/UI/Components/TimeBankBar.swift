@@ -35,7 +35,7 @@ public struct TimeBankBar: View {
     private let remainingMinutes: Int
     private let totalMinutes: Int
     /// Fully-composed label (e.g. `"2h 10m unlocked"`), shown above the bar. Optional — omit for
-    /// a bare bar.
+    /// a bare bar, which is then hidden from VoiceOver (the caller speaks the balance).
     private let label: String?
     /// Numeral tier for `label`. Defaults to `.medium` (28pt digits).
     private let labelSize: NumeralText.Size
@@ -96,8 +96,11 @@ public struct TimeBankBar: View {
             bar
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label ?? "\(remainingMinutes)")
+        .accessibilityLabel(label ?? "")
         .accessibilityValue(Text("\(Int((fraction * 100).rounded()))%"))
+        // A bare bar (no label) sits beside caller text that already says the balance; an
+        // unnamed "130, 72%" stop would only be noise.
+        .accessibilityHidden(label == nil)
         .onChange(of: isLow) { oldValue, newValue in
             // One-shot warning pulse on the false→true edge only — never a looping ambient
             // animation, and skipped entirely under Reduce Motion (the color change to `.warning`

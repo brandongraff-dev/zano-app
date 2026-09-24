@@ -102,6 +102,10 @@ public struct ScreenTimeSummaryView: View {
     private static let axisHours: Set<Int> = [6, 10, 14, 18, 22]
     private static let chartHeight: CGFloat = 120
     private static let listLimit = 5
+    /// The three stats' numerals: Title 2 (22pt at the default size), so they follow Dynamic Type.
+    private static let statFont = Font.system(.title2, weight: .bold).width(.condensed).monospacedDigit()
+    /// Axis and legend labels: Caption 2 (11pt at the default size).
+    private static let axisFont = Font.system(.caption2, weight: .semibold)
 
     public init(summary: ScreenTimeSummary) {
         self.summary = summary
@@ -129,16 +133,22 @@ public struct ScreenTimeSummaryView: View {
                     }
                 }
             }
+            // The icons are hidden from VoiceOver; speak the names instead.
+            .accessibilityValue(Copy.screenTime.mostUsedSpoken(summary.apps.prefix(3).map(\.name)))
             stat(Copy.screenTime.lockedApps) {
                 Text(Copy.screenTime.duration(summary.lockedTime))
-                    .font(.system(size: 22, weight: .bold).width(.condensed))
+                    .font(Self.statFont)
                     .foregroundStyle(summary.lockedTime > 0 ? Theme.Colors.danger : Theme.Colors.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel(Copy.screenTime.spokenDuration(summary.lockedTime))
             }
             stat(Copy.screenTime.pickups) {
                 Text("\(summary.pickups)")
-                    .font(.system(size: 22, weight: .bold).width(.condensed))
+                    .font(Self.statFont)
                     .foregroundStyle(Theme.Colors.text)
-                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
     }
@@ -148,8 +158,9 @@ public struct ScreenTimeSummaryView: View {
             Text(label)
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
+            // A floor, not a fixed height: the numerals grow with Dynamic Type.
             value()
-                .frame(height: 28)
+                .frame(minHeight: 28)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -162,6 +173,23 @@ public struct ScreenTimeSummaryView: View {
     private var peakMinutes: Double {
         let peak = summary.hours.map { $0.lockedMinutes + $0.otherMinutes }.max() ?? 0
         return max(peak, 20)
+    }
+
+    /// The busiest hour so far and its minutes, for the chart's spoken summary. Nil with no usage.
+    private var busiestHour: (hour: Int, minutes: Int)? {
+        guard let peak = summary.hours.max(by: {
+            $0.lockedMinutes + $0.otherMinutes < $1.lockedMinutes + $1.otherMinutes
+        }) else { return nil }
+        let minutes = Int((peak.lockedMinutes + peak.otherMinutes).rounded())
+        return minutes > 0 ? (peak.id, minutes) : nil
+    }
+
+    private var chartAccessibilitySummary: String {
+        Copy.screenTime.chartSummary(
+            peakHour: busiestHour?.hour,
+            peakMinutes: busiestHour?.minutes ?? 0,
+            lockedMinutes: Int(summary.lockedTime / 60)
+        )
     }
 
     private func minutes(at hour: Int) -> (locked: Double, other: Double) {
@@ -183,30 +211,38 @@ public struct ScreenTimeSummaryView: View {
             }
             .frame(height: Self.chartHeight)
 
-            HStack(spacing: 5) {
-                ForEach(Self.chartHours, id: \.self) { hour in
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: 1)
-                        .overlay {
-                            if Self.axisHours.contains(hour) {
-                                Text(Copy.screenTime.hourLabel(hour))
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(Theme.Colors.muted)
-                                    .fixedSize()
+            ZStack {
+                // Sizes the axis row to the label's Dynamic Type height (the labels themselves are
+                // overlays centred under their bars, so they do not size the row).
+                Text(Copy.screenTime.hourLabel(12))
+                    .font(Self.axisFont)
+                    .hidden()
+                HStack(spacing: 5) {
+                    ForEach(Self.chartHours, id: \.self) { hour in
+                        Color.clear
+                            .frame(maxWidth: .infinity, maxHeight: 1)
+                            .overlay {
+                                if Self.axisHours.contains(hour) {
+                                    Text(Copy.screenTime.hourLabel(hour))
+                                        .font(Self.axisFont)
+                                        .foregroundStyle(Theme.Colors.muted)
+                                        .fixedSize()
+                                }
                             }
-                        }
+                    }
                 }
             }
-            .frame(height: 14)
         }
-        .accessibilityHidden(true)
+        // The bars are one spoken summary (busiest hour, time in locked apps), not 17 stops.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(chartAccessibilitySummary)
     }
 
     private func legendDot(color: Color, label: String) -> some View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 7, height: 7)
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(Self.axisFont)
                 .foregroundStyle(Theme.Colors.muted)
         }
     }
@@ -290,6 +326,7 @@ public struct ScreenTimeSummaryView: View {
                 Text(Copy.screenTime.duration(offline.time))
                     .font(.system(.headline, weight: .semibold).width(.condensed))
                     .foregroundStyle(Theme.Colors.accent)
+                    .accessibilityLabel(Copy.screenTime.spokenDuration(offline.time))
             }
 
             if summary.apps.isEmpty {
@@ -313,7 +350,7 @@ public struct ScreenTimeSummaryView: View {
                             .lineLimit(1)
                         if app.isLocked {
                             Image(systemName: "lock.fill")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(Theme.Typography.icon(.xsmall, weight: .bold))
                                 .foregroundStyle(Theme.Colors.danger)
                         }
                     }
@@ -321,6 +358,7 @@ public struct ScreenTimeSummaryView: View {
                     Text(Copy.screenTime.duration(app.duration))
                         .font(.system(.headline, weight: .semibold).width(.condensed))
                         .foregroundStyle(app.isLocked ? Theme.Colors.danger : Theme.Colors.textSecondary)
+                        .accessibilityLabel(Copy.screenTime.spokenDuration(app.duration))
                 }
             }
         }

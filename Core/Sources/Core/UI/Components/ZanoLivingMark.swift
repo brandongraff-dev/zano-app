@@ -22,6 +22,7 @@ public struct ZanoLivingMark: View {
     private let height: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     /// - Parameters:
     ///   - charge: 0...1, clamped.
@@ -38,7 +39,9 @@ public struct ZanoLivingMark: View {
             if reduceMotion {
                 star(time: 0, animated: false)
             } else {
-                TimelineView(.animation) { context in
+                // 30 fps is plenty for a slow breathe/float and halves the redraw cost; paused
+                // whenever the app isn't frontmost.
+                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: scenePhase != .active)) { context in
                     star(time: context.date.timeIntervalSinceReferenceDate, animated: true)
                 }
             }
@@ -59,10 +62,17 @@ public struct ZanoLivingMark: View {
 
         return ZStack {
             // Glow: the star's own shape, blurred. Grows and brightens with charge, breathes.
-            ZanoMarkShape()
-                .fill(glowColor, style: FillStyle(eoFill: true))
-                .blur(radius: height * 0.2)
-                .opacity((0.18 + 0.62 * charge) * (0.7 + 0.3 * breathe))
+            // Navy fading into blue as the charge rises (no hard switch at a threshold).
+            ZStack {
+                ZanoMarkShape()
+                    .fill(Theme.Colors.lockedAmbient, style: FillStyle(eoFill: true))
+                    .opacity(1 - charge)
+                ZanoMarkShape()
+                    .fill(Theme.Colors.accent, style: FillStyle(eoFill: true))
+                    .opacity(charge)
+            }
+            .blur(radius: height * 0.2)
+            .opacity((0.18 + 0.62 * charge) * (0.7 + 0.3 * breathe))
 
             // Uncharged metal.
             ZanoMarkShape()
@@ -111,10 +121,6 @@ public struct ZanoLivingMark: View {
         )
     }
 
-    /// Deep navy when barely charged, ZANO Blue light when charged.
-    private var glowColor: Color {
-        charge < 0.35 ? Theme.Colors.lockedAmbient : Theme.Colors.accent
-    }
 
     /// The star's uncharged metal: dark graphite, a step above `surface2`.
     private static var graphite: LinearGradient {

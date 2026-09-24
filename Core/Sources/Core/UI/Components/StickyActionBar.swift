@@ -21,8 +21,12 @@ import SwiftUI
 /// from clear to `Theme.Colors.background` that also extends under the home indicator.
 public struct StickyActionBar<Content: View>: View {
     private let content: Content
+    private let extendsToBottomEdge: Bool
 
-    public init(@ViewBuilder content: () -> Content) {
+    /// - Parameter extendsToBottomEdge: `false` inside a tab, so the solid ground stops at the bar
+    ///   and the floating glass tab bar floats over content instead of a black slab.
+    public init(extendsToBottomEdge: Bool = true, @ViewBuilder content: () -> Content) {
+        self.extendsToBottomEdge = extendsToBottomEdge
         self.content = content()
     }
 
@@ -45,7 +49,7 @@ public struct StickyActionBar<Content: View>: View {
                     .frame(height: Theme.Spacing.lg)
                     Theme.Colors.background
                 }
-                .ignoresSafeArea(edges: .bottom)
+                .ignoresSafeArea(edges: extendsToBottomEdge ? .bottom : [])
             }
     }
 }

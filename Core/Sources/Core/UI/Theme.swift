@@ -152,6 +152,13 @@ public enum Theme {
         /// `background` is 16.4:1 on accent, 5.8:1 on danger and 10.8:1 on warning.
         public static let onFill = background
 
+        /// Dark glass (tab bar, capsules, quick-add controls): a faint white fill.
+        public static let glassFill = Color.white.opacity(0.055)
+        /// The glass's top-lit hairline.
+        public static var glassEdge: LinearGradient {
+            LinearGradient(colors: [Color.white.opacity(0.16), Color.white.opacity(0.05)], startPoint: .top, endPoint: .bottom)
+        }
+
         /// The label on an `accent` (blue) fill: white reads better and more premium on blue than
         /// near-black does.
         public static let onAccent = Color.white
@@ -207,7 +214,8 @@ public enum Theme {
         /// which is one more reason a hue must never be the only thing identifying a ring.
         public enum Ring {
             /// Spec-exact: workout rings reuse the single brand accent.
-            public static let workout = Colors.accent
+            /// `#A3B1C6` cool steel. Was the accent; blue now means act / earned only.
+            public static let workout = Color(zanoHex: 0xA3_B1_C6)
             /// `#C8936A` bronze (was `#FF7A00`; muted with the 2026-09-24 brand palette).
             public static let protein = Color(zanoHex: 0xC8_93_6A)
             /// `#8E96C8` slate lavender (was `#5E5CE6`).
@@ -316,6 +324,8 @@ public enum Theme {
     public enum Metrics {
         /// HIG minimum hit target. Grow the *target*, not the visual (`View.minTapTarget()`).
         public static let minTapTarget: CGFloat = 44
+        /// The one selection stroke width (selected plan, option, tile).
+        public static let selectedStroke: CGFloat = 1.5
         /// Icon-badge diameters (`IconBadge`): one scale instead of the seven the app had drifted
         /// into (32/36/40/44/52/60/96).
         public static let iconBadgeSmall: CGFloat = 32

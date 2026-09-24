@@ -65,7 +65,7 @@ public struct PrimaryButton: View {
 
         var color: Color {
             switch self {
-            case .neutral: Theme.Colors.interactive
+            case .neutral: Theme.Colors.text
             case .accent: Theme.Colors.accent
             case .danger: Theme.Colors.danger
             case .warning: Theme.Colors.warning

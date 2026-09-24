@@ -130,11 +130,11 @@ extension DemoData {
             lockedTime: locked,
             pickups: 61,
             apps: [
-                .init(id: "instagram", name: "Instagram", duration: 31 * 60, isLocked: true),
-                .init(id: "messages", name: "Messages", duration: 26 * 60, isLocked: false),
-                .init(id: "safari", name: "Safari", duration: 19 * 60, isLocked: false),
-                .init(id: "tiktok", name: "TikTok", duration: 14 * 60, isLocked: true),
-                .init(id: "spotify", name: "Spotify", duration: 11 * 60, isLocked: false),
+                .init(id: "instagram", name: "Instagram", duration: TimeInterval(31 * 60), isLocked: true),
+                .init(id: "messages", name: "Messages", duration: TimeInterval(26 * 60), isLocked: false),
+                .init(id: "safari", name: "Safari", duration: TimeInterval(19 * 60), isLocked: false),
+                .init(id: "tiktok", name: "TikTok", duration: TimeInterval(14 * 60), isLocked: true),
+                .init(id: "spotify", name: "Spotify", duration: TimeInterval(11 * 60), isLocked: false),
             ],
             hours: hours,
             asOf: asOf

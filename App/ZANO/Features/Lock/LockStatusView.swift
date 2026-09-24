@@ -234,7 +234,7 @@ struct LockStatusView: View {
     /// Nothing running: the ZANO star at rest (uncharged: the Lock tab can't read screen time, and
     /// "at rest" is the point), an "Unlocked" status pill, "No lock running", then either the next
     /// scheduled lock as a numeral or a line saying what to do. The start action sits in the bottom
-    /// bar (`bottomBar`), where the emergency hold lives while locked, so the bar never jumps
+    /// bar (`emergencyBar`), where the emergency hold lives while locked, so the bar never jumps
     /// position between the two states.
     private var idleHero: some View {
         VStack(spacing: Theme.Spacing.sm) {

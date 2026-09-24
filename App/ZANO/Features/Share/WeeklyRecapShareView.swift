@@ -7,6 +7,18 @@
 // the backend job that produces the `Recap`/`RecapStats` this view renders; this file only turns
 // an already-written `Recap` into the exportable image.
 //
+// STORY REDESIGN (2026-09-24). The recap is now a full-screen, swipeable story before it is a
+// poster: intro (the living star + week dates) → time reclaimed → goals earned + streak → best day
+// & toughest goal → the week's rings → the share card. Top progress segments, 4s auto-advance,
+// tap left third = back / elsewhere = forward, swipe, hold to pause. Pages live in
+// `RecapStoryPages.swift`; this file owns the pager, the timer and the share/export logic, which is
+// unchanged. Auto-advance is off under VoiceOver (the story is one adjustable element instead) and
+// for CI screenshot launches (`ScreenshotMode.screen != nil`), so a screenshot always sees a
+// complete first page. The init is unchanged; no caller edits needed.
+//   - "Toughest day": `RecapStats` has only `bestDay`, no per-weekday data, so page 4 pairs the best
+//     day with the *goal* that pushed back hardest (lowest unclosed ring) rather than inventing a
+//     worst day. Pages with nothing honest to show are skipped.
+//
 // Renders through `RecapPoster` (`SharePoster.swift`, this folder): a fixed 360 x 640pt canvas
 // exported at scale 3 (= 1080 x 1920 px), with the on-screen preview being the same view scaled to
 // fit, so what the user approves is what they post. It replaces the old `ShareCard` path, whose

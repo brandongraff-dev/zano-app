@@ -25,6 +25,12 @@ extension Copy {
 
         public static let emptyGoalsTitle = "No fuel goals yet"
         public static let emptyGoalsMessage = "Add a protein or water goal to start logging here."
+        /// Empty-states pass 2026-09-24: the ways to log that this screen fills with once a goal
+        /// exists, shown as a quiet preview under the empty rings.
+        public static let emptyGoalsPreviewTitle = "Log it your way"
+        public static let emptyGoalsPreviewQuickAdd = "One-tap amounts"
+        public static let emptyGoalsPreviewBarcode = "Barcode scan"
+        public static let emptyGoalsPreviewNFC = "NFC tap"
 
         public static let logCustomButtonLabel = "Log custom amount"
         public static func customAmountSheetTitle(goalLabel: String) -> String { "Log \(goalLabel)" }
@@ -74,6 +80,9 @@ extension Copy {
 
         // Kitchen Staples (spec §5.20, §10)
         public static let kitchenStaplesSectionTitle = "Kitchen staples"
+        /// Empty-states pass 2026-09-24: the headline of the empty staples tile (the message below
+        /// it says why).
+        public static let kitchenStaplesEmptyTitle = "Save your first staple"
         public static let kitchenStaplesEmptyMessage = "Save a few high-protein foods you eat often so the gap planner can suggest them first."
         public static let kitchenStapleAddButtonLabel = "Add"
         public static let kitchenStapleAddSheetTitle = "Add a kitchen staple"

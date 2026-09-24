@@ -413,12 +413,18 @@ struct FuelView: View {
     /// is an add-circle in the same grid" idea from competitive-research 3.10) instead of a stock
     /// `ContentUnavailableView` — the screen previews what will live here. Not interactive: goal
     /// setup isn't reachable from this screen, so no plus glyph pretends it is.
+    ///
+    /// Empty-states pass (2026-09-24): the rings and words now sit on the same dark glass as the
+    /// Fuel controls (`FuelGlass`), and a quiet row of glass chips previews the ways to log that
+    /// will live here (one-tap amounts, barcode, NFC). The chips are labels, not buttons.
     private var emptyState: some View {
         VStack(spacing: Theme.Spacing.lg) {
             HStack(spacing: Theme.Spacing.md) {
                 FuelPlaceholderRing(systemImage: "fork.knife", color: Theme.Colors.Ring.protein)
                 FuelPlaceholderRing(systemImage: "drop.fill", color: Theme.Colors.Ring.water)
             }
+            .padding(.top, Theme.Spacing.xs)
+
             VStack(spacing: Theme.Spacing.xs) {
                 Text(Copy.fuel.emptyGoalsTitle)
                     .font(Theme.Typography.title)
@@ -428,10 +434,26 @@ struct FuelView: View {
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.muted)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            FuelHairline()
+
+            VStack(spacing: Theme.Spacing.sm) {
+                Text(Copy.fuel.emptyGoalsPreviewTitle)
+                    .zanoText(.eyebrow)
+                    .foregroundStyle(Theme.Colors.muted)
+                HStack(spacing: Theme.Spacing.xs) {
+                    FuelPreviewChip(systemImage: "plus", title: Copy.fuel.emptyGoalsPreviewQuickAdd)
+                    FuelPreviewChip(systemImage: "barcode.viewfinder", title: Copy.fuel.emptyGoalsPreviewBarcode)
+                    FuelPreviewChip(systemImage: "wave.3.right", title: Copy.fuel.emptyGoalsPreviewNFC)
+                }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, Theme.Spacing.xl)
+        .padding(Theme.Spacing.lg)
+        .background(FuelGlass(shape: RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)))
+        .padding(.top, Theme.Spacing.md)
         .accessibilityElement(children: .combine)
     }
 

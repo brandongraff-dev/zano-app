@@ -73,6 +73,14 @@ extension Copy {
             "Bonus badge earned: \(title)"
         }
 
+        /// The small eyebrow above "Earned." on the unlock moment: what just happened, in plain
+        /// words, before the brand word lands.
+        public static let appsUnlockedEyebrow = "Apps unlocked"
+
+        /// The caption beside the Time Bank figure on the unlock moment ("2h 10m  in your Time
+        /// Bank"). The figure itself is formatted by the view with the system `Duration` style.
+        public static let timeBankFigureCaption = "in your Time Bank"
+
         /// Dismiss control for the celebration once it's played. Deliberately not `Copy.common.
         /// continueButtonLabel` (`CommonCopy.swift`, same directory): this screen is closing a
         /// moment, not advancing an onboarding step. "Done" (was "Nice"): a button label should be a

@@ -127,6 +127,32 @@ extension Copy {
         public static let billedMonthlyLabel = "Billed monthly"
         public static let choosePlanHeading = "Choose your plan"
 
+        // MARK: Paywall v4 (2026-09-24): the trial-timeline layout the user picked as reference
+
+        /// Headline line one while a trial is on offer; line two is `headline`.
+        public static func trialHeadline(days: Int) -> String { "Start your \(days)-day free trial." }
+        public static let subscribeHeadline = "Subscribe to continue."
+        public static let timelineTodayTitle = "Today"
+        public static let timelineTodayDetail = "Everything unlocks: unlimited goals and lock sets, Earn Mode, the adaptive plan and squads."
+        public static func timelineReminderTitle(inDays days: Int) -> String { "In \(days) days – Reminder" }
+        public static let timelineReminderDetail = "We'll send you a reminder that your trial is ending, if you've allowed notifications."
+        public static func timelineBillingTitle(inDays days: Int) -> String { "In \(days) days – Billing starts" }
+        public static func timelineBillingDetail(date: String) -> String {
+            "You'll be charged on \(date) unless you cancel before then."
+        }
+        public static let noPaymentDueNow = "No payment due now"
+        public static let cancelAnytime = "Cancel anytime"
+        /// The full terms under the button: what, when, how much, how to cancel.
+        public static func termsParagraph(trialDays: Int?, price: String, period: String) -> String {
+            let billed = "Billed \(period == "year" ? "yearly" : "monthly")."
+            let renew = "Plan auto-renews unless you cancel. Cancel in the App Store."
+            if let trialDays, trialDays > 0 {
+                return "\(trialDays) days free, then \(price) per \(period). \(billed) \(renew)"
+            }
+            return "\(price) per \(period). \(billed) \(renew)"
+        }
+        public static func trialPill(days: Int) -> String { "\(days) days free" }
+
         public static let autoRenewNote = "Auto-renews until you cancel. Cancel anytime in your Apple ID settings."
         public static let termsLinkLabel = "Terms of use"
         public static let privacyLinkLabel = "Privacy policy"

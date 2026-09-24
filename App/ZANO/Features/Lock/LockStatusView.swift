@@ -111,7 +111,7 @@ struct LockStatusView: View {
         }
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.lockStatus.screenTitle)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.automatic)
         .task(id: timeBankTaskKey) {
             timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
         }

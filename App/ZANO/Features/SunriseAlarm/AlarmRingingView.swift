@@ -305,11 +305,9 @@ struct AlarmRingingView: View {
                 .foregroundStyle(Theme.Colors.text)
                 .multilineTextAlignment(.center)
 
-            Text(NFCTagSetupInstructions.placementGuidance(for: .sunrise))
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-
+            // Placement advice lives on the setup screen. A groggy user with a ringing alarm needs one
+            // instruction and one button; the paragraph that used to sit here pushed the button below
+            // the fold on a large iPhone.
             PrimaryButton(
                 title: Copy.alarmRinging.tagScanButtonLabel,
                 systemImage: "wave.3.right",

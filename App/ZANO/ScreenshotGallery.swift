@@ -88,6 +88,15 @@ struct ScreenshotHost: View {
             NavigationStack { BedtimeGateSetupView() }
         case "alarm-ringing":
             AlarmRingingView()
+        case "celebration":
+            UnlockCelebrationView(goalName: "Gym session", verificationDetail: "42 min at the gym",
+                                  timeBankRemainingMinutes: 130, timeBankTotalMinutes: 180)
+        case "lockedout":
+            LockedOutMomentView(appName: "TikTok", attemptCount: 4, blockingGoalSummary: "hit the gym",
+                                goalsRemaining: 2, streak: 14)
+        case "recap":
+            WeeklyRecapShareView(recap: DemoData.recap, goalTitles: DemoData.recapGoalTitles,
+                                 rankTierLabel: "Gold", onDismiss: {})
         default:
             ContentUnavailableView("Unknown screen", systemImage: "questionmark.square.dashed",
                                    description: Text(name))
@@ -96,6 +105,30 @@ struct ScreenshotHost: View {
 }
 
 // MARK: - Demo data
+
+extension DemoData {
+    /// Not inserted into the store: `WeeklyRecapShareView` renders straight from the value.
+    static let recapGoalIDs: [UUID] = (0..<4).map { _ in UUID() }
+    static let recapGoalTitles: [UUID: String] = [
+        recapGoalIDs[0]: "Gym session", recapGoalIDs[1]: "Protein",
+        recapGoalIDs[2]: "Focus", recapGoalIDs[3]: "Water",
+    ]
+    static var recap: Recap {
+        Recap(
+            userID: UUID(),
+            weekStart: Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now,
+            text: "Four workouts and a 14-day streak. Thursday was your best day. Protect it next week.",
+            stats: RecapStats(
+                goalCompletionRings: [
+                    recapGoalIDs[0].uuidString: 0.86, recapGoalIDs[1].uuidString: 0.71,
+                    recapGoalIDs[2].uuidString: 0.57, recapGoalIDs[3].uuidString: 1.0,
+                ],
+                bestDay: "Thursday", timeReclaimedMinutes: 400, streak: 14, rankMovement: 1,
+                goalsCompleted: 22, goalsPlanned: 28
+            )
+        )
+    }
+}
 
 /// One believable "day 15 of a streak, mid-afternoon, locked until the workout is done" user.
 /// Idempotent: does nothing if a `User` already exists (each screen is a separate launch).
@@ -143,9 +176,22 @@ enum DemoData {
                                   requiredGoalIDs: [workout.id, protein.id])
         context.insert(session)
 
+        // Fourteen days of completed mornings, each with a finished lock session: fills the streak
+        // calendar and gives "Time Reclaimed" a real number.
+        for offset in 1...14 {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today),
+                  let started = calendar.date(byAdding: .hour, value: 7, to: day),
+                  let finished = calendar.date(byAdding: .hour, value: 11, to: day) else { continue }
+            context.insert(GoalEvent(ts: finished, kind: .complete, value: 45, source: .geofence,
+                                     verified: true, user: user, goal: workout))
+            context.insert(LockSession(userID: user.id, lockSetID: lockSet.id, startedAt: started,
+                                       endedAt: finished, trigger: .schedule, mode: .full,
+                                       requiredGoalIDs: [workout.id], unlockKind: .earned))
+        }
+
         context.insert(TimeBank(userID: user.id, date: today, earnedMin: 90))
         context.insert(Coin(userID: user.id, balance: 240))
-        for key in ["first_unlock", "streak_7", "streak_14"] {
+        for key in ["first_earned_unlock", "streak_7", "streak_14"] {
             context.insert(Badge(userID: user.id, key: key, earnedAt: yesterday))
         }
 

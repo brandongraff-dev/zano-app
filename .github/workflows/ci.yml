@@ -125,7 +125,8 @@ jobs:
           SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7
                    onboarding-8 onboarding-9 onboarding-10 onboarding-11 onboarding-12 onboarding-13 onboarding-14
                    paywall tab-today tab-lock tab-fuel tab-progress tab-settings
-                   locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing"
+                   locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing
+                   celebration lockedout recap"
           for SCREEN in $SCREENS; do
             xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
             xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"
@@ -135,6 +136,31 @@ jobs:
           xcrun simctl spawn "$SIM_ID" log show --style compact --last 3m \
             --predicate 'process == "ZANO"' > shots/app.log 2>&1 || true
           cp ~/Library/Logs/DiagnosticReports/ZANO* shots/ 2>/dev/null || true
+
+          # Second pass on the smallest iPhone: the layout bugs that hide on a large screen (clipped
+          # buttons, rings that no longer fit, text that wraps badly) show up here first.
+          SE_ID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['devices']
+          for k in sorted((k for k in data if 'iOS' in k), reverse=True):
+              for d in data[k]:
+                  if d['name'].startswith('iPhone SE'):
+                      print(d['udid']); raise SystemExit
+          ")
+          if [ -n "$SE_ID" ]; then
+            echo "Small device: $SE_ID"
+            xcrun simctl boot "$SE_ID" || true
+            xcrun simctl bootstatus "$SE_ID" -b
+            xcrun simctl install "$SE_ID" "$APP"
+            for SCREEN in tab-today tab-lock tab-fuel tab-progress onboarding-5 onboarding-12 alarm-ringing; do
+              xcrun simctl terminate "$SE_ID" com.zano.app 2>/dev/null || true
+              xcrun simctl launch "$SE_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "SE LAUNCH FAILED: $SCREEN"
+              sleep 5
+              xcrun simctl io "$SE_ID" screenshot "shots/se-$SCREEN.png"
+            done
+          else
+            echo "No iPhone SE simulator available on this runner; skipping the small-screen pass."
+          fi
           ls -la shots
 
       # The simulator build itself, for interactive use (e.g. upload the zip to Appetize.io and click

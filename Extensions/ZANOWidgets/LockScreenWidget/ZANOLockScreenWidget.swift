@@ -1,29 +1,23 @@
 // ZANOLockScreenWidget.swift
 // Extensions/ZANOWidgets/LockScreenWidget
 //
-// Lock Screen widgets — docs/spec.md §6:
-//   Circular:    protein ring / water ring / streak
-//   Rectangular: "2 goals left · TikTok locked · 14🔥"
-//   Inline:      "Locked until workout"
+// Lock Screen widgets, built around the ZANO star and goal progress (never Screen Time — widgets
+// can't read it; see `ZANOWidgetCharge` in Support/ZANOWidgetComponents.swift):
+//   Circular:    the star glyph inside an `.accessoryCircularCapacity` gauge of goals done
+//                (default), or the older protein / water / streak stats, picked in Edit Widget.
+//   Rectangular: "2 goals to unlock" beside the star, a one-segment-per-goal bar, and the lock
+//                set + streak.
+//   Inline:      "Locked · 2 goals left" / "Unlocked".
 //
-// One `Widget` covering all three accessory families (`.accessoryCircular`,
-// `.accessoryRectangular`, `.accessoryInline`), available since iOS 16 — no gating needed against
-// this project's iOS 17 minimum (project.yml).
+// One `Widget` covering all three accessory families (iOS 16+, below this project's iOS 17
+// minimum). Accessory widgets render in vibrant (or accented) mode, so everything here is drawn
+// in `.primary` with translucency for the "not yet" parts, and the earned parts are
+// `.widgetAccentable()`.
 //
-// The circular family is user-configurable (spec lists 3 different things it can show — protein
-// ring / water ring / streak — which is exactly what `WidgetConfigurationIntent` +
-// `AppIntentConfiguration` exists for: a user picks the stat via the widget's own Edit Widget UI,
-// no app launch needed). This configuration intent lives entirely in this extension (display
-// config only, no user *action* — CLAUDE.md's "every user action is an App Intent in Core" is
-// about actions like logging/locking, not which stat a widget renders).
-//
-// Rectangular substitutes the app name from spec's example line ("TikTok locked") for the active
-// `LockSet.name` ("Distractions locked"): a shielded app's real name/icon can only be rendered via
-// FamilyControls' privacy-preserving `Label(_:)` over a decoded `ApplicationToken`, which needs
-// the `com.apple.developer.family-controls` entitlement + a `FamilyControls` import — neither of
-// which this extension target currently has (project.yml, not owned by this task). Flagged in
-// this task's knownIssues; `LockSet.name` is real data this widget can already show without that
-// entitlement change.
+// The circular stat is a `WidgetConfigurationIntent` that lives in this extension (display config
+// only, not a user action). Shielded apps' real names/icons need FamilyControls' `Label(_:)` and
+// the family-controls entitlement, which this target doesn't have, so the lock set's name stands
+// in for them.
 
 import AppIntents
 import Core
@@ -33,6 +27,7 @@ import WidgetKit
 // MARK: - Configuration
 
 enum ZANOCircularMetric: String, AppEnum {
+    case goals
     case protein
     case water
     case streak
@@ -41,12 +36,13 @@ enum ZANOCircularMetric: String, AppEnum {
     // extractor (appintentsmetadataprocessor) evaluates these declarations statically and rejects
     // anything that is not a string literal ("LocalizedStringResource must be initialized directly
     // ... or a String literal"). Keep these in sync with WidgetCopy.lockScreenConfigTitle /
-    // metricProtein / metricWater / metricStreak by hand.
+    // metricGoals / metricProtein / metricWater / metricStreak by hand.
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(name: "ZANO Stat")
     }
 
     static let caseDisplayRepresentations: [ZANOCircularMetric: DisplayRepresentation] = [
+        .goals: DisplayRepresentation(title: "Goals"),
         .protein: DisplayRepresentation(title: "Protein"),
         .water: DisplayRepresentation(title: "Water"),
         .streak: DisplayRepresentation(title: "Streak")
@@ -58,11 +54,11 @@ struct ZANOLockScreenMetricIntent: WidgetConfigurationIntent {
     // Literal for the same metadata-extractor reason as above (WidgetCopy.lockScreenConfigDescription).
     static let description = IntentDescription("Choose which stat this Lock Screen widget shows.")
 
-    @Parameter(title: "Stat", default: .streak)
+    @Parameter(title: "Stat", default: .goals)
     var metric: ZANOCircularMetric
 
     init() {
-        self.metric = .streak
+        self.metric = .goals
     }
 
     init(metric: ZANOCircularMetric) {
@@ -83,11 +79,11 @@ struct ZANOLockScreenProvider: AppIntentTimelineProvider {
     typealias Intent = ZANOLockScreenMetricIntent
 
     func placeholder(in context: Context) -> ZANOLockScreenEntry {
-        ZANOLockScreenEntry(date: .now, snapshot: .placeholder, metric: .streak)
+        ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
     }
 
     func snapshot(for configuration: ZANOLockScreenMetricIntent, in context: Context) async -> ZANOLockScreenEntry {
-        ZANOLockScreenEntry(date: .now, snapshot: .placeholder, metric: configuration.metric)
+        ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: configuration.metric)
     }
 
     func timeline(
@@ -117,7 +113,7 @@ struct ZANOLockScreenWidget: Widget {
                 .containerBackground(.clear, for: .widget)
         }
         .configurationDisplayName(Text(WidgetCopy.appName))
-        .description(Text(WidgetCopy.lockScreenConfigDescription))
+        .description(Text(WidgetCopy.widgetDescription))
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -146,6 +142,8 @@ private struct ZANOLockScreenCircularView: View {
 
     var body: some View {
         switch metric {
+        case .goals:
+            goalsGauge
         case .protein:
             ring(for: snapshot.protein, systemImage: "fork.knife")
         case .water:
@@ -155,35 +153,54 @@ private struct ZANOLockScreenCircularView: View {
         }
     }
 
-    // Switches on `metric` (already known at every call site above) rather than re-deriving the
-    // icon from `progress.title == "Protein"` — a string-equality check against `title`, which is
-    // permanently the hardcoded English literal "Protein" today (see `ZANOWidgetSnapshot.swift`).
-    // The moment that title is localized for real, the old check would silently break: every
-    // non-English locale's protein ring would render the water icon instead. See
-    // `docs/design/ui-stress-test-findings.md` §2.3.
+    /// The star glyph in a capacity ring that fills as goals get done.
+    private var goalsGauge: some View {
+        let charge = snapshot.charge
+        return Gauge(value: charge.fraction) {
+            Text(WidgetCopy.metricGoals)
+        } currentValueLabel: {
+            ZanoMarkShape()
+                .fill(Color.primary, style: FillStyle(eoFill: true))
+                .aspectRatio(ZanoMark.aspectRatio, contentMode: .fit)
+                .frame(width: 26)
+                .widgetAccentable()
+        }
+        .gaugeStyle(.accessoryCircularCapacity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(charge.isLocked
+            ? WidgetCopy.goalsToUnlock(charge.remaining)
+            : WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
+    }
+
+    // Switches on `metric` rather than re-deriving the icon from `progress.title`, which breaks
+    // the moment titles are localized. See `docs/design/ui-stress-test-findings.md` §2.3.
     private func ring(for progress: ZANORingProgress, systemImage: String) -> some View {
         Gauge(value: progress.fraction) {
             Image(systemName: systemImage)
         } currentValueLabel: {
             Text(Self.intText(progress.current))
+                .minimumScaleFactor(0.6)
         }
         .gaugeStyle(.accessoryCircularCapacity)
     }
 
     private var streakGauge: some View {
-        VStack(spacing: 0) {
-            Text("🔥")
-                .font(.system(size: 14))
-            Text("\(snapshot.currentStreak)")
-                .font(.system(.body, design: .rounded, weight: .bold))
-                // `.accessoryCircular` is one of the smallest possible widget surfaces, and a
-                // streak count is unbounded — matches the Home Widget's own
-                // `ZANOGoalRingView`/`.minimumScaleFactor(0.7)` precedent for the same reason. See
-                // `docs/design/ui-stress-test-findings.md` §3.7.
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
+        ZStack {
+            AccessoryWidgetBackground()
+            VStack(spacing: 0) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .widgetAccentable()
+                Text("\(snapshot.currentStreak)")
+                    .font(.system(.body, design: .rounded, weight: .bold))
+                    // The streak count is unbounded and this is one of the smallest widget
+                    // surfaces. See `docs/design/ui-stress-test-findings.md` §3.7.
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
         }
-        .widgetAccentable()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(WidgetCopy.streak(snapshot.currentStreak))
     }
 
     private static func intText(_ value: Double) -> String {
@@ -197,22 +214,43 @@ private struct ZANOLockScreenRectangularView: View {
     let snapshot: ZANOWidgetSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(snapshot.isLocked
-                ? WidgetCopy.lockedStatus(lockSetName: snapshot.lockSetName)
-                : WidgetCopy.noActiveLock)
-                .font(.headline)
-                .lineLimit(1)
-            HStack(spacing: 4) {
-                if snapshot.isLocked {
-                    Text(WidgetCopy.goalsRemaining(snapshot.goalsRemainingForActiveLock))
-                }
-                Text("·")
-                Text(WidgetCopy.streak(snapshot.currentStreak))
+        let charge = snapshot.charge
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                ZanoMarkShape()
+                    .fill(Color.primary, style: FillStyle(eoFill: true))
+                    .aspectRatio(ZanoMark.aspectRatio, contentMode: .fit)
+                    .frame(width: 18)
+                    .widgetAccentable()
+                    .accessibilityHidden(true)
+                Text(headline(charge))
+                    .font(.system(.headline, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            ZANOSegmentBar(done: charge.done, total: charge.total)
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func headline(_ charge: ZANOWidgetCharge) -> String {
+        guard charge.isLocked else { return WidgetCopy.noActiveLock }
+        return charge.remaining > 0 ? WidgetCopy.goalsToUnlock(charge.remaining) : WidgetCopy.allGoalsDone
+    }
+
+    /// "Locked · Social · 14-day streak", or "1 of 3 goals · 14-day streak" when unlocked.
+    private var caption: String {
+        let charge = snapshot.charge
+        let lead = snapshot.isLocked
+            ? WidgetCopy.lockStatusLine(lockSetName: snapshot.lockSetName)
+            : (charge.total > 0 ? WidgetCopy.goalsDone(charge.done, of: charge.total) : nil)
+        return [lead, WidgetCopy.streak(snapshot.currentStreak)]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 }
 
@@ -235,17 +273,17 @@ private struct ZANOLockScreenInlineView: View {
 #Preview(as: .accessoryCircular) {
     ZANOLockScreenWidget()
 } timeline: {
-    ZANOLockScreenEntry(date: .now, snapshot: .placeholder, metric: .streak)
+    ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
 }
 
 #Preview(as: .accessoryRectangular) {
     ZANOLockScreenWidget()
 } timeline: {
-    ZANOLockScreenEntry(date: .now, snapshot: .placeholder, metric: .streak)
+    ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
 }
 
 #Preview(as: .accessoryInline) {
     ZANOLockScreenWidget()
 } timeline: {
-    ZANOLockScreenEntry(date: .now, snapshot: .placeholder, metric: .streak)
+    ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
 }

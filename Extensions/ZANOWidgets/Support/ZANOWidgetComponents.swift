@@ -347,7 +347,7 @@ struct ZANOStreakFlameView: View {
         HStack(spacing: 2) {
             Image(systemName: "flame.fill")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(ZANOWidgetColor.warning)
+                .foregroundStyle(ZANOWidgetColor.textMuted)
                 .widgetAccentable()
             Text("\(streak)")
                 .font(.system(size: 11, weight: .bold, design: .rounded))

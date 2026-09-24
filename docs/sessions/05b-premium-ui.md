@@ -138,3 +138,15 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
 - `NumeralText`: the space between numeric tokens is full size, so "56h 0m" no longer reads "56.0".
 - `codemagic.yaml` + `scripts/ci/{screenshots,push-results}.sh`: second Mac builder; results on the
   `ci-results` branch once the `github` env group holds a GITHUB_TOKEN.
+
+### 2026-09-24 — ZANO Blue, darker base, screen time under the star
+
+- **Palette (founder: "dull and lifeless", background "grey and faint"):** accent is ZANO Blue
+  `#3F7BFF` (white labels via `Theme.Colors.onAccent`); `interactive` = accent; `PrimaryButton`
+  defaults to `.accent`; background `#050506`, surface `#111113`, surface2 `#19191C`;
+  `lockedAmbient` is deep navy `#1C2B4D`, so ambient light reads blue-black instead of grey. The tab
+  bar's lit tab glows blue. Mirrored in widget/watch tokens, landing CSS, AccentColor and
+  LaunchBackground assets; spec §15 and brand kit updated.
+- **Today hero:** under the star, Opal-style: "2h 34m" / "SCREEN TIME TODAY" / "Star 72% charged".
+  Drawn by the report extension (`ScreenTimeChargeView`). The Screen time section below no longer
+  repeats the total.

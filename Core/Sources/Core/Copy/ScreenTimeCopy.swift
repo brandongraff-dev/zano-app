@@ -22,7 +22,7 @@ extension Copy {
         public static let accessDetail = "Allow Screen Time access and your ZANO star charges with every hour you spend off your phone. Usage, pickups and time in locked apps never leave your phone."
         public static let accessButton = "Allow access"
         /// Under the living star on Today: how charged it is.
-        public static func chargeLine(percent: Int) -> String { "Charged \(percent)% · time off your phone" }
+        public static func chargeLine(percent: Int) -> String { "Star \(percent)% charged · time off your phone" }
         /// Under the star before Screen Time access.
         public static let chargeHint = "Your star charges while you're off your phone"
 

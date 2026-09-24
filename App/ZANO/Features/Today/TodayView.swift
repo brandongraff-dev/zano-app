@@ -258,7 +258,7 @@ struct TodayView: View {
                     .frame(width: 350, height: 350)
                 heroStar
             }
-            .frame(height: 236)
+            .frame(height: 330)
 
             heroNumber
 
@@ -347,7 +347,7 @@ struct TodayView: View {
             ScreenTimeChargeView(summary: DemoData.screenTime, height: 124)
         } else if AuthorizationCenter.shared.authorizationStatus == .approved {
             DeviceActivityReport(.zanoMark, filter: Self.todayFilter)
-                .frame(height: 236)
+                .frame(height: 330)
                 .allowsHitTesting(false)
         } else {
             ScreenTimeChargeView(height: 124)
@@ -632,7 +632,7 @@ struct TodayView: View {
             ScreenTimeSummaryView(summary: DemoData.screenTime)
         } else if AuthorizationCenter.shared.authorizationStatus == .approved {
             DeviceActivityReport(.zanoToday, filter: Self.todayFilter)
-                .frame(height: 760)
+                .frame(height: 660)
         } else {
             screenTimeAccessCard
         }

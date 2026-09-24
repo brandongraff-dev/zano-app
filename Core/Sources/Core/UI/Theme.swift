@@ -60,22 +60,21 @@ public enum Theme {
     /// Color tokens from docs/spec.md §15's "Tokens" table, reproduced exactly (hex values are
     /// spec-authoritative; do not retune here without updating §15 first).
     public enum Colors {
-        /// `#0A0A0B` — app background.
-        public static let background = Color(zanoHex: 0x0A0A0B)
-        /// `#141416` — card / primary surface.
-        public static let surface = Color(zanoHex: 0x14_14_16)
-        /// `#1C1C1F` — secondary surface (nested cards, tracks, pressed states).
-        public static let surface2 = Color(zanoHex: 0x1C_1C_1F)
+        /// `#050506` — app background. Near-black (darkened 2026-09-24: `#0A0A0B` read grey and faint).
+        public static let background = Color(zanoHex: 0x05_05_06)
+        /// `#111113` — card / primary surface.
+        public static let surface = Color(zanoHex: 0x11_11_13)
+        /// `#19191C` — secondary surface (nested cards, tracks, pressed states).
+        public static let surface2 = Color(zanoHex: 0x19_19_1C)
         /// `#F2F1ED` — primary text. Pearl: the warm white of the logo, not a blue-white.
         public static let text = Color(zanoHex: 0xF2_F1_ED)
         /// `#8E8E93` — secondary / muted text.
         public static let muted = Color(zanoHex: 0x8E_8E_93)
-        /// `#E4E2DC` — platinum, the brand accent. Earned states only (decision 2026-09-24, spec §15):
-        /// completed rings, the unlock moment, "earned" badges, the workout ring. Never navigation,
-        /// neutral buttons or selection — those use `interactive`. Was acid green `#B8FF3C` until
-        /// the brand moved to the founder's black / pearl / silver logo (same day): light itself is
-        /// the reward, so the accent is the brightest metal, not a hue.
-        public static let accent = Color(zanoHex: 0xE4_E2_DC)
+        /// `#3F7BFF` — ZANO Blue, the primary accent (founder decision 2026-09-24: the all-silver app
+        /// felt dull and lifeless). Primary buttons, selection, the tab bar's lit tab, the workout
+        /// ring and earned moments. Silver (`metallic`) stays the logo's metal; blue is its light.
+        /// White labels on it (`onAccent`), 3.8:1: fine for the bold 17pt button labels.
+        public static let accent = Color(zanoHex: 0x3F_7B_FF)
 
         /// The brushed-silver fill of the logo mark and of earned hero moments: pearl top-left to
         /// silver bottom-right.
@@ -89,18 +88,18 @@ public enum Theme {
 
         /// Chrome, neutral CTAs and selection (premium-ui-plan.md "light is earned"). The UI stays
         /// achromatic so goal colors carry the screen and green keeps meaning "earned".
-        public static let interactive = text
+        public static let interactive = accent
         /// The fill behind a selected neutral control (a chosen option, an active segment).
-        public static let interactiveWash = Color.white.opacity(0.08)
+        public static let interactiveWash = Color(zanoHex: 0x3F_7B_FF).opacity(0.16)
 
         // MARK: Ambient light
 
         /// The cool light a locked screen sits in: dark, quiet, a little cold. Paired with
         /// `accent` for the earned state so the backdrop itself tells you where you stand.
-        public static let lockedAmbient = Color(zanoHex: 0x4B_52_63)
+        public static let lockedAmbient = Color(zanoHex: 0x1C_2B_4D)
         /// Top stop of a hero surface's vertical gradient (bottom stop is `surface`): the hero
         /// catches a little more light than a standard card.
-        public static let surfaceHero = Color(zanoHex: 0x1C_1C_1F)
+        public static let surfaceHero = Color(zanoHex: 0x17_18_1C)
         /// `#DE5A52` — danger / locked state. A muted red, not system red.
         public static let danger = Color(zanoHex: 0xDE_5A_52)
         /// `#D9A55B` — warning state (amber gold).
@@ -153,6 +152,10 @@ public enum Theme {
         /// `background` is 16.4:1 on accent, 5.8:1 on danger and 10.8:1 on warning.
         public static let onFill = background
 
+        /// The label on an `accent` (blue) fill: white reads better and more premium on blue than
+        /// near-black does.
+        public static let onAccent = Color.white
+
         /// `#C7C7CC` — a middle text tier for paragraph copy that should be quieter than `text`
         /// (18.2:1) but easier to read than `muted` (6.1:1): 11.8:1 on `background`, 10.9:1 on
         /// `surface`. Use for multi-line supporting copy; keep `muted` for metadata.
@@ -168,11 +171,11 @@ public enum Theme {
 
         /// `#26252A` — the accent at dark-surface strength: icon-badge discs, selected rows, the
         /// unlock chip. Accent on this wash is about 12:1.
-        public static let accentWash = Color(zanoHex: 0x26_25_2A)
+        public static let accentWash = Color(zanoHex: 0x0F_1B_36)
 
         /// `#4A4843` — the accent's dim core: a highlighted-but-unselected border, the track
         /// beneath an active accent bar.
-        public static let accentDim = Color(zanoHex: 0x4A_48_43)
+        public static let accentDim = Color(zanoHex: 0x1D_35_6B)
 
         /// The disc/wash fill for an icon badge or chip tinted `tint`. The accent gets its
         /// on-hue precomputed wash (`accentWash`); every other hue falls back to 18% of itself,

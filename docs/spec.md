@@ -527,9 +527,9 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 **Feel:** dark, confident, game-progress energy without being childish. Think: fitness tracker × ranked mode in a game × premium minimal.
 
 **Tokens (starting point, tune after image-gen exploration)**
-- Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
+- Background: `#050506` ; Surface: `#111113` ; Surface-2: `#19191C` (darkened 2026-09-24: the old greys read faint)
 - Text: `#F2F1ED` (pearl) ; Muted: `#8E8E93`
-- Accent (earned/unlock): `#E4E2DC` (platinum) — ONE accent only, taken from the logo (black / pearl / silver). **Earned states only** (decision 2026-09-24): completed rings, the unlock moment, "Earned" badges. Never on navigation or chrome (tab bar, neutral buttons, icons), which stay achromatic so goal colors carry the screen. See `docs/design/premium-ui-plan.md` and `docs/brand/brand-kit.md`. Acid green `#B8FF3C` was dropped the same day as not premium enough (founder decision).
+- Accent: `#3F7BFF` (ZANO Blue) — primary accent (founder decision 2026-09-24: the all-silver app felt dull). Primary buttons (white label), selection, the tab bar's lit tab, the workout ring, earned moments and the living star's glow. Silver (`metallic`) stays the logo's metal. Supersedes the same-day platinum accent, which replaced acid green `#B8FF3C`.
 - Danger/locked: `#DE5A52` ; Warning: `#D9A55B`
 - Ring colors (muted, low-chroma): workout = accent, protein = `#C8936A` (bronze), focus = `#8E96C8` (slate), water = `#86B4C4` (glacier)
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32

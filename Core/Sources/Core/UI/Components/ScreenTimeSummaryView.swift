@@ -108,28 +108,14 @@ public struct ScreenTimeSummaryView: View {
     }
 
     public var body: some View {
+        // The day's total sits under the living star on Today's hero (`ScreenTimeChargeView`), so
+        // this section starts at the stats instead of repeating it.
         VStack(spacing: Theme.Spacing.lg) {
-            totalBlock
             statsRow
             chart
             list
         }
         .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Total
-
-    private var totalBlock: some View {
-        VStack(spacing: 2) {
-            Text(Copy.screenTime.duration(summary.total))
-                .font(.system(size: 64, weight: .heavy).width(.compressed))
-                .foregroundStyle(Theme.Colors.text)
-                .monospacedDigit()
-            Text(Copy.screenTime.totalLabel)
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(Theme.Colors.muted)
-        }
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Stats

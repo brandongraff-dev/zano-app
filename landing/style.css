@@ -1,15 +1,15 @@
 /* ZANO waitlist landing page
    Tokens mirror docs/spec.md §15 (Design System & UI Direction) — dark, confident,
-   game-progress energy. One accent only: platinum, from the logo. */
+   game-progress energy. One accent: ZANO Blue; silver is the logo's metal. */
 
 :root {
-  --bg: #0a0a0b;
-  --surface: #141416;
-  --surface-2: #1c1c1f;
+  --bg: #050506;
+  --surface: #111113;
+  --surface-2: #19191c;
   --text: #f2f1ed;
   --muted: #8e8e93;
-  --accent: #e4e2dc; /* earned / unlock — the only accent color on this page */
-  --accent-ink: #0a0a0b; /* text color placed on top of accent-filled surfaces */
+  --accent: #3f7bff; /* earned / unlock — the only accent color on this page */
+  --accent-ink: #ffffff; /* text color placed on top of accent-filled surfaces */
   --danger: #de5a52;
   --warning: #d9a55b;
 
@@ -184,7 +184,7 @@ body {
 
 .waitlist-form__input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(228, 226, 220, 0.18);
+  box-shadow: 0 0 0 3px rgba(63, 123, 255, 0.18);
 }
 
 /* Honeypot: present in the DOM for bots, invisible and unreachable for people */
@@ -219,7 +219,7 @@ body {
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(228, 226, 220, 0.25);
+  box-shadow: 0 8px 24px rgba(63, 123, 255, 0.25);
 }
 
 .btn-primary:active {
@@ -244,7 +244,7 @@ body {
 }
 
 .btn-primary--ghost:hover {
-  box-shadow: 0 8px 24px rgba(228, 226, 220, 0.12);
+  box-shadow: 0 8px 24px rgba(63, 123, 255, 0.12);
 }
 
 .waitlist-form__status {

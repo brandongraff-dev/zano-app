@@ -111,7 +111,7 @@ public struct ZanoLivingMark: View {
         )
     }
 
-    /// Cold steel when barely charged, pearl when charged.
+    /// Deep navy when barely charged, ZANO Blue light when charged.
     private var glowColor: Color {
         charge < 0.35 ? Theme.Colors.lockedAmbient : Theme.Colors.accent
     }
@@ -126,36 +126,56 @@ public struct ZanoLivingMark: View {
     }
 }
 
-/// The living star plus its one-line caption ("Charged 80%" / "Charges while you're off your
-/// phone"), sized for Today's hero. This is the view the `ZANOReport` extension draws for the
-/// `.zanoMark` context, so its type must stay concrete.
+/// The living star with today's screen time under it, Opal-style: "2h 34m", "SCREEN TIME TODAY",
+/// then how charged the star is. Sized for Today's hero. This is the view the `ZANOReport`
+/// extension draws for the `.zanoMark` context, so its type must stay concrete.
 public struct ScreenTimeChargeView: View {
     private let charge: Double
-    private let hasData: Bool
+    private let total: TimeInterval?
     private let height: CGFloat
 
     public init(summary: ScreenTimeSummary, height: CGFloat = 120) {
         self.charge = summary.charge
-        self.hasData = true
+        self.total = summary.total
         self.height = height
     }
 
-    /// Before Screen Time access: an uncharged star and a hint instead of a percentage.
+    /// Before Screen Time access: an uncharged star and a hint instead of numbers.
     public init(height: CGFloat = 120) {
         self.charge = 0
-        self.hasData = false
+        self.total = nil
         self.height = height
     }
 
     public var body: some View {
-        VStack(spacing: height * 0.22) {
+        VStack(spacing: 0) {
             ZanoLivingMark(charge: charge, height: height)
-            Text(hasData ? Copy.screenTime.chargeLine(percent: Int((charge * 100).rounded())) : Copy.screenTime.chargeHint)
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(hasData && charge >= 0.35 ? Theme.Colors.textSecondary : Theme.Colors.muted)
-                .contentTransition(.numericText())
+                .padding(.bottom, height * 0.26)
+            if let total {
+                Text(Copy.screenTime.duration(total))
+                    .font(.system(size: 44, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.Colors.text)
+                    .contentTransition(.numericText())
+                Text(Copy.screenTime.totalLabel)
+                    .font(.system(size: 11, weight: .semibold))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .padding(.top, 2)
+                Text(Copy.screenTime.chargeLine(percent: Int((charge * 100).rounded())))
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(charge >= 0.35 ? Theme.Colors.accent : Theme.Colors.muted)
+                    .padding(.top, Theme.Spacing.xs)
+            } else {
+                Text(Copy.screenTime.chargeHint)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
         }
+        .multilineTextAlignment(.center)
         .padding(.top, height * 0.28)
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }

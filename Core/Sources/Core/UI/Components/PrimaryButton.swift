@@ -52,8 +52,8 @@ public struct PrimaryButton: View {
 
     /// The fill hue of `.standard` and the sweep/border hue of `.holdToCommit`.
     public enum Tint: Sendable, Equatable {
-        /// The default: a white capsule. Most actions (continue, start, go) are not rewards, so
-        /// they stay achromatic (decision 2026-09-24, spec §15: the accent is for earned states).
+        /// A white capsule, for quieter confirmations. Before 2026-09-24's blue accent this was the
+        /// default.
         case neutral
         /// The earned/unlock accent. Earned moments only: claiming an unlock, closing the
         /// celebration, a completed goal's confirmation.
@@ -95,7 +95,7 @@ public struct PrimaryButton: View {
     ///   - isEnabled: Disables interaction and shows the disabled treatment when `false`.
     ///     Defaults to `true`. Prefer not to use a disabled button for *status* ("Focus running…"):
     ///     that is information, not an unavailable action — show it as a status row instead.
-    ///   - tint: Fill hue for `.standard`, sweep hue for `.holdToCommit`. Defaults to `.neutral`.
+    ///   - tint: Fill hue for `.standard`, sweep hue for `.holdToCommit`. Defaults to `.accent` (ZANO Blue, white label).
     ///   - action: For `.standard`/`.secondary`, called on tap. For `.holdToCommit`, called once
     ///     the full hold duration completes.
     public init(
@@ -103,7 +103,7 @@ public struct PrimaryButton: View {
         systemImage: String? = nil,
         style: Style = .standard,
         isEnabled: Bool = true,
-        tint: Tint = .neutral,
+        tint: Tint = .accent,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -164,7 +164,7 @@ public struct PrimaryButton: View {
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
                     label
-                        .foregroundStyle(Theme.Colors.onFill)
+                        .foregroundStyle(tint == .accent ? Theme.Colors.onAccent : Theme.Colors.onFill)
                         .frame(width: proxy.size.width, height: proxy.size.height)
                         .mask(alignment: .leading) {
                             Rectangle()
@@ -378,7 +378,7 @@ private struct PrimaryButtonStyle: ButtonStyle {
     private var labelColor: Color {
         guard isEnabled else { return Theme.Colors.muted }
         switch kind {
-        case .filled: return Theme.Colors.onFill
+        case .filled: return tint == .accent ? Theme.Colors.onAccent : Theme.Colors.onFill
         case .secondary: return Theme.Colors.text
         }
     }

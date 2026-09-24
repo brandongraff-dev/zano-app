@@ -66,20 +66,20 @@ struct ZanoTabBar: View {
                         Circle()
                             .fill(
                                 RadialGradient(
-                                    colors: [Color.white.opacity(0.22), Color.white.opacity(0.06)],
+                                    colors: [Theme.Colors.accent.opacity(0.55), Theme.Colors.accent.opacity(0.12)],
                                     center: .center,
                                     startRadius: 2,
                                     endRadius: 22
                                 )
                             )
-                            .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
-                            .shadow(color: Color.white.opacity(0.18), radius: 10)
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5))
+                            .shadow(color: Theme.Colors.accent.opacity(0.45), radius: 12)
                             .frame(width: 40, height: 40)
                             .matchedGeometryEffect(id: "glow", in: glow)
                     }
                     Image(systemName: item.symbol)
                         .font(.system(size: 19, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
+                        .foregroundStyle(isSelected ? Color.white : Theme.Colors.muted)
                 }
                 .frame(width: 40, height: 34)
                 Text(item.title)

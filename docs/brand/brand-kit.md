@@ -56,11 +56,11 @@ what you've earned (spec §15, decision 2026-09-24).
 
 | Token | Hex | Role |
 |---|---|---|
-| Ink | `#0A0A0B` | Background, text on light fills. |
-| Surface | `#141416` | Cards. |
-| Surface 2 | `#1C1C1F` | Nested cards, pressed states, hero top light. |
+| Ink | `#050506` | Background, text on light fills. |
+| Surface | `#111113` | Cards. |
+| Surface 2 | `#19191C` | Nested cards, pressed states. |
 | Pearl | `#F2F1ED` | Primary text, the wordmark, primary buttons. |
-| Platinum (accent) | `#E4E2DC` | Earned: completed rings, the unlock, badges. Never chrome. |
+| ZANO Blue (accent) | `#3F7BFF` | Primary buttons (white label), selection, the lit tab, the workout ring, earned moments, the star's glow. |
 | Silver gradient | `#FAF9F6` → `#D6D4CF` → `#9E9C97` | The mark; earned hero moments. |
 | Muted | `#8E8E93` | Secondary text. |
 | Locked | `#DE5A52` | Locked status only. A muted red, not system red. |

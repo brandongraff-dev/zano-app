@@ -17,14 +17,14 @@
 import SwiftUI
 
 enum ZANOWidgetColor {
-    static let background = Color(red: 0x0A / 255.0, green: 0x0A / 255.0, blue: 0x0B / 255.0)
-    static let surface = Color(red: 0x14 / 255.0, green: 0x14 / 255.0, blue: 0x16 / 255.0)
-    static let surface2 = Color(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1F / 255.0)
+    static let background = Color(red: 0x05 / 255.0, green: 0x05 / 255.0, blue: 0x06 / 255.0)
+    static let surface = Color(red: 0x11 / 255.0, green: 0x11 / 255.0, blue: 0x13 / 255.0)
+    static let surface2 = Color(red: 0x19 / 255.0, green: 0x19 / 255.0, blue: 0x1C / 255.0)
     static let textPrimary = Color(red: 0xF2 / 255.0, green: 0xF1 / 255.0, blue: 0xED / 255.0)
     static let textMuted = Color(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0)
 
     /// The single accent color (spec §15: "ONE accent only") — earned/unlocked state.
-    static let accent = Color(red: 0xE4 / 255.0, green: 0xE2 / 255.0, blue: 0xDC / 255.0)
+    static let accent = Color(red: 0x3F / 255.0, green: 0x7B / 255.0, blue: 0xFF / 255.0)
     static let danger = Color(red: 0xDE / 255.0, green: 0x5A / 255.0, blue: 0x52 / 255.0)
     static let warning = Color(red: 0xD9 / 255.0, green: 0xA5 / 255.0, blue: 0x5B / 255.0)
 

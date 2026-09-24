@@ -37,17 +37,17 @@ public enum WatchTheme {
 
     public enum Colors {
         /// Mirrors `Theme.Colors.background` (`#0A0A0B`).
-        public static let background = Color(watchThemeHex: 0x0A_0A_0B)
+        public static let background = Color(watchThemeHex: 0x05_05_06)
         /// Mirrors `Theme.Colors.surface` (`#141416`).
-        public static let surface = Color(watchThemeHex: 0x14_14_16)
+        public static let surface = Color(watchThemeHex: 0x11_11_13)
         /// Mirrors `Theme.Colors.surface2` (`#1C1C1F`).
-        public static let surface2 = Color(watchThemeHex: 0x1C_1C_1F)
+        public static let surface2 = Color(watchThemeHex: 0x19_19_1C)
         /// Mirrors `Theme.Colors.text` (`#F5F5F7`).
         public static let text = Color(watchThemeHex: 0xF2_F1_ED)
         /// Mirrors `Theme.Colors.muted` (`#8E8E93`).
         public static let muted = Color(watchThemeHex: 0x8E_8E_93)
         /// Mirrors `Theme.Colors.accent` (`#B8FF3C`) — the one brand accent (earned/unlock).
-        public static let accent = Color(watchThemeHex: 0xE4_E2_DC)
+        public static let accent = Color(watchThemeHex: 0x3F_7B_FF)
         /// Mirrors `Theme.Colors.danger` (`#FF453A`).
         public static let danger = Color(watchThemeHex: 0xDE_5A_52)
         /// Mirrors `Theme.Colors.warning` (`#FFB020`).

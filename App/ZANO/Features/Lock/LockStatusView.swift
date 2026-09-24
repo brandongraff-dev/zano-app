@@ -246,7 +246,7 @@ struct LockStatusView: View {
 
     private var vaultSegments: [VaultSegment] {
         orderedRequiredGoals.map {
-            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0))
+            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0), progress: dayProgress(for: $0).fraction)
         }
     }
 

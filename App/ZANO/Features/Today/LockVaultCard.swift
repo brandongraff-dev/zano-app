@@ -8,11 +8,9 @@
 //   * the apps themselves, dimmed behind a lock (FamilyControls' own `Label(token)` icons, the same
 //     rendering Screen4AppSelection uses; the tokens never leave the device, this only draws them);
 //   * one huge condensed number that says what it buys ("2" / "goals to unlock");
-//   * a segmented bar with one segment per required goal that fills in *that goal's* color as it
-//     completes, so the card slowly takes on the color of the work you've done ("light is
-//     earned", premium-ui-plan.md §4);
-//   * a faint oversized lock glyph watermark for the vault feel. Decorative, hidden from
-//     VoiceOver.
+//   * concentric rings, one per goal, nested like Activity rings, each filling in *that goal's*
+//     color as the day goes, so the card slowly takes on the color of the work you've done
+//     ("light is earned", premium-ui-plan.md §4).
 //
 // Locked keeps spec §15's `danger` only as the small status dot and a faint wash; the earned state
 // (`.unlocking` / all done) is the one place the card glows accent.
@@ -22,11 +20,13 @@ import FamilyControls
 import ManagedSettings
 import Core
 
-/// One required goal's slot in the vault's segmented bar.
+/// One goal in the vault: a ring in the concentric stack (and a slot in the segmented bar).
 struct VaultSegment: Identifiable, Equatable {
     let id: UUID
     let color: Color
     let isDone: Bool
+    /// `0...1`, today's progress toward the goal.
+    var progress: Double = 0
 }
 
 struct LockVaultCard: View {
@@ -92,30 +92,29 @@ struct LockVaultCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             topRow
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: Theme.Spacing.md) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     heroLine
                     if let caption {
                         Text(caption)
                             .font(Theme.Typography.body)
                             .foregroundStyle(Theme.Colors.textSecondary)
                             .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let chip {
+                        chipView(chip)
                     }
                 }
-                LockedAppsStrip(blob: appTokensBlob, isLocked: status == .locked)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if !segments.isEmpty {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        VaultSegmentBar(segments: segments)
-                        if let chip {
-                            chipView(chip)
-                        }
-                    }
+                    ConcentricGoalRings(segments: segments, diameter: 132)
                 }
             }
+            LockedAppsStrip(blob: appTokensBlob, isLocked: status == .locked)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.lg)
-        .background(alignment: .topTrailing) { watermark }
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
         .zanoHero(
             tint: reduceTransparency ? nil : washTint,
@@ -162,13 +161,24 @@ struct LockVaultCard: View {
     @ViewBuilder
     private var heroLine: some View {
         if let numeralLine {
-            NumeralText(
-                numeralLine,
-                size: .hero,
-                color: status == .earned ? Theme.Colors.accent : Theme.Colors.text
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
+            // The number alone at poster size, its words on their own line beneath: beside the
+            // rings there's no room for "2 goals to unlock" on one line at 88pt.
+            VStack(alignment: .leading, spacing: 0) {
+                NumeralText(
+                    numeralLine,
+                    size: .hero,
+                    color: status == .earned ? Theme.Colors.accent : Theme.Colors.text,
+                    remainder: .hidden
+                )
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
+                Text(NumeralText.remainder(of: numeralLine))
+                    .font(.system(.title3, weight: .bold).width(.condensed))
+                    .foregroundStyle(Theme.Colors.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(numeralLine)
         } else if let message {
             Text(message)
                 .font(Theme.Typography.titleLarge)
@@ -186,22 +196,6 @@ struct LockVaultCard: View {
             .padding(.vertical, Theme.Spacing.xxs)
             .background(Theme.Colors.accentWash, in: Capsule())
             .fixedSize()
-    }
-
-    private var watermark: some View {
-        // An outline, not a filled glyph: at card scale a filled lock read as a grey placeholder
-        // block. The thin outline reads as an emblem pressed into the surface.
-        Image(systemName: status == .locked ? "lock" : "lock.open")
-            .font(.system(size: 170, weight: .ultraLight))
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.07), Color.white.opacity(0)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .offset(x: 34, y: -26)
-            .accessibilityHidden(true)
     }
 
     // MARK: - State styling
@@ -229,6 +223,68 @@ struct LockVaultCard: View {
         case .earned: Theme.Colors.accent
         case .setup, .unlocked: nil
         }
+    }
+}
+
+// MARK: - Concentric rings
+
+/// The vault's signature: one ring per goal, nested like Apple's Activity rings, each in its goal's
+/// color, sweeping from dim to full hue as the day's progress grows. A done ring is full and
+/// glows. Outermost ring = first goal. Capped at four rings (a fifth is too thin to read); the
+/// segmented bar is the fallback for more.
+struct ConcentricGoalRings: View {
+    let segments: [VaultSegment]
+    let diameter: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let maxRings = 4
+
+    init(segments: [VaultSegment], diameter: CGFloat) {
+        self.segments = segments
+        self.diameter = diameter
+    }
+
+    private var shown: [VaultSegment] { Array(segments.prefix(Self.maxRings)) }
+
+    private var lineWidth: CGFloat {
+        // Ring + gap per step must fit inside the radius.
+        let steps = CGFloat(max(shown.count, 1))
+        return min(16, (diameter / 2 - 14) / steps - 3)
+    }
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(shown.enumerated()), id: \.element.id) { index, segment in
+                ring(segment, inset: CGFloat(index) * (lineWidth + 3))
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
+    }
+
+    private func ring(_ segment: VaultSegment, inset: CGFloat) -> some View {
+        let progress = segment.isDone ? 1 : min(1, max(0, segment.progress))
+        return ZStack {
+            Circle()
+                .stroke(segment.color.opacity(0.16), lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(
+                    AngularGradient(
+                        colors: [segment.color.opacity(0.6), segment.color],
+                        center: .center,
+                        startAngle: .degrees(0),
+                        endAngle: .degrees(max(1, 360 * progress))
+                    ),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .shadow(color: segment.color.opacity(segment.isDone ? 0.55 : 0.3), radius: lineWidth * 0.6)
+                .opacity(progress > 0.001 ? 1 : 0)
+                .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: progress)
+        }
+        .padding(inset + lineWidth / 2)
     }
 }
 

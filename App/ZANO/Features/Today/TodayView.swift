@@ -286,7 +286,7 @@ struct TodayView: View {
 
     private func segments(for pool: [Goal]) -> [VaultSegment] {
         sortedByPriority(pool).map {
-            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0))
+            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0), progress: dayProgress(for: $0).fraction)
         }
     }
 

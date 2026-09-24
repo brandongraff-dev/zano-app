@@ -103,6 +103,30 @@ extension Copy {
             "After the trial: \(price) per \(period)."
         }
 
+        // MARK: Paywall v3 (2026-09-24, premium UI pass round 3)
+
+        /// Under the hero number: `"days a year, back"`.
+        public static let daysBackLabel = "days a year, back"
+        /// The line that says where the hero number comes from.
+        public static func daysBackDetail(hours: String) -> String {
+            "That's \(hours) a day you earn back by doing what you said you'd do."
+        }
+        public static let answersHeading = "Built from your answers"
+        public static func workoutsPerWeekLine(_ count: Int) -> String {
+            count == 1 ? "1 workout a week, verified" : "\(count) workouts a week, verified"
+        }
+        public static func lockSetLockedLine(name: String) -> String {
+            "\(name) stays locked until you earn it"
+        }
+        public static let appsLockedLine = "Your apps stay locked until you earn them"
+        public static func coachLine(voice: String) -> String { "\(voice) coach in your corner" }
+        public static let includedLine = "Every plan includes unlimited goals and lock sets, the adaptive plan, Earn Mode, and squads."
+        public static let perYearSuffix = "/year"
+        public static let perMonthSuffix = "/month"
+        public static func tileTrialLabel(days: Int) -> String { "\(days) days free" }
+        public static let billedMonthlyLabel = "Billed monthly"
+        public static let choosePlanHeading = "Choose your plan"
+
         public static let autoRenewNote = "Auto-renews until you cancel. Cancel anytime in your Apple ID settings."
         public static let termsLinkLabel = "Terms of use"
         public static let privacyLinkLabel = "Privacy policy"

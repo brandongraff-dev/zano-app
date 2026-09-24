@@ -174,6 +174,18 @@ public final class PaywallViewModel {
         }
     }
 
+    #if DEBUG
+    /// CI screenshots and previews only (compiled out of release builds): loads the built plan as
+    /// usual but takes `packages` instead of asking RevenueCat, which has no products in the
+    /// Simulator. Without this the only paywall CI could ever photograph was the error state.
+    public func loadDemoOfferings(_ packages: [SubscriptionPackage]) {
+        loadBuiltPlanAndLocalProStatus()
+        self.packages = packages
+        selectedPackageID = defaultSelection(in: packages)
+        loadState = .loaded
+    }
+    #endif
+
     private func defaultSelection(in packages: [SubscriptionPackage]) -> String? {
         (packages.first { $0.period == .annual } ?? packages.first)?.id
     }

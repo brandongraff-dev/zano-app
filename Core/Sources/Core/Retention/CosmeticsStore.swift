@@ -382,9 +382,9 @@ public final class CosmeticsStore {
             return .noSignedInUser
         }
 
-        guard user.planTier == .pro else {
-            return .proRequired
-        }
+        // No plan check: behind the hard paywall (spec §21) every user who reaches the shop is
+        // subscribed, and a stale local plan mirror must never block a paying user's purchase.
+        // `.proRequired` stays in the enum for source compatibility.
 
         let coin = fetchOrCreateCoin(userID: user.id)
         guard coin.balance >= catalogItem.priceCoins else {

@@ -124,3 +124,8 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
   still owns state. Selection glides (matched geometry spring) with a selection haptic; Reduce
   Motion/Transparency respected. Fuel's icon is now the reference's fuel pump.
 - UI tests query `otherElements["zano.tabBar"]` instead of the system `tabBars`.
+- **Blocked (2026-09-24 13:30 UTC):** CI runs 31 and 32 (wordmark v3, tab bar) failed in ~5 s with
+  no runner assigned and no log: the macOS job never started. Almost certainly the account's GitHub
+  Actions minutes / spending limit for this private repo (macOS minutes bill at 10×; ~30 runs today).
+  The wordmark v3 and tab bar commits are syntax-checked only, not compiled. Re-run CI once minutes
+  are available (Settings → Billing → Actions).

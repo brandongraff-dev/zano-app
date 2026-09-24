@@ -1,22 +1,57 @@
 // ZanoLogo.swift
 // Core / UI / Components
 //
-// The ZANO logo, drawn natively (docs/brand/brand-kit.md). The wordmark is custom compressed letters
-// on a 282 × 100 unit grid — the same coordinates as `docs/brand/zano-wordmark.svg`, so the app, the
+// The ZANO logo, drawn natively (docs/brand/brand-kit.md): the founder's swoosh-star mark and the
+// thin geometric wordmark (Λ-shaped A, rounded-rectangle O), traced to vectors from the master
+// artwork. `docs/brand/zano-mark.svg` and `zano-wordmark.svg` are the same paths, so the app, the
 // app icon, the landing page and the engraved Lock Card are one drawing, not a font approximation.
-// The O is the "earned ring": a stadium ring in the one brand accent (spec §15), which also stands
-// alone as the brand symbol (`ZanoMark`) where the full wordmark doesn't fit.
 //
-// Grid (units): Z 0–62, A 72–136, N 146–208, O 218–282; cap height 100; stroke weight 20.
+// Both paths are in a unit space 100 high (mark 155.75 wide, wordmark 879.78 wide), scaled to fit.
 
 import SwiftUI
 
-/// The full ZANO wordmark. `height` is the cap height in points; width follows (2.82 × height).
+/// The full ZANO wordmark. `height` is the cap height in points; width follows (8.8 × height).
 public struct ZanoWordmark: View {
     public enum Style: Sendable {
-        /// White letters, accent O. The default, on dark surfaces.
+        /// Pearl white, on dark surfaces. The default.
         case brand
         /// One color throughout (engraving, a tinted share card, low-emphasis footers).
+        case mono(Color)
+    }
+
+    private let height: CGFloat
+    private let style: Style
+
+    public init(height: CGFloat = 14, style: Style = .brand) {
+        self.height = height
+        self.style = style
+    }
+
+    public static let aspectRatio: CGFloat = ZanoWordmarkShape.unitWidth / 100
+
+    private var color: Color {
+        switch style {
+        case .brand: Theme.Colors.text
+        case .mono(let color): color
+        }
+    }
+
+    public var body: some View {
+        ZanoWordmarkShape()
+            .fill(color, style: FillStyle(eoFill: true))
+            .frame(width: height * Self.aspectRatio, height: height)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.brand.name)
+    }
+}
+
+/// The brand symbol: the swoosh-star on its own. For the app icon, the launch screen and places
+/// where the wordmark would be too small to read.
+public struct ZanoMark: View {
+    public enum Style: Sendable {
+        /// Brushed silver: pearl at the top-left fading to silver, like the master artwork.
+        case brand
+        /// One flat color.
         case mono(Color)
     }
 
@@ -28,112 +63,453 @@ public struct ZanoWordmark: View {
         self.style = style
     }
 
-    public static let aspectRatio: CGFloat = 2.82
-
-    private var letterColor: Color {
-        switch style {
-        case .brand: Theme.Colors.text
-        case .mono(let color): color
-        }
-    }
-
-    private var ringColor: Color {
-        switch style {
-        case .brand: Theme.Colors.accent
-        case .mono(let color): color
-        }
-    }
+    public static let aspectRatio: CGFloat = ZanoMarkShape.unitWidth / 100
 
     public var body: some View {
-        let scale = height / 100
-        ZStack {
-            ZanoLettersShape()
-                .fill(letterColor, style: FillStyle(eoFill: true))
-            ZanoRingShape(originX: 218)
-                .stroke(ringColor, lineWidth: 20 * scale)
+        Group {
+            switch style {
+            case .brand:
+                ZanoMarkShape().fill(Theme.Colors.metallic, style: FillStyle(eoFill: true))
+            case .mono(let color):
+                ZanoMarkShape().fill(color, style: FillStyle(eoFill: true))
+            }
         }
-        .frame(width: 282 * scale, height: height)
+        .frame(width: height * Self.aspectRatio, height: height)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.brand.name)
     }
 }
 
-/// The brand symbol: the wordmark's O on its own, the earned ring. For places too small for the
-/// wordmark (a notification preview's app icon, a 16pt footer glyph).
-public struct ZanoMark: View {
-    private let height: CGFloat
-    private let color: Color
+/// The wordmark outline (Z, A, N, and the O's outer and inner edges). Fill with `eoFill`.
+public struct ZanoWordmarkShape: Shape {
+    static let unitWidth: CGFloat = 879.78
 
-    public init(height: CGFloat = 24, color: Color = Theme.Colors.accent) {
-        self.height = height
-        self.color = color
-    }
+    public init() {}
 
-    public var body: some View {
-        let scale = height / 100
-        ZanoRingShape(originX: 0)
-            .stroke(color, lineWidth: 20 * scale)
-            .frame(width: 64 * scale, height: height)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Copy.brand.name)
+    public func path(in rect: CGRect) -> Path {
+        let s = min(rect.width / Self.unitWidth, rect.height / 100)
+        let ox = rect.minX + (rect.width - Self.unitWidth * s) / 2
+        let oy = rect.minY + (rect.height - 100 * s) / 2
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
+        var p = Path()
+        p.move(to: pt(164.21, 99.59))
+        p.addCurve(to: pt(164.83, 90.95), control1: pt(164.79, 99.28), control2: pt(164.83, 98.77))
+        p.addCurve(to: pt(164.19, 82.30), control1: pt(164.83, 83.04), control2: pt(164.80, 82.62))
+        p.addCurve(to: pt(106.31, 81.97), control1: pt(163.75, 82.06), control2: pt(145.62, 81.96))
+        p.addCurve(to: pt(48.91, 81.82), control1: pt(74.83, 81.98), control2: pt(49.00, 81.92))
+        p.addCurve(to: pt(52.72, 78.80), control1: pt(48.55, 81.47), control2: pt(49.67, 80.58))
+        p.addCurve(to: pt(59.94, 74.52), control1: pt(54.44, 77.79), control2: pt(57.69, 75.86))
+        p.addCurve(to: pt(65.49, 71.25), control1: pt(62.19, 73.17), control2: pt(64.69, 71.70))
+        p.addCurve(to: pt(69.91, 68.57), control1: pt(66.30, 70.80), control2: pt(68.29, 69.59))
+        p.addCurve(to: pt(79.87, 62.53), control1: pt(71.52, 67.55), control2: pt(76.01, 64.83))
+        p.addCurve(to: pt(90.82, 55.90), control1: pt(83.74, 60.23), control2: pt(88.66, 57.25))
+        p.addCurve(to: pt(107.44, 45.88), control1: pt(96.86, 52.11), control2: pt(104.95, 47.24))
+        p.addCurve(to: pt(113.49, 42.23), control1: pt(108.68, 45.21), control2: pt(111.40, 43.56))
+        p.addCurve(to: pt(128.07, 33.46), control1: pt(117.22, 39.84), control2: pt(121.63, 37.19))
+        p.addCurve(to: pt(132.48, 30.84), control1: pt(129.86, 32.42), control2: pt(131.85, 31.24))
+        p.addCurve(to: pt(139.50, 26.57), control1: pt(136.45, 28.32), control2: pt(138.06, 27.34))
+        p.addCurve(to: pt(143.43, 24.29), control1: pt(140.40, 26.09), control2: pt(142.17, 25.07))
+        p.addCurve(to: pt(148.82, 21.03), control1: pt(144.68, 23.51), control2: pt(147.11, 22.05))
+        p.addCurve(to: pt(154.21, 17.76), control1: pt(150.52, 20.01), control2: pt(152.95, 18.54))
+        p.addCurve(to: pt(158.46, 15.20), control1: pt(155.47, 16.98), control2: pt(157.38, 15.82))
+        p.addCurve(to: pt(163.81, 9.97), control1: pt(160.96, 13.74), control2: pt(162.54, 12.21))
+        p.addCurve(to: pt(164.83, 4.87), control1: pt(164.77, 8.31), control2: pt(164.83, 8.00))
+        p.addCurve(to: pt(164.49, 0.91), control1: pt(164.83, 3.04), control2: pt(164.68, 1.26))
+        p.addCurve(to: pt(86.30, 0.28), control1: pt(164.16, 0.29), control2: pt(162.93, 0.28))
+        p.addCurve(to: pt(8.05, 0.67), control1: pt(26.18, 0.28), control2: pt(8.35, 0.37))
+        p.addCurve(to: pt(8.10, 18.21), control1: pt(7.45, 1.27), control2: pt(7.50, 17.71))
+        p.addCurve(to: pt(60.96, 18.57), control1: pt(8.43, 18.48), control2: pt(22.43, 18.58))
+        p.addCurve(to: pt(113.94, 18.57), control1: pt(89.78, 18.57), control2: pt(113.62, 18.57))
+        p.addCurve(to: pt(113.04, 20.43), control1: pt(114.97, 18.58), control2: pt(114.53, 19.49))
+        p.addCurve(to: pt(110.02, 22.34), control1: pt(112.23, 20.94), control2: pt(110.87, 21.80))
+        p.addCurve(to: pt(105.68, 24.93), control1: pt(109.16, 22.88), control2: pt(107.21, 24.04))
+        p.addCurve(to: pt(92.00, 33.19), control1: pt(100.63, 27.85), control2: pt(94.78, 31.38))
+        p.addCurve(to: pt(87.75, 35.80), control1: pt(90.49, 34.17), control2: pt(88.58, 35.35))
+        p.addCurve(to: pt(74.15, 43.96), control1: pt(85.80, 36.88), control2: pt(79.93, 40.40))
+        p.addCurve(to: pt(66.15, 48.81), control1: pt(71.64, 45.51), control2: pt(68.03, 47.69))
+        p.addCurve(to: pt(36.41, 66.90), control1: pt(60.08, 52.38), control2: pt(38.47, 65.53))
+        p.addCurve(to: pt(34.71, 67.89), control1: pt(35.96, 67.20), control2: pt(35.20, 67.65))
+        p.addCurve(to: pt(29.80, 70.88), control1: pt(34.22, 68.14), control2: pt(32.01, 69.49))
+        p.addCurve(to: pt(17.13, 78.70), control1: pt(27.60, 72.28), control2: pt(21.90, 75.80))
+        p.addCurve(to: pt(5.39, 85.86), control1: pt(12.37, 81.60), control2: pt(7.08, 84.82))
+        p.addCurve(to: pt(1.22, 89.05), control1: pt(3.69, 86.90), control2: pt(1.81, 88.33))
+        p.addLine(to: pt(0.15, 90.35))
+        p.addLine(to: pt(0.07, 94.60))
+        p.addCurve(to: pt(0.43, 99.39), control1: pt(0.00, 97.83), control2: pt(0.09, 98.98))
+        p.addCurve(to: pt(82.24, 99.93), control1: pt(0.85, 99.91), control2: pt(6.43, 99.94))
+        p.addCurve(to: pt(164.21, 99.59), control1: pt(136.49, 99.92), control2: pt(163.80, 99.81))
+        p.closeSubpath()
+        p.move(to: pt(250.45, 99.67))
+        p.addCurve(to: pt(256.33, 93.53), control1: pt(250.91, 99.49), control2: pt(253.56, 96.73))
+        p.addCurve(to: pt(265.30, 83.32), control1: pt(259.11, 90.32), control2: pt(263.15, 85.73))
+        p.addCurve(to: pt(272.82, 74.75), control1: pt(267.46, 80.91), control2: pt(270.84, 77.05))
+        p.addCurve(to: pt(286.05, 59.62), control1: pt(279.58, 66.88), control2: pt(284.25, 61.54))
+        p.addCurve(to: pt(288.19, 57.33), control1: pt(287.04, 58.56), control2: pt(288.00, 57.53))
+        p.addCurve(to: pt(291.59, 53.42), control1: pt(288.38, 57.13), control2: pt(289.91, 55.37))
+        p.addCurve(to: pt(297.63, 46.70), control1: pt(293.28, 51.47), control2: pt(296.00, 48.44))
+        p.addCurve(to: pt(307.29, 35.90), control1: pt(299.26, 44.96), control2: pt(303.61, 40.10))
+        p.addCurve(to: pt(316.17, 25.89), control1: pt(310.98, 31.70), control2: pt(314.97, 27.20))
+        p.addCurve(to: pt(319.91, 21.69), control1: pt(317.36, 24.57), control2: pt(319.05, 22.69))
+        p.addCurve(to: pt(323.02, 20.62), control1: pt(321.59, 19.74), control2: pt(322.40, 19.46))
+        p.addCurve(to: pt(327.20, 25.44), control1: pt(323.23, 21.02), control2: pt(325.12, 23.19))
+        p.addCurve(to: pt(333.83, 32.83), control1: pt(329.29, 27.68), control2: pt(332.27, 31.01))
+        p.addCurve(to: pt(339.70, 39.36), control1: pt(335.39, 34.65), control2: pt(338.03, 37.59))
+        p.addCurve(to: pt(344.71, 44.88), control1: pt(341.38, 41.14), control2: pt(343.63, 43.62))
+        p.addCurve(to: pt(349.28, 50.12), control1: pt(345.78, 46.13), control2: pt(347.84, 48.49))
+        p.addCurve(to: pt(354.15, 55.68), control1: pt(350.72, 51.75), control2: pt(352.91, 54.25))
+        p.addCurve(to: pt(358.92, 61.05), control1: pt(355.38, 57.11), control2: pt(357.53, 59.52))
+        p.addCurve(to: pt(362.55, 65.14), control1: pt(360.30, 62.58), control2: pt(361.94, 64.42))
+        p.addCurve(to: pt(368.73, 72.16), control1: pt(363.16, 65.86), control2: pt(365.94, 69.02))
+        p.addCurve(to: pt(375.55, 80.00), control1: pt(371.52, 75.31), control2: pt(374.59, 78.84))
+        p.addCurve(to: pt(382.62, 88.17), control1: pt(376.52, 81.17), control2: pt(379.70, 84.85))
+        p.addCurve(to: pt(390.03, 96.67), control1: pt(385.54, 91.50), control2: pt(388.88, 95.32))
+        p.addCurve(to: pt(392.93, 99.52), control1: pt(391.19, 98.02), control2: pt(392.49, 99.30))
+        p.addCurve(to: pt(406.79, 99.76), control1: pt(393.53, 99.83), control2: pt(396.78, 99.89))
+        p.addCurve(to: pt(420.27, 99.60), control1: pt(413.98, 99.67), control2: pt(420.04, 99.60))
+        p.addCurve(to: pt(419.78, 97.72), control1: pt(420.97, 99.62), control2: pt(420.72, 98.64))
+        p.addCurve(to: pt(415.45, 93.02), control1: pt(419.28, 97.24), control2: pt(417.34, 95.13))
+        p.addCurve(to: pt(406.30, 82.88), control1: pt(413.56, 90.92), control2: pt(409.44, 86.36))
+        p.addCurve(to: pt(398.31, 73.95), control1: pt(403.15, 79.41), control2: pt(399.56, 75.39))
+        p.addCurve(to: pt(393.06, 68.24), control1: pt(397.05, 72.52), control2: pt(394.69, 69.95))
+        p.addCurve(to: pt(388.32, 63.01), control1: pt(391.43, 66.53), control2: pt(389.29, 64.18))
+        p.addCurve(to: pt(382.94, 56.97), control1: pt(387.35, 61.84), control2: pt(384.93, 59.12))
+        p.addCurve(to: pt(367.42, 39.82), control1: pt(378.38, 52.02), control2: pt(371.45, 44.36))
+        p.addCurve(to: pt(358.27, 29.68), control1: pt(365.71, 37.90), control2: pt(361.59, 33.34))
+        p.addCurve(to: pt(345.08, 15.01), control1: pt(354.94, 26.03), control2: pt(349.01, 19.42))
+        p.addCurve(to: pt(333.01, 1.66), control1: pt(338.47, 7.58), control2: pt(336.48, 5.37))
+        p.addLine(to: pt(331.72, 0.28))
+        p.addLine(to: pt(321.60, 0.28))
+        p.addLine(to: pt(311.49, 0.28))
+        p.addLine(to: pt(308.20, 3.63))
+        p.addCurve(to: pt(302.60, 9.75), control1: pt(306.39, 5.47), control2: pt(303.87, 8.22))
+        p.addCurve(to: pt(297.63, 15.35), control1: pt(299.92, 12.97), control2: pt(300.20, 12.66))
+        p.addCurve(to: pt(292.76, 20.86), control1: pt(296.54, 16.49), control2: pt(294.35, 18.97))
+        p.addCurve(to: pt(287.02, 27.40), control1: pt(291.17, 22.75), control2: pt(288.59, 25.69))
+        p.addCurve(to: pt(282.42, 32.62), control1: pt(285.45, 29.10), control2: pt(283.38, 31.46))
+        p.addCurve(to: pt(268.04, 48.84), control1: pt(279.66, 35.98), control2: pt(271.49, 45.20))
+        p.addCurve(to: pt(261.77, 55.87), control1: pt(266.31, 50.66), control2: pt(263.49, 53.83))
+        p.addCurve(to: pt(247.01, 72.58), control1: pt(258.78, 59.43), control2: pt(255.52, 63.11))
+        p.addCurve(to: pt(239.86, 80.68), control1: pt(244.85, 74.97), control2: pt(241.63, 78.62))
+        p.addCurve(to: pt(232.97, 88.34), control1: pt(238.09, 82.73), control2: pt(234.99, 86.18))
+        p.addCurve(to: pt(227.33, 94.54), control1: pt(230.96, 90.49), control2: pt(228.42, 93.29))
+        p.addCurve(to: pt(224.50, 97.62), control1: pt(226.25, 95.80), control2: pt(224.98, 97.19))
+        p.addCurve(to: pt(224.04, 99.69), control1: pt(223.60, 98.46), control2: pt(223.37, 99.46))
+        p.addCurve(to: pt(250.45, 99.67), control1: pt(224.93, 99.98), control2: pt(249.67, 99.97))
+        p.closeSubpath()
+        p.move(to: pt(505.74, 99.30))
+        p.addCurve(to: pt(506.23, 61.94), control1: pt(506.03, 99.02), control2: pt(506.15, 89.52))
+        p.addCurve(to: pt(506.69, 24.74), control1: pt(506.30, 35.48), control2: pt(506.43, 24.89))
+        p.addCurve(to: pt(510.12, 26.13), control1: pt(507.17, 24.44), control2: pt(508.05, 24.80))
+        p.addCurve(to: pt(513.99, 28.54), control1: pt(511.05, 26.74), control2: pt(512.80, 27.82))
+        p.addCurve(to: pt(524.26, 35.09), control1: pt(515.86, 29.66), control2: pt(520.23, 32.45))
+        p.addCurve(to: pt(529.71, 38.44), control1: pt(524.89, 35.50), control2: pt(527.34, 37.01))
+        p.addCurve(to: pt(535.59, 42.12), control1: pt(532.08, 39.87), control2: pt(534.72, 41.53))
+        p.addCurve(to: pt(543.05, 46.72), control1: pt(536.46, 42.72), control2: pt(539.81, 44.79))
+        p.addCurve(to: pt(566.72, 61.44), control1: pt(549.28, 50.45), control2: pt(555.25, 54.16))
+        p.addCurve(to: pt(579.48, 69.47), control1: pt(570.59, 63.90), control2: pt(576.34, 67.51))
+        p.addCurve(to: pt(589.28, 75.59), control1: pt(582.63, 71.42), control2: pt(587.04, 74.18))
+        p.addCurve(to: pt(595.33, 79.36), control1: pt(591.53, 77.00), control2: pt(594.25, 78.70))
+        p.addCurve(to: pt(609.21, 88.02), control1: pt(598.35, 81.22), control2: pt(607.93, 87.20))
+        p.addCurve(to: pt(615.11, 91.54), control1: pt(610.81, 89.05), control2: pt(614.54, 91.28))
+        p.addCurve(to: pt(618.85, 93.88), control1: pt(615.37, 91.66), control2: pt(617.06, 92.71))
+        p.addCurve(to: pt(625.21, 97.89), control1: pt(620.65, 95.04), control2: pt(623.51, 96.85))
+        p.addLine(to: pt(628.29, 99.77))
+        p.addLine(to: pt(637.69, 99.77))
+        p.addCurve(to: pt(647.42, 99.44), control1: pt(643.64, 99.77), control2: pt(647.21, 99.65))
+        p.addCurve(to: pt(647.43, 0.75), control1: pt(647.93, 98.92), control2: pt(647.94, 1.37))
+        p.addCurve(to: pt(628.03, 0.79), control1: pt(646.82, 0.01), control2: pt(628.76, 0.05))
+        p.addCurve(to: pt(627.51, 38.21), control1: pt(627.57, 1.25), control2: pt(627.51, 5.09))
+        p.addCurve(to: pt(627.00, 75.32), control1: pt(627.51, 71.39), control2: pt(627.46, 75.14))
+        p.addCurve(to: pt(623.10, 73.47), control1: pt(626.42, 75.54), control2: pt(625.86, 75.28))
+        p.addCurve(to: pt(617.22, 69.82), control1: pt(622.02, 72.77), control2: pt(619.38, 71.12))
+        p.addCurve(to: pt(602.35, 60.60), control1: pt(615.06, 68.52), control2: pt(608.37, 64.37))
+        p.addCurve(to: pt(583.89, 49.14), control1: pt(589.08, 52.29), control2: pt(586.83, 50.90))
+        p.addCurve(to: pt(575.56, 43.89), control1: pt(581.40, 47.66), control2: pt(580.25, 46.93))
+        p.addCurve(to: pt(563.47, 36.38), control1: pt(572.15, 41.68), control2: pt(570.50, 40.66))
+        p.addCurve(to: pt(555.14, 31.15), control1: pt(560.86, 34.79), control2: pt(557.11, 32.44))
+        p.addCurve(to: pt(546.31, 25.62), control1: pt(553.16, 29.87), control2: pt(549.19, 27.37))
+        p.addCurve(to: pt(534.19, 18.01), control1: pt(539.18, 21.25), control2: pt(537.76, 20.36))
+        p.addCurve(to: pt(530.30, 15.56), control1: pt(532.49, 16.90), control2: pt(530.74, 15.79))
+        p.addCurve(to: pt(527.18, 13.67), control1: pt(529.87, 15.33), control2: pt(528.46, 14.48))
+        p.addCurve(to: pt(524.30, 11.88), control1: pt(525.89, 12.86), control2: pt(524.60, 12.06))
+        p.addCurve(to: pt(521.97, 10.37), control1: pt(524.01, 11.70), control2: pt(522.96, 11.02))
+        p.addCurve(to: pt(518.05, 7.92), control1: pt(520.98, 9.72), control2: pt(519.22, 8.62))
+        p.addCurve(to: pt(515.40, 6.32), control1: pt(516.88, 7.22), control2: pt(515.69, 6.50))
+        p.addCurve(to: pt(513.76, 5.37), control1: pt(515.11, 6.14), control2: pt(514.37, 5.71))
+        p.addCurve(to: pt(510.34, 3.22), control1: pt(513.16, 5.03), control2: pt(511.62, 4.06))
+        p.addCurve(to: pt(495.99, 0.35), control1: pt(505.48, 0.00), control2: pt(506.71, 0.25))
+        p.addLine(to: pt(486.52, 0.44))
+        p.addLine(to: pt(486.44, 49.87))
+        p.addLine(to: pt(486.35, 99.30))
+        p.addLine(to: pt(487.08, 99.57))
+        p.addCurve(to: pt(505.74, 99.30), control1: pt(488.24, 100.00), control2: pt(505.29, 99.76))
+        p.closeSubpath()
+        p.move(to: pt(844.88, 99.44))
+        p.addCurve(to: pt(854.12, 97.11), control1: pt(848.49, 98.94), control2: pt(849.50, 98.69))
+        p.addCurve(to: pt(862.31, 92.82), control1: pt(857.19, 96.07), control2: pt(858.85, 95.20))
+        p.addCurve(to: pt(872.96, 81.49), control1: pt(867.04, 89.57), control2: pt(869.88, 86.56))
+        p.addCurve(to: pt(877.15, 72.71), control1: pt(874.84, 78.40), control2: pt(877.15, 73.56))
+        p.addCurve(to: pt(877.77, 70.48), control1: pt(877.15, 72.44), control2: pt(877.43, 71.44))
+        p.addCurve(to: pt(879.08, 64.97), control1: pt(878.11, 69.52), control2: pt(878.70, 67.04))
+        p.addCurve(to: pt(879.77, 49.44), control1: pt(879.71, 61.59), control2: pt(879.78, 60.05))
+        p.addCurve(to: pt(879.31, 35.88), control1: pt(879.77, 40.44), control2: pt(879.66, 37.24))
+        p.addCurve(to: pt(878.63, 32.62), control1: pt(879.06, 34.90), control2: pt(878.76, 33.43))
+        p.addCurve(to: pt(876.52, 25.53), control1: pt(878.38, 31.00), control2: pt(877.03, 26.44))
+        p.addCurve(to: pt(875.17, 22.82), control1: pt(876.35, 25.21), control2: pt(875.74, 23.99))
+        p.addCurve(to: pt(869.34, 13.73), control1: pt(873.41, 19.20), control2: pt(871.83, 16.73))
+        p.addCurve(to: pt(858.53, 5.38), control1: pt(866.88, 10.78), control2: pt(861.06, 6.28))
+        p.addCurve(to: pt(857.22, 4.67), control1: pt(858.08, 5.22), control2: pt(857.49, 4.90))
+        p.addCurve(to: pt(855.75, 4.01), control1: pt(856.95, 4.44), control2: pt(856.29, 4.14))
+        p.addCurve(to: pt(853.95, 3.34), control1: pt(855.21, 3.89), control2: pt(854.40, 3.58))
+        p.addCurve(to: pt(845.62, 0.90), control1: pt(852.53, 2.58), control2: pt(849.00, 1.54))
+        p.addCurve(to: pt(797.41, 0.28), control1: pt(842.51, 0.31), control2: pt(840.25, 0.28))
+        p.addCurve(to: pt(748.88, 0.92), control1: pt(754.00, 0.28), control2: pt(752.34, 0.30))
+        p.addCurve(to: pt(739.75, 3.35), control1: pt(745.35, 1.56), control2: pt(741.66, 2.55))
+        p.addCurve(to: pt(730.71, 8.11), control1: pt(737.03, 4.50), control2: pt(732.91, 6.67))
+        p.addCurve(to: pt(717.06, 25.93), control1: pt(725.58, 11.48), control2: pt(719.59, 19.29))
+        p.addCurve(to: pt(714.71, 33.28), control1: pt(715.67, 29.56), control2: pt(715.48, 30.16))
+        p.addCurve(to: pt(713.94, 49.62), control1: pt(713.97, 36.28), control2: pt(713.94, 36.83))
+        p.addCurve(to: pt(714.72, 66.61), control1: pt(713.94, 62.28), control2: pt(713.97, 63.01))
+        p.addCurve(to: pt(715.90, 71.18), control1: pt(715.14, 68.67), control2: pt(715.67, 70.73))
+        p.addCurve(to: pt(716.50, 73.04), control1: pt(716.12, 71.63), control2: pt(716.39, 72.47))
+        p.addCurve(to: pt(720.87, 81.90), control1: pt(716.80, 74.64), control2: pt(719.18, 79.46))
+        p.addCurve(to: pt(738.32, 96.79), control1: pt(726.37, 89.85), control2: pt(731.18, 93.95))
+        p.addCurve(to: pt(747.11, 99.30), control1: pt(742.14, 98.30), control2: pt(743.65, 98.73))
+        p.addCurve(to: pt(795.86, 99.90), control1: pt(750.23, 99.81), control2: pt(754.60, 99.87))
+        p.addCurve(to: pt(844.88, 99.44), control1: pt(834.92, 99.93), control2: pt(841.70, 99.87))
+        p.closeSubpath()
+        p.move(to: pt(750.64, 81.17))
+        p.addCurve(to: pt(735.76, 67.75), control1: pt(743.66, 79.30), control2: pt(738.09, 74.28))
+        p.addCurve(to: pt(733.71, 49.65), control1: pt(734.07, 63.00), control2: pt(733.71, 59.81))
+        p.addCurve(to: pt(734.41, 37.29), control1: pt(733.71, 41.08), control2: pt(733.78, 39.89))
+        p.addCurve(to: pt(739.88, 26.35), control1: pt(735.62, 32.30), control2: pt(737.11, 29.32))
+        p.addCurve(to: pt(752.33, 19.32), control1: pt(743.11, 22.90), control2: pt(747.36, 20.49))
+        p.addCurve(to: pt(796.53, 18.65), control1: pt(754.60, 18.79), control2: pt(757.91, 18.74))
+        p.addLine(to: pt(838.27, 18.57))
+        p.addLine(to: pt(841.60, 19.39))
+        p.addCurve(to: pt(852.67, 25.43), control1: pt(846.63, 20.64), control2: pt(849.33, 22.11))
+        p.addCurve(to: pt(860.08, 48.31), control1: pt(858.28, 31.00), control2: pt(859.85, 35.84))
+        p.addCurve(to: pt(859.89, 57.95), control1: pt(860.15, 52.35), control2: pt(860.06, 56.69))
+        p.addCurve(to: pt(858.07, 66.77), control1: pt(859.24, 62.55), control2: pt(858.57, 65.81))
+        p.addCurve(to: pt(857.53, 68.24), control1: pt(857.78, 67.31), control2: pt(857.54, 67.97))
+        p.addCurve(to: pt(856.63, 70.22), control1: pt(857.52, 68.51), control2: pt(857.11, 69.40))
+        p.addCurve(to: pt(843.17, 81.19), control1: pt(853.21, 76.04), control2: pt(849.52, 79.05))
+        p.addCurve(to: pt(797.43, 81.87), control1: pt(841.46, 81.77), control2: pt(839.29, 81.80))
+        p.addLine(to: pt(753.48, 81.93))
+        p.addLine(to: pt(750.64, 81.17))
+        p.closeSubpath()
+        return p
     }
 }
 
-// MARK: - Shapes (unit grid → rect)
+/// The swoosh-star outline (outer edge and the counter). Fill with `eoFill`.
+public struct ZanoMarkShape: Shape {
+    static let unitWidth: CGFloat = 155.75
 
-/// Z, A (with its counter) and N as filled polygons. Fill with `eoFill` so the A's counter cuts out.
-struct ZanoLettersShape: Shape {
-    private static let z: [(CGFloat, CGFloat)] = [
-        (0, 0), (62, 0), (62, 20), (24, 80), (62, 80), (62, 100), (0, 100), (0, 80), (38, 20), (0, 20)
-    ]
-    private static let aOuter: [(CGFloat, CGFloat)] = [
-        (72, 100), (92, 0), (116, 0), (136, 100), (114, 100), (110.6, 82), (97.4, 82), (94, 100)
-    ]
-    private static let aCounter: [(CGFloat, CGFloat)] = [(100.2, 64), (107.8, 64), (104, 38)]
-    private static let n: [(CGFloat, CGFloat)] = [
-        (146, 100), (146, 0), (166, 0), (188, 56), (188, 0), (208, 0), (208, 100), (188, 100), (166, 44), (166, 100)
-    ]
+    public init() {}
 
-    func path(in rect: CGRect) -> Path {
-        let scale = rect.height / 100
-        var path = Path()
-        for polygon in [Self.z, Self.aOuter, Self.aCounter, Self.n] {
-            guard let first = polygon.first else { continue }
-            path.move(to: CGPoint(x: rect.minX + first.0 * scale, y: rect.minY + first.1 * scale))
-            for point in polygon.dropFirst() {
-                path.addLine(to: CGPoint(x: rect.minX + point.0 * scale, y: rect.minY + point.1 * scale))
-            }
-            path.closeSubpath()
-        }
-        return path
+    public func path(in rect: CGRect) -> Path {
+        let s = min(rect.width / Self.unitWidth, rect.height / 100)
+        let ox = rect.minX + (rect.width - Self.unitWidth * s) / 2
+        let oy = rect.minY + (rect.height - 100 * s) / 2
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
+        var p = Path()
+        p.move(to: pt(66.46, 99.61))
+        p.addCurve(to: pt(67.18, 98.57), control1: pt(66.63, 99.39), control2: pt(66.96, 98.92))
+        p.addCurve(to: pt(70.54, 93.85), control1: pt(67.70, 97.75), control2: pt(69.30, 95.50))
+        p.addCurve(to: pt(77.25, 85.66), control1: pt(71.53, 92.52), control2: pt(75.23, 88.00))
+        p.addCurve(to: pt(86.02, 76.53), control1: pt(79.84, 82.65), control2: pt(83.38, 78.96))
+        p.addCurve(to: pt(87.54, 75.14), control1: pt(86.47, 76.12), control2: pt(87.15, 75.49))
+        p.addCurve(to: pt(88.53, 74.26), control1: pt(87.92, 74.79), control2: pt(88.37, 74.39))
+        p.addCurve(to: pt(88.86, 73.98), control1: pt(88.69, 74.13), control2: pt(88.84, 74.01))
+        p.addCurve(to: pt(91.19, 72.01), control1: pt(88.93, 73.89), control2: pt(90.34, 72.69))
+        p.addCurve(to: pt(92.04, 71.31), control1: pt(91.63, 71.65), control2: pt(92.01, 71.34))
+        p.addCurve(to: pt(94.28, 69.58), control1: pt(92.07, 71.27), control2: pt(93.05, 70.52))
+        p.addCurve(to: pt(95.32, 68.84), control1: pt(94.61, 69.34), control2: pt(95.07, 69.00))
+        p.addCurve(to: pt(96.61, 67.91), control1: pt(95.98, 68.40), control2: pt(96.24, 68.21))
+        p.addCurve(to: pt(97.60, 67.21), control1: pt(96.79, 67.77), control2: pt(97.24, 67.45))
+        p.addCurve(to: pt(98.82, 66.38), control1: pt(97.97, 66.96), control2: pt(98.52, 66.59))
+        p.addCurve(to: pt(100.70, 65.13), control1: pt(99.38, 66.00), control2: pt(100.16, 65.48))
+        p.addCurve(to: pt(101.20, 64.81), control1: pt(100.86, 65.03), control2: pt(101.09, 64.89))
+        p.addCurve(to: pt(101.43, 64.68), control1: pt(101.31, 64.74), control2: pt(101.41, 64.68))
+        p.addCurve(to: pt(101.86, 64.43), control1: pt(101.45, 64.68), control2: pt(101.65, 64.56))
+        p.addCurve(to: pt(102.65, 63.96), control1: pt(102.07, 64.29), control2: pt(102.43, 64.08))
+        p.addCurve(to: pt(103.87, 63.23), control1: pt(103.07, 63.74), control2: pt(103.22, 63.65))
+        p.addCurve(to: pt(104.90, 62.65), control1: pt(104.07, 63.10), control2: pt(104.54, 62.84))
+        p.addCurve(to: pt(106.12, 62.00), control1: pt(105.27, 62.45), control2: pt(105.82, 62.16))
+        p.addCurve(to: pt(109.03, 60.48), control1: pt(106.75, 61.67), control2: pt(108.38, 60.82))
+        p.addCurve(to: pt(111.47, 59.37), control1: pt(109.55, 60.22), control2: pt(110.22, 59.91))
+        p.addCurve(to: pt(112.57, 58.88), control1: pt(111.95, 59.16), control2: pt(112.45, 58.94))
+        p.addCurve(to: pt(113.71, 58.41), control1: pt(113.38, 58.52), control2: pt(113.64, 58.41))
+        p.addCurve(to: pt(113.99, 58.30), control1: pt(113.75, 58.41), control2: pt(113.87, 58.36))
+        p.addCurve(to: pt(117.37, 56.97), control1: pt(114.47, 58.05), control2: pt(116.21, 57.37))
+        p.addCurve(to: pt(118.18, 56.68), control1: pt(117.53, 56.91), control2: pt(117.89, 56.78))
+        p.addCurve(to: pt(123.67, 54.87), control1: pt(119.37, 56.23), control2: pt(122.71, 55.14))
+        p.addCurve(to: pt(124.74, 54.57), control1: pt(123.94, 54.80), control2: pt(124.42, 54.66))
+        p.addCurve(to: pt(131.16, 52.99), control1: pt(126.48, 54.09), control2: pt(130.06, 53.21))
+        p.addCurve(to: pt(132.30, 52.76), control1: pt(131.48, 52.93), control2: pt(132.00, 52.82))
+        p.addCurve(to: pt(133.61, 52.50), control1: pt(132.60, 52.70), control2: pt(133.19, 52.58))
+        p.addCurve(to: pt(135.16, 52.21), control1: pt(134.03, 52.42), control2: pt(134.72, 52.29))
+        p.addCurve(to: pt(143.03, 51.00), control1: pt(136.64, 51.93), control2: pt(141.04, 51.25))
+        p.addCurve(to: pt(150.66, 50.23), control1: pt(144.78, 50.78), control2: pt(149.47, 50.30))
+        p.addCurve(to: pt(153.69, 50.07), control1: pt(151.33, 50.18), control2: pt(152.69, 50.11))
+        p.addCurve(to: pt(155.56, 49.92), control1: pt(154.68, 50.03), control2: pt(155.52, 49.96))
+        p.addCurve(to: pt(152.65, 49.63), control1: pt(155.75, 49.74), control2: pt(155.38, 49.70))
+        p.addCurve(to: pt(138.46, 48.30), control1: pt(147.15, 49.49), control2: pt(144.42, 49.24))
+        p.addCurve(to: pt(127.82, 45.68), control1: pt(134.42, 47.67), control2: pt(131.93, 47.05))
+        p.addCurve(to: pt(122.16, 43.21), control1: pt(125.45, 44.89), control2: pt(124.28, 44.37))
+        p.addCurve(to: pt(115.71, 38.09), control1: pt(119.42, 41.71), control2: pt(117.17, 39.92))
+        p.addCurve(to: pt(113.20, 33.95), control1: pt(114.65, 36.75), control2: pt(113.65, 35.11))
+        p.addCurve(to: pt(112.03, 30.07), control1: pt(112.76, 32.82), control2: pt(112.20, 30.96))
+        p.addCurve(to: pt(112.24, 21.94), control1: pt(111.61, 27.89), control2: pt(111.70, 24.52))
+        p.addCurve(to: pt(115.80, 11.25), control1: pt(113.00, 18.32), control2: pt(113.84, 15.80))
+        p.addCurve(to: pt(119.05, 4.76), control1: pt(116.30, 10.08), control2: pt(118.16, 6.37))
+        p.addCurve(to: pt(119.82, 3.36), control1: pt(119.34, 4.24), control2: pt(119.69, 3.61))
+        p.addCurve(to: pt(120.53, 2.21), control1: pt(119.96, 3.12), control2: pt(120.28, 2.60))
+        p.addCurve(to: pt(121.53, 0.62), control1: pt(121.16, 1.27), control2: pt(121.53, 0.67))
+        p.addCurve(to: pt(121.68, 0.39), control1: pt(121.53, 0.60), control2: pt(121.60, 0.49))
+        p.addCurve(to: pt(121.74, 0.00), control1: pt(121.85, 0.18), control2: pt(121.87, 0.00))
+        p.addCurve(to: pt(120.63, 1.30), control1: pt(121.63, 0.00), control2: pt(121.08, 0.66))
+        p.addCurve(to: pt(116.49, 6.38), control1: pt(119.83, 2.46), control2: pt(118.30, 4.34))
+        p.addCurve(to: pt(115.13, 7.93), control1: pt(115.88, 7.07), control2: pt(115.26, 7.77))
+        p.addCurve(to: pt(111.68, 11.62), control1: pt(114.88, 8.22), control2: pt(112.35, 10.92))
+        p.addCurve(to: pt(107.41, 15.72), control1: pt(111.26, 12.04), control2: pt(108.18, 15.01))
+        p.addCurve(to: pt(100.22, 21.39), control1: pt(106.20, 16.84), control2: pt(101.80, 20.30))
+        p.addCurve(to: pt(94.59, 25.07), control1: pt(97.42, 23.32), control2: pt(95.83, 24.35))
+        p.addCurve(to: pt(94.00, 25.43), control1: pt(94.48, 25.13), control2: pt(94.21, 25.30))
+        p.addCurve(to: pt(92.66, 26.18), control1: pt(93.79, 25.57), control2: pt(93.19, 25.91))
+        p.addCurve(to: pt(91.37, 26.87), control1: pt(92.13, 26.46), control2: pt(91.55, 26.77))
+        p.addCurve(to: pt(83.85, 30.56), control1: pt(89.70, 27.80), control2: pt(85.38, 29.92))
+        p.addCurve(to: pt(83.05, 30.91), control1: pt(83.59, 30.67), control2: pt(83.23, 30.83))
+        p.addCurve(to: pt(82.66, 31.05), control1: pt(82.88, 30.98), control2: pt(82.70, 31.05))
+        p.addCurve(to: pt(82.27, 31.19), control1: pt(82.61, 31.05), control2: pt(82.44, 31.11))
+        p.addCurve(to: pt(81.60, 31.47), control1: pt(82.11, 31.26), control2: pt(81.80, 31.39))
+        p.addCurve(to: pt(79.41, 32.42), control1: pt(80.79, 31.80), control2: pt(79.60, 32.32))
+        p.addCurve(to: pt(79.13, 32.52), control1: pt(79.31, 32.47), control2: pt(79.18, 32.52))
+        p.addCurve(to: pt(78.73, 32.66), control1: pt(79.08, 32.52), control2: pt(78.90, 32.59))
+        p.addCurve(to: pt(75.15, 34.00), control1: pt(78.23, 32.89), control2: pt(76.28, 33.62))
+        p.addCurve(to: pt(74.34, 34.28), control1: pt(74.92, 34.08), control2: pt(74.56, 34.20))
+        p.addCurve(to: pt(71.24, 35.37), control1: pt(72.74, 34.86), control2: pt(72.11, 35.08))
+        p.addCurve(to: pt(68.44, 36.25), control1: pt(70.24, 35.71), control2: pt(70.11, 35.75))
+        p.addCurve(to: pt(67.07, 36.66), control1: pt(67.93, 36.40), control2: pt(67.32, 36.58))
+        p.addCurve(to: pt(66.00, 36.98), control1: pt(66.83, 36.73), control2: pt(66.35, 36.88))
+        p.addCurve(to: pt(64.90, 37.32), control1: pt(65.66, 37.09), control2: pt(65.16, 37.24))
+        p.addCurve(to: pt(64.05, 37.57), control1: pt(64.63, 37.41), control2: pt(64.25, 37.52))
+        p.addCurve(to: pt(63.13, 37.83), control1: pt(63.85, 37.63), control2: pt(63.43, 37.75))
+        p.addCurve(to: pt(62.06, 38.13), control1: pt(62.82, 37.92), control2: pt(62.34, 38.05))
+        p.addCurve(to: pt(58.70, 39.05), control1: pt(60.87, 38.44), control2: pt(59.50, 38.82))
+        p.addCurve(to: pt(55.31, 39.94), control1: pt(57.90, 39.28), control2: pt(56.19, 39.73))
+        p.addCurve(to: pt(53.58, 40.37), control1: pt(55.09, 39.99), control2: pt(54.31, 40.19))
+        p.addCurve(to: pt(51.40, 40.90), control1: pt(52.85, 40.56), control2: pt(51.87, 40.79))
+        p.addCurve(to: pt(49.19, 41.42), control1: pt(50.93, 41.00), control2: pt(49.94, 41.23))
+        p.addCurve(to: pt(46.05, 42.14), control1: pt(47.71, 41.77), control2: pt(47.30, 41.87))
+        p.addCurve(to: pt(44.28, 42.54), control1: pt(45.61, 42.24), control2: pt(44.81, 42.42))
+        p.addCurve(to: pt(41.56, 43.14), control1: pt(43.76, 42.66), control2: pt(42.53, 42.93))
+        p.addCurve(to: pt(38.42, 43.81), control1: pt(40.58, 43.35), control2: pt(39.17, 43.65))
+        p.addCurve(to: pt(36.58, 44.21), control1: pt(37.67, 43.98), control2: pt(36.84, 44.16))
+        p.addCurve(to: pt(34.66, 44.65), control1: pt(36.31, 44.27), control2: pt(35.45, 44.47))
+        p.addCurve(to: pt(31.12, 45.39), control1: pt(33.87, 44.83), control2: pt(32.28, 45.17))
+        p.addCurve(to: pt(26.81, 46.24), control1: pt(29.96, 45.62), control2: pt(28.02, 46.00))
+        p.addCurve(to: pt(20.46, 47.46), control1: pt(23.31, 46.93), control2: pt(22.05, 47.17))
+        p.addCurve(to: pt(17.99, 47.86), control1: pt(20.14, 47.52), control2: pt(19.03, 47.70))
+        p.addCurve(to: pt(14.27, 48.48), control1: pt(16.96, 48.03), control2: pt(15.28, 48.30))
+        p.addCurve(to: pt(2.44, 50.26), control1: pt(9.98, 49.24), control2: pt(5.27, 49.95))
+        p.addCurve(to: pt(0.06, 50.56), control1: pt(1.17, 50.40), control2: pt(0.10, 50.54))
+        p.addCurve(to: pt(0.00, 50.71), control1: pt(0.03, 50.58), control2: pt(0.00, 50.65))
+        p.addCurve(to: pt(3.02, 50.82), control1: pt(0.00, 50.84), control2: pt(0.00, 50.84))
+        p.addCurve(to: pt(20.21, 51.03), control1: pt(5.84, 50.80), control2: pt(16.89, 50.94))
+        p.addCurve(to: pt(23.34, 51.21), control1: pt(21.57, 51.07), control2: pt(22.92, 51.15))
+        p.addCurve(to: pt(24.76, 51.33), control1: pt(23.75, 51.28), control2: pt(24.39, 51.33))
+        p.addCurve(to: pt(31.12, 51.73), control1: pt(25.72, 51.33), control2: pt(30.01, 51.60))
+        p.addCurve(to: pt(32.63, 51.88), control1: pt(31.63, 51.79), control2: pt(32.31, 51.86))
+        p.addCurve(to: pt(34.26, 52.07), control1: pt(32.96, 51.90), control2: pt(33.69, 51.99))
+        p.addCurve(to: pt(36.54, 52.36), control1: pt(34.82, 52.14), control2: pt(35.85, 52.28))
+        p.addCurve(to: pt(44.69, 53.77), control1: pt(39.79, 52.75), control2: pt(41.69, 53.08))
+        p.addCurve(to: pt(52.06, 55.72), control1: pt(48.47, 54.63), control2: pt(50.37, 55.13))
+        p.addCurve(to: pt(53.24, 56.12), control1: pt(52.49, 55.86), control2: pt(53.02, 56.04))
+        p.addCurve(to: pt(58.22, 58.06), control1: pt(54.70, 56.60), control2: pt(56.66, 57.36))
+        p.addCurve(to: pt(62.43, 60.16), control1: pt(59.51, 58.63), control2: pt(61.84, 59.80))
+        p.addCurve(to: pt(63.02, 60.52), control1: pt(62.63, 60.29), control2: pt(62.89, 60.45))
+        p.addCurve(to: pt(66.30, 62.79), control1: pt(63.61, 60.85), control2: pt(65.48, 62.14))
+        p.addCurve(to: pt(72.01, 69.65), control1: pt(68.69, 64.69), control2: pt(70.96, 67.42))
+        p.addCurve(to: pt(73.65, 74.78), control1: pt(72.82, 71.38), control2: pt(73.26, 72.75))
+        p.addCurve(to: pt(73.65, 80.27), control1: pt(73.84, 75.77), control2: pt(73.84, 79.00))
+        p.addCurve(to: pt(73.05, 83.37), control1: pt(73.50, 81.29), control2: pt(73.20, 82.83))
+        p.addCurve(to: pt(72.78, 84.37), control1: pt(72.99, 83.57), control2: pt(72.87, 84.02))
+        p.addCurve(to: pt(71.23, 88.98), control1: pt(72.45, 85.68), control2: pt(71.60, 88.22))
+        p.addCurve(to: pt(71.09, 89.34), control1: pt(71.16, 89.14), control2: pt(71.09, 89.31))
+        p.addCurve(to: pt(69.65, 92.83), control1: pt(71.09, 89.49), control2: pt(70.20, 91.65))
+        p.addCurve(to: pt(69.40, 93.44), control1: pt(69.51, 93.13), control2: pt(69.40, 93.40))
+        p.addCurve(to: pt(69.01, 94.23), control1: pt(69.40, 93.49), control2: pt(69.22, 93.84))
+        p.addCurve(to: pt(68.12, 95.98), control1: pt(68.80, 94.63), control2: pt(68.40, 95.41))
+        p.addCurve(to: pt(66.66, 98.60), control1: pt(67.61, 97.00), control2: pt(67.08, 97.96))
+        p.addCurve(to: pt(66.34, 99.15), control1: pt(66.55, 98.78), control2: pt(66.40, 99.03))
+        p.addCurve(to: pt(66.04, 99.69), control1: pt(66.28, 99.27), control2: pt(66.14, 99.51))
+        p.addCurve(to: pt(66.00, 100.00), control1: pt(65.86, 99.98), control2: pt(65.86, 100.00))
+        p.addCurve(to: pt(66.46, 99.61), control1: pt(66.08, 100.00), control2: pt(66.27, 99.84))
+        p.closeSubpath()
+        p.move(to: pt(84.67, 62.02))
+        p.addCurve(to: pt(83.79, 61.88), control1: pt(84.30, 61.99), control2: pt(83.90, 61.93))
+        p.addCurve(to: pt(83.15, 61.70), control1: pt(83.68, 61.84), control2: pt(83.39, 61.76))
+        p.addCurve(to: pt(81.92, 61.29), control1: pt(82.67, 61.58), control2: pt(82.11, 61.40))
+        p.addCurve(to: pt(81.19, 60.98), control1: pt(81.86, 61.25), control2: pt(81.52, 61.11))
+        p.addCurve(to: pt(80.42, 60.64), control1: pt(80.85, 60.85), control2: pt(80.50, 60.70))
+        p.addCurve(to: pt(80.16, 60.55), control1: pt(80.34, 60.59), control2: pt(80.22, 60.55))
+        p.addCurve(to: pt(79.76, 60.40), control1: pt(80.10, 60.55), control2: pt(79.92, 60.48))
+        p.addCurve(to: pt(79.40, 60.25), control1: pt(79.60, 60.32), control2: pt(79.44, 60.25))
+        p.addCurve(to: pt(79.10, 60.15), control1: pt(79.37, 60.25), control2: pt(79.23, 60.20))
+        p.addCurve(to: pt(77.11, 59.37), control1: pt(78.73, 59.97), control2: pt(77.17, 59.37))
+        p.addCurve(to: pt(76.82, 59.26), control1: pt(77.08, 59.37), control2: pt(76.95, 59.32))
+        p.addCurve(to: pt(72.79, 57.73), control1: pt(76.00, 58.89), control2: pt(73.84, 58.07))
+        p.addCurve(to: pt(71.83, 57.41), control1: pt(72.40, 57.61), control2: pt(71.97, 57.46))
+        p.addCurve(to: pt(71.39, 57.26), control1: pt(71.69, 57.35), control2: pt(71.49, 57.29))
+        p.addCurve(to: pt(70.94, 57.12), control1: pt(71.28, 57.24), control2: pt(71.09, 57.17))
+        p.addCurve(to: pt(70.06, 56.83), control1: pt(70.80, 57.06), control2: pt(70.40, 56.93))
+        p.addCurve(to: pt(68.81, 56.45), control1: pt(69.71, 56.73), control2: pt(69.15, 56.56))
+        p.addCurve(to: pt(64.23, 55.20), control1: pt(67.78, 56.14), control2: pt(64.75, 55.31))
+        p.addCurve(to: pt(61.76, 54.65), control1: pt(63.50, 55.05), control2: pt(62.50, 54.82))
+        p.addCurve(to: pt(58.74, 53.98), control1: pt(61.14, 54.50), control2: pt(60.35, 54.33))
+        p.addCurve(to: pt(55.13, 53.32), control1: pt(57.76, 53.76), control2: pt(56.70, 53.57))
+        p.addCurve(to: pt(53.13, 52.99), control1: pt(54.35, 53.19), control2: pt(53.46, 53.05))
+        p.addCurve(to: pt(51.96, 52.80), control1: pt(52.81, 52.93), control2: pt(52.28, 52.85))
+        p.addCurve(to: pt(51.11, 52.66), control1: pt(51.63, 52.76), control2: pt(51.25, 52.70))
+        p.addCurve(to: pt(50.48, 52.55), control1: pt(50.97, 52.62), control2: pt(50.68, 52.57))
+        p.addCurve(to: pt(48.86, 52.37), control1: pt(50.28, 52.53), control2: pt(49.55, 52.45))
+        p.addCurve(to: pt(44.54, 51.92), control1: pt(46.42, 52.08), control2: pt(45.53, 51.99))
+        p.addCurve(to: pt(43.33, 51.81), control1: pt(44.00, 51.88), control2: pt(43.45, 51.83))
+        p.addCurve(to: pt(26.33, 50.89), control1: pt(42.19, 51.61), control2: pt(32.28, 51.08))
+        p.addCurve(to: pt(23.89, 50.67), control1: pt(24.25, 50.82), control2: pt(23.89, 50.79))
+        p.addCurve(to: pt(25.83, 50.44), control1: pt(23.89, 50.58), control2: pt(24.39, 50.52))
+        p.addCurve(to: pt(35.10, 49.77), control1: pt(28.45, 50.30), control2: pt(32.22, 50.03))
+        p.addCurve(to: pt(40.74, 49.12), control1: pt(35.96, 49.70), control2: pt(38.70, 49.38))
+        p.addCurve(to: pt(43.07, 48.82), control1: pt(41.35, 49.04), control2: pt(42.40, 48.91))
+        p.addCurve(to: pt(46.31, 48.38), control1: pt(43.74, 48.73), control2: pt(45.20, 48.53))
+        p.addCurve(to: pt(50.77, 47.75), control1: pt(47.43, 48.22), control2: pt(49.44, 47.93))
+        p.addCurve(to: pt(59.55, 46.34), control1: pt(53.17, 47.41), control2: pt(56.65, 46.86))
+        p.addCurve(to: pt(62.94, 45.76), control1: pt(60.36, 46.20), control2: pt(61.89, 45.94))
+        p.addCurve(to: pt(75.18, 43.51), control1: pt(66.04, 45.24), control2: pt(69.57, 44.59))
+        p.addCurve(to: pt(77.51, 43.06), control1: pt(76.04, 43.34), control2: pt(77.08, 43.14))
+        p.addCurve(to: pt(82.85, 42.00), control1: pt(78.81, 42.81), control2: pt(81.92, 42.20))
+        p.addCurve(to: pt(84.29, 41.70), control1: pt(83.34, 41.90), control2: pt(83.99, 41.76))
+        p.addCurve(to: pt(85.69, 41.42), control1: pt(84.60, 41.64), control2: pt(85.23, 41.52))
+        p.addCurve(to: pt(89.34, 40.72), control1: pt(87.02, 41.14), control2: pt(88.38, 40.88))
+        p.addCurve(to: pt(91.19, 40.40), control1: pt(89.83, 40.63), control2: pt(90.66, 40.49))
+        p.addCurve(to: pt(95.76, 40.37), control1: pt(92.47, 40.18), control2: pt(94.85, 40.16))
+        p.addCurve(to: pt(99.69, 42.36), control1: pt(97.70, 40.81), control2: pt(98.72, 41.32))
+        p.addCurve(to: pt(101.26, 44.98), control1: pt(100.39, 43.11), control2: pt(100.93, 44.01))
+        p.addCurve(to: pt(101.69, 47.63), control1: pt(101.47, 45.58), control2: pt(101.70, 46.97))
+        p.addCurve(to: pt(101.30, 50.04), control1: pt(101.69, 48.23), control2: pt(101.47, 49.55))
+        p.addCurve(to: pt(101.18, 50.44), control1: pt(101.24, 50.20), control2: pt(101.18, 50.38))
+        p.addCurve(to: pt(101.03, 50.85), control1: pt(101.18, 50.50), control2: pt(101.11, 50.69))
+        p.addCurve(to: pt(100.89, 51.22), control1: pt(100.95, 51.01), control2: pt(100.89, 51.18))
+        p.addCurve(to: pt(100.23, 52.48), control1: pt(100.88, 51.30), control2: pt(100.63, 51.79))
+        p.addCurve(to: pt(97.79, 55.59), control1: pt(99.81, 53.21), control2: pt(98.77, 54.53))
+        p.addCurve(to: pt(93.17, 59.56), control1: pt(96.43, 57.06), control2: pt(94.70, 58.55))
+        p.addCurve(to: pt(90.74, 60.92), control1: pt(92.52, 59.99), control2: pt(91.35, 60.65))
+        p.addCurve(to: pt(90.01, 61.25), control1: pt(90.46, 61.04), control2: pt(90.13, 61.19))
+        p.addCurve(to: pt(86.96, 62.02), control1: pt(89.28, 61.59), control2: pt(87.94, 61.93))
+        p.addCurve(to: pt(84.67, 62.02), control1: pt(86.09, 62.10), control2: pt(85.70, 62.10))
+        p.closeSubpath()
+        return p
     }
-}
-
-/// The O: a stadium on its stroke centre line (44 × 80 units, corner radius 22), stroked 20 units
-/// wide so its outer edge spans `originX ... originX + 64` and `0 ... 100`.
-struct ZanoRingShape: Shape {
-    let originX: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let scale = rect.height / 100
-        let centreLine = CGRect(
-            x: rect.minX + (originX + 10) * scale,
-            y: rect.minY + 10 * scale,
-            width: 44 * scale,
-            height: 80 * scale
-        )
-        return Path(roundedRect: centreLine, cornerRadius: 22 * scale, style: .circular)
-    }
-}
-
-#Preview("ZanoWordmark") {
-    VStack(spacing: Theme.Spacing.xl) {
-        ZanoWordmark(height: 64)
-        ZanoWordmark(height: 24)
-        ZanoWordmark(height: 18, style: .mono(Theme.Colors.muted))
-        ZanoMark(height: 40)
-    }
-    .padding(Theme.Spacing.xl)
-    .background(Theme.Colors.background)
-    .preferredColorScheme(.dark)
 }

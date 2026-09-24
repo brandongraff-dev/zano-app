@@ -20,17 +20,17 @@ enum ZANOWidgetColor {
     static let background = Color(red: 0x0A / 255.0, green: 0x0A / 255.0, blue: 0x0B / 255.0)
     static let surface = Color(red: 0x14 / 255.0, green: 0x14 / 255.0, blue: 0x16 / 255.0)
     static let surface2 = Color(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1F / 255.0)
-    static let textPrimary = Color(red: 0xF5 / 255.0, green: 0xF5 / 255.0, blue: 0xF7 / 255.0)
+    static let textPrimary = Color(red: 0xF2 / 255.0, green: 0xF1 / 255.0, blue: 0xED / 255.0)
     static let textMuted = Color(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0)
 
     /// The single accent color (spec §15: "ONE accent only") — earned/unlocked state.
-    static let accent = Color(red: 0xB8 / 255.0, green: 0xFF / 255.0, blue: 0x3C / 255.0)
-    static let danger = Color(red: 0xFF / 255.0, green: 0x45 / 255.0, blue: 0x3A / 255.0)
-    static let warning = Color(red: 0xFF / 255.0, green: 0xB0 / 255.0, blue: 0x20 / 255.0)
+    static let accent = Color(red: 0xE4 / 255.0, green: 0xE2 / 255.0, blue: 0xDC / 255.0)
+    static let danger = Color(red: 0xDE / 255.0, green: 0x5A / 255.0, blue: 0x52 / 255.0)
+    static let warning = Color(red: 0xD9 / 255.0, green: 0xA5 / 255.0, blue: 0x5B / 255.0)
 
     // Ring colors (spec §15): workout = accent, protein = orange, focus = indigo, water = blue.
     static let ringWorkout = accent
-    static let ringProtein = Color(red: 0xFF / 255.0, green: 0x7A / 255.0, blue: 0x00 / 255.0)
-    static let ringFocus = Color(red: 0x5E / 255.0, green: 0x5C / 255.0, blue: 0xE6 / 255.0)
-    static let ringWater = Color(red: 0x32 / 255.0, green: 0xAD / 255.0, blue: 0xE6 / 255.0)
+    static let ringProtein = Color(red: 0xC8 / 255.0, green: 0x93 / 255.0, blue: 0x6A / 255.0)
+    static let ringFocus = Color(red: 0x8E / 255.0, green: 0x96 / 255.0, blue: 0xC8 / 255.0)
+    static let ringWater = Color(red: 0x86 / 255.0, green: 0xB4 / 255.0, blue: 0xC4 / 255.0)
 }

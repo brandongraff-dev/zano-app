@@ -66,14 +66,24 @@ public enum Theme {
         public static let surface = Color(zanoHex: 0x14_14_16)
         /// `#1C1C1F` — secondary surface (nested cards, tracks, pressed states).
         public static let surface2 = Color(zanoHex: 0x1C_1C_1F)
-        /// `#F5F5F7` — primary text.
-        public static let text = Color(zanoHex: 0xF5_F5_F7)
+        /// `#F2F1ED` — primary text. Pearl: the warm white of the logo, not a blue-white.
+        public static let text = Color(zanoHex: 0xF2_F1_ED)
         /// `#8E8E93` — secondary / muted text.
         public static let muted = Color(zanoHex: 0x8E_8E_93)
-        /// `#B8FF3C` — the ONE brand accent. Earned states only (decision 2026-09-24, spec §15):
+        /// `#E4E2DC` — platinum, the brand accent. Earned states only (decision 2026-09-24, spec §15):
         /// completed rings, the unlock moment, "earned" badges, the workout ring. Never navigation,
-        /// neutral buttons or selection — those use `interactive`.
-        public static let accent = Color(zanoHex: 0xB8_FF_3C)
+        /// neutral buttons or selection — those use `interactive`. Was acid green `#B8FF3C` until
+        /// the brand moved to the founder's black / pearl / silver logo (same day): light itself is
+        /// the reward, so the accent is the brightest metal, not a hue.
+        public static let accent = Color(zanoHex: 0xE4_E2_DC)
+
+        /// The brushed-silver fill of the logo mark and of earned hero moments: pearl top-left to
+        /// silver bottom-right.
+        public static var metallic: LinearGradient { LinearGradient(
+            colors: [Color(zanoHex: 0xFA_F9_F6), Color(zanoHex: 0xD6_D4_CF), Color(zanoHex: 0x9E_9C_97)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        ) }
 
         // MARK: Interactive (achromatic chrome)
 
@@ -87,14 +97,14 @@ public enum Theme {
 
         /// The cool light a locked screen sits in: dark, quiet, a little cold. Paired with
         /// `accent` for the earned state so the backdrop itself tells you where you stand.
-        public static let lockedAmbient = Color(zanoHex: 0x5B_6E_94)
+        public static let lockedAmbient = Color(zanoHex: 0x4B_52_63)
         /// Top stop of a hero surface's vertical gradient (bottom stop is `surface`): the hero
         /// catches a little more light than a standard card.
-        public static let surfaceHero = Color(zanoHex: 0x1D_1E_23)
-        /// `#FF453A` — danger / locked state.
-        public static let danger = Color(zanoHex: 0xFF_45_3A)
-        /// `#FFB020` — warning state.
-        public static let warning = Color(zanoHex: 0xFF_B0_20)
+        public static let surfaceHero = Color(zanoHex: 0x1C_1C_1F)
+        /// `#DE5A52` — danger / locked state. A muted red, not system red.
+        public static let danger = Color(zanoHex: 0xDE_5A_52)
+        /// `#D9A55B` — warning state (amber gold).
+        public static let warning = Color(zanoHex: 0xD9_A5_5B)
 
         // MARK: Derived neutrals (not in spec §15's table; derived, not new hues)
 
@@ -156,15 +166,13 @@ public enum Theme {
 
         // MARK: Accent tints (precomputed, on-hue)
 
-        /// `#223403` — the accent at dark-surface strength: icon-badge discs, selected rows, the
-        /// unlock chip. `accent.opacity(0.16)` composites to `#2E3A1C`, whose chroma is about a
-        /// quarter of the accent's, so it reads as a different, dirtier color instead of a dimmer
-        /// version of the accent. Accent on this wash is 11.2:1, `text` 12.4:1.
-        public static let accentWash = Color(zanoHex: 0x22_34_03)
+        /// `#26252A` — the accent at dark-surface strength: icon-badge discs, selected rows, the
+        /// unlock chip. Accent on this wash is about 12:1.
+        public static let accentWash = Color(zanoHex: 0x26_25_2A)
 
-        /// `#3B5800` — the accent's dim core: a highlighted-but-unselected border, the track
-        /// beneath an active accent bar. Accent on this is 6.7:1; it is 2.26:1 against `surface`.
-        public static let accentDim = Color(zanoHex: 0x3B_58_00)
+        /// `#4A4843` — the accent's dim core: a highlighted-but-unselected border, the track
+        /// beneath an active accent bar.
+        public static let accentDim = Color(zanoHex: 0x4A_48_43)
 
         /// The disc/wash fill for an icon badge or chip tinted `tint`. The accent gets its
         /// on-hue precomputed wash (`accentWash`); every other hue falls back to 18% of itself,
@@ -197,32 +205,32 @@ public enum Theme {
         public enum Ring {
             /// Spec-exact: workout rings reuse the single brand accent.
             public static let workout = Colors.accent
-            /// Spec-exact `#FF7A00`.
-            public static let protein = Color(zanoHex: 0xFF_7A_00)
-            /// Spec-exact `#5E5CE6`.
-            public static let focus = Color(zanoHex: 0x5E_5C_E6)
-            /// Spec-exact `#32ADE6`.
-            public static let water = Color(zanoHex: 0x32_AD_E6)
+            /// `#C8936A` bronze (was `#FF7A00`; muted with the 2026-09-24 brand palette).
+            public static let protein = Color(zanoHex: 0xC8_93_6A)
+            /// `#8E96C8` slate lavender (was `#5E5CE6`).
+            public static let focus = Color(zanoHex: 0x8E_96_C8)
+            /// `#86B4C4` glacier (was `#32ADE6`).
+            public static let water = Color(zanoHex: 0x86_B4_C4)
 
             // Additive extensions (assumption — not in spec §15's table; see the doc comment
-            // above). Chosen from Apple's system color palette so they read as "native" and stay
-            // visually distinct from the four spec-exact hues above.
+            // above). Muted, low-chroma tones (sage, rose, champagne, steel...) matching the
+            // brand palette, distinct from the four hues above.
             /// Assumption: steps ring.
-            public static let steps = Color(zanoHex: 0x32_D7_4B)
+            public static let steps = Color(zanoHex: 0x9D_B8_9A)
             /// Assumption: creatine/supplement ring.
-            public static let creatine = Color(zanoHex: 0xFF_37_5F)
+            public static let creatine = Color(zanoHex: 0xC9_8A_96)
             /// Assumption: sunrise alarm / morning routine ring.
-            public static let sunriseAlarm = Color(zanoHex: 0xFF_D6_0A)
+            public static let sunriseAlarm = Color(zanoHex: 0xD8_BC_7A)
             /// Assumption: sleep-on-time ring.
-            public static let sleepOnTime = Color(zanoHex: 0x0A_84_FF)
+            public static let sleepOnTime = Color(zanoHex: 0x7F_9A_C4)
             /// Assumption: reading ring.
-            public static let reading = Color(zanoHex: 0xAC_8E_68)
+            public static let reading = Color(zanoHex: 0xB3_9C_7D)
             /// Assumption: weekly meal prep ring.
-            public static let mealPrep = Color(zanoHex: 0x66_D4_CF)
+            public static let mealPrep = Color(zanoHex: 0x8D_B8_B0)
             /// Assumption: stretch/mobility ring.
-            public static let stretchMobility = Color(zanoHex: 0xBF_5A_F2)
+            public static let stretchMobility = Color(zanoHex: 0xA9_94_C4)
             /// Assumption: cold shower / sauna ring.
-            public static let coldShowerSauna = Color(zanoHex: 0x5A_C8_FA)
+            public static let coldShowerSauna = Color(zanoHex: 0x93_BF_D1)
             /// Assumption: user-defined custom goal ring — deliberately neutral (`muted`) since
             /// there is no inherent category color for a goal the user invents themselves.
             public static let custom = Colors.muted

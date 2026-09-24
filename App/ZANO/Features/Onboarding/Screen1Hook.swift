@@ -74,7 +74,7 @@ struct Screen1Hook: View {
         }
         // The brand's first appearance: the wordmark, alone at the top (docs/brand/brand-kit.md).
         .safeAreaInset(edge: .top, spacing: 0) {
-            ZanoWordmark(height: 28)
+            ZanoWordmark(height: 15)
                 .padding(.top, Theme.Spacing.md)
                 .opacity(isShown ? 1 : 0)
                 .animation(reveal(delay: 0), value: revealed)

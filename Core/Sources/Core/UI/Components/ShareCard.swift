@@ -187,7 +187,7 @@ public struct ShareCard: View {
                     // The real wordmark (docs/brand/brand-kit.md), not the name typed in a font.
                     HStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        ZanoWordmark(height: 20)
+                        ZanoWordmark(height: 11)
                             .accessibilityLabel(footerLabel)
                     }
                 }

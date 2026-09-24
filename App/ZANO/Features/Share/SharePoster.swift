@@ -122,7 +122,7 @@ struct PosterChassis<Content: View>: View {
 
                 if let footerLabel {
                     // The real wordmark (docs/brand/brand-kit.md), not the name typed in a font.
-                    ZanoWordmark(height: 22)
+                    ZanoWordmark(height: 12)
                         .accessibilityLabel(footerLabel)
                 }
             }

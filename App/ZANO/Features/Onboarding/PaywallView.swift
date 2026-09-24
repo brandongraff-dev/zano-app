@@ -164,7 +164,7 @@ struct PaywallView: View {
 
     private var headline: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            ZanoWordmark(height: 18)
+            ZanoWordmark(height: 11)
             headlineText
         }
     }

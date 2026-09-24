@@ -43,15 +43,15 @@ public enum WatchTheme {
         /// Mirrors `Theme.Colors.surface2` (`#1C1C1F`).
         public static let surface2 = Color(watchThemeHex: 0x1C_1C_1F)
         /// Mirrors `Theme.Colors.text` (`#F5F5F7`).
-        public static let text = Color(watchThemeHex: 0xF5_F5_F7)
+        public static let text = Color(watchThemeHex: 0xF2_F1_ED)
         /// Mirrors `Theme.Colors.muted` (`#8E8E93`).
         public static let muted = Color(watchThemeHex: 0x8E_8E_93)
         /// Mirrors `Theme.Colors.accent` (`#B8FF3C`) — the one brand accent (earned/unlock).
-        public static let accent = Color(watchThemeHex: 0xB8_FF_3C)
+        public static let accent = Color(watchThemeHex: 0xE4_E2_DC)
         /// Mirrors `Theme.Colors.danger` (`#FF453A`).
-        public static let danger = Color(watchThemeHex: 0xFF_45_3A)
+        public static let danger = Color(watchThemeHex: 0xDE_5A_52)
         /// Mirrors `Theme.Colors.warning` (`#FFB020`).
-        public static let warning = Color(watchThemeHex: 0xFF_B0_20)
+        public static let warning = Color(watchThemeHex: 0xD9_A5_5B)
 
         /// Mirrors `Theme.Colors.Ring` — only the four ring colors the watch actually shows
         /// (`WatchRingKind`: workout/protein/focus/water). `Theme.Colors.Ring`'s other,
@@ -61,11 +61,11 @@ public enum WatchTheme {
             /// Spec-exact: workout rings reuse the single brand accent.
             public static let workout = Colors.accent
             /// Spec-exact `#FF7A00`.
-            public static let protein = Color(watchThemeHex: 0xFF_7A_00)
+            public static let protein = Color(watchThemeHex: 0xC8_93_6A)
             /// Spec-exact `#5E5CE6`.
-            public static let focus = Color(watchThemeHex: 0x5E_5C_E6)
+            public static let focus = Color(watchThemeHex: 0x8E_96_C8)
             /// Spec-exact `#32ADE6`.
-            public static let water = Color(watchThemeHex: 0x32_AD_E6)
+            public static let water = Color(watchThemeHex: 0x86_B4_C4)
 
             public static func color(for kind: WatchRingKind) -> Color {
                 switch kind {

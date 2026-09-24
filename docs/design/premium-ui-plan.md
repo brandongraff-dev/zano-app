@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-24 · **Status:** Plan approved in direction; Phase 0 next. No Swift changed.
 
-**Decisions (2026-09-24):** palette **option A** (keep dark + acid green, green only for earned states; spec §15 amended). Phase 0 references: **Spotify** (content-first darkness, achromatic chrome, pill/circle geometry) and **Nike** (extreme condensed display-type contrast).
+**Decisions (2026-09-24):** palette **option A** (keep dark, accent only for earned states; spec §15 amended). **Superseded later the same day:** the founder supplied the final logo (silver swoosh-star mark + thin geometric wordmark) and dropped acid green as not premium. The accent is now platinum `#E4E2DC`, goal rings are muted metals (see `docs/brand/brand-kit.md`). Phase 0 references: **Spotify** (content-first darkness, achromatic chrome, pill/circle geometry) and **Nike** (extreme condensed display-type contrast).
 **Spec sections:** §15 (design system), §16 (UI exploration), §5.1 (Living Shield), §7 (onboarding),
 §8 (retention psychology), §21 (paywall), §24 (safety), §27 (platform gotchas).
 **Input:** the 25 CI screenshots from run 35935594714 (commit `aa04f093`), the 10 audits already in

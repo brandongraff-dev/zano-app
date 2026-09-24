@@ -164,7 +164,7 @@ struct TodayView: View {
     /// founder picked as reference; the tab bar already says "Today").
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-            ZanoWordmark(height: 20)
+            ZanoWordmark(height: 11)
             Text(Date.now, format: .dateTime.weekday(.wide).month(.abbreviated).day())
                 .font(Theme.Typography.captionEmphasized)
                 .foregroundStyle(Theme.Colors.muted)

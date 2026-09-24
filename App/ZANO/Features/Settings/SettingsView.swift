@@ -141,7 +141,7 @@ struct SettingsView: View {
     /// premium apps close their settings (docs/brand/brand-kit.md).
     private var brandFooter: some View {
         VStack(spacing: Theme.Spacing.xs) {
-            ZanoWordmark(height: 22, style: .mono(Theme.Colors.muted))
+            ZanoWordmark(height: 12, style: .mono(Theme.Colors.muted))
             Text(Copy.brand.taglineEarn)
                 .font(Theme.Typography.captionEmphasized)
                 .foregroundStyle(Theme.Colors.muted)

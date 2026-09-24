@@ -528,10 +528,10 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 
 **Tokens (starting point, tune after image-gen exploration)**
 - Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
-- Text: `#F5F5F7` ; Muted: `#8E8E93`
-- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only. **Earned states only** (decision 2026-09-24): completed rings, the unlock moment, "Earned" badges. Never on navigation or chrome (tab bar, neutral buttons, icons), which stay achromatic so goal colors carry the screen. See `docs/design/premium-ui-plan.md`.
-- Danger/locked: `#FF453A` ; Warning: `#FFB020`
-- Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
+- Text: `#F2F1ED` (pearl) ; Muted: `#8E8E93`
+- Accent (earned/unlock): `#E4E2DC` (platinum) — ONE accent only, taken from the logo (black / pearl / silver). **Earned states only** (decision 2026-09-24): completed rings, the unlock moment, "Earned" badges. Never on navigation or chrome (tab bar, neutral buttons, icons), which stay achromatic so goal colors carry the screen. See `docs/design/premium-ui-plan.md` and `docs/brand/brand-kit.md`. Acid green `#B8FF3C` was dropped the same day as not premium enough (founder decision).
+- Danger/locked: `#DE5A52` ; Warning: `#D9A55B`
+- Ring colors (muted, low-chroma): workout = accent, protein = `#C8936A` (bronze), focus = `#8E96C8` (slate), water = `#86B4C4` (glacier)
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32
 - Type: SF Pro (or one variable display font for numerals, e.g., a condensed grotesque); big numerals for grams/minutes/streak
 - Motion: spring animations; ring fills ease-out 600ms; unlock celebration ≤ 1.2s; haptics on every verified event
@@ -547,7 +547,7 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 Use image generation for **direction**, not final pixels. Generate 4–6 variants, pick one, then reuse the same style paragraph in every prompt. Feed the winners to Claude with the tokens above to build real SwiftUI components.
 
 **Style paragraph (paste into every prompt after choosing):**
-> Premium dark-mode iOS app, deep black background, one vivid acid-green accent, large rounded progress rings, chunky bold numerals, generous spacing, subtle inner glow on active elements, crisp 1px hairline dividers, SF Pro–like typography, no clutter, realistic iPhone 15 Pro frame, high fidelity, no lorem ipsum.
+> Premium dark-mode iOS app, deep black background, monochrome black / pearl / brushed-silver palette with muted metal accents, large rounded progress rings, chunky bold numerals, generous spacing, subtle inner glow on active elements, crisp 1px hairline dividers, SF Pro–like typography, no clutter, realistic iPhone 15 Pro frame, high fidelity, no lorem ipsum.
 
 **P1 — Today screen**
 > iPhone app screen "Today" for a discipline app where users earn back distracting apps by completing goals. Top: streak pill "14 🔥" and lock status card "Locked · TikTok, Instagram, YouTube" with a small padlock. Center: three progress rings labeled Workout, Protein (72/150g), Focus (25/50 min). Bottom: a single primary button "Go to gym · 6 min away". Tab bar: Today, Lock, Fuel, Progress, Squad. [style paragraph]

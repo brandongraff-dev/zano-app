@@ -1,22 +1,22 @@
 /* ZANO waitlist landing page
    Tokens mirror docs/spec.md §15 (Design System & UI Direction) — dark, confident,
-   game-progress energy. One accent only: acid green. */
+   game-progress energy. One accent only: platinum, from the logo. */
 
 :root {
   --bg: #0a0a0b;
   --surface: #141416;
   --surface-2: #1c1c1f;
-  --text: #f5f5f7;
+  --text: #f2f1ed;
   --muted: #8e8e93;
-  --accent: #b8ff3c; /* earned / unlock — the only accent color on this page */
+  --accent: #e4e2dc; /* earned / unlock — the only accent color on this page */
   --accent-ink: #0a0a0b; /* text color placed on top of accent-filled surfaces */
-  --danger: #ff453a;
-  --warning: #ffb020;
+  --danger: #de5a52;
+  --warning: #d9a55b;
 
   --ring-workout: var(--accent);
-  --ring-protein: #ff7a00;
-  --ring-focus: #5e5ce6;
-  --ring-water: #32ade6;
+  --ring-protein: #c8936a;
+  --ring-focus: #8e96c8;
+  --ring-water: #86b4c4;
 
   --radius-sm: 12px;
   --radius-md: 20px;
@@ -90,9 +90,9 @@ body {
 }
 
 .logo {
-  /* The wordmark SVG (docs/brand/zano-wordmark.svg); 18px cap height, width follows. */
+  /* The wordmark SVG (docs/brand/zano-wordmark.svg); 12px cap height, width follows. */
   display: block;
-  height: 18px;
+  height: 12px;
   width: auto;
 }
 
@@ -184,7 +184,7 @@ body {
 
 .waitlist-form__input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(184, 255, 60, 0.18);
+  box-shadow: 0 0 0 3px rgba(228, 226, 220, 0.18);
 }
 
 /* Honeypot: present in the DOM for bots, invisible and unreachable for people */
@@ -219,7 +219,7 @@ body {
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(184, 255, 60, 0.25);
+  box-shadow: 0 8px 24px rgba(228, 226, 220, 0.25);
 }
 
 .btn-primary:active {
@@ -244,7 +244,7 @@ body {
 }
 
 .btn-primary--ghost:hover {
-  box-shadow: 0 8px 24px rgba(184, 255, 60, 0.12);
+  box-shadow: 0 8px 24px rgba(228, 226, 220, 0.12);
 }
 
 .waitlist-form__status {

@@ -530,7 +530,7 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 - Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
 - Text: `#F5F5F7` ; Muted: `#8E8E93`
 - Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only
-- Danger/locked: `#FF453A` ; Warning: `#FFB020`
+- Danger: `#FF453A` (real failures and the emergency exit only) ; Warning: `#FFB020`. **Locked is shown `muted`, not red** (decision 2026-09-23: a routine locked day should read calm; only failures are red)
 - Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32
 - Type: SF Pro (or one variable display font for numerals, e.g., a condensed grotesque); big numerals for grams/minutes/streak

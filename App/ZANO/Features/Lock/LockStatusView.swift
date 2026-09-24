@@ -15,7 +15,7 @@
 //   Lock-specific hero: the Time Bank's remaining minutes in Earn Mode (its reason to exist), the
 //   open-goal count in Full mode, or the next scheduled lock time when nothing is locked — each one
 //   number in the design system's hero tier (`NumeralText(.hero)`), on the same `zanoCard` surface
-//   as Today's hero (danger wash while locked; accent wash + the static earned glow once every goal
+//   as Today's hero (muted wash while locked; accent wash + the static earned glow once every goal
 //   is done), so the two screens read as one product.
 // - Required goals use the shared `GoalRow` (with a ring) instead of a hand-rolled row with
 //   different padding, open goals first.
@@ -345,10 +345,11 @@ struct LockStatusView: View {
         }
     }
 
-    /// `danger` for a running lock (spec §15), `accent` once it is earned/released.
+    /// `muted` for a running lock (decision 2026-09-23: locked is calm, not red), `accent` once it is
+    /// earned/released.
     private var heroBadgeTint: Color {
         switch heroState {
-        case .bank, .goals: Theme.Colors.danger
+        case .bank, .goals: Theme.Colors.muted
         case .unlocked, .allDone: Theme.Colors.accent
         }
     }

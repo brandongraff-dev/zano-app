@@ -14,9 +14,9 @@
 //   design system's hero numeral tier (`NumeralText(.hero)`, 72 pt heavy rounded): "2 goals left"
 //   while locked, "3/4 done" while not. Everything else on the page is deliberately quieter than it
 //   (hero numeral 72 pt vs ring values ~26 pt vs captions 13 pt), so the eye lands once. The card
-//   carries the state in its surface, not just its label: a danger-tinted top-leading wash while a
-//   lock runs (`danger` is the spec's locked colour; only the small badge and the wash use it, the
-//   numeral stays `text` so a routine locked day reads calm), accent + the static "earned" glow when
+//   carries the state in its surface, not just its label: a muted top-leading wash while a
+//   lock runs (locked is `muted`, not red — decision 2026-09-23; the numeral stays `text` so a
+//   routine locked day reads calm), accent + the static "earned" glow when
 //   every goal is done. The screen backdrop takes a faint accent wash in the same earned state.
 // - The ring row fits. `RingCluster(.row)` is equal columns (three 88 pt rings, 312 pt, in a 343 pt
 //   minimum column) — it used to be a 500 pt scroller that clipped the third ring on every iPhone.
@@ -400,13 +400,13 @@ struct TodayView: View {
         }
     }
 
-    /// Locked keeps the spec's `danger` (§15 "Danger/locked") but only as a badge tint and a faint
-    /// wash — the numeral itself stays `text`, so a routine locked day reads as calm, not alarming.
-    /// `accent` is reserved for earned/unlocked states.
+    /// Locked is `muted` (product decision 2026-09-23: a routine locked day is calm, not an alarm, and
+    /// red made every morning look like an error). `danger` stays for real failures and the emergency
+    /// exit. `accent` is reserved for earned/unlocked states.
     private var heroBadgeTint: Color {
         switch heroState {
         case .setup: Theme.Colors.muted
-        case .locked: Theme.Colors.danger
+        case .locked: Theme.Colors.muted
         case .unlocking, .unlocked: Theme.Colors.accent
         }
     }

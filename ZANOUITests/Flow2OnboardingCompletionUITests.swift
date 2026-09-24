@@ -1,7 +1,8 @@
 // Flow2OnboardingCompletionUITests.swift
 // ZANOUITests -- scenario 1: complete onboarding end to end and land on the Today tab.
 //
-// docs/spec.md §7 (14 screens, hook -> first win) and §2 (core loop). Screen 14 IS the core loop
+// docs/spec.md §7 (14 screens, hook -> first win; paywall is screen 12, notification priming 13)
+// and §2 (core loop). Screen 14 IS the core loop
 // run once inside onboarding: lock -> 10-minute focus goal -> verified -> unlock + streak Day 1
 // (spec §7.14, §8 rule 11).
 //
@@ -86,23 +87,14 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
     @MainActor
     func test2_CompleteOnboardingEndToEndLandsOnToday() throws {
         try requireFamilyControlsEnvironment()
-        let app = launchApp()
+        // There is no free path (spec §21) and no product to buy in a test run, so this launches
+        // with the DEBUG-only paywall skip. Flow1 covers the paywall itself.
+        let app = launchApp(skipPaywall: true)
         try requireFreshOnboarding(app)
 
-        // Screens 1-12, ending on the paywall.
-        try driveOnboardingToPaywall(app)
-
-        // 13 Paywall: take the free path, the way a reviewer with no subscription would.
-        // (Flow1 covers the paywall's own guarantees in depth.)
-        XCTAssertTrue(waitForOnboardingStep(13, in: app), "Expected to be on the paywall (step 13).")
-        let freeLink = app.button(labelContaining: ZANOUILabel.Paywall.continueWithLimitedFree)
-        XCTAssertTrue(
-            revealByScrolling(freeLink, in: app),
-            "Paywall: '\(ZANOUILabel.Paywall.continueWithLimitedFree)' is not reachable."
-        )
-        freeLink.tap()
-        XCTAssertTrue(waitForOnboardingStep(14, in: app, timeout: 15), "Free path did not advance to step 14.")
-        settle()
+        // Screens 1-11 and Commitment; the skipped paywall (12) advances itself to priming (13).
+        try driveOnboardingToPaywall(app, skippingPaywall: true)
+        passNotificationPriming(app)
 
         // 14 First win: the core loop, once.
         completeFirstWin(app)

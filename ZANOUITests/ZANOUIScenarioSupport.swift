@@ -27,7 +27,7 @@
 // The strings themselves are mirrored in `ZANOUILabel` below (one place to update). This target
 // does not import Core (project.yml deliberately gives ZANOUITests no `package: Core`
 // dependency), so it cannot read `Copy.*` directly. Where a string is spec-verbatim (§7 quotes,
-// e.g. "Continue with limited free") it is stable by product decision; the rest are authored copy
+// e.g. "Earn your phone back") it is stable by product decision; the rest are authored copy
 // that WILL drift if retuned -- and it already had: when this file was reviewed against the live
 // `Copy` sources on 2026-09-23, ten mirrors were stale (onboarding hook/wake-up/plan/first-win
 // buttons, the emergency-unlock title, the Lock Sets strings, and Today's begin-lock button, which
@@ -60,7 +60,10 @@
 //     finish onboarding) -> onboarding e2e (fresh, finishes onboarding) -> lock setup (needs
 //     onboarded). Out-of-order or randomized runs skip rather than fail.
 //  4. Device Auto-Lock off: the first win is a real 10-minute focus timer with no skip.
-//  5. Free tier throughout (RevenueCat is not linked, so `TierGating` treats everyone as Free).
+//  5. There is no free tier (docs/spec.md §21, hard paywall). RevenueCat is not linked, so no
+//     purchase can be made from a test: scenarios that must get PAST the paywall launch with
+//     `-ZANOSkipPaywall YES` (a DEBUG-only hook in `PaywallView`), and `EntitlementGate` fails
+//     open when the entitlement state is unknown, so the shell never blocks a test run.
 
 import XCTest
 
@@ -114,8 +117,8 @@ enum ZANOUILabel {
     enum Paywall {
         /// Copy.paywall.headline -- spec §16 P5 verbatim.
         static let headline = "Earn your phone back"
-        /// Copy.paywall.continueWithLimitedFreeLink -- spec §7.13 / §21 verbatim.
-        static let continueWithLimitedFree = "Continue with limited free"
+        /// The retired free-path wording (spec §21: no free tier). Must NOT appear anywhere.
+        static let retiredFreePath = "limited free"
         /// Copy.paywall.restorePurchasesButtonLabel (spec §24: "restore purchases visible").
         static let restorePurchases = "Restore purchases"
         /// Copy.paywall.retryButtonLabel (shown only when offerings failed to load).
@@ -249,10 +252,13 @@ class ZANOScenarioTestCase: XCTestCase {
     // MARK: Launch / state
 
     /// Launches ZANO with English pinned so the label lookups in `ZANOUILabel` match.
+    /// `skipPaywall` passes the DEBUG-only `-ZANOSkipPaywall` flag, which makes onboarding's
+    /// paywall step advance on appear (there is nothing to buy in a test run).
     @MainActor
-    func launchApp() -> XCUIApplication {
+    func launchApp(skipPaywall: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        if skipPaywall { app.launchArguments += ["-ZANOSkipPaywall", "YES"] }
         app.launch()
         return app
     }
@@ -353,7 +359,7 @@ class ZANOScenarioTestCase: XCTestCase {
     }
 
     /// Scrolls the frontmost scroll view up until `element` exists and is hittable. The paywall is
-    /// a `ScrollView`; on small phones its "Continue with limited free" link starts below the fold.
+    /// a `ScrollView`; on small phones its Restore link starts below the fold.
     @MainActor
     func revealByScrolling(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) -> Bool {
         var swipes = 0
@@ -376,7 +382,7 @@ class ZANOScenarioTestCase: XCTestCase {
         add(attachment)
     }
 
-    // MARK: Onboarding driver (screens 1-12)
+    // MARK: Onboarding driver (screens 1-13)
 
     /// Taps `button` on onboarding screen `step` and waits for screen `step + 1`.
     /// Waits for the button to be ENABLED first: Continue on screens 3, 4 and 7 is disabled until
@@ -402,11 +408,13 @@ class ZANOScenarioTestCase: XCTestCase {
         settle()
     }
 
-    /// Drives a fresh install from onboarding screen 1 to the paywall (screen 13, docs/spec.md §7).
+    /// Drives a fresh install from onboarding screen 1 through Commitment to the paywall (screen 12,
+    /// docs/spec.md §7: the paywall sits at the emotional peak, right after Commitment).
     /// Device-only: screen 4 needs a real FamilyControls selection to enable Continue.
-    /// Leaves the app on screen 13.
+    /// Leaves the app on screen 12, or on screen 13 when the app was launched with
+    /// `skipPaywall: true` (the paywall then advances itself, so step 12 is not observable).
     @MainActor
-    func driveOnboardingToPaywall(_ app: XCUIApplication) throws {
+    func driveOnboardingToPaywall(_ app: XCUIApplication, skippingPaywall: Bool = false) throws {
         let L = ZANOUILabel.Onboarding.self
         let continueButton = app.button(labelContaining: L.continueButton)
 
@@ -465,13 +473,23 @@ class ZANOScenarioTestCase: XCTestCase {
         let commit = app.button(labelContaining: L.holdToCommit)
         XCTAssertTrue(commit.waitForExistence(timeout: 10), "Step 11: 'Hold to commit' button not found.")
         commit.holdToCommit()
-        XCTAssertTrue(waitForOnboardingStep(12, in: app), "Held 'Hold to commit' but never reached step 12.")
+        let landing = skippingPaywall ? 13 : 12
+        XCTAssertTrue(
+            waitForOnboardingStep(landing, in: app, timeout: 20),
+            "Held 'Hold to commit' but never reached step \(landing)."
+        )
         settle()
+    }
 
-        // 12 Permission priming. Advances whether the system prompt is allowed, denied, or was
-        // already answered on a previous install, so handle the prompt if it shows and move on.
+    /// Screen 13, notification priming (shown after the paywall). Advances whether the system prompt
+    /// is allowed, denied, or was already answered on a previous install, so handle the prompt if
+    /// it shows and move on. Leaves the app on screen 14.
+    @MainActor
+    func passNotificationPriming(_ app: XCUIApplication) {
+        let L = ZANOUILabel.Onboarding.self
+        XCTAssertTrue(waitForOnboardingStep(13, in: app), "Expected notification priming (step 13).")
         let allow = app.button(labelContaining: L.allowNotifications)
-        XCTAssertTrue(allow.waitForExistence(timeout: 10), "Step 12: 'Allow notifications' button not found.")
+        XCTAssertTrue(allow.waitForExistence(timeout: 10), "Step 13: 'Allow notifications' button not found.")
         allow.tap()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let systemAlert = springboard.alerts.firstMatch
@@ -479,7 +497,7 @@ class ZANOScenarioTestCase: XCTestCase {
             let systemAllow = systemAlert.buttons["Allow"]
             if systemAllow.exists { systemAllow.tap() }
         }
-        XCTAssertTrue(waitForOnboardingStep(13, in: app, timeout: 20), "Never reached the paywall (step 13).")
+        XCTAssertTrue(waitForOnboardingStep(14, in: app, timeout: 20), "Never reached the first win (step 14).")
         settle()
     }
 

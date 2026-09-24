@@ -314,10 +314,6 @@ struct PaywallView: View {
                 .foregroundStyle(Theme.Colors.muted)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-
-            PrimaryButton(title: Copy.paywall.retryButtonLabel, style: .secondary) {
-                Task { await viewModel.loadOfferings() }
-            }
         }
         .frame(maxWidth: .infinity)
         .padding(Theme.Spacing.md)
@@ -435,7 +431,21 @@ struct PaywallView: View {
         return priceLine(for: package)
     }
 
+    @ViewBuilder
     private var ctaButton: some View {
+        if case .failed = viewModel.loadState {
+            // With no plans there is nothing to subscribe to, and a disabled Subscribe button is a
+            // dead end on a wall with no other way in. The one useful action goes in the pinned bar,
+            // where it is on screen at every size.
+            PrimaryButton(title: Copy.paywall.retryButtonLabel) {
+                Task { await viewModel.loadOfferings() }
+            }
+        } else {
+            purchaseButton
+        }
+    }
+
+    private var purchaseButton: some View {
         ZStack {
             PrimaryButton(
                 title: ctaButtonTitle,

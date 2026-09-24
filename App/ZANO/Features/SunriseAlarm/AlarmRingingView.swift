@@ -104,6 +104,9 @@ struct AlarmRingingView: View {
     private var manager: SunriseAlarmManager { .shared }
 
     @State private var now = Date.now
+    /// True on short screens (iPhone SE class). There the escape dock plus the full-size clock and
+    /// glyph leave no room for the Scan button, so this tightens the layout instead of scrolling.
+    @State private var isCompact = false
     @State private var isPulsing = false
     @State private var pulseHapticTick = 0
 
@@ -143,7 +146,7 @@ struct AlarmRingingView: View {
             sunriseGlow
 
             ScrollView {
-                VStack(spacing: Theme.Spacing.lg) {
+                VStack(spacing: isCompact ? Theme.Spacing.md : Theme.Spacing.lg) {
                     header
                     variantContent
                     snoozeControl
@@ -153,9 +156,18 @@ struct AlarmRingingView: View {
                         .foregroundStyle(Theme.Colors.muted)
                         .multilineTextAlignment(.center)
                         .padding(.top, Theme.Spacing.xs)
+
+                    // What the hold does. It lives here, not in the pinned dock: three lines of
+                    // caption made the dock a quarter of the screen and pushed Scan and Snooze
+                    // behind it. VoiceOver still hears it as the hold control's hint.
+                    Text(Copy.alarmRinging.escapeHatchHoldHint)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, Theme.Spacing.xl)
+                .padding(.top, isCompact ? Theme.Spacing.sm : Theme.Spacing.xl)
                 .padding(.bottom, Theme.Spacing.lg)
                 .frame(maxWidth: .infinity)
             }
@@ -164,6 +176,13 @@ struct AlarmRingingView: View {
             // every viewport size (spec §5.10 point 6, CLAUDE.md "never trap the user").
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 escapeDock
+            }
+        }
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { isCompact = proxy.size.height < 720 }
+                    .onChange(of: proxy.size.height) { _, height in isCompact = height < 720 }
             }
         }
         .task { await loadDismissVariant() }
@@ -224,7 +243,7 @@ struct AlarmRingingView: View {
             phaseChip
 
             Text(now, format: .dateTime.hour().minute())
-                .font(.system(size: clockSize, weight: .bold, design: .rounded).monospacedDigit())
+                .font(.system(size: isCompact ? clockSize * 0.72 : clockSize, weight: .bold, design: .rounded).monospacedDigit())
                 .tracking(-1)
                 .foregroundStyle(Theme.Colors.text)
                 .minimumScaleFactor(0.5)
@@ -327,12 +346,14 @@ struct AlarmRingingView: View {
     private var tagGlyph: some View {
         let tint = Theme.Colors.Ring.sunriseAlarm
         return ZStack {
-            Circle()
-                .strokeBorder(tint.opacity(0.10), lineWidth: 1)
-                .frame(width: AlarmMetrics.glyphOuterRing, height: AlarmMetrics.glyphOuterRing)
-            Circle()
-                .strokeBorder(tint.opacity(0.20), lineWidth: 1)
-                .frame(width: AlarmMetrics.glyphInnerRing, height: AlarmMetrics.glyphInnerRing)
+            if !isCompact {
+                Circle()
+                    .strokeBorder(tint.opacity(0.10), lineWidth: 1)
+                    .frame(width: AlarmMetrics.glyphOuterRing, height: AlarmMetrics.glyphOuterRing)
+                Circle()
+                    .strokeBorder(tint.opacity(0.20), lineWidth: 1)
+                    .frame(width: AlarmMetrics.glyphInnerRing, height: AlarmMetrics.glyphInnerRing)
+            }
             Circle()
                 .fill(tint.opacity(0.14))
                 .frame(width: AlarmMetrics.glyphDisc, height: AlarmMetrics.glyphDisc)
@@ -474,12 +495,6 @@ struct AlarmRingingView: View {
                 .frame(minHeight: AlarmMetrics.minTapTarget)
 
             escapeHatchHoldControl
-
-            Text(Copy.alarmRinging.escapeHatchHoldHint)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
 
             if let escapeError {
                 Text(escapeError)

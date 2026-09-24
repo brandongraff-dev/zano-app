@@ -46,7 +46,7 @@ public struct PrimaryButton: View {
         /// fires. Releasing early cancels and resets the fill with no effect.
         case holdToCommit
         /// A bordered `surface2` capsule with a `text` label: the second action on a screen
-        /// ("Continue with limited free", "Share", "Snooze"). Never competes with an accent CTA.
+        /// ("Restore purchases", "Share", "Snooze"). Never competes with an accent CTA.
         case secondary
     }
 
@@ -383,7 +383,7 @@ private struct PrimaryButtonStyle: ButtonStyle {
 #Preview("PrimaryButton") {
     VStack(spacing: Theme.Spacing.md) {
         PrimaryButton(title: "Start focus", systemImage: "timer", action: {})
-        PrimaryButton(title: "Continue with limited free", style: .secondary, action: {})
+        PrimaryButton(title: "Restore purchases", style: .secondary, action: {})
         PrimaryButton(title: "Unavailable", isEnabled: false, action: {})
         PrimaryButton(title: "Hold to commit", style: .holdToCommit, action: {})
         PrimaryButton(title: "Hold to unlock now", systemImage: "exclamationmark.triangle.fill", style: .holdToCommit, tint: .danger, action: {})

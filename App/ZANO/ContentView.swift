@@ -134,31 +134,37 @@ private struct MainTabView: View {
             // left, nothing else Today can drive) degrades to a read-only status row with no way
             // to get to Fuel from the very screen that says to go there.
             TodayView(onOpenFuel: { appRouter.selectedTab = .fuel })
-                .tabItem { Label(Copy.today.screenTitle, systemImage: "target") }
+                .zanoTabContent()
                 .tag(AppTab.today)
 
             // The other four use `.navigationTitle` but carry no stack of their own
             // (`LockStatusView`'s header says so explicitly; `FuelView`/`ProgressView`/
             // `SettingsView` only set titles), so each tab supplies one.
             NavigationStack { LockStatusView() }
-                .tabItem { Label(Copy.lockStatus.screenTitle, systemImage: "lock.fill") }
+                .zanoTabContent()
                 .tag(AppTab.lock)
 
             NavigationStack { FuelView() }
-                .tabItem { Label(Copy.fuel.screenTitle, systemImage: "fork.knife") }
+                .zanoTabContent()
                 .tag(AppTab.fuel)
 
             NavigationStack { ProgressView() }
-                .tabItem { Label(Copy.progress.screenTitle, systemImage: "chart.line.uptrend.xyaxis") }
+                .zanoTabContent()
                 .tag(AppTab.progress)
 
             NavigationStack { SettingsView() }
-                .tabItem { Label(Copy.settings.screenTitle, systemImage: "gearshape.fill") }
+                .zanoTabContent()
                 .tag(AppTab.settings)
         }
-        // Chrome is achromatic (decision 2026-09-24): the selected tab is white, and green stays
-        // reserved for earned states.
         .tint(Theme.Colors.interactive)
+        // The floating glass bar replaces the system tab bar (hidden per tab by `zanoTabContent`).
+        // It stays put when the keyboard opens rather than riding up on it.
+        .overlay(alignment: .bottom) {
+            ZanoTabBar(selection: $selection)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.bottom, 4)
+                .ignoresSafeArea(.keyboard)
+        }
         // Held back (getter returns `nil`) while the alarm is ringing, then presents as soon as it
         // clears — the queued `router.unlockCelebration` isn't lost. `UnlockCelebrationView`'s own
         // "Nice" button calls `dismiss()`, which writes `nil` back through the setter.
@@ -184,6 +190,17 @@ private struct MainTabView: View {
             )
             .preferredColorScheme(.dark)
         }
+    }
+}
+
+private extension View {
+    /// A tab's root: the system tab bar hidden, and room at the bottom for the floating one so the
+    /// last row and any bottom action bar sit above it (content still scrolls under the glass).
+    func zanoTabContent() -> some View {
+        toolbar(.hidden, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: ZanoTabBar.reservedHeight)
+            }
     }
 }
 

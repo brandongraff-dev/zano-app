@@ -223,7 +223,7 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
     private func openLockSets(_ app: XCUIApplication) {
         let title = ZANOUILabel.LockSetup.screenTitle
         for tabName in [ZANOUILabel.Shell.settingsTab, ZANOUILabel.Shell.lockTab] {
-            let tab = app.tabBars.buttons[tabName]
+            let tab = app.zanoTab(tabName)
             guard tab.exists else { continue }
             tab.tap()
             // Settings is a `ScrollView` of cards; the row sits under the hero but may start below

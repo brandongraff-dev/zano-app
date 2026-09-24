@@ -176,7 +176,7 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
     @MainActor
     private func assertLandedOnToday(_ app: XCUIApplication) {
         XCTAssertTrue(
-            app.tabBars.firstMatch.waitForExistence(timeout: 25),
+            app.zanoTabBar.waitForExistence(timeout: 25),
             "No tab bar appeared after finishing onboarding."
         )
         XCTAssertTrue(app.todayTab.waitForExistence(timeout: 10), "No '\(ZANOUILabel.Shell.todayTab)' tab in the tab bar.")

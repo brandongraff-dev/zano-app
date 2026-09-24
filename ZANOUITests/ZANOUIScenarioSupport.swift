@@ -218,7 +218,11 @@ extension XCUIApplication {
             .firstMatch
     }
 
-    var todayTab: XCUIElement { tabBars.buttons[ZANOUILabel.Shell.todayTab] }
+    /// ZANO's floating tab bar (`ZanoTabBar`, a custom view, so not an `XCUIElement` of type tabBar).
+    var zanoTabBar: XCUIElement { otherElements["zano.tabBar"] }
+    func zanoTab(_ title: String) -> XCUIElement { zanoTabBar.buttons[title] }
+
+    var todayTab: XCUIElement { zanoTab(ZANOUILabel.Shell.todayTab) }
 }
 
 extension XCUIElement {
@@ -265,7 +269,7 @@ class ZANOScenarioTestCase: XCTestCase {
                 state = .onboarding
                 return true
             }
-            if app.tabBars.firstMatch.exists {
+            if app.zanoTabBar.exists {
                 state = .main
                 return true
             }

@@ -115,3 +115,12 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
   and less cold". Traced to vectors (815.59 × 100 units, 8.16 : 1) and swapped into
   `ZanoWordmarkShape`, `docs/brand/zano-wordmark*.svg`, the lockup + launch images and the landing
   page. The mark and app icon are unchanged.
+
+### 2026-09-24 — Floating glass tab bar
+
+- Founder reference: a floating dark-glass capsule with outline icons and a lit circle behind the
+  selected tab. `App/ZANO/ZanoTabBar.swift` draws it; `MainTabView` hides the system bar per tab
+  (`zanoTabContent()`, which also reserves 80 pt at the bottom) and overlays the capsule. `TabView`
+  still owns state. Selection glides (matched geometry spring) with a selection haptic; Reduce
+  Motion/Transparency respected. Fuel's icon is now the reference's fuel pump.
+- UI tests query `otherElements["zano.tabBar"]` instead of the system `tabBars`.

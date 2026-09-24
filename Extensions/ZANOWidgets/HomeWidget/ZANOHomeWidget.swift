@@ -147,7 +147,7 @@ private struct ZANOBigCountView: View {
 }
 
 /// The quick-log chip for a goal row, running that goal's existing App Intent.
-@ViewBuilder
+@MainActor @ViewBuilder
 private func quickLogButton(for goal: ZANOTrackedGoal) -> some View {
     switch goal.kind {
     case .protein:

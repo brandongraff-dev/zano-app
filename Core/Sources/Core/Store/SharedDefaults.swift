@@ -50,6 +50,18 @@ public enum SharedDefaults {
         static let earnedMinutesMirrorDate = "shared.earnedMinutesMirrorDate"
         static let nextScheduledLockAt = "shared.nextScheduledLockAt"
         static let shieldImpressionCount = "shared.shieldImpressionCount"
+        static let lockedSelectionData = "shared.lockedSelectionData"
+    }
+
+    // MARK: - Locked apps (screen-time report)
+
+    /// The default lock set's `FamilyActivitySelection`, JSON-encoded exactly as
+    /// `LockSet.appTokensBlob` stores it. `ZANOReport` reads it to mark usage of locked apps in red
+    /// on Today's screen-time chart. Opaque tokens only, on device only (spec §24: tokens never
+    /// leave the device). Written by the main app (Today on appear, `LockEngineManager.startLock`).
+    public static var lockedSelectionData: Data? {
+        get { defaults.data(forKey: Keys.lockedSelectionData) }
+        set { defaults.set(newValue, forKey: Keys.lockedSelectionData) }
     }
 
     // MARK: - Streak (spec §5.6 Never Miss Twice, §5.9 Ranks, §8 Retention Rules)

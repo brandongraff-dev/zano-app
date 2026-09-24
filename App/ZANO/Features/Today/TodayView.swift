@@ -26,6 +26,8 @@
 import Foundation
 import SwiftUI
 import SwiftData
+import DeviceActivity
+import FamilyControls
 import Core
 
 struct TodayView: View {
@@ -93,6 +95,7 @@ struct TodayView: View {
                     header
                     heroCard
                     goalSections
+                    screenTimeSection
                     if let ghostComparison {
                         ghostRow(ghostComparison)
                     }
@@ -121,6 +124,10 @@ struct TodayView: View {
             .task {
                 // spec §23: "every screen view... (count only, on device → aggregate)".
                 Analytics.shared.capture(event: "screen_viewed", properties: ["screen": "today"])
+            }
+            .task(id: defaultLockSet?.appTokensBlob) {
+                // Lets the screen-time report (ZANOReport) mark locked apps even when no lock runs.
+                if let blob = defaultLockSet?.appTokensBlob { SharedDefaults.lockedSelectionData = blob }
             }
         }
         .preferredColorScheme(.dark)
@@ -153,26 +160,23 @@ struct TodayView: View {
 
     // MARK: - Header
 
-    /// Date line over the title, streak pill trailing. The date is locale-formatted data, not copy.
+    /// The wordmark and the date on the left, the streak on the right (the Opal-style top bar the
+    /// founder picked as reference; the tab bar already says "Today").
     private var header: some View {
-        HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(Date.now, format: .dateTime.weekday(.wide).month(.abbreviated).day())
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.muted)
-                Text(Copy.today.screenTitle)
-                    .font(.system(size: 40, weight: .heavy).width(.condensed))
-                    .foregroundStyle(Theme.Colors.text)
-                    .accessibilityAddTraits(.isHeader)
-            }
+        HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+            ZanoWordmark(height: 20)
+            Text(Date.now, format: .dateTime.weekday(.wide).month(.abbreviated).day())
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.muted)
+                .lineLimit(1)
             Spacer(minLength: Theme.Spacing.sm)
             StreakPill(
                 count: streak?.current ?? 0,
                 isFrozen: isStreakFrozenToday,
                 accessibilityLabelOverride: CoachVoiceTone.streakClause(voice, streak: streak?.current ?? 0)
             )
-            .padding(.bottom, Theme.Spacing.xxs)
         }
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: - Hero (the vault)
@@ -236,51 +240,152 @@ struct TodayView: View {
         .buttonStyle(.pressable)
     }
 
-    @ViewBuilder
+    /// The hero is an object, not a card (Opal's gem, ZANO's rings): the day's goals as concentric
+    /// rings in their own colors, floating in a halo whose light follows the state, with the lock
+    /// glyph at the centre and the one big number under it. Tapping it opens Lock.
     private var vault: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [heroHalo.opacity(reduceTransparency ? 0 : 0.42), heroHalo.opacity(0)],
+                            center: .center,
+                            startRadius: 30,
+                            endRadius: 175
+                        )
+                    )
+                    .frame(width: 350, height: 350)
+                if heroSegments.isEmpty {
+                    Circle()
+                        .stroke(Theme.Colors.track, style: StrokeStyle(lineWidth: 14, dash: [3, 9]))
+                        .frame(width: 180, height: 180)
+                } else {
+                    ConcentricGoalRings(segments: heroSegments, diameter: 204)
+                }
+                Image(systemName: heroGlyph)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(heroIsEarned ? Theme.Colors.accent : Theme.Colors.text)
+                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+            }
+            .frame(height: 236)
+
+            heroNumber
+
+            HStack(spacing: Theme.Spacing.xs) {
+                Circle()
+                    .fill(heroStatusColor)
+                    .frame(width: 7, height: 7)
+                Text(heroStatusLine)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.xsmall))
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            .padding(.horizontal, Theme.Spacing.sm)
+            .padding(.vertical, 6)
+            .background(Theme.Colors.surface.opacity(0.8), in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+
+            if let chip = bankChipText {
+                Text(chip)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.accent)
+                    .padding(.horizontal, Theme.Spacing.sm)
+                    .padding(.vertical, Theme.Spacing.xxs)
+                    .background(Theme.Colors.accentWash, in: Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, Theme.Spacing.sm)
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
+    }
+
+    @ViewBuilder
+    private var heroNumber: some View {
         switch heroState {
         case .setup:
-            LockVaultCard(
-                status: .setup,
-                eyebrow: Copy.today.heroSetupEyebrow,
-                message: Copy.today.setupIncompleteTitle,
-                showsChevron: true
-            )
-        case .locked(let remaining, _):
-            LockVaultCard(
-                status: .locked,
-                eyebrow: Copy.today.heroLockedEyebrow(lockSetName: activeLockSet?.name),
-                detail: activeLockSession.map {
-                    Copy.today.heroLockedSince($0.startedAt.formatted(date: .omitted, time: .shortened))
-                },
-                numeralLine: Copy.today.heroGoalsToUnlockLine(count: remaining),
-                caption: Copy.today.heroRemainingGoals(openFirst(requiredGoals).filter { !isGoalDoneToday($0) }.map(\.title)),
-                segments: segments(for: requiredGoals),
-                chip: bankChipText,
-                appTokensBlob: activeLockSet?.appTokensBlob,
-                showsChevron: true,
-                changeKey: remaining
-            )
+            Text(Copy.today.setupIncompleteTitle)
+                .font(Theme.Typography.titleLarge)
+                .foregroundStyle(Theme.Colors.text)
+                .multilineTextAlignment(.center)
         case .unlocking:
-            LockVaultCard(
-                status: .earned,
-                eyebrow: Copy.today.heroUnlockingEyebrow,
-                message: Copy.today.allDoneTitle,
-                segments: segments(for: requiredGoals),
-                appTokensBlob: activeLockSet?.appTokensBlob,
-                showsChevron: true
-            )
+            Text(Copy.today.allDoneTitle)
+                .font(Theme.Typography.titleLarge)
+                .foregroundStyle(Theme.Colors.accent)
+                .multilineTextAlignment(.center)
+        case .locked(let remaining, _):
+            centredNumeral(Copy.today.heroGoalsToUnlockLine(count: remaining), earned: false, changeKey: remaining)
         case .unlocked(let done, let total):
-            let allDone = total > 0 && done >= total
-            LockVaultCard(
-                status: allDone ? .earned : .unlocked,
-                eyebrow: Copy.today.lockStatusLine(isLocked: false, goalsRemaining: 0),
-                numeralLine: Copy.today.heroFractionDone(done: done, total: total),
-                segments: segments(for: activeGoals),
-                appTokensBlob: defaultLockSet?.appTokensBlob,
-                showsChevron: true,
-                changeKey: done
-            )
+            centredNumeral(Copy.today.heroFractionDone(done: done, total: total), earned: heroIsEarned, changeKey: done)
+        }
+    }
+
+    /// "2" at poster size with its words under it, centred.
+    private func centredNumeral(_ line: String, earned: Bool, changeKey: Int) -> some View {
+        VStack(spacing: 0) {
+            NumeralText(line, size: .hero, color: earned ? Theme.Colors.accent : Theme.Colors.text, remainder: .hidden)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
+            Text(NumeralText.remainder(of: line))
+                .font(.system(.title3, weight: .bold).width(.condensed))
+                .foregroundStyle(Theme.Colors.text)
+            if case .locked = heroState,
+               let names = Copy.today.heroRemainingGoals(openFirst(requiredGoals).filter { !isGoalDoneToday($0) }.map(\.title)) {
+                Text(names)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .padding(.top, 2)
+            }
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    private var heroSegments: [VaultSegment] {
+        switch heroState {
+        case .setup: []
+        case .locked, .unlocking: segments(for: requiredGoals)
+        case .unlocked: segments(for: activeGoals)
+        }
+    }
+
+    private var heroGlyph: String {
+        switch heroState {
+        case .setup: "gearshape.fill"
+        case .locked: "lock.fill"
+        case .unlocking: "checkmark"
+        case .unlocked: "lock.open.fill"
+        }
+    }
+
+    /// Cold steel while locked, the accent once earned, a faint neutral otherwise.
+    private var heroHalo: Color {
+        if heroIsEarned { return Theme.Colors.accent }
+        switch heroState {
+        case .locked: return Theme.Colors.lockedAmbient
+        default: return Theme.Colors.textSecondary.opacity(0.4)
+        }
+    }
+
+    private var heroStatusColor: Color {
+        switch heroState {
+        case .locked: Theme.Colors.danger
+        case .unlocking, .unlocked: Theme.Colors.accent
+        case .setup: Theme.Colors.muted
+        }
+    }
+
+    /// "Locked · Social · since 7:00 AM", "Unlocked", "Setup".
+    private var heroStatusLine: String {
+        switch heroState {
+        case .locked:
+            let base = Copy.today.heroLockedEyebrow(lockSetName: activeLockSet?.name)
+            guard let session = activeLockSession else { return base }
+            return base + " · " + Copy.today.heroLockedSince(session.startedAt.formatted(date: .omitted, time: .shortened))
+        case .unlocking: return Copy.today.heroUnlockingEyebrow
+        case .unlocked: return Copy.today.lockStatusLine(isLocked: false, goalsRemaining: 0)
+        case .setup: return Copy.today.heroSetupEyebrow
         }
     }
 
@@ -499,6 +604,58 @@ struct TodayView: View {
                 actionError = error.localizedDescription
             }
         }
+    }
+
+    // MARK: - Screen time (the Opal reference's lower half; data only exists in ZANOReport)
+
+    private var screenTimeSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text(Copy.screenTime.sectionTitle)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .padding(.leading, Theme.Spacing.xxs)
+                .accessibilityAddTraits(.isHeader)
+            screenTimeContent
+        }
+        .padding(.top, Theme.Spacing.sm)
+    }
+
+    /// The real numbers are drawn by the `ZANOReport` extension (spec §27: the app itself can never
+    /// read them), sized to the summary view's height. CI screenshots have no Screen Time data, so
+    /// they draw the same view from demo numbers. Without authorization, one card that asks.
+    @ViewBuilder
+    private var screenTimeContent: some View {
+        if ScreenshotMode.screen != nil {
+            ScreenTimeSummaryView(summary: DemoData.screenTime)
+        } else if AuthorizationCenter.shared.authorizationStatus == .approved {
+            DeviceActivityReport(.zanoToday, filter: Self.todayFilter)
+                .frame(height: 760)
+        } else {
+            screenTimeAccessCard
+        }
+    }
+
+    private static var todayFilter: DeviceActivityFilter {
+        let day = Calendar.current.dateInterval(of: .day, for: .now)
+            ?? DateInterval(start: Calendar.current.startOfDay(for: .now), duration: 86_400)
+        return DeviceActivityFilter(segment: .hourly(during: day))
+    }
+
+    private var screenTimeAccessCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.screenTime.accessTitle)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+            Text(Copy.screenTime.accessDetail)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            PrimaryButton(title: Copy.screenTime.accessButton, style: .secondary) {
+                Task { try? await AuthorizationCenter.shared.requestAuthorization(for: .individual) }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .zanoCard()
     }
 
     // MARK: - Ghost Mode (one quiet line — the third most important thing here)

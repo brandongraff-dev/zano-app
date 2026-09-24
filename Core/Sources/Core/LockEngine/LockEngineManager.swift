@@ -210,6 +210,8 @@ public final class LockEngineManager {
         }
         let selection = try decodeSelection(from: lockSet)
         applyShield(selection)
+        // The screen-time report (ZANOReport) marks these apps' usage as locked-app time.
+        SharedDefaults.lockedSelectionData = lockSet.appTokensBlob
 
         let user = try fetchCurrentUser()
         let session = LockSession(

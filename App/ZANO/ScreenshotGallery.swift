@@ -112,6 +112,37 @@ struct ScreenshotHost: View {
 // MARK: - Demo data
 
 extension DemoData {
+    /// Today's screen time for CI screenshots (the Simulator has none): a believable 2h 34m by
+    /// 5:42 PM, a third of it in locked apps, drawn by the same `ScreenTimeSummaryView` the
+    /// `ZANOReport` extension renders on a device. Never shown outside `-ZANOScreen` launches.
+    static var screenTime: ScreenTimeSummary {
+        let today = Calendar.current.startOfDay(for: .now)
+        let asOf = Calendar.current.date(bySettingHour: 17, minute: 42, second: 0, of: today) ?? .now
+        let perHour: [(Int, Double, Double)] = [
+            (6, 0, 4), (7, 6, 11), (8, 2, 9), (9, 0, 6), (10, 0, 8), (11, 4, 7),
+            (12, 14, 12), (13, 3, 9), (14, 0, 5), (15, 5, 8), (16, 9, 7), (17, 8, 6),
+        ]
+        let hours = perHour.map { ScreenTimeSummary.Hour(hour: $0.0, lockedMinutes: $0.1, otherMinutes: $0.2) }
+        let locked = perHour.reduce(0) { $0 + $1.1 } * 60
+        let other = perHour.reduce(0) { $0 + $1.2 } * 60
+        return ScreenTimeSummary(
+            total: locked + other,
+            lockedTime: locked,
+            pickups: 61,
+            apps: [
+                .init(id: "instagram", name: "Instagram", duration: 31 * 60, isLocked: true),
+                .init(id: "messages", name: "Messages", duration: 26 * 60, isLocked: false),
+                .init(id: "safari", name: "Safari", duration: 19 * 60, isLocked: false),
+                .init(id: "tiktok", name: "TikTok", duration: 14 * 60, isLocked: true),
+                .init(id: "spotify", name: "Spotify", duration: 11 * 60, isLocked: false),
+            ],
+            hours: hours,
+            asOf: asOf
+        )
+    }
+}
+
+extension DemoData {
     /// Not inserted into the store: `WeeklyRecapShareView` renders straight from the value.
     static let recapGoalIDs: [UUID] = (0..<4).map { _ in UUID() }
     static let recapGoalTitles: [UUID: String] = [

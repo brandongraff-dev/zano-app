@@ -246,6 +246,9 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOReport
+    # Core for the shared ScreenTimeSummaryView and the SharedDefaults locked-apps mirror.
+    dependencies:
+      - package: Core
     settings:
       base:
         # Swift 5 language mode for this one placeholder extension only. CI showed Apple's

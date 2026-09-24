@@ -73,15 +73,15 @@ struct PaywallView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     headline
-                        .padding(.top, Theme.Spacing.lg)
+                        .padding(.top, Theme.Spacing.xs)
                         .paywallReveal(index: 0, isShown: isRevealed, reduceMotion: reduceMotion)
 
-                    Spacer(minLength: Theme.Spacing.xl)
+                    Spacer(minLength: Theme.Spacing.lg)
 
                     middle
                         .paywallReveal(index: 1, isShown: isRevealed, reduceMotion: reduceMotion)
 
-                    Spacer(minLength: Theme.Spacing.xl)
+                    Spacer(minLength: Theme.Spacing.md)
 
                     decision
                         .paywallReveal(index: 2, isShown: isRevealed, reduceMotion: reduceMotion)
@@ -163,8 +163,8 @@ struct PaywallView: View {
     // MARK: - Headline
 
     private var headline: some View {
-        VStack(spacing: Theme.Spacing.md) {
-            ZanoWordmark(height: 22)
+        VStack(spacing: Theme.Spacing.sm) {
+            ZanoWordmark(height: 18)
             headlineText
         }
     }
@@ -477,7 +477,7 @@ private struct PaywallTrialTimeline: View {
     let reminderDaysBefore: Int
     let priceLine: String
 
-    private static let nodeSize: CGFloat = 40
+    private static let nodeSize: CGFloat = 36
     private static let trackWidth: CGFloat = 10
 
     private struct Node: Identifiable {
@@ -538,7 +538,9 @@ private struct PaywallTrialTimeline: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, Theme.Spacing.xs)
-            .padding(.bottom, isLast ? Theme.Spacing.lg : Theme.Spacing.lg)
+            // Tight enough that Terms / Privacy / Restore stay on the first screen (spec §24:
+            // restore purchases visible) on a 393 × 852 phone.
+            .padding(.bottom, Theme.Spacing.md)
         }
         // The track segment below this node, behind it: accent while still in the trial, grey for
         // the tail after billing. A background, so it spans the row whatever the text does.

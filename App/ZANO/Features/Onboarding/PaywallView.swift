@@ -1,10 +1,11 @@
 // PaywallView.swift
 // App / Features / Onboarding
 //
-// Screen 13 of 14 in the onboarding flow (docs/spec.md §7.13): "Paywall — Free trial (7 days) with
-// 'we'll remind you 2 days before it ends.' Annual highlighted. Clear 'Continue with limited free'
-// option below (1 goal, 1 lock set)." Copy rules are spec §21's: "benefits in the user's words from
-// onboarding; show the plan they built; social proof; clear free path; no dark patterns." (There is
+// Screen 12 of 14 in the onboarding flow (docs/spec.md §7.12), directly after Commitment: a HARD
+// paywall (decision 2026-09-23) — free trial (7 days) with "we'll remind you 2 days before it
+// ends." Annual highlighted. There is no free path. Copy rules are spec §21's: benefits in the
+// user's words, the plan they built, a dated trial timeline, a visible restore link, no dark
+// patterns. It is also shown standalone by `ContentView` when a subscription lapses. (There is
 // no social-proof block: the app has no real testimonials or counts yet, and a fabricated one is a
 // ship risk — `Copy.onboarding.socialProofQuotes`' own header says the same.)
 //
@@ -54,10 +55,10 @@
 import SwiftUI
 import Core
 
-/// Screen 13 of 14 (spec §7.13) — the paywall. Presents RevenueCat offerings via
-/// `PaywallViewModel`, defaults to the annual plan selected (spec §21 "annual highlighted"), and
-/// always leaves two ways forward: purchase/start trial, or "Continue with limited free" — never
-/// a dead end (spec §21 "no dark patterns", "clear free path").
+/// Screen 12 of 14 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
+/// `PaywallViewModel` and defaults to the annual plan selected (spec §21 "annual highlighted").
+/// The only ways forward are to start the trial, subscribe, or restore an existing purchase; when
+/// plans fail to load it says so plainly and offers "Try again" and "Restore purchases".
 struct PaywallView: View {
     @Bindable var flowState: OnboardingFlowState
     /// Constructed with every default (including `coachVoice: nil`, which reads
@@ -142,14 +143,20 @@ struct PaywallView: View {
             await viewModel.load()
         }
         .onAppear {
+            #if DEBUG
+            // UI tests and CI have no RevenueCat products to buy. Compiled out of every release build.
+            if UserDefaults.standard.bool(forKey: "ZANOSkipPaywall") { flowState.advance() }
+            #endif
             hasRevealed = true
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "paywall", "screen_number": 13]
+                properties: ["screen": "paywall", "screen_number": 12]
             )
         }
         .onChange(of: viewModel.purchaseState) { _, newValue in
             if newValue == .succeeded {
+                // Re-read the entitlement so a lapsed-subscription paywall (ContentView) dismisses.
+                Task { await EntitlementGate.shared.refresh() }
                 flowState.advance()
             }
         }
@@ -402,7 +409,6 @@ struct PaywallView: View {
         VStack(spacing: Theme.Spacing.xs) {
             termsLine
             ctaButton
-            freePathButton
             legalRow
         }
         // The pinned bar must never eat the screen at accessibility sizes.
@@ -456,29 +462,6 @@ struct PaywallView: View {
         } else {
             Copy.paywall.subscribeButtonLabel
         }
-    }
-
-    /// The free path is a real control — 44pt or more, in `text`, not a 13pt grey underline — and
-    /// it says what "free" is (spec §21: "1 goal, 1 lock set"), so the choice is an informed one.
-    /// It is never gated on `loadState` or `purchaseState`: a reviewer whose sandbox products are
-    /// not approved must still get past this screen (spec §21 "no dark patterns").
-    private var freePathButton: some View {
-        Button {
-            viewModel.continueWithLimitedFree()
-            flowState.advance()
-        } label: {
-            VStack(spacing: 0) {
-                Text(Copy.paywall.continueWithLimitedFreeLink)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                Text(Copy.paywallTimeline.freeTierDetail)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
     }
 
     /// Restore purchases (spec §24: "restore purchases visible"), Terms and Privacy: three 44pt

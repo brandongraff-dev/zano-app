@@ -93,7 +93,7 @@ struct Screen12PermissionPriming: View {
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "permission_priming", "screen_number": 12]
+                properties: ["screen": "permission_priming", "screen_number": 13]
             )
         }
     }

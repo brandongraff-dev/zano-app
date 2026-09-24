@@ -311,6 +311,30 @@ public final class RevenueCatManager {
         #endif
     }
 
+    /// Whether purchases are wired up at all (RevenueCat linked AND an API key supplied). False in
+    /// development, CI and any build made before the RevenueCat account exists.
+    public var isConfiguredForPurchases: Bool {
+        #if canImport(RevenueCat)
+        return isConfigured
+        #else
+        return false
+        #endif
+    }
+
+    /// Three-way entitlement answer for the hard paywall (`EntitlementGate`). Unlike
+    /// `isProSubscriber()`, which folds "couldn't check" into `false`, this keeps the cases apart:
+    /// a paying user who is offline, or a build with no RevenueCat key, must never be treated as
+    /// "not subscribed" and locked out.
+    public func entitlementCheck() async -> EntitlementCheck {
+        #if canImport(RevenueCat)
+        guard isConfigured else { return .unavailable }
+        guard let info = try? await Purchases.shared.customerInfo() else { return .unavailable }
+        return Self.isPro(info) ? .entitled : .notEntitled
+        #else
+        return .unavailable
+        #endif
+    }
+
     /// Current Pro entitlement state (spec §21 tiers). Never throws — deliberately, unlike the
     /// three methods above: this is read on ordinary screen loads/gating checks, and a
     /// transient network failure or an unconfigured SDK must degrade to `false` (treated as Free

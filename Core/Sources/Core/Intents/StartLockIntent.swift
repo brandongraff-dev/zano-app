@@ -34,7 +34,7 @@ public enum LockModeOption: String, AppEnum, Sendable {
         ),
         .earn: DisplayRepresentation(
             title: "Earn Mode",
-            subtitle: "Verified goals deposit minutes into today's Time Bank (spec §5.2)."
+            subtitle: "Verified goals deposit minutes into today's Time Bank."
         ),
     ]
 

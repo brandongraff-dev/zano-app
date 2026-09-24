@@ -38,6 +38,8 @@ struct ContentView: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Hard paywall (spec §21): blocks the app when a trial/subscription has definitively lapsed.
+    private let entitlement = EntitlementGate.shared
 
     var body: some View {
         @Bindable var router = router
@@ -46,7 +48,10 @@ struct ContentView: View {
         let isAlarmRinging = router.isAlarmRingingPresented
 
         Group {
-            if router.hasCompletedOnboarding {
+            if router.hasCompletedOnboarding && entitlement.isBlocking {
+                // Any active lock was already released by EntitlementGate before this shows.
+                PaywallView(flowState: OnboardingFlowState())
+            } else if router.hasCompletedOnboarding {
                 MainTabView(selection: $router.selectedTab, isAlarmRinging: isAlarmRinging)
             } else {
                 OnboardingContainerView(onFinished: { router.completeOnboarding() })
@@ -91,6 +96,7 @@ struct ContentView: View {
     /// opted in (spec §5.10 frames both as opt-in). Once Core exposes a "has been configured"
     /// signal (or defaults `enabled` to `false`), add both calls right here.
     private func runForegroundChecks() async {
+        await entitlement.refresh()
         await router.beginAlarmIfDue()
         await router.reconcileAlarmIfNeeded()
 

@@ -233,9 +233,6 @@ extension Copy {
         /// Spec §7.13's own promise: "we'll remind you 2 days before it ends."
         public static let paywallTrialReminder = "We'll remind you 2 days before your trial ends."
         public static let paywallCTAButton = "Start my 7-day free trial"
-        /// Spec §7.13/§21 verbatim: "Continue with limited free".
-        public static let paywallContinueFreeButton = "Continue with limited free"
-        public static let paywallFreeTierDetail = "Free: 1 goal and 1 lock set."
         public static let paywallAutoRenewDisclaimer = "Auto-renews unless canceled. Cancel anytime in Settings."
         public static let paywallMonthlyLabel = "Monthly"
         public static let paywallAnnualLabel = "Annual"

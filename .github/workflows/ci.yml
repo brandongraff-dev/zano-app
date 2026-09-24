@@ -21,6 +21,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cheap, fast, and catches a real class of bug: developer text ("(spec §5.10)") reaching users.
+      - name: Lint user-facing strings (no spec references)
+        run: |
+          HITS=$(grep -rnE '"[^"]*(§|docs/spec)[^"]*"' --include=*.swift App Core/Sources Extensions Watch             | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'             | grep -vE 'Logger|logger\.|///|assert|fatalError|precondition|#Preview' || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "::error::A user-facing string contains a spec reference (§ or docs/spec). Remove it."
+            exit 1
+          fi
+          echo "no spec references in user-facing strings"
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -61,6 +72,17 @@ jobs:
             -destination "id=$SIM_ID" \
             -derivedDataPath ../build/DerivedDataTests \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../test.log
+
+      # Compiles Core's tests AND the UI tests (the ZANO scheme's test action lists both) without
+      # running them. Non-blocking for now: the UI flows were written for the free-path paywall and
+      # need updating for the hard paywall.
+      - name: Compile UI tests (build-for-testing)
+        id: uitests
+        if: always() && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing -project ZANO.xcodeproj -scheme ZANO             -destination 'generic/platform=iOS Simulator'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO 2>&1 | tee uitests.log
 
       # Boots a simulator, installs the freshly built app, launches it and photographs the result.
       # continue-on-error: a launch crash or a missing screen must never mask the build/test result.
@@ -142,7 +164,7 @@ jobs:
       - name: Summarize errors (deduplicated)
         if: always()
         run: |
-          for f in build.log test.log; do
+          for f in build.log test.log uitests.log; do
             [ -f "$f" ] || continue
             echo "=================== $f: unique errors ==================="
             grep -E "error:" "$f" | sed -E 's|^.*/zano-app/zano-app/||' | sort -u | head -150
@@ -157,6 +179,7 @@ jobs:
           path: |
             build.log
             test.log
+            uitests.log
           if-no-files-found: ignore
 
   testflight:

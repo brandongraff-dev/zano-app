@@ -2,10 +2,10 @@
 // Core / Monetization
 //
 // docs/spec.md §21 (Monetization & Paywall) and §7 screen 13 ("Paywall — Free trial (7 days)
-// with 'we'll remind you 2 days before it ends.' Annual highlighted. Clear 'Continue with
-// limited free' option below (1 goal, 1 lock set)."), plus §16 P5's mockup (three benefit rows,
-// annual card highlighted with its monthly-equivalent + trial note, a smaller monthly option, a
-// "Continue with limited free" text link). This is the screen-scoped state `App/ZANO/Features/
+// with 'we'll remind you 2 days before it ends.' Annual highlighted." — now a hard paywall with
+// no free path, decision 2026-09-23), plus §16 P5's mockup (three benefit rows, annual card
+// highlighted with its monthly-equivalent + trial note, a smaller monthly option, a restore
+// link). This is the screen-scoped state `App/ZANO/Features/
 // Onboarding/PaywallView.swift` (this same task, App target) binds to — it owns loading
 // offerings, plan selection, driving a purchase/restore through `RevenueCatManager`, and reading
 // "the plan they built" (spec §21 "Paywall copy rules: ...show the plan they built") back out of
@@ -252,17 +252,6 @@ public final class PaywallViewModel {
         case .idle, .purchasing, .restoring, .succeeded:
             break
         }
-    }
-
-    /// Spec §7.13 / §21: "Continue with limited free" — the Free tier (1 goal, 1 lock set,
-    /// manual/NFC lock, basic widget, 1 freeze/week) needs no state change here: `User.planTier`
-    /// already defaults to `.free` (`Core/Sources/Core/Models/User.swift`) from whatever screen
-    /// created the local `User` row, so this only records the choice for analytics/funnel
-    /// tracking (spec §23: "trial start > 25% of completes" implies its inverse — declined —
-    /// is worth counting too). `PaywallView` is responsible for advancing the onboarding flow
-    /// after calling this.
-    public func continueWithLimitedFree() {
-        Analytics.shared.capture(event: "paywall_continue_limited_free")
     }
 
     // MARK: - SwiftData (built plan + local Pro mirror)

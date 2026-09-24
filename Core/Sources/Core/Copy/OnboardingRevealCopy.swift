@@ -107,11 +107,5 @@ extension Copy {
             let days = trialDays == 1 ? "1 day" : "\(trialDays) days"
             return "\(perMonth) · \(days) free"
         }
-
-        // MARK: Free path
-
-        /// What "Continue with limited free" actually gives (spec §21 Free tier), so the choice is
-        /// informed. Sits under the free-path button.
-        public static let freeTierDetail = "1 goal, 1 lock set."
     }
 }

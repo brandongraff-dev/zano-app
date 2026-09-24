@@ -64,9 +64,6 @@ extension Copy {
         public static let subscribeButtonLabel = "Subscribe"
         public static let restorePurchasesButtonLabel = "Restore purchases"
 
-        /// Spec §7.13/§21 verbatim: "Continue with limited free".
-        public static let continueWithLimitedFreeLink = "Continue with limited free"
-
         public static let retryButtonLabel = "Try again"
         /// The alert title for a failed purchase (`PaywallView`'s `.failed` purchase state): names
         /// the action that failed instead of "Something went wrong". The alert's message carries

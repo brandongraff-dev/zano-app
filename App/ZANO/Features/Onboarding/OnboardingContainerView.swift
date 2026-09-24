@@ -34,8 +34,9 @@
 //     does not have — a glow with an anchor, a 96pt display numeral, a centered-or-scroll layout
 //     and the coach-voice glyph map.
 //
-// Screen 13 note: `Screen13Paywall.swift` is a thin forwarder to `PaywallView`, so there is one
-// paywall structure, not two diverging ones (competitive-research §2.3).
+// Order note (decision 2026-09-23): the hard paywall is screen 12, directly after Commitment, so
+// nothing sits between the peak and the payment ask; notification priming is screen 13. The file
+// `Screen12PermissionPriming.swift` keeps its name but is now the 13th screen.
 
 import SwiftUI
 import SwiftData
@@ -92,8 +93,8 @@ struct OnboardingContainerView: View {
         case 9: Screen9WakeUp(flowState: flowState)
         case 10: Screen10PlanReveal(flowState: flowState)
         case 11: Screen11Commitment(flowState: flowState)
-        case 12: Screen12PermissionPriming(flowState: flowState)
-        case 13: PaywallView(flowState: flowState)
+        case 12: PaywallView(flowState: flowState)
+        case 13: Screen12PermissionPriming(flowState: flowState)
         default: Screen14FirstWin(flowState: flowState, onFinished: onFinished)
         }
     }

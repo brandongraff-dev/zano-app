@@ -127,8 +127,7 @@ public enum NFCTagSetupInstructions {
         switch kind {
         case .sunrise:
             "Somewhere you have to get out of bed to reach — a bathroom mirror, the kitchen " +
-            "counter, or the coffee machine. Not the nightstand: the whole point is getting up " +
-            "(spec §5.10)."
+            "counter, or the coffee machine. Not the nightstand: the whole point is getting up."
         case .bottle:
             "On your water bottle, clear of any metal cap or threads if it has them — metal can " +
             "block the read."

@@ -86,14 +86,17 @@ struct PaywallView: View {
     // identical.
     private var layout: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 hero
                     .paywallReveal(index: 0, isShown: isRevealed, reduceMotion: reduceMotion)
 
-                answersSection
+                // The decision sits right under the promise, above the fold and above the pinned
+                // button; the reasons (their answers) and the dated trial follow for anyone who
+                // scrolls.
+                offeringsSection
                     .paywallReveal(index: 1, isShown: isRevealed, reduceMotion: reduceMotion)
 
-                offeringsSection
+                answersSection
                     .paywallReveal(index: 2, isShown: isRevealed, reduceMotion: reduceMotion)
 
                 trialTimeline
@@ -192,17 +195,17 @@ struct PaywallView: View {
     /// the number from their own answers ("30 days a year, back") at poster size in the earned
     /// accent (it is earned time), with one quiet line saying where it comes from.
     private var hero: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Text(Copy.paywall.headline)
-                .font(.system(size: 44, weight: .heavy).width(.compressed))
+                .font(.system(size: 40, weight: .heavy).width(.compressed))
                 .foregroundStyle(Theme.Colors.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.sm) {
                     Text("\(daysBackPerYear)")
-                        .font(.system(size: 132, weight: .black).width(.compressed))
+                        .font(.system(size: 112, weight: .black).width(.compressed))
                         .foregroundStyle(Theme.Colors.accent)
                         .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 24)
                         .lineLimit(1)
@@ -374,10 +377,6 @@ struct PaywallView: View {
     /// set like the rest of the app's numbers, with the per-month equivalent under it.
     private var planCards: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.paywall.choosePlanHeading)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
-                .accessibilityAddTraits(.isHeader)
             LazyVGrid(
                 columns: [GridItem(.flexible(), spacing: Theme.Spacing.sm), GridItem(.flexible(), spacing: Theme.Spacing.sm)],
                 alignment: .leading,
@@ -634,7 +633,17 @@ private enum PaywallLegalLinks {
 /// so an exact match recovers the type; anything else falls back to a neutral `target` chip.
 private enum PaywallGoalGlyph {
     static func goalType(forTitle title: String) -> GoalType? {
-        GoalType.allCases.first { Copy.onboarding.planGoalTitle(for: $0) == title }
+        if let exact = GoalType.allCases.first(where: { Copy.onboarding.planGoalTitle(for: $0) == title }) {
+            return exact
+        }
+        // Goals renamed later (or created outside onboarding) keep a recognisable word.
+        let lower = title.lowercased()
+        if lower.contains("gym") || lower.contains("workout") { return .workoutGym }
+        if lower.contains("protein") { return .protein }
+        if lower.contains("focus") { return .focusSession }
+        if lower.contains("water") { return .water }
+        if lower.contains("step") { return .steps }
+        return nil
     }
 
     static func symbol(for type: GoalType) -> String {

@@ -33,15 +33,18 @@ public struct StickyActionBar<Content: View>: View {
             .padding(.bottom, Theme.Spacing.sm)
             .frame(maxWidth: .infinity)
             .background {
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: Theme.Colors.background.opacity(0), location: 0),
-                        Gradient.Stop(color: Theme.Colors.background.opacity(0.94), location: 0.35),
-                        Gradient.Stop(color: Theme.Colors.background, location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // A fixed-height fade over the top padding only, then solid behind the controls. A
+                // proportional gradient left the first line of the bar (a paywall's terms) over
+                // half-transparent ground, where it collided with the content scrolling beneath.
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [Theme.Colors.background.opacity(0), Theme.Colors.background],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Theme.Spacing.lg)
+                    Theme.Colors.background
+                }
                 .ignoresSafeArea(edges: .bottom)
             }
     }

@@ -20,10 +20,10 @@ import Core
 @main
 struct ZANOReportExtension: DeviceActivityReportExtension {
     var body: some DeviceActivityReportScene {
+        // The closure's return type is the scene's `content` type, so no modifiers here: the view
+        // uses fixed dark Theme colors and needs none.
         TodayScreenTimeReport { summary in
             ScreenTimeSummaryView(summary: summary)
-                .padding(.vertical, 4)
-                .preferredColorScheme(.dark)
         }
     }
 }

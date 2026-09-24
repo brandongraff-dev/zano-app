@@ -85,7 +85,7 @@ struct BedtimeGateSetupView: View {
         .navigationBarTitleDisplayMode(.inline)
         // No root tint exists yet (that lives in `ZANOApp`), so the wind-down switch, the nav back
         // button and the wheel would otherwise render system blue/green.
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.interactive)
         .sensoryFeedback(.success, trigger: saveTick)
         .task {
             guard !isLoaded else { return }
@@ -119,6 +119,9 @@ struct BedtimeGateSetupView: View {
                     Toggle(Copy.bedtimeGate.windDownToggleLabel, isOn: $settings.windDownReminderEnabled)
                         .font(Theme.Typography.headline)
                         .foregroundStyle(Theme.Colors.text)
+                        // The screen tint is white chrome; a white switch track would hide its
+                        // white thumb, so the switch takes the bedtime goal's own hue.
+                        .tint(Theme.Colors.Ring.sleepOnTime)
                         .frame(minHeight: SleepSetupMetrics.minTapTarget)
 
                     Text(Copy.bedtimeGate.windDownHelperText)

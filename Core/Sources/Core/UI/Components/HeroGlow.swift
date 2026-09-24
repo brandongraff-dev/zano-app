@@ -55,6 +55,83 @@ extension View {
             .ignoresSafeArea()
         }
     }
+
+    /// The state-driven ambient light behind a whole screen ("light is earned",
+    /// premium-ui-plan.md §4). Two soft pools falling from above the top corners, so the page has
+    /// a direction of light instead of a flat fill:
+    ///
+    ///  * `.locked` — cool, dim steel (`lockedAmbient`) with a faint trace of `danger`: quiet, a
+    ///    little cold.
+    ///  * `.progress(fraction)` — the cool light warms toward the accent as goals complete.
+    ///  * `.earned` — the accent at its fullest: the one bright screen state.
+    ///  * `.neutral` — a barely-there cool pool, for screens with no lock state.
+    ///
+    /// Static: a function of state, never animated on its own (a looping glow on the most-seen
+    /// screens is motion nobody asked for). Callers pass `.neutral` under Reduce Transparency.
+    public func zanoAmbient(_ state: ZanoAmbientState) -> some View {
+        background {
+            ZanoAmbientBackdrop(state: state)
+                .ignoresSafeArea()
+        }
+    }
+}
+
+public enum ZanoAmbientState: Equatable, Sendable {
+    case neutral
+    case locked
+    case progress(Double)
+    case earned
+}
+
+private struct ZanoAmbientBackdrop: View {
+    let state: ZanoAmbientState
+
+    private var primary: (color: Color, strength: Double) {
+        switch state {
+        case .neutral:
+            (Theme.Colors.lockedAmbient, 0.10)
+        case .locked:
+            (Theme.Colors.lockedAmbient, 0.24)
+        case .progress(let fraction):
+            fraction >= 0.5
+                ? (Theme.Colors.accent, 0.06 + 0.08 * fraction)
+                : (Theme.Colors.lockedAmbient, 0.24 - 0.12 * fraction)
+        case .earned:
+            (Theme.Colors.accent, 0.20)
+        }
+    }
+
+    private var secondary: (color: Color, strength: Double) {
+        switch state {
+        case .neutral: (Theme.Colors.lockedAmbient, 0.04)
+        case .locked: (Theme.Colors.danger, 0.07)
+        case .progress(let fraction): (Theme.Colors.accent, 0.04 + 0.08 * fraction)
+        case .earned: (Theme.Colors.accent, 0.10)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            ZStack {
+                Theme.Colors.background
+                RadialGradient(
+                    colors: [primary.color.opacity(primary.strength), primary.color.opacity(0)],
+                    center: UnitPoint(x: 0.15, y: -0.05),
+                    startRadius: 0,
+                    endRadius: width * 1.25
+                )
+                RadialGradient(
+                    colors: [secondary.color.opacity(secondary.strength), secondary.color.opacity(0)],
+                    center: UnitPoint(x: 1.0, y: 0.05),
+                    startRadius: 0,
+                    endRadius: width * 0.95
+                )
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
 }
 
 #Preview("HeroGlow") {

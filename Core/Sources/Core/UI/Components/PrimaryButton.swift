@@ -52,8 +52,11 @@ public struct PrimaryButton: View {
 
     /// The fill hue of `.standard` and the sweep/border hue of `.holdToCommit`.
     public enum Tint: Sendable, Equatable {
-        /// The earned/unlock accent. The default — use it only for the one primary action on a
-        /// screen and for earned states (spec §15: "ONE accent only").
+        /// The default: a white capsule. Most actions (continue, start, go) are not rewards, so
+        /// they stay achromatic (decision 2026-09-24, spec §15: the accent is for earned states).
+        case neutral
+        /// The earned/unlock accent. Earned moments only: claiming an unlock, closing the
+        /// celebration, a completed goal's confirmation.
         case accent
         /// An exit that costs something (emergency unlock, ending a lock early).
         case danger
@@ -62,6 +65,7 @@ public struct PrimaryButton: View {
 
         var color: Color {
             switch self {
+            case .neutral: Theme.Colors.interactive
             case .accent: Theme.Colors.accent
             case .danger: Theme.Colors.danger
             case .warning: Theme.Colors.warning
@@ -91,7 +95,7 @@ public struct PrimaryButton: View {
     ///   - isEnabled: Disables interaction and shows the disabled treatment when `false`.
     ///     Defaults to `true`. Prefer not to use a disabled button for *status* ("Focus running…"):
     ///     that is information, not an unavailable action — show it as a status row instead.
-    ///   - tint: Fill hue for `.standard`, sweep hue for `.holdToCommit`. Defaults to `.accent`.
+    ///   - tint: Fill hue for `.standard`, sweep hue for `.holdToCommit`. Defaults to `.neutral`.
     ///   - action: For `.standard`/`.secondary`, called on tap. For `.holdToCommit`, called once
     ///     the full hold duration completes.
     public init(
@@ -99,7 +103,7 @@ public struct PrimaryButton: View {
         systemImage: String? = nil,
         style: Style = .standard,
         isEnabled: Bool = true,
-        tint: Tint = .accent,
+        tint: Tint = .neutral,
         action: @escaping () -> Void
     ) {
         self.title = title

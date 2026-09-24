@@ -166,8 +166,8 @@ public struct NumeralText: View {
 
         fileprivate var numberSize: CGFloat {
             switch self {
-            case .hero: 72
-            case .large: 44
+            case .hero: 88
+            case .large: 48
             case .medium: 28
             case .small: 17
             }
@@ -175,7 +175,7 @@ public struct NumeralText: View {
 
         fileprivate var unitSize: CGFloat {
             switch self {
-            case .hero: 26
+            case .hero: 24
             case .large: 18
             case .medium: 15
             case .small: 13
@@ -192,8 +192,8 @@ public struct NumeralText: View {
 
         fileprivate var tracking: CGFloat {
             switch self {
-            case .hero: -1.5
-            case .large: -0.8
+            case .hero: -0.5
+            case .large: -0.3
             case .medium, .small: 0
             }
         }

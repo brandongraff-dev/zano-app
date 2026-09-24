@@ -123,7 +123,7 @@ struct SunriseAlarmSetupView: View {
         }
         .navigationTitle(Copy.sunriseAlarm.screenTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.interactive)
         .sensoryFeedback(.success, trigger: saveTick)
         .task {
             guard !isLoaded else { return }
@@ -210,14 +210,14 @@ struct SunriseAlarmSetupView: View {
                 HStack(alignment: .top) {
                     Image(systemName: variant.systemImage)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                        .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.muted)
 
                     Spacer(minLength: 0)
 
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Theme.Colors.accent)
+                            .foregroundStyle(Theme.Colors.interactive)
                             .accessibilityHidden(true)
                     }
                 }
@@ -243,13 +243,13 @@ struct SunriseAlarmSetupView: View {
 
     private func tileBackground(isSelected: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-        // Selected = the app-wide selected look (`SelectableCard`, `SettingsChoiceTile`): the on-hue
-        // `accentWash` under a 2pt accent edge, not `surface2`.
+        // Selected = achromatic (decision 2026-09-24: selection is chrome, green means earned): an
+        // `interactiveWash` fill under a 2pt `interactive` edge.
         return shape
-            .fill(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface)
+            .fill(isSelected ? Theme.Colors.interactiveWash : Theme.Colors.surface)
             .overlay(
                 shape.strokeBorder(
-                    isSelected ? Theme.Colors.accent : SleepSetupDepth.edge,
+                    isSelected ? Theme.Colors.interactive : SleepSetupDepth.edge,
                     lineWidth: isSelected ? 2 : 1
                 )
             )
@@ -761,17 +761,15 @@ struct SleepSetupCard<Content: View>: View {
     }
 }
 
-/// The small uppercase, letter-spaced label above a card (the "eyebrow" the audits ask for: caps
-/// need positive tracking, which `Theme.Typography` cannot carry because `Font` has no tracking).
+/// The section header above a card: a sentence-case headline in `text` (premium pass 2026-09-24
+/// removed the tracked all-caps eyebrow; hierarchy comes from size and weight).
 struct SleepSetupSectionHeader: View {
     let title: String
 
     var body: some View {
         Text(title)
-            .font(Theme.Typography.captionEmphasized)
-            .tracking(0.8)
-            .textCase(.uppercase)
-            .foregroundStyle(Theme.Colors.muted)
+            .zanoText(.headline)
+            .foregroundStyle(Theme.Colors.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
     }
@@ -843,8 +841,6 @@ struct SleepTimeCard: View {
 
                             Text(label)
                                 .font(Theme.Typography.captionEmphasized)
-                                .tracking(0.8)
-                                .textCase(.uppercase)
                                 .foregroundStyle(Theme.Colors.muted)
 
                             Spacer(minLength: 0)
@@ -857,7 +853,7 @@ struct SleepTimeCard: View {
                         }
 
                         Text(time, format: .dateTime.hour().minute())
-                            .font(.system(size: timeSize, weight: .bold, design: .rounded).monospacedDigit())
+                            .font(Theme.Typography.numeral(size: timeSize, weight: .heavy))
                             .tracking(-1)
                             .foregroundStyle(Theme.Colors.text)
                             .minimumScaleFactor(0.5)

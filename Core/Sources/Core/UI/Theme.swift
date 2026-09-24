@@ -70,9 +70,27 @@ public enum Theme {
         public static let text = Color(zanoHex: 0xF5_F5_F7)
         /// `#8E8E93` — secondary / muted text.
         public static let muted = Color(zanoHex: 0x8E_8E_93)
-        /// `#B8FF3C` — the ONE brand accent (earned/unlock). Reserve for primary CTAs, the
-        /// workout ring, and unlock/earned states — spec §15: "ONE accent only".
+        /// `#B8FF3C` — the ONE brand accent. Earned states only (decision 2026-09-24, spec §15):
+        /// completed rings, the unlock moment, "earned" badges, the workout ring. Never navigation,
+        /// neutral buttons or selection — those use `interactive`.
         public static let accent = Color(zanoHex: 0xB8_FF_3C)
+
+        // MARK: Interactive (achromatic chrome)
+
+        /// Chrome, neutral CTAs and selection (premium-ui-plan.md "light is earned"). The UI stays
+        /// achromatic so goal colors carry the screen and green keeps meaning "earned".
+        public static let interactive = text
+        /// The fill behind a selected neutral control (a chosen option, an active segment).
+        public static let interactiveWash = Color.white.opacity(0.08)
+
+        // MARK: Ambient light
+
+        /// The cool light a locked screen sits in: dark, quiet, a little cold. Paired with
+        /// `accent` for the earned state so the backdrop itself tells you where you stand.
+        public static let lockedAmbient = Color(zanoHex: 0x5B_6E_94)
+        /// Top stop of a hero surface's vertical gradient (bottom stop is `surface`): the hero
+        /// catches a little more light than a standard card.
+        public static let surfaceHero = Color(zanoHex: 0x1D_1E_23)
         /// `#FF453A` — danger / locked state.
         public static let danger = Color(zanoHex: 0xFF_45_3A)
         /// `#FFB020` — warning state.
@@ -214,7 +232,7 @@ public enum Theme {
             /// `background` this is 1.33:1 (focus) to 2.33:1 (workout); the old `surface2` track
             /// was 1.16:1 on Today and effectively vanished on a new day.
             public static func track(for color: Color) -> Color {
-                color.opacity(0.30)
+                color.opacity(0.20)
             }
 
             /// Resolves the ring color for a `GoalType` (`Core/Sources/Core/Models/Goal.swift`).
@@ -333,37 +351,43 @@ public enum Theme {
         /// state, the Time Bank reward, the wake-up counters, the alarm clock, a streak
         /// milestone. Aim for a hero-to-supporting ratio of at least 3:1 (competitor dashboards
         /// sit near 72pt against ~13pt captions; this app's largest text used to be 22pt).
+        /// Numerals are SF Pro at a narrow width (premium-ui-plan.md: the Nike reference — big,
+        /// athletic, condensed numbers over quiet UI). Native widths, so no bundled font. Hero
+        /// numerals go to `.compressed`; everything smaller stays `.condensed` so it holds up at
+        /// 17pt.
         public static func numeralHero() -> Font {
-            .system(size: 72, weight: .heavy, design: .rounded).monospacedDigit()
+            .system(size: 88, weight: .heavy).width(.compressed).monospacedDigit()
         }
         /// Large numerals (e.g. a Live Activity countdown, a `.large` ring's center value,
         /// secondary big stats).
         public static func numeralLarge() -> Font {
-            .system(size: 44, weight: .bold, design: .rounded).monospacedDigit()
+            numeral(size: 48, weight: .heavy)
         }
         /// Medium numerals (e.g. `GoalRing` center value, `TimeBankBar`'s remaining-minutes label).
         public static func numeralMedium() -> Font {
-            .system(size: 28, weight: .bold, design: .rounded).monospacedDigit()
+            numeral(size: 28, weight: .bold)
         }
         /// Small numerals (e.g. `StreakPill`'s count, compact stat chips).
         public static func numeralSmall() -> Font {
-            .system(size: 17, weight: .semibold, design: .rounded).monospacedDigit()
+            numeral(size: 17, weight: .semibold)
         }
         /// A numeral at an arbitrary point size, for layouts where the size is a function of a
         /// container (a ring's center scales with the ring's diameter). Same face as the named
-        /// numerals. Prefer the named tiers wherever the size is not container-driven.
+        /// numerals. Prefer the named tiers wherever the size is not container-driven. 60pt and up
+        /// switch to the compressed width the hero uses.
         public static func numeral(size: CGFloat, weight: Font.Weight = .bold) -> Font {
-            .system(size: size, weight: weight, design: .rounded).monospacedDigit()
+            .system(size: size, weight: weight).width(size >= 60 ? .compressed : .condensed).monospacedDigit()
         }
 
         // MARK: Text styles (Dynamic Type)
 
         /// Hero headlines (onboarding hook, plan reveal, celebration): Large Title, rounded bold.
         /// 34pt at the default size. Replaces the ad hoc 34/30 rounded sizes.
-        public static let display = Font.system(.largeTitle, design: .rounded, weight: .bold)
-        /// Full-screen focal messages (the shield headline): Title 1, bold. 28pt at the default
-        /// size — between `display` and `title`.
-        public static let titleLarge = Font.system(.title, design: .default, weight: .bold)
+        /// Condensed heavy, like the numerals: headlines are short and should hit like a number.
+        public static let display = Font.system(.largeTitle, design: .default, weight: .heavy).width(.condensed)
+        /// Full-screen focal messages (the shield headline) and custom screen titles: Title 1,
+        /// condensed heavy. 28pt at the default size — between `display` and `title`.
+        public static let titleLarge = Font.system(.title, design: .default, weight: .heavy).width(.condensed)
         /// Screen/section titles. Title 2, bold: 22pt at the default size.
         public static let title = Font.system(.title2, design: .default, weight: .bold)
         /// Card headlines (e.g. `LockStatusCard`'s status line, `ShieldPreview`'s headline).
@@ -378,7 +402,7 @@ public enum Theme {
         public static let captionEmphasized = Font.system(.footnote, design: .default, weight: .semibold)
         /// The unit beside a numeral ("g", "min", "/150g"): Subheadline, rounded semibold, so it
         /// shares the numeral's face at a fraction of its weight on the page.
-        public static let unit = Font.system(.subheadline, design: .rounded, weight: .semibold)
+        public static let unit = Font.system(.subheadline, design: .default, weight: .semibold).width(.condensed)
 
         // MARK: Icons
 
@@ -417,8 +441,9 @@ public enum Theme {
             /// lines).
             case paragraph
             case caption, captionEmphasized
-            /// The small all-caps label above a headline: caption-emphasized, uppercased, with
-            /// +0.8pt tracking (SF auto-tracks by size but not for caps runs).
+            /// The small label above a headline: caption-emphasized, sentence case. It used to be
+            /// tracked all caps, which frontend-design flags as the commonest tell of generated UI
+            /// (premium-ui-plan.md §5); hierarchy now comes from size and weight.
             case eyebrow
             case unit
         }
@@ -508,9 +533,9 @@ public struct ZanoTextStyle: ViewModifier {
     public func body(content: Content) -> some View {
         switch style {
         case .display:
-            content.font(Theme.Typography.display).tracking(-0.4)
+            content.font(Theme.Typography.display).tracking(-0.2)
         case .titleLarge:
-            content.font(Theme.Typography.titleLarge).tracking(-0.2)
+            content.font(Theme.Typography.titleLarge)
         case .title:
             content.font(Theme.Typography.title)
         case .headline:
@@ -524,7 +549,7 @@ public struct ZanoTextStyle: ViewModifier {
         case .captionEmphasized:
             content.font(Theme.Typography.captionEmphasized)
         case .eyebrow:
-            content.font(Theme.Typography.captionEmphasized).textCase(.uppercase).tracking(0.8)
+            content.font(Theme.Typography.captionEmphasized)
         case .unit:
             content.font(Theme.Typography.unit)
         }

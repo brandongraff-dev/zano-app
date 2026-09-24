@@ -156,7 +156,9 @@ private struct MainTabView: View {
                 .tabItem { Label(Copy.settings.screenTitle, systemImage: "gearshape.fill") }
                 .tag(AppTab.settings)
         }
-        .tint(Theme.Colors.accent)
+        // Chrome is achromatic (decision 2026-09-24): the selected tab is white, and green stays
+        // reserved for earned states.
+        .tint(Theme.Colors.interactive)
         // Held back (getter returns `nil`) while the alarm is ringing, then presents as soon as it
         // clears — the queued `router.unlockCelebration` isn't lost. `UnlockCelebrationView`'s own
         // "Nice" button calls `dismiss()`, which writes `nil` back through the setter.

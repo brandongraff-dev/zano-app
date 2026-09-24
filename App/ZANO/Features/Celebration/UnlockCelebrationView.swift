@@ -176,7 +176,8 @@ public struct UnlockCelebrationView: View {
 
             Spacer(minLength: Theme.Spacing.lg)
 
-            PrimaryButton(title: Copy.celebration.dismissButtonLabel) {
+            // The one CTA in the app that is itself the reward moment, so it wears the accent.
+            PrimaryButton(title: Copy.celebration.dismissButtonLabel, tint: .accent) {
                 dismiss()
             }
             .padding(.horizontal, Theme.Spacing.lg)

@@ -8,27 +8,22 @@
 // guarantee that applies to every lock/shield surface (CLAUDE.md: "Any lock/shield feature must
 // always keep an emergency-unlock path. Never trap the user.").
 //
-// Design pass (2026-09-23, docs/design/composition-audit.md §5.1, better-layout 1.3/7.3/3.9,
-// better-ui MOT-05/BRK-02/DEP-02, typography-color T3/C1, 2026-ios-trends §3.3):
+// Premium UI pass (2026-09-24, docs/design/premium-ui-plan.md):
 //
-// - It no longer opens with the card the user just tapped on Today. The top of the screen is a
-//   Lock-specific hero: the Time Bank's remaining minutes in Earn Mode (its reason to exist), the
-//   open-goal count in Full mode, or the next scheduled lock time when nothing is locked — each one
-//   number in the design system's hero tier (`NumeralText(.hero)`), on the same `zanoCard` surface
-//   as Today's hero (danger wash while locked; accent wash + the static earned glow once every goal
-//   is done), so the two screens read as one product.
-// - Required goals use the shared `GoalRow` (with a ring) instead of a hand-rolled row with
-//   different padding, open goals first.
-// - The three-line "time context" card is three quiet caption rows at the bottom.
-// - Emergency unlock is pinned to the bottom of the screen in a `StickyActionBar` ("always
-//   available" is now also "always visible", never at the end of a scroll) and reads as danger, not
-//   as another acid-green CTA (accent means earned; the exit that costs you the earn is not that).
-//   It is `PrimaryButton(.holdToCommit, tint: .danger)`: a quiet `surface2` capsule with a danger
-//   outline that fills in danger over the 2 s hold, its label inverting under the fill (the Core
-//   component draws the label twice, `text` on the track and `onFill` masked to the fill — the
-//   earlier light-on-acid-green label was 1.11 : 1). VoiceOver's double-tap fires it immediately.
+// - The hero is the same vault Today uses (`LockVaultCard`): the open-goal count as one huge
+//   condensed number, the locked apps dimmed behind a lock (on device), and a bar segment per
+//   required goal in that goal's color. Earn Mode keeps its Time Bank body on the same `zanoHero`
+//   surface. Nothing locked: the next scheduled lock time.
+// - The page light follows the state (`zanoAmbient`): cool while locked, warming as goals finish.
+// - Required goals are the same rows as Today (`GoalActionList`), read-only here, open goals first.
+// - The three-line "time context" is three quiet caption rows at the bottom.
+// - Emergency unlock is pinned to the bottom in a `StickyActionBar`, always visible, and reads as
+//   danger, not as a CTA: `PrimaryButton(.holdToCommit, tint: .danger)`. VoiceOver's double-tap
+//   fires it immediately.
+// - Large navigation title, like every other tab.
 //
-// Shared pieces (`SegmentedProgress`, `GoalDayProgress`, `goalIconName`) come from `TodayView.swift`.
+// Shared pieces (`LockVaultCard`, `GoalActionList`, `GoalDayProgress`, `goalIconName`) live in
+// `Features/Today`.
 //
 // No `NavigationStack` of its own: this view is pushed from `TodayView`'s hero card via
 // `navigationDestination`, and is also a tab root that `ContentView` wraps in its own
@@ -72,6 +67,7 @@ struct LockStatusView: View {
     @Query private var dailyPlans: [DailyPlan]
     @Query private var lockSessions: [LockSession]
     @Query private var timeBanks: [TimeBank]
+    @Query private var lockSets: [LockSet]
 
     // MARK: - Environment
 
@@ -105,13 +101,14 @@ struct LockStatusView: View {
         .scrollBounceBehavior(.basedOnSize)
         // The canvas, with a faint accent wash from the top edge while the reward is in hand
         // (spendable minutes, or every goal done). Static, and dropped under Reduce Transparency.
-        .zanoBackdrop(glow: reduceTransparency ? nil : backdropGlow, intensity: 0.10)
+        .zanoAmbient(reduceTransparency ? .neutral : ambientState)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             emergencyBar
         }
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.lockStatus.screenTitle)
-        .navigationBarTitleDisplayMode(.automatic)
+        // Large, like every other tab (it used to fall back to a small inline title here).
+        .navigationBarTitleDisplayMode(.large)
         .task(id: timeBankTaskKey) {
             timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
         }
@@ -190,27 +187,99 @@ struct LockStatusView: View {
         return false
     }
 
-    private var backdropGlow: Color? {
+    /// Every state but Earn Mode's bank is the shared vault (`LockVaultCard`, also Today's hero), so
+    /// the two screens show the lock the same way. The bank keeps its own body (a Time Bank bar is
+    /// not a goal count) on the same hero surface.
+    @ViewBuilder
+    private var heroCard: some View {
         switch heroState {
+        case .unlocked:
+            if let next = SharedDefaults.nextScheduledLockAt {
+                LockVaultCard(
+                    status: .unlocked,
+                    eyebrow: Copy.lockStatus.unlockedHeadline,
+                    detail: nextLockLabel(next),
+                    numeralLine: next.formatted(date: .omitted, time: .shortened),
+                    appTokensBlob: shownLockSet?.appTokensBlob,
+                    changeKey: Int(next.timeIntervalSince1970)
+                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(heroAccessibilityLabel)
+            } else {
+                LockVaultCard(
+                    status: .unlocked,
+                    eyebrow: Copy.lockStatus.unlockedHeadline,
+                    message: Copy.lockStatus.noScheduleLine
+                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(heroAccessibilityLabel)
+            }
+        case .goals(let remaining, _):
+            LockVaultCard(
+                status: .locked,
+                eyebrow: Copy.today.heroLockedEyebrow(lockSetName: shownLockSet?.name),
+                detail: activeSession.map {
+                    Copy.today.heroLockedSince($0.startedAt.formatted(date: .omitted, time: .shortened))
+                },
+                numeralLine: Copy.today.heroGoalsToUnlockLine(count: remaining),
+                segments: vaultSegments,
+                appTokensBlob: shownLockSet?.appTokensBlob,
+                changeKey: remaining
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(heroAccessibilityLabel)
         case .allDone:
-            return Theme.Colors.accent
-        case .bank(let minutes, let total, _):
-            let spendable = minutes > 0 && !isBankLow(minutes: minutes, total: total)
-            return spendable ? Theme.Colors.accent : nil
-        case .unlocked, .goals:
-            return nil
+            LockVaultCard(
+                status: .earned,
+                eyebrow: Copy.lockStatus.heroEyebrowUnlocking,
+                message: Copy.lockStatus.heroAllDone,
+                segments: vaultSegments,
+                appTokensBlob: shownLockSet?.appTokensBlob
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(heroAccessibilityLabel)
+        case .bank:
+            bankHeroCard
         }
     }
 
-    private var heroCard: some View {
+    private var vaultSegments: [VaultSegment] {
+        orderedRequiredGoals.map {
+            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0))
+        }
+    }
+
+    /// The lock set being shielded (or the default one while nothing runs). Only its name and the
+    /// on-device token blob are used.
+    private var shownLockSet: LockSet? {
+        if let id = activeSession?.lockSetID, let match = lockSets.first(where: { $0.id == id }) { return match }
+        return lockSets.first(where: \.isDefault) ?? lockSets.first
+    }
+
+    /// Cold while locked, warming as required goals complete, accent once earned or while spendable
+    /// minutes are banked.
+    private var ambientState: ZanoAmbientState {
+        switch heroState {
+        case .allDone:
+            return .earned
+        case .bank(let minutes, let total, _):
+            return minutes > 0 && !isBankLow(minutes: minutes, total: total) ? .earned : .locked
+        case .goals(let remaining, let total):
+            let done = total - remaining
+            return done > 0 ? .progress(Double(done) / Double(max(total, 1))) : .locked
+        case .unlocked:
+            return .neutral
+        }
+    }
+
+    private var bankHeroCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             heroTopRow
             heroBody
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.lg)
-        .zanoCard(
-            radius: Theme.Radius.large,
+        .zanoHero(
             tint: reduceTransparency ? nil : heroBadgeTint,
             active: heroIsEarned && !reduceTransparency
         )
@@ -392,39 +461,37 @@ struct LockStatusView: View {
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text(Copy.lockStatus.requiredGoalsHeading)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .padding(.leading, Theme.Spacing.xxs)
+                .accessibilityAddTraits(.isHeader)
 
-            ForEach(orderedRequiredGoals) { goal in
-                goalRow(goal)
-            }
+            // Same rows as Today, read-only here: Lock is where you check what the lock is waiting
+            // on; Today is where you act on it.
+            GoalActionList(items: orderedRequiredGoals.map(statusItem(for:))) { _ in }
         }
     }
 
-    private func goalRow(_ goal: Goal) -> some View {
+    private func statusItem(for goal: Goal) -> GoalActionItem {
         let p = dayProgress(for: goal)
-        let status: GoalRowStatus = p.isComplete ? .complete : (p.hasStarted ? .inProgress : .pending)
-        let statusLabel = switch status {
-        case .complete: Copy.lockStatus.goalStatusComplete
-        case .inProgress: Copy.lockStatus.goalStatusInProgress
-        case .pending: Copy.lockStatus.goalStatusPending
-        }
-        let detail: String
-        if let target = p.target {
-            detail = Copy.lockStatus.goalValue(current: p.current ?? 0, target: target, unit: p.unit)
+        let primary: String
+        if let target = p.target, !p.isComplete {
+            primary = Copy.lockStatus.goalValue(current: p.current ?? 0, target: target, unit: p.unit)
         } else {
-            detail = p.isComplete ? Copy.lockStatus.goalDone : Copy.lockStatus.goalNotYet
+            primary = p.isComplete ? Copy.lockStatus.goalDone : Copy.lockStatus.goalNotYet
         }
-        return GoalRow(
+        return GoalActionItem(
+            id: goal.id,
             title: goal.title,
-            detail: detail,
             icon: goalIconName(for: goal.type),
             color: Theme.Colors.Ring.color(for: goal.type),
-            status: status,
             progress: p.fraction,
-            statusAccessibilityLabel: statusLabel
+            primaryLine: primary,
+            isRequired: true,
+            trailing: p.isComplete ? .done : .none
         )
     }
+
 
     // MARK: - Time context (trivia, so: caption rows at the bottom, not a card)
 

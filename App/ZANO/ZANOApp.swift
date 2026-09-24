@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import SwiftData
 import UserNotifications
 import Core
@@ -82,6 +83,22 @@ struct ZANOApp: App {
         // CI screenshot gallery (ScreenshotGallery.swift). Inert unless `-ZANOScreen <name>` is passed,
         // which no user launch ever does.
         if let name = ScreenshotMode.screen { ScreenshotMode.prepare(screen: name) }
+
+        Self.configureNavigationBarTitles()
+    }
+
+    /// Large navigation titles (Fuel, Progress, Settings, Lock sets…) in the same condensed heavy
+    /// face as `Theme.Typography.titleLarge`, so a tab with a system large title and a tab that
+    /// draws its own header (Today) read as one family. SwiftUI has no API for the navigation
+    /// bar's title font, so this is the one place the app reaches for UIKit appearance proxies.
+    private static func configureNavigationBarTitles() {
+        let appearance = UINavigationBar.appearance()
+        appearance.largeTitleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 34, weight: .heavy, width: .condensed)
+        ]
+        appearance.titleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 17, weight: .bold, width: .condensed)
+        ]
     }
 
     @ViewBuilder

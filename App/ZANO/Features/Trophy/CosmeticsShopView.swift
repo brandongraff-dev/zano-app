@@ -101,7 +101,7 @@ public struct CosmeticsShopView: View {
                 dismissButton: .default(Text(Copy.common.ok))
             )
         }
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.interactive)
         // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
         // `LockSetupView.swift`'s comment for the full rationale. Also matters here specifically:
         // this screen's `.alert` above would otherwise follow the *system* appearance while the
@@ -190,11 +190,12 @@ public struct CosmeticsShopView: View {
                     .font(Theme.Typography.captionEmphasized)
                     .lineLimit(1)
             }
-            // `onFill` on the accent fill (16.4:1), `text` on the neutral chip.
+            // Selection is chrome (decision 2026-09-24): `onFill` on a white chip, Spotify-style;
+            // green stays reserved for earned states.
             .foregroundStyle(isSelected ? Theme.Colors.onFill : Theme.Colors.text)
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, Theme.Spacing.xs)
-            .background(isSelected ? Theme.Colors.accent : Theme.Colors.surface2, in: Capsule())
+            .background(isSelected ? Theme.Colors.interactive : Theme.Colors.surface2, in: Capsule())
             .overlay {
                 Capsule()
                     .strokeBorder(isSelected ? Color.clear : Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
@@ -314,7 +315,7 @@ private struct CosmeticItemCard: View {
                             .font(Theme.Typography.icon(.xsmall, weight: .bold))
                             .foregroundStyle(Theme.Colors.onFill)
                             .frame(width: 20, height: 20)
-                            .background(Theme.Colors.accent, in: Circle())
+                            .background(Theme.Colors.interactive, in: Circle())
                             .padding(Theme.Spacing.xs)
                             .accessibilityHidden(true)
                     }
@@ -336,11 +337,12 @@ private struct CosmeticItemCard: View {
             actionRow
         }
         .padding(Theme.Spacing.xs)
-        .zanoCard(radius: Theme.Radius.medium, tint: isEquipped ? Theme.Colors.accent : nil)
+        .zanoCard(radius: Theme.Radius.medium, fill: isEquipped ? Theme.Colors.surface2 : Theme.Colors.surface)
         .overlay {
+            // Equipped = the current selection, so it is marked in achromatic chrome, not green.
             if isEquipped {
                 RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                    .strokeBorder(Theme.Colors.accent, lineWidth: 1.5)
+                    .strokeBorder(Theme.Colors.interactive, lineWidth: 1.5)
                     .allowsHitTesting(false)
             }
         }
@@ -355,7 +357,7 @@ private struct CosmeticItemCard: View {
             HStack(spacing: Theme.Spacing.xxs) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.interactive)
                 Text(Copy.cosmetics.equippedButtonTitle)
                     .font(Theme.Typography.captionEmphasized)
                     .foregroundStyle(Theme.Colors.text)

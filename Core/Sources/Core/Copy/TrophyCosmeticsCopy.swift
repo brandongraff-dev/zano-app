@@ -94,6 +94,11 @@ extension Copy {
             "\(earned) of \(total) earned"
         }
 
+        /// Beside the big earned-count numeral in the hero: "2" + "of 6 earned".
+        public static func progressTotalLabel(total: Int) -> String { "of \(total) earned" }
+        /// Day 1 hero line, when nothing is earned yet.
+        public static let emptyHeroMessage = "Your first earned unlock puts the first trophy on the shelf."
+
         public static let openShopButtonTitle = "Cosmetics Shop"
         public static let lockedAccessibilityHint = "Not yet earned"
         public static let otherAchievementsSectionTitle = "More badges"

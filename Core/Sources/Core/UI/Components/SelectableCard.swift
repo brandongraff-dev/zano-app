@@ -9,7 +9,7 @@
 // 4.2, better-ui-findings.md MOT-02, composition-audit.md S-6). Edges and affordances should be
 // learned once.
 //
-// Selected = accent wash + 2pt accent border (drawn *inside*, so selecting never shifts layout) +
+// Selected = a lifted `surface2` fill + 1.5pt white border (drawn *inside*, so selecting never shifts layout) +
 // filled check. Unselected = surface + visible hairline + empty radio. The optional leading glyph
 // makes an option scannable before it is read (onboarding's "what's your main goal" was five
 // identical text rows).
@@ -53,7 +53,7 @@ public struct SelectableCard: View {
                 if let icon {
                     IconBadge(
                         systemName: icon,
-                        tint: isSelected ? Theme.Colors.accent : Theme.Colors.text,
+                        tint: Theme.Colors.text,
                         size: .small
                     )
                 }
@@ -76,7 +76,7 @@ public struct SelectableCard: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.muted)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                     // Selection is announced by the `.isSelected` trait below, not by the glyph's
                     // symbol name ("checkmark circle fill").
@@ -86,14 +86,14 @@ public struct SelectableCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: Theme.Metrics.minTapTarget)
             .background(
-                isSelected ? Theme.Colors.accentWash : Theme.Colors.surface,
+                isSelected ? Theme.Colors.surface2 : Theme.Colors.surface,
                 in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
-                        lineWidth: isSelected ? 2 : Theme.Metrics.edgeWidth
+                        isSelected ? Theme.Colors.interactive : Theme.Colors.hairline,
+                        lineWidth: isSelected ? 1.5 : Theme.Metrics.edgeWidth
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))

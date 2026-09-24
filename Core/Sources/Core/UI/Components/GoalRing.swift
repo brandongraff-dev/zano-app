@@ -200,13 +200,42 @@ public struct GoalRing: View {
     /// The filled arc. Always in the view tree (faded out at 0%) rather than conditionally
     /// inserted, so the first fill from 0 animates instead of appearing already drawn — and so
     /// a zero-length round-capped stroke never draws a stray dot at 12 o'clock.
+    /// The arc is a sweep, not a flat stroke: it starts at 55% of the goal's hue and brightens to
+    /// the full hue at its leading end, so the eye reads direction and "how far" at once (the
+    /// Activity-ring idea). A small lit cap rides the leading end while the ring is in progress.
+    private func arcGradient() -> AngularGradient {
+        AngularGradient(
+            colors: [color.opacity(0.55), color],
+            center: .center,
+            startAngle: .degrees(0),
+            endAngle: .degrees(max(1, 360 * clampedProgress))
+        )
+    }
+
     private func progressArc(lineWidth: CGFloat) -> some View {
         Circle()
             .trim(from: 0, to: clampedProgress)
             .stroke(
-                color,
+                arcGradient(),
                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
+            .overlay {
+                // The lit leading cap: a small bright dot at the end of the arc. Hidden when empty
+                // or full (a full ring has no "leading end").
+                if clampedProgress > 0.02, clampedProgress < 1, lineWidth >= 6 {
+                    GeometryReader { proxy in
+                        let radius = min(proxy.size.width, proxy.size.height) / 2
+                        let angle = Angle.degrees(360 * clampedProgress)
+                        Circle()
+                            .fill(Color.white.opacity(0.85))
+                            .frame(width: lineWidth * 0.36, height: lineWidth * 0.36)
+                            .position(
+                                x: proxy.size.width / 2 + radius * cos(angle.radians),
+                                y: proxy.size.height / 2 + radius * sin(angle.radians)
+                            )
+                    }
+                }
+            }
             .rotationEffect(.degrees(-90))
             // The static "active element" glow (spec §16): soft while in progress, stronger once
             // earned. Never animated — a function of progress only.
@@ -243,7 +272,7 @@ public struct GoalRing: View {
     /// diameter (88pt → 26, 112pt → 34, 148pt → 44, 200pt → 60), so the value scales with the ring
     /// instead of every size sharing one token.
     private func valueFont(diameter: CGFloat) -> Font {
-        diameter < 60 ? Theme.Typography.numeralSmall() : Theme.Typography.numeral(size: diameter * 0.30)
+        diameter < 60 ? Theme.Typography.numeralSmall() : Theme.Typography.numeral(size: diameter * 0.34, weight: .heavy)
     }
 
     @ViewBuilder
@@ -287,7 +316,7 @@ public struct GoalRing: View {
                 .contentTransition(reduceMotion ? .identity : .numericText())
             if let unit, diameter >= 72 {
                 Text(unit)
-                    .font(.system(size: max(11, diameter * 0.115), weight: .semibold, design: .rounded))
+                    .font(.system(size: max(11, diameter * 0.12), weight: .semibold).width(.condensed))
                     .foregroundStyle(Theme.Colors.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

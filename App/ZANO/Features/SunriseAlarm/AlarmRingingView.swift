@@ -224,7 +224,8 @@ struct AlarmRingingView: View {
             phaseChip
 
             Text(now, format: .dateTime.hour().minute())
-                .font(.system(size: clockSize, weight: .bold, design: .rounded).monospacedDigit())
+                // The app's condensed numeral face (Nike-style), not SF Rounded.
+                .font(Theme.Typography.numeral(size: clockSize, weight: .heavy))
                 .tracking(-1)
                 .foregroundStyle(Theme.Colors.text)
                 .minimumScaleFactor(0.5)
@@ -255,10 +256,9 @@ struct AlarmRingingView: View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: phase.symbol)
                 .font(.system(size: 13, weight: .bold))
+            // Sentence case, no tracking (premium pass 2026-09-24: no all-caps labels).
             Text(eyebrowText)
                 .font(Theme.Typography.captionEmphasized)
-                .tracking(0.8)
-                .textCase(.uppercase)
         }
         .foregroundStyle(Theme.Colors.onFill)
         .padding(.horizontal, Theme.Spacing.sm)

@@ -1034,8 +1034,8 @@ private struct FuelNumeral: View {
     /// Display sizes want to sit a little tighter (the same values `NumeralText` uses per tier).
     private var numeralTracking: CGFloat {
         switch size {
-        case .hero: -1.2
-        case .large: -0.6
+        case .hero: -0.5
+        case .large: -0.3
         }
     }
 

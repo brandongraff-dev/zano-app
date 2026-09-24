@@ -19,6 +19,7 @@
 
 import SwiftUI
 import SwiftData
+import os
 import Core
 
 enum ScreenshotMode {
@@ -140,7 +141,10 @@ extension DemoData {
 enum DemoData {
     static func seed() {
         let context = ModelContext(ModelContainer.appGroup)
-        guard ((try? context.fetchCount(FetchDescriptor<User>())) ?? 0) == 0 else { return }
+        guard ((try? context.fetchCount(FetchDescriptor<User>())) ?? 0) == 0 else {
+            logCounts(in: context, note: "store already seeded")
+            return
+        }
 
         let calendar = Calendar.current
         let now = Date.now
@@ -195,11 +199,29 @@ enum DemoData {
 
         context.insert(TimeBank(userID: user.id, date: today, earnedMin: 90))
         context.insert(Coin(userID: user.id, balance: 240))
-        for key in ["first_earned_unlock", "streak_7", "streak_14"] {
-            context.insert(Badge(userID: user.id, key: key, earnedAt: yesterday))
-        }
+        // Badge keys must be the ones TrophyCaseView's grid uses (the six milestone keys), or a
+        // badge lands in "More badges" instead of lighting its tile. A 15-day user has earned the
+        // first unlock and the 7-day streak; "streak_14" is not a milestone key, and the old
+        // "first_unlock" key was title-cased into a second "First Unlock" under "More badges".
+        // The one extra is a real per-occurrence key (StreakEngine's "comeback_<yyyy-MM-dd>"):
+        // the day this streak restarted after the 21-day best ended.
+        let firstUnlockDay = calendar.date(byAdding: .day, value: -14, to: today) ?? yesterday
+        let seventhDay = calendar.date(byAdding: .day, value: -8, to: today) ?? yesterday
+        context.insert(Badge(userID: user.id, key: "first_earned_unlock", earnedAt: firstUnlockDay))
+        context.insert(Badge(userID: user.id, key: "streak_7", earnedAt: seventhDay))
+        let dayFormatter = DateFormatter()
+        dayFormatter.calendar = Calendar(identifier: .gregorian)
+        dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        context.insert(Badge(userID: user.id, key: "comeback_\(dayFormatter.string(from: firstUnlockDay))",
+                             earnedAt: firstUnlockDay))
 
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            logger.error("DemoData save failed: \(String(describing: error), privacy: .public)")
+        }
+        logCounts(in: context, note: "seeded")
 
         // The lightweight mirrors the shield and widgets read without opening SwiftData.
         SharedDefaults.currentStreak = 14
@@ -210,5 +232,19 @@ enum DemoData {
         SharedDefaults.activeLockMode = .full
         SharedDefaults.goalsRemainingForActiveLock = 2
         SharedDefaults.earnedMinutesRemainingToday = 90
+    }
+
+    private static let logger = Logger(subsystem: "com.zano.app", category: "DemoData")
+
+    /// One line in CI's app.log proving what the Progress tab should see: lock sessions total /
+    /// ended / earned, plus the badge keys. Read back from a FRESH context, the same way `@Query`
+    /// would see the store, so a save that silently dropped rows shows up here as a zero.
+    private static func logCounts(in context: ModelContext, note: String) {
+        let readBack = ModelContext(context.container)
+        let sessions = (try? readBack.fetch(FetchDescriptor<LockSession>())) ?? []
+        let ended = sessions.filter { $0.endedAt != nil }
+        let earned = ended.filter { $0.unlockKind == .earned }
+        let badgeKeys = ((try? readBack.fetch(FetchDescriptor<Badge>())) ?? []).map(\.key).sorted()
+        logger.notice("DemoData \(note, privacy: .public): sessions total=\(sessions.count) ended=\(ended.count) earned=\(earned.count) badges=\(badgeKeys.joined(separator: ","), privacy: .public) tz=\(TimeZone.current.identifier, privacy: .public)")
     }
 }

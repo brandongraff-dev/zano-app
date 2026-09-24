@@ -104,5 +104,50 @@ extension Copy {
         public static func moreGoalsLink(count: Int) -> String {
             count == 1 ? "+1 more goal" : "+\(count) more goals"
         }
+
+        // MARK: - Premium UI pass 2026-09-24 (docs/design/premium-ui-plan.md)
+
+        /// Hero while locked: `"2"` loud, `"goals to unlock"` quiet. Says what the number buys.
+        public static func heroGoalsToUnlockLine(count: Int) -> String {
+            count == 1 ? "1 goal to unlock" : "\(count) goals to unlock"
+        }
+
+        /// `"since 7:00 AM"` beside the locked eyebrow.
+        public static func heroLockedSince(_ time: String) -> String { "since \(time)" }
+
+        /// Section over the goals that gate the running lock.
+        public static let sectionToUnlock = "To unlock"
+        /// Section over active goals that don't gate the running lock.
+        public static let sectionAlsoToday = "Also today"
+        /// Section over every goal when nothing is locked.
+        public static let sectionTodaysGoals = "Today's goals"
+
+        /// A numeric goal's line under its title: `"72 of 150g"`.
+        public static func goalProgressLine(current: Int, target: Int, unit: String) -> String {
+            "\(current) of \(amount(target, unit: unit))"
+        }
+
+        /// What's left, beside the progress line: `"78g to go"`.
+        public static func goalRemainingLine(remaining: Int, unit: String) -> String {
+            "\(amount(remaining, unit: unit)) to go"
+        }
+
+        /// Inline quick-log buttons (log straight from Today, no trip to Fuel).
+        public static func quickAddAmount(_ value: Int, unit: String) -> String {
+            "+\(amount(value, unit: unit))"
+        }
+        public static func quickAddAccessibility(_ value: Int, unit: String, goal: String) -> String {
+            "Log \(amount(value, unit: unit)) of \(goal)"
+        }
+
+        public static let actionStart = "Start"
+        public static let actionGo = "I'm here"
+        public static let statusRunning = "Running"
+        public static func statusDwell(minutes: Int) -> String { "\(minutes) min" }
+        /// A gym workout with no confirmed gym yet: it will verify on its own once one is set.
+        public static let statusVerifiesAtGym = "Auto at gym"
+        public static let statusDone = "Done"
+
+        public static let logFailedTitle = "Couldn't log that. Try again."
     }
 }

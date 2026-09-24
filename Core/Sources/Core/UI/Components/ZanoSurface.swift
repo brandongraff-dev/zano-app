@@ -52,6 +52,21 @@ extension View {
     public func zanoWell(radius: CGFloat = Theme.Radius.small) -> some View {
         modifier(ZanoSurface(radius: radius, fill: Theme.Colors.surface2, tint: nil, active: false, showsEdge: false))
     }
+
+    /// The top depth level: one per screen, for the thing the screen exists to show (Today's lock
+    /// state, a paywall's plan). It catches more light than a card (a `surfaceHero` → `surface`
+    /// gradient), sits on a soft drop shadow that reads against the ambient backdrop, and carries
+    /// the same optional state wash and earned glow as `zanoCard`.
+    ///
+    /// Depth levels (premium-ui-plan.md Phase 2): `zanoBackdrop` (ambient) → `zanoHero` →
+    /// `zanoCard` → `zanoWell` (recessed).
+    public func zanoHero(
+        radius: CGFloat = Theme.Radius.large,
+        tint: Color? = nil,
+        active: Bool = false
+    ) -> some View {
+        modifier(ZanoSurface(radius: radius, fill: Theme.Colors.surface, tint: tint, active: active, showsEdge: true, elevated: true))
+    }
 }
 
 struct ZanoSurface: ViewModifier {
@@ -60,6 +75,7 @@ struct ZanoSurface: ViewModifier {
     let tint: Color?
     let active: Bool
     let showsEdge: Bool
+    var elevated: Bool = false
 
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -68,9 +84,22 @@ struct ZanoSurface: ViewModifier {
         return content
             .background {
                 ZStack {
-                    shape
-                        .fill(fill)
-                        .shadow(color: glowColor, radius: 18)
+                    if elevated {
+                        shape
+                            .fill(
+                                LinearGradient(
+                                    colors: [Theme.Colors.surfaceHero, fill],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
+                            .shadow(color: glowColor, radius: 24)
+                    } else {
+                        shape
+                            .fill(fill)
+                            .shadow(color: glowColor, radius: 18)
+                    }
                     if let tint {
                         shape.fill(wash(tint))
                     }

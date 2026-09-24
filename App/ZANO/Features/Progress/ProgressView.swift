@@ -145,6 +145,20 @@
 // the gap is identical down the screen and each label reads as belonging to the card below it.
 //
 
+// PREMIUM PASS (2026-09-24, docs/design/premium-ui-plan.md, "light is earned"; Spotify chrome +
+// Nike numerals). Visual only — every `@Query` and derivation rule above is unchanged:
+//   - Backdrop: `.zanoAmbient(.progress(x))` where x = earned days in the last 7 / 7 (`.neutral` with
+//     no earned day, or under Reduce Transparency), replacing the flat `background` fill: the page
+//     itself gets brighter the more of the week was earned.
+//   - Hero: `zanoHero` (the one elevated surface), the lifetime total as an 88pt compressed numeral
+//     in the accent (reclaimed time IS the earned reward), a "last 7 days" context line, and bars
+//     where a day with an earned unlock is accent and every other day is `track`. Day 1 shows what
+//     the number will count and how to start it, not a muted "0m".
+//   - Section headers are sentence-case headlines in `text` (no tracked caps); only the hero keeps
+//     a small muted eyebrow.
+//   - Streak: "14 days" as a 48pt condensed numeral. With no earned day yet the calendar collapses
+//     to the current week under a guidance line, instead of 28 grey cells.
+
 // ASSUMED API (design pass) — `Copy.share.shareButtonTitle` ("Share this", `ShareCopy.swift`) and
 // `WeeklyRecapShareView(recap:goalTitles:rankTierLabel:onDismiss:)` (`Features/Share`), both read in
 // full on disk before use. Not compiler-verified (no Mac).
@@ -164,6 +178,7 @@ struct ProgressView: View {
     @Query private var allGoals: [Goal]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     /// The recap currently being turned into a share card (`WeeklyRecapShareView`), or `nil`.
     @State private var sharingRecap: Recap?
@@ -187,7 +202,7 @@ struct ProgressView: View {
             .padding(.top, Theme.Spacing.xs)
             .padding(.bottom, Theme.Spacing.xl)
         }
-        .background(Theme.Colors.background)
+        .zanoAmbient(ambientState)
         .scrollContentBackground(.hidden)
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.progress.screenTitle)
@@ -203,38 +218,59 @@ struct ProgressView: View {
         }
     }
 
+    /// "Light is earned": the page warms with the share of the last 7 days that had an earned
+    /// unlock. Static (a function of data, never animated on its own).
+    private var ambientState: ZanoAmbientState {
+        let earnedThisWeek = last7DaysReclaim.filter(\.isEarned).count
+        guard !reduceTransparency, earnedThisWeek > 0 else { return .neutral }
+        return .progress(Double(earnedThisWeek) / 7)
+    }
+
     // MARK: - Time Reclaimed (spec §5.15)
 
-    /// The screen's hero: the lifetime number at 72pt with quiet h/m units, over a 7-day strip. Radius
-    /// `.large`, an accent wash and — once there is anything reclaimed — the earned glow mark it as
-    /// the lead; everything below is `.medium` and quieter.
+    /// The screen's hero and its one elevated surface: the lifetime number at 88pt compressed in
+    /// the accent (reclaimed time is earned), a "last 7 days" line, and the 7-day strip. Before the
+    /// first finished lock it explains what will be counted instead of shouting a grey "0m".
     private var timeReclaimedHero: some View {
         let minutes = lifetimeReclaimedMinutes
-        return VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+        let week = last7DaysReclaim
+        let weekMinutes = week.reduce(0) { $0 + $1.minutes }
+        let hasHistory = minutes > 0
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(hasHistory ? Theme.Colors.accent : Theme.Colors.muted)
                     .accessibilityHidden(true)
                 ProgressEyebrow(text: Copy.progress.timeReclaimedTitle)
             }
 
-            // Before the first finished lock the loudest thing on the screen would be a 72pt "0m":
-            // it recedes to `muted` (and the card has no earned glow) until there is something
-            // reclaimed to celebrate.
-            NumeralText(
-                formatDuration(minutes: minutes),
-                size: .hero,
-                color: minutes > 0 ? Theme.Colors.text : Theme.Colors.muted
-            )
-            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: minutes)
+            if hasHistory {
+                NumeralText(formatDuration(minutes: minutes), size: .hero, color: Theme.Colors.accent)
+                    .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: minutes)
 
-            ProgressWeekBars(days: last7DaysReclaim, accessibilityText: last7DaysAccessibilityText)
-                .padding(.top, Theme.Spacing.xs)
+                Text(weekMinutes > 0
+                     ? Copy.progress.last7DaysReclaimedLabel(duration: formatDuration(minutes: weekMinutes))
+                     : Copy.progress.last7DaysEmptyLabel)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                // Day 1: the number would be "0m", so the space says what fills it instead.
+                NumeralText(formatDuration(minutes: 0), size: .hero, color: Theme.Colors.hairlineStrong)
+                    .accessibilityHidden(true)
+                Text(Copy.progress.timeReclaimedEmptyMessage)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ProgressWeekBars(days: week, accessibilityText: last7DaysAccessibilityText)
+                .padding(.top, Theme.Spacing.sm)
         }
         .padding(Theme.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(radius: Theme.Radius.large, tint: Theme.Colors.accent, active: minutes > 0)
+        .zanoHero(radius: Theme.Radius.large, tint: hasHistory ? Theme.Colors.accent : nil, active: hasHistory)
     }
 
     private var lifetimeReclaimedMinutes: Int {
@@ -258,14 +294,19 @@ struct ProgressView: View {
             let minutes = max(0, Int(endedAt.timeIntervalSince(session.startedAt) / 60))
             minutesByDay[calendar.startOfDay(for: endedAt), default: 0] += minutes
         }
+        let earned = earnedDays
         let symbols = calendar.veryShortWeekdaySymbols
         return (0..<7).reversed().compactMap { offset -> ProgressDayReclaim? in
-            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            guard let shifted = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            // Back to local midnight: across a DST change the shifted date lands at 23:00/01:00 and
+            // would miss its `minutesByDay`/`earnedDays` key.
+            let day = calendar.startOfDay(for: shifted)
             let weekdayIndex = calendar.component(.weekday, from: day) - 1
             return ProgressDayReclaim(
                 day: day,
                 minutes: minutesByDay[day] ?? 0,
                 isToday: offset == 0,
+                isEarned: earned.contains(day),
                 initial: symbols.indices.contains(weekdayIndex) ? symbols[weekdayIndex] : ""
             )
         }
@@ -286,7 +327,16 @@ struct ProgressView: View {
 
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 streakHeader
-                ProgressStreakGrid(earnedDays: earnedDays)
+                let earned = earnedDays
+                if earned.isEmpty {
+                    // Day 1: one week of cells (today outlined) under a line that says what lights
+                    // them, instead of four rows of grey.
+                    Text(Copy.progress.streakEmptyMessage)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ProgressStreakGrid(earnedDays: earned, weeks: earned.isEmpty ? 1 : 4)
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,7 +363,11 @@ struct ProgressView: View {
                 tint: current > 0 ? Theme.Colors.accent : Theme.Colors.muted
             )
 
-            NumeralText("\(current)", size: .large, color: current > 0 ? Theme.Colors.text : Theme.Colors.muted)
+            NumeralText(
+                Copy.progress.streakValue(days: current),
+                size: .large,
+                color: current > 0 ? Theme.Colors.text : Theme.Colors.muted
+            )
 
             Spacer(minLength: Theme.Spacing.sm)
 
@@ -539,7 +593,7 @@ private enum ProgressMetrics {
     static let cellRadius: CGFloat = Theme.Radius.inner(of: Theme.Radius.medium, inset: Theme.Spacing.md)
 }
 
-/// Small tracked all-caps label ("TIME RECLAIMED", "STREAK") in the shared eyebrow style. It is a
+/// The hero's small sentence-case label ("Time reclaimed") in the shared eyebrow style. It is a
 /// heading for VoiceOver's rotor, not just decoration.
 private struct ProgressEyebrow: View {
     let text: String
@@ -563,7 +617,12 @@ private struct ProgressSectionLabel: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
-            ProgressEyebrow(text: text)
+            // Spotify-style section header: a sentence-case headline in `text`, not tracked caps.
+            Text(text)
+                .zanoText(.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
             if showsChevron {
                 Image(systemName: "chevron.forward")
@@ -582,15 +641,18 @@ private struct ProgressDayReclaim: Identifiable, Equatable {
     let day: Date
     let minutes: Int
     let isToday: Bool
+    /// At least one earned unlock ended this day (the streak's own day rule).
+    let isEarned: Bool
     /// Localized very-short weekday symbol ("M", "T", ...) from `Calendar`, not copy.
     let initial: String
 
     var id: Date { day }
 }
 
-/// Seven bars, oldest to today, with weekday initials underneath. Today's bar is the accent; earlier
-/// days are a quiet `text` tint; an empty day is a short `track` stub, so the strip reads as seven
-/// days even before there is any data. Bar height is proportional to the busiest day in the window.
+/// Seven bars, oldest to today, with weekday initials underneath. A day with an earned unlock is the
+/// accent (green means earned); every other day, including locked time that ended another way, is
+/// `track`; an empty day is a short `track` stub, so the strip reads as seven days even before there
+/// is any data. Today's initial is `text`. Bar height is proportional to the busiest day.
 private struct ProgressWeekBars: View {
     let days: [ProgressDayReclaim]
     let accessibilityText: String
@@ -606,8 +668,7 @@ private struct ProgressWeekBars: View {
     }
 
     private func barFill(for day: ProgressDayReclaim) -> Color {
-        if day.minutes == 0 { return Theme.Colors.track }
-        return day.isToday ? Theme.Colors.accent : Theme.Colors.text.opacity(0.30)
+        day.isEarned && day.minutes > 0 ? Theme.Colors.accent : Theme.Colors.track
     }
 
     var body: some View {
@@ -639,6 +700,8 @@ private struct ProgressWeekBars: View {
 /// and 1.08:1 empty days.
 private struct ProgressStreakGrid: View {
     let earnedDays: Set<Date>
+    /// Rows shown, ending with the current week: 4 normally, 1 on day 1 (see `streakSection`).
+    var weeks = 4
 
     private var calendar: Calendar { .current }
     private var today: Date { calendar.startOfDay(for: .now) }
@@ -648,12 +711,16 @@ private struct ProgressStreakGrid: View {
         count: 7
     )
 
-    /// 28 consecutive local-midnight days: the current week plus the three before it.
+    /// `weeks * 7` consecutive local-midnight days: the current week plus the ones before it.
     private var days: [Date] {
         let cal = calendar
+        let rows = max(1, weeks)
         let weekStart = cal.dateInterval(of: .weekOfYear, for: today)?.start ?? today
-        guard let first = cal.date(byAdding: .weekOfYear, value: -3, to: weekStart) else { return [] }
-        return (0..<28).compactMap { cal.date(byAdding: .day, value: $0, to: first) }
+        guard let first = cal.date(byAdding: .weekOfYear, value: -(rows - 1), to: weekStart) else { return [] }
+        // `startOfDay` again: adding days across a DST change can land at 23:00/01:00, which would
+        // never equal an `earnedDays` entry.
+        return (0..<(rows * 7)).compactMap { cal.date(byAdding: .day, value: $0, to: first) }
+            .map { cal.startOfDay(for: $0) }
     }
 
     /// Localized very-short weekday symbols for the first row's columns, in locale week order.
@@ -706,9 +773,8 @@ private struct ProgressStreakGrid: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        // "12 of 28 earned": days with an earned unlock out of the days shown so far. Reuses the
-        // existing Copy shape instead of composing an "of" sentence in the view.
-        .accessibilityLabel(Text(Copy.trophyCase.progressLabel(earned: earnedCount, total: counted.count)))
+        // "12 of 28 days earned": days with an earned unlock out of the days shown so far.
+        .accessibilityLabel(Text(Copy.progress.streakCalendarAccessibilityLabel(earned: earnedCount, total: counted.count)))
     }
 }
 

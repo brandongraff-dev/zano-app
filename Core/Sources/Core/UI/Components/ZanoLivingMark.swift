@@ -61,8 +61,8 @@ public struct ZanoLivingMark: View {
             // Glow: the star's own shape, blurred. Grows and brightens with charge, breathes.
             ZanoMarkShape()
                 .fill(glowColor, style: FillStyle(eoFill: true))
-                .blur(radius: height * 0.16)
-                .opacity((0.12 + 0.6 * charge) * (0.7 + 0.3 * breathe))
+                .blur(radius: height * 0.2)
+                .opacity((0.18 + 0.62 * charge) * (0.7 + 0.3 * breathe))
 
             // Uncharged metal.
             ZanoMarkShape()
@@ -103,8 +103,8 @@ public struct ZanoLivingMark: View {
         LinearGradient(
             stops: [
                 .init(color: .black, location: 0),
-                .init(color: .black, location: max(0, charge - 0.04)),
-                .init(color: .clear, location: min(1, charge + 0.04)),
+                .init(color: .black, location: max(0, charge - 0.015)),
+                .init(color: .clear, location: min(1, charge + 0.015)),
             ],
             startPoint: .leading,
             endPoint: .trailing
@@ -119,7 +119,7 @@ public struct ZanoLivingMark: View {
     /// The star's uncharged metal: dark graphite, a step above `surface2`.
     private static var graphite: LinearGradient {
         LinearGradient(
-            colors: [Color.white.opacity(0.16), Color.white.opacity(0.06)],
+            colors: [Color.white.opacity(0.11), Color.white.opacity(0.035)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

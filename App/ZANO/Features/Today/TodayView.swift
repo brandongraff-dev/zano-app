@@ -344,13 +344,13 @@ struct TodayView: View {
     @ViewBuilder
     private var heroStar: some View {
         if ScreenshotMode.screen != nil {
-            ScreenTimeChargeView(summary: DemoData.screenTime, height: 110)
+            ScreenTimeChargeView(summary: DemoData.screenTime, height: 124)
         } else if AuthorizationCenter.shared.authorizationStatus == .approved {
             DeviceActivityReport(.zanoMark, filter: Self.todayFilter)
                 .frame(height: 236)
                 .allowsHitTesting(false)
         } else {
-            ScreenTimeChargeView(height: 110)
+            ScreenTimeChargeView(height: 124)
         }
     }
 

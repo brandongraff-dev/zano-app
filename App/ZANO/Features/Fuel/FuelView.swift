@@ -254,7 +254,7 @@
 //     `GoalsEditorView` (App/ZANO/Features/Settings) in a sheet. The "log it your way" preview is
 //     plain text rows now, since glass chips looked tappable and weren't.
 //   - Quick-add chips speak "Log 25 g of protein", wrap onto two rows at accessibility sizes, and
-//     leave an Undo toast (`FuelUndoToast.swift`) for ~5s that deletes the event they inserted.
+//     leave Today's `UndoToast` for ~5s that deletes the event they inserted.
 //   - Error alerts say what happened in `Copy`, never `error.localizedDescription`. Units are "25 g"
 //     / "500 mL" everywhere, from `Copy.fuel`.
 
@@ -353,15 +353,16 @@ struct FuelView: View {
         .scrollContentBackground(.hidden)
         .overlay(alignment: .bottom) {
             if let undoItem {
-                FuelUndoToast(
-                    message: undoItem.message,
-                    undoLabel: Copy.fuel.undoButtonLabel,
-                    onUndo: { undo(undoItem) }
-                )
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.bottom, Theme.Spacing.sm)
-                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                .id(undoItem.id)
+                // Today's `UndoToast` (App/ZANO/Features/Today), so a quick-log's undo looks the
+                // same on both screens. A dark backing under its glass: here it floats over
+                // scrolling cards rather than sitting in a bar.
+                UndoToast(message: undoItem.message, onUndo: { undo(undoItem) })
+                    .background(Theme.Colors.surface.opacity(0.92), in: Capsule(style: .continuous))
+                    .shadow(color: Theme.Colors.shadow, radius: 12, y: 4)
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.bottom, Theme.Spacing.sm)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    .id(undoItem.id)
             }
         }
         .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: undoItem)
@@ -1037,6 +1038,14 @@ struct FuelView: View {
 private struct FuelSheet: Identifiable {
     let goalType: GoalType
     var id: GoalType { goalType }
+}
+
+/// The quick-add the Undo toast can take back: its message, and the id of the `GoalEvent` it
+/// inserted (what Undo deletes).
+private struct FuelUndoItem: Identifiable, Equatable {
+    let id = UUID()
+    let message: String
+    let eventID: UUID
 }
 
 /// File-scoped alert payload — plain `Identifiable` glue for `.alert`, matching the convention

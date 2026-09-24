@@ -60,7 +60,7 @@ extension Copy {
         // Undo toast after a quick-add.
         public static func undoToastProteinMessage(grams: Int) -> String { "Logged \(Self.grams(grams)) of protein" }
         public static func undoToastWaterMessage(milliliters: Int) -> String { "Logged \(Self.milliliters(milliliters)) of water" }
-        public static let undoButtonLabel = "Undo"
+        // (The Undo button itself is `Copy.today.undoTitle`: Fuel reuses Today's `UndoToast`.)
         public static let undoFailedTitle = "Couldn't undo that"
         public static let undoFailedMessage = "It's still logged. You can try again from the goal's history."
 

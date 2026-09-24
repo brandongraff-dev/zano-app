@@ -201,7 +201,7 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
         )
 
         // Use it, so the device is left unlocked. `LockEngineManager.emergencyUnlock`.
-        emergency.holdToCommit()
+        emergency.holdToCommit(for: 62)
         XCTAssertTrue(
             app.anyElement(labelContaining: T.unlocked).waitForExistence(timeout: 20),
             "After the emergency unlock the Lock screen never showed '\(T.unlocked)'."

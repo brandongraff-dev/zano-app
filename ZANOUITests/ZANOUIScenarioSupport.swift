@@ -152,7 +152,7 @@ enum ZANOUILabel {
 
     enum LockStatus {
         /// Copy.lockStatus.emergencyUnlockTitle -- CLAUDE.md: every lock keeps a way out. A
-        /// `PrimaryButton(style: .holdToCommit)` (2s hold).
+        /// `EmergencyUnlockControl` (60-second hold on Core's `EmergencyUnlock`).
         static let emergencyUnlock = "Hold to unlock in an emergency"
     }
 

@@ -88,7 +88,7 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
 - **Today (Opal reference):** concentric goal rings in a state-lit halo, status pill, and a new
   Screen time section drawn by the `ZANOReport` DeviceActivityReport extension (`ScreenTimeSummaryView`,
   `ScreenTimeCopy`); the default lock set is mirrored to `SharedDefaults.lockedSelectionData`.
-- **CI:** runs 26/27 failed (report closure type; then demo-data `Int` → `TimeInterval`), both fixed.
+- **CI:** runs 26/27 failed (report closure type; then demo-data `Int` → `TimeInterval`), both fixed. Run 28 (04d9c38) green: app + extensions build, Core tests pass, screenshots reviewed (no green left; new logo on Today, paywall, onboarding).
 - **Known issues:** logo paths are traced from a raster (a vector master would be cleaner); the
   screen-time report is unverified on device (Simulator has no Screen Time data); code comments
   still mention "green" in places (history, harmless); shield/widget branding not done.

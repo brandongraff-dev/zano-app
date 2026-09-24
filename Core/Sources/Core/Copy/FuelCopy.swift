@@ -73,7 +73,7 @@ extension Copy {
         public static let barcodeErrorTransport = "Couldn't reach the product database — try again."
 
         // Kitchen Staples (spec §5.20, §10)
-        public static let kitchenStaplesSectionTitle = "Kitchen Staples"
+        public static let kitchenStaplesSectionTitle = "Kitchen staples"
         public static let kitchenStaplesEmptyMessage = "Save a few high-protein foods you eat often so the gap planner can suggest them first."
         public static let kitchenStapleAddButtonLabel = "Add"
         public static let kitchenStapleAddSheetTitle = "Add a kitchen staple"

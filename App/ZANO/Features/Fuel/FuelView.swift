@@ -1149,9 +1149,10 @@ private struct FuelMetricCard<Actions: View>: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Neutral until the goal is met: the ring already carries the goal's hue.
         .zanoCard(
             radius: isHero ? Theme.Radius.large : Theme.Radius.medium,
-            tint: color,
+            tint: isComplete ? color : nil,
             active: isComplete
         )
     }
@@ -1198,9 +1199,10 @@ private struct FuelQuickAddRow: View {
     }
 }
 
-/// An amount capsule ("+25 g"): numeral in `numeralSmall`, unit in `captionEmphasized`, both in the
-/// metric's hue on its `wash` with a 1pt hue edge. Non-interactive on its own — used as a chip label
-/// (44pt) and as the trailing "this is what tapping logs" pill on rows (32pt).
+/// An amount capsule ("+25 g"): the number in pearl, the unit quieter, on the same dark glass as
+/// the tab bar. The goal's hue stays on its ring, so the controls read as one calm set instead of
+/// a row of colored slabs. Used as a chip label (44pt) and as a row's trailing "this is what
+/// tapping logs" pill (32pt).
 private struct FuelAmountPill: View {
     let amount: String
     let unit: String
@@ -1209,24 +1211,44 @@ private struct FuelAmountPill: View {
     var expands = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
+        HStack(alignment: .firstTextBaseline, spacing: 1) {
             Text(amount)
                 .font(Theme.Typography.numeralSmall())
+                .foregroundStyle(Theme.Colors.text)
             Text(unit)
                 .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.muted)
         }
-        .foregroundStyle(color)
         .lineLimit(1)
         .minimumScaleFactor(0.75)
         .padding(.horizontal, expands ? Theme.Spacing.xxs : Theme.Spacing.sm)
         .frame(maxWidth: expands ? CGFloat.infinity : nil, minHeight: minHeight)
-        .background(Theme.Colors.wash(color), in: Capsule())
-        .overlay(Capsule().strokeBorder(color.opacity(0.30), lineWidth: Theme.Metrics.edgeWidth))
+        .background(FuelGlass(shape: Capsule(style: .continuous)))
     }
 }
 
-/// 44x44 circular icon button on `surface2` with the secondary-control edge (custom amount, barcode
-/// scan) — the same treatment `PrimaryButton.secondary` draws, at icon size.
+/// The glass the Fuel controls sit on: a faint white fill with a top-lit hairline, the tab bar's
+/// material at control scale.
+private struct FuelGlass<S: InsettableShape>: View {
+    let shape: S
+
+    var body: some View {
+        shape
+            .fill(Color.white.opacity(0.055))
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.16), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.75
+                )
+            )
+    }
+}
+
+/// 44x44 circular glass icon button (custom amount, barcode scan).
 private struct FuelIconButton: View {
     let systemImage: String
     let accessibilityLabel: String
@@ -1238,8 +1260,7 @@ private struct FuelIconButton: View {
                 .font(Theme.Typography.icon(.medium))
                 .foregroundStyle(Theme.Colors.text)
                 .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
-                .background(Theme.Colors.surface2, in: Circle())
-                .overlay(Circle().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth))
+                .background(FuelGlass(shape: Circle()))
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle(scale: 0.96))

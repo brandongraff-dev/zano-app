@@ -291,8 +291,13 @@ public struct NumeralText: View {
             case .number:
                 piece.font = numberFont
                 piece.foregroundColor = color
-            case .unit, .space:
+            case .unit:
                 piece.font = unitFont
+                piece.foregroundColor = unitColor
+            case .space:
+                // Full-size space: in the small unit font the gap between "56h" and "0m" all but
+                // vanished at hero size, and the value read as "56.0".
+                piece.font = numberFont
                 piece.foregroundColor = unitColor
             }
             result.append(piece)

@@ -129,3 +129,12 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
   Actions minutes / spending limit for this private repo (macOS minutes bill at 10×; ~30 runs today).
   The wordmark v3 and tab bar commits are syntax-checked only, not compiled. Re-run CI once minutes
   are available (Settings → Billing → Actions).
+
+### 2026-09-24 — Fuel clean-up, numeral spacing fix, Codemagic
+
+- Fuel: quick-add chips and icon buttons are dark glass capsules (pearl number, muted unit) instead
+  of hue-filled slabs; the goal's hue lives only on its ring; cards stay neutral until the goal is
+  met. "Kitchen Staples" → "Kitchen staples" (sentence case).
+- `NumeralText`: the space between numeric tokens is full size, so "56h 0m" no longer reads "56.0".
+- `codemagic.yaml` + `scripts/ci/{screenshots,push-results}.sh`: second Mac builder; results on the
+  `ci-results` branch once the `github` env group holds a GITHUB_TOKEN.

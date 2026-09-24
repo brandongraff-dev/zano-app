@@ -16,9 +16,10 @@
 //   stage       `UnlockStarStage`: the star charges 0.7 -> 1.0, then a flash of ZANO Blue blooms
 //               from it with a brief white specular, a blue shockwave ring expands outward and a
 //               blue particle burst fires. It settles in a soft bloom with three faint halo rings.
-//   eyebrow     "Apps unlocked", small caps, in blue.
+//   eyebrow     "Apps unlocked", the shared sentence-case eyebrow, in blue.
 //   "Earned."   the headline, a big compressed numeral face filled with the logo's brushed silver.
-//   figure      "2h 10m  in your Time Bank", the figure in blue, counting up.
+//   figure      "2h 10m  in your Time Bank", the figure in blue, counting up. Omitted when
+//               nothing is left in the bank (no "0m" hero; the eyebrow already says "Apps unlocked").
 //   subline     "Workout verified · 42 min at the gym".
 //   Time Bank   the shared bar in a card.
 //   badge       the occasional surprise, landing last.
@@ -215,9 +216,7 @@ public struct UnlockCelebrationView: View {
     private var textBlock: some View {
         VStack(spacing: Theme.Spacing.xxs) {
             Text(Copy.celebration.appsUnlockedEyebrow)
-                .font(Theme.Typography.captionEmphasized)
-                .textCase(.uppercase)
-                .tracking(1.6)
+                .zanoText(.eyebrow)
                 .foregroundStyle(Theme.Colors.accent)
 
             Text(Copy.celebration.headline)
@@ -228,7 +227,7 @@ public struct UnlockCelebrationView: View {
                 .minimumScaleFactor(0.6)
                 .accessibilityAddTraits(.isHeader)
 
-            if hasTimeBank {
+            if timeBankRemainingMinutes > 0 {
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
                     Text(
                         Duration.seconds(animatedRemainingMinutes * 60),
@@ -282,7 +281,8 @@ public struct UnlockCelebrationView: View {
         .foregroundStyle(Theme.Colors.onAccent)
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xs)
-        .background(Theme.Colors.accent, in: Capsule())
+        // `accentFill`, the fill-safe blue (white on it is 5.27:1; on `accent` it is 3.87:1).
+        .background(Theme.Colors.accentFill, in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.celebration.badgeRevealAccessibilityLabel(title: badge.title))
     }

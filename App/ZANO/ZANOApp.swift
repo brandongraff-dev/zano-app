@@ -80,9 +80,11 @@ struct ZANOApp: App {
         // no watch support; returns immediately (the work runs on the main actor afterwards).
         WatchSyncManager.shared.activate()
 
-        // CI screenshot gallery (ScreenshotGallery.swift). Inert unless `-ZANOScreen <name>` is passed,
-        // which no user launch ever does.
+        // CI screenshot gallery (ScreenshotGallery.swift). DEBUG builds only, and inert unless
+        // `-ZANOScreen <name>` is passed, which no user launch ever does.
+        #if DEBUG
         if let name = ScreenshotMode.screen { ScreenshotMode.prepare(screen: name) }
+        #endif
 
         Self.configureNavigationBarTitles()
     }
@@ -103,11 +105,15 @@ struct ZANOApp: App {
 
     @ViewBuilder
     private var rootContent: some View {
+        #if DEBUG
         if let name = ScreenshotMode.screen {
             ScreenshotHost(name: name)
         } else {
             ContentView()
         }
+        #else
+        ContentView()
+        #endif
     }
 
     var body: some Scene {
@@ -117,9 +123,9 @@ struct ZANOApp: App {
                 // environment rather than reaching for the global.
                 .environment(AppRouter.shared)
                 // `zano://tag/<uuid>`, `zano://goals`, `zano://emergency` (+ the widgets'
-                // `zano://today` / `zano://focus/end`) — docs/spec.md §6, §14, §27. NOTE: this
-                // only fires if `project.yml`'s ZANO target registers the `zano` scheme under
-                // `CFBundleURLTypes`, which it does not yet (flagged in this task's knownIssues).
+                // `zano://today` / `zano://focus/end`) — docs/spec.md §6, §14, §27. Delivered
+                // because `project.yml`'s ZANO target registers the `zano` scheme under
+                // `CFBundleURLTypes`.
                 .onOpenURL { url in
                     AppRouter.shared.handle(url: url)
                 }

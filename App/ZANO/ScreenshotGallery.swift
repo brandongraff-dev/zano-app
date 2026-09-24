@@ -16,6 +16,12 @@
 // believable demo data (`DemoData.seed()`), so what the screenshots show is what a user would see —
 // not a mock-up. What they cannot show: anything needing FamilyControls / DeviceActivity / NFC /
 // HealthKit workouts / a real geofence (none of which run in the Simulator, docs/spec.md §27).
+//
+// DEBUG-only. `DemoData.seed()` writes fake rows into the REAL App Group store, so none of the
+// seeding, routing or gallery code may exist in a Release build. The two names other files read
+// (`ScreenshotMode.screen` in TodayView/PaywallView/WeeklyRecapShareView, `DemoData.screenTime` in
+// TodayView) still compile in Release so those call sites need no `#if`; `screen` is always nil
+// there, which makes every such branch dead.
 
 import SwiftUI
 import SwiftData
@@ -23,11 +29,17 @@ import os
 import Core
 
 enum ScreenshotMode {
-    /// The requested screen name, or nil on every normal launch.
+    /// The requested screen name, or nil on every normal launch. Always nil in Release.
     static var screen: String? {
+        #if DEBUG
         let value = UserDefaults.standard.string(forKey: "ZANOScreen")
         return (value?.isEmpty == false) ? value : nil
+        #else
+        return nil
+        #endif
     }
+
+    #if DEBUG
 
     /// Called from `ZANOApp.init()` before the first render. Seeds demo data and puts the router in
     /// the state the requested screen needs (main app vs. onboarding, which tab).
@@ -46,7 +58,10 @@ enum ScreenshotMode {
             }
         }
     }
+    #endif
 }
+
+#if DEBUG
 
 // MARK: - Host
 
@@ -109,6 +124,8 @@ struct ScreenshotHost: View {
     }
 }
 
+#endif
+
 // MARK: - Demo data
 
 extension DemoData {
@@ -142,6 +159,7 @@ extension DemoData {
     }
 }
 
+#if DEBUG
 extension DemoData {
     /// Not inserted into the store: `WeeklyRecapShareView` renders straight from the value.
     static let recapGoalIDs: [UUID] = (0..<4).map { _ in UUID() }
@@ -165,11 +183,13 @@ extension DemoData {
         )
     }
 }
+#endif
 
 /// One believable "day 15 of a streak, mid-afternoon, locked until the workout is done" user.
 /// Idempotent: does nothing if a `User` already exists (each screen is a separate launch).
 @MainActor
 enum DemoData {
+    #if DEBUG
     static func seed() {
         let context = ModelContext(ModelContainer.appGroup)
         guard ((try? context.fetchCount(FetchDescriptor<User>())) ?? 0) == 0 else {
@@ -280,4 +300,5 @@ enum DemoData {
         let badgeKeys = ((try? readBack.fetch(FetchDescriptor<Badge>())) ?? []).map(\.key).sorted()
         logger.notice("DemoData \(note, privacy: .public): sessions total=\(sessions.count) ended=\(ended.count) earned=\(earned.count) badges=\(badgeKeys.joined(separator: ","), privacy: .public) tz=\(TimeZone.current.identifier, privacy: .public)")
     }
+#endif
 }

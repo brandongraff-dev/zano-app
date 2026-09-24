@@ -30,7 +30,7 @@
 // note and wake-alarm link are cards on the same surface, and Save is a pinned button that dismisses
 // with a `.success` haptic. The wake-alarm link shows the wake time it leads to, which is a number
 // the screen already has and makes the two halves read as one night. The shared building blocks
-// (`SleepSetup*`, `SleepTimeCard`) live at the bottom of `SunriseAlarmSetupView.swift`.
+// (`SleepTimeCard`, `SleepSetupSaveBar`) live at the bottom of `SunriseAlarmSetupView.swift`.
 //
 // Save is disabled until the saved settings have loaded, so an early tap can no longer overwrite the
 // saved row with defaults.
@@ -83,8 +83,7 @@ struct BedtimeGateSetupView: View {
         }
         .navigationTitle(Copy.bedtimeGate.screenTitle)
         .navigationBarTitleDisplayMode(.inline)
-        // No root tint exists yet (that lives in `ZANOApp`), so the wind-down switch, the nav back
-        // button and the wheel would otherwise render system blue/green.
+        // Controls (nav back button, wheel, switches) take the one accent, ZANO Blue.
         .tint(Theme.Colors.interactive)
         .sensoryFeedback(.success, trigger: saveTick)
         .task {
@@ -112,41 +111,52 @@ struct BedtimeGateSetupView: View {
 
     private var windDownSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            SleepSetupSectionHeader(title: Copy.bedtimeGate.windDownSectionHeader)
+            Text(Copy.bedtimeGate.windDownSectionHeader)
+                .zanoText(.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
 
-            SleepSetupCard {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Toggle(Copy.bedtimeGate.windDownToggleLabel, isOn: $settings.windDownReminderEnabled)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                        // The screen tint is white chrome; a white switch track would hide its
-                        // white thumb, so the switch takes the bedtime goal's own hue.
-                        .tint(Theme.Colors.Ring.sleepOnTime)
-                        .frame(minHeight: SleepSetupMetrics.minTapTarget)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Toggle(Copy.bedtimeGate.windDownToggleLabel, isOn: $settings.windDownReminderEnabled)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    // Switches are controls, so they take the one accent (ZANO Blue).
+                    .tint(Theme.Colors.accent)
+                    .frame(minHeight: Theme.Metrics.minTapTarget)
 
-                    Text(Copy.bedtimeGate.windDownHelperText)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(Copy.bedtimeGate.windDownHelperText)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard()
         }
     }
 
     private var pickupsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            SleepSetupSectionHeader(title: Copy.bedtimeGate.pickupsInfoHeader)
+            Text(Copy.bedtimeGate.pickupsInfoHeader)
+                .zanoText(.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
 
-            SleepSetupCard {
-                HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                    SleepSetupIconBadge(systemImage: "moon.stars.fill", tint: Theme.Colors.muted)
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "moon.stars.fill", tint: Theme.Colors.muted, size: .small)
 
-                    Text(Copy.bedtimeGate.pickupsInfoText)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(Copy.bedtimeGate.pickupsInfoText)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard()
         }
     }
 
@@ -156,34 +166,36 @@ struct BedtimeGateSetupView: View {
         NavigationLink {
             SunriseAlarmSetupView()
         } label: {
-            SleepSetupCard {
-                HStack(spacing: Theme.Spacing.sm) {
-                    SleepSetupIconBadge(systemImage: "alarm.fill", tint: Theme.Colors.Ring.sunriseAlarm)
+            HStack(spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "alarm.fill", tint: Theme.Colors.Ring.sunriseAlarm, size: .small)
 
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                        Text(Copy.bedtimeGate.wakeAlarmLinkLabel)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.text)
-                        Text(Copy.bedtimeGate.wakeAlarmLinkDetail)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer(minLength: Theme.Spacing.sm)
-
-                    Text(settings.wakeTime, format: .dateTime.hour().minute())
-                        .font(Theme.Typography.numeralSmall())
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(Copy.bedtimeGate.wakeAlarmLinkLabel)
+                        .font(Theme.Typography.headline)
                         .foregroundStyle(Theme.Colors.text)
-
-                    Image(systemName: "chevron.forward")
-                        .font(.system(size: 13, weight: .semibold))
+                    Text(Copy.bedtimeGate.wakeAlarmLinkDetail)
+                        .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
-                        .accessibilityHidden(true)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer(minLength: Theme.Spacing.sm)
+
+                Text(settings.wakeTime, format: .dateTime.hour().minute())
+                    .font(Theme.Typography.numeralSmall())
+                    .foregroundStyle(Theme.Colors.text)
+
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(Theme.Colors.muted)
+                    .accessibilityHidden(true)
             }
+            
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard()
         }
-        .buttonStyle(SleepSetupPressStyle())
+        .buttonStyle(.pressable)
     }
 
     // MARK: - Actions
@@ -201,7 +213,7 @@ struct BedtimeGateSetupView: View {
                 isSaving = false
                 errorAlert = BedtimeGateSetupErrorAlert(
                     title: Copy.bedtimeGate.saveErrorTitle,
-                    message: error.localizedDescription
+                    message: Copy.bedtimeGate.saveErrorMessage
                 )
             }
         }

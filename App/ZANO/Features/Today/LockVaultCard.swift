@@ -12,8 +12,8 @@
 //     color as the day goes, so the card slowly takes on the color of the work you've done
 //     ("light is earned", premium-ui-plan.md §4).
 //
-// Locked keeps spec §15's `danger` only as the small status dot and a faint wash; the earned state
-// (`.unlocking` / all done) is the one place the card glows accent.
+// Locked is cool navy (`lockedAmbient` wash, `textSecondary` glyph): red is reserved for emergency.
+// The earned state (`.unlocking` / all done) is the one place the card glows accent.
 
 import SwiftUI
 import FamilyControls
@@ -152,7 +152,7 @@ struct LockVaultCard: View {
     private var statusDot: some View {
         Image(systemName: statusSymbol)
             .font(Theme.Typography.icon(.xsmall, weight: .bold))
-            .foregroundStyle(status == .earned ? Theme.Colors.onFill : statusColor)
+            .foregroundStyle(status == .earned ? Theme.Colors.onAccent : statusColor)
             .frame(width: 24, height: 24)
             .background(status == .earned ? statusColor : Theme.Colors.wash(statusColor), in: Circle())
             .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
@@ -211,15 +211,14 @@ struct LockVaultCard: View {
 
     private var statusColor: Color {
         switch status {
-        case .setup, .unlocked: Theme.Colors.textSecondary
-        case .locked: Theme.Colors.danger
+        case .setup, .unlocked, .locked: Theme.Colors.textSecondary
         case .earned: Theme.Colors.accent
         }
     }
 
     private var washTint: Color? {
         switch status {
-        case .locked: Theme.Colors.danger
+        case .locked: Theme.Colors.lockedAmbient
         case .earned: Theme.Colors.accent
         case .setup, .unlocked: nil
         }

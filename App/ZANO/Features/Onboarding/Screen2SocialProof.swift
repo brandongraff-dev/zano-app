@@ -44,8 +44,10 @@ struct Screen2SocialProof: View {
     @Bindable var flowState: OnboardingFlowState
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// True for VoiceOver, Voice Control or Switch Control (SwiftUI does not distinguish them).
-    @Environment(\.accessibilityVoiceOverEnabled) private var assistiveTechRunning
+    /// VoiceOver and Switch Control each get their own flag: both step through elements at the
+    /// user's pace, so a timer that moves the content under them is a trap.
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverRunning
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControlRunning
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var activeIndex = 0
@@ -66,7 +68,7 @@ struct Screen2SocialProof: View {
     /// No auto-rotation and no timed progress when motion is reduced, assistive tech is running, or
     /// the text is at an accessibility size.
     private var isStatic: Bool {
-        reduceMotion || assistiveTechRunning || dynamicTypeSize.isAccessibilitySize
+        reduceMotion || voiceOverRunning || switchControlRunning || dynamicTypeSize.isAccessibilitySize
     }
 
     var body: some View {

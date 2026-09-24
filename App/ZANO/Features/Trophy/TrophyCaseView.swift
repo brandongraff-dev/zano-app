@@ -81,6 +81,15 @@ import Core
 //   * Depth comes from the shared `zanoCard` recipe; the local `depthCard`/`FeatureBackdrop`/
 //     `CardPressStyle` shims this folder used to carry are gone.
 
+// MARK: - Polish pass (2026-09-24, later)
+//
+//   * Earned badges are silver (`metallic`, the logo's metal) with an `onFill` glyph, via the shared
+//     `TrophyBadgeDisc` (same disc as the Progress trophy strip). Locked sockets are a solid
+//     hairline ring on `surface2`, no dashes. The per-tile card chrome is gone: discs and titles
+//     float in the grid. The first earned unlock draws the ZANO star; both streak badges are
+//     `flame.fill`. The coin glyph is a small metallic disc, not a grey cent sign.
+//   * The earn animation uses `Theme.Motion.springCelebration`.
+//
 // MARK: - Premium pass (2026-09-24, docs/design/premium-ui-plan.md, "light is earned")
 //
 //   * Hero: the earned count as an 88pt compressed numeral ("2" + "of 6 earned") on the one
@@ -175,14 +184,7 @@ public struct TrophyCaseView: View {
     /// `badges`, so every milestone shows (locked, if unearned) even for a brand-new user with
     /// zero `Badge` rows — the entire point of a trophy *case* over a bare "here's what you've
     /// won so far" list.
-    private let milestones: [TrophyMilestone] = [
-        TrophyMilestone(key: "first_earned_unlock", systemImage: "star.fill"),
-        TrophyMilestone(key: "streak_7", systemImage: "flame"),
-        TrophyMilestone(key: "streak_30", systemImage: "flame.fill"),
-        TrophyMilestone(key: "streak_100", systemImage: "crown.fill"),
-        TrophyMilestone(key: "protein_1000g_week", systemImage: "fork.knife"),
-        TrophyMilestone(key: "gym_50_sessions", systemImage: "dumbbell.fill"),
-    ]
+    private let milestones: [TrophyMilestone] = TrophyMilestone.milestoneKeys.map(TrophyMilestone.init(key:))
 
     private var earnedMilestoneCount: Int {
         milestones.filter { milestone in badges.contains { $0.key == milestone.key } }.count
@@ -200,7 +202,7 @@ public struct TrophyCaseView: View {
                 repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm, alignment: .top),
                 count: 3
             ),
-            spacing: Theme.Spacing.sm
+            spacing: Theme.Spacing.lg
         ) {
             ForEach(milestones) { milestone in
                 TrophyTile(milestone: milestone, badge: badges.first { $0.key == milestone.key })
@@ -245,7 +247,11 @@ public struct TrophyCaseView: View {
                         TrophyDivider()
                     }
                     HStack(spacing: Theme.Spacing.sm) {
-                        IconBadge(systemName: otherBadgeSystemImage(forKey: badge.key), tint: Theme.Colors.accent, size: .small)
+                        TrophyBadgeDisc(
+                            isEarned: true,
+                            glyph: .forKey(badge.key),
+                            diameter: Theme.Metrics.iconBadgeSmall
+                        )
                         VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                             Text(Copy.badges.title(forKey: badge.key))
                                 .font(Theme.Typography.body)
@@ -264,14 +270,6 @@ public struct TrophyCaseView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .zanoCard(radius: Theme.Radius.medium)
         }
-    }
-
-    /// Glyphs for the per-occurrence badge families (same vocabulary as `ProgressView`'s strip).
-    private func otherBadgeSystemImage(forKey key: String) -> String {
-        if key.hasPrefix("comeback_challenge") { return "flag.checkered" }
-        if key.hasPrefix("comeback") { return "arrow.uturn.forward" }
-        if key.hasPrefix("streak_") { return "flame.fill" }
-        return "rosette"
     }
 
     // MARK: - Shop entry
@@ -308,13 +306,24 @@ public struct TrophyCaseView: View {
 
 // MARK: - File-scoped supporting types
 
-/// One canonical milestone tile definition — a stable `Badge.key` paired with the SF Symbol shown
-/// once it's earned. Not copy (see this file's header) — display title comes from
+/// One canonical milestone tile definition — a stable `Badge.key`; its glyph comes from the shared
+/// `TrophyBadgeGlyph.forKey(_:)`. Not copy (see this file's header) — display title comes from
 /// `Copy.badges.title(forKey:)`.
-private struct TrophyMilestone: Identifiable {
+struct TrophyMilestone: Identifiable {
     let key: String
-    let systemImage: String
     var id: String { key }
+    var glyph: TrophyBadgeGlyph { .forKey(key) }
+
+    /// Spec §5.17's six milestones, in spec order. Also drives the not-yet-earned tiles in the
+    /// Progress trophy strip, so the two screens list the same set.
+    static let milestoneKeys = [
+        "first_earned_unlock",
+        "streak_7",
+        "streak_30",
+        "streak_100",
+        "protein_1000g_week",
+        "gym_50_sessions",
+    ]
 }
 
 /// A one-device-pixel divider between the rows of a dense list card: `Theme.Colors.hairline` at
@@ -387,19 +396,10 @@ private struct TrophyTile: View {
                     .minimumScaleFactor(0.8)
             }
         }
-        .padding(.vertical, Theme.Spacing.md)
-        .padding(.horizontal, Theme.Spacing.xs)
+        // No card per tile: the disc and its title float in the grid, the way objects sit on a
+        // shelf. The disc is the object; a slab behind each one was a frame around a frame.
+        .padding(.horizontal, Theme.Spacing.xxs)
         .frame(maxWidth: .infinity)
-        // Earned = an accent wash and an accent-dim edge (`accentDim` is the token for "a
-        // highlighted border"); the disc carries the glow, so the card itself stays flat.
-        .zanoCard(radius: Theme.Radius.medium, tint: isEarned ? Theme.Colors.accent : nil)
-        .overlay {
-            if isEarned {
-                RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                    .strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
-                    .allowsHitTesting(false)
-            }
-        }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springStandard, value: isEarned)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
@@ -410,33 +410,11 @@ private struct TrophyTile: View {
         }
     }
 
-    /// The badge disc. Earned: accent-washed with a static accent glow. Locked: `surface2` with the
-    /// milestone's own glyph at reduced opacity and a small lock badge tucked into the lower
-    /// trailing edge (a `background` cutout ring keeps it legible over the disc).
+    /// The shared `TrophyBadgeDisc` (silver when earned, an empty hairline socket when not), plus
+    /// this screen's one-shot earn moment: an expanding accent ring and a burst.
     private var badgeDisc: some View {
         ZStack {
-            if isEarned {
-                // A trophy, not a tint: the disc is filled with the accent and lit from the top.
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.78)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                Circle()
-                    .strokeBorder(Theme.Colors.specular, lineWidth: Theme.Metrics.edgeWidth)
-            } else {
-                // Open and clean: an empty socket waiting for its trophy, not a grey smudge.
-                Circle()
-                    .fill(Theme.Colors.background.opacity(0.35))
-                Circle()
-                    .strokeBorder(
-                        Theme.Colors.hairlineStrong,
-                        style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [3, 3])
-                    )
-            }
+            TrophyBadgeDisc(isEarned: isEarned, glyph: milestone.glyph)
 
             if let ringProgress {
                 Circle()
@@ -447,35 +425,14 @@ private struct TrophyTile: View {
                     .accessibilityHidden(true)
             }
 
-            // Fixed-size art inside a fixed 60pt disc (the disc, not the glyph, is the layout unit),
-            // so this stays a literal size rather than a text-relative icon.
-            Image(systemName: milestone.systemImage)
-                .font(.system(size: 24, weight: isEarned ? .bold : .semibold))
-                .foregroundStyle(isEarned ? Theme.Colors.onFill : Theme.Colors.muted)
-
-            if !isEarned {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Theme.Colors.muted)
-                    .frame(width: 20, height: 20)
-                    .background(Theme.Colors.background, in: Circle())
-                    .overlay {
-                        Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-                    }
-                    .offset(x: 20, y: 20)
-                    .accessibilityHidden(true)
-            }
-
             if hasCelebrated {
                 CelebrationBurst(trigger: celebrationTick, particleCount: 14)
-                    .frame(width: 84, height: 84)
+                    .frame(width: TrophyBadgeDisc.defaultDiameter * 1.4, height: TrophyBadgeDisc.defaultDiameter * 1.4)
             }
         }
-        .frame(width: 60, height: 60)
-        // Static glow on the *earned* state only (`2026-ios-trends.md` 3.3.C); never animated.
-        .shadow(color: isEarned ? Theme.Colors.accent.opacity(0.45) : Color.clear, radius: 14)
+        .frame(width: TrophyBadgeDisc.defaultDiameter, height: TrophyBadgeDisc.defaultDiameter)
         .animation(
-            reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.62),
+            reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springCelebration,
             value: isEarned
         )
     }
@@ -542,9 +499,7 @@ private struct TrophyCoinPill: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: "centsign.circle.fill")
-                .font(Theme.Typography.icon(.small))
-                .foregroundStyle(Theme.Colors.muted)
+            TrophyCoinGlyph()
             // A digit-roll, not a hard cut, when a badge/purchase changes the balance while this
             // screen is open — docs/design/animation-opportunities.md row 12. `NumeralText` applies
             // `.numericText()` (identity under Reduce Motion); the value-keyed animation below is the
@@ -560,6 +515,28 @@ private struct TrophyCoinPill: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(balanceText)
+    }
+}
+
+/// The coin: a small brushed-silver disc with a top-lit rim, the same metal as an earned badge
+/// (coins are earned too), instead of a grey cent sign. Sized to the caption line it sits in.
+struct TrophyCoinGlyph: View {
+    @ScaledMetric private var diameter: CGFloat
+
+    /// - Parameter diameterAtDefaultSize: the disc at the default text size; it scales with Dynamic
+    ///   Type from there.
+    init(diameterAtDefaultSize: CGFloat = 14) {
+        _diameter = ScaledMetric(wrappedValue: diameterAtDefaultSize, relativeTo: .footnote)
+    }
+
+    var body: some View {
+        Circle()
+            .fill(Theme.Colors.metallic)
+            .overlay {
+                Circle().strokeBorder(Theme.Colors.specular, lineWidth: Theme.Metrics.edgeWidth)
+            }
+            .frame(width: diameter, height: diameter)
+            .accessibilityHidden(true)
     }
 }
 

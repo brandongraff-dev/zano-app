@@ -29,7 +29,7 @@
 // Real device caveat (CLAUDE.md "current environment status"): `FamilyControls`/`ManagedSettings`
 // authorization and shields do not work in Simulator/Preview. The real-shield path
 // (`applyRealLockIfPossible`) is wrapped so any failure there (no authorization yet, no apps
-// selected in Q2, Simulator) degrades to "the 10-minute focus timer and its verification still run
+// selected in Q2, Simulator) degrades to "the 2-minute focus timer and its verification still run
 // for real, just with no ManagedSettings shield backing it" rather than blocking this screen — the
 // focus-session + streak loop is the part of docs/spec.md §2 that must always work.
 //
@@ -124,14 +124,16 @@ struct Screen14FirstWin: View {
     @State private var countdownTask: Task<Void, Never>?
     @State private var emergencyUnlock: EmergencyUnlock?
     @State private var isStarting = false
-    @State private var errorMessage: String?
+    /// The start failed. The alert shows Copy, never `error.localizedDescription` (system text
+    /// in the wrong voice, sometimes a raw domain/code); the error itself goes to the log.
+    @State private var showsStartError = false
 
-    /// Spec §7.14's own worked example ("10-minute focus to unlock") — deliberately not one of
-    /// `FocusSessionPreset`'s 25/50/90 presets (`FocusSessionVerifier.swift`): a first win needs to
-    /// be reachable in onboarding itself, and `startSession(plannedMinutes:)` accepts any positive
-    /// value by design (see that type's own doc comment) precisely so a custom-duration entry point
-    /// like this one isn't blocked on the preset list.
-    private static let plannedMinutes = 10
+    /// Two minutes, not spec §7.14's example of 10: spec §17 wants the first earned unlock in under
+    /// 4 minutes, and a 10-minute lock at the end of onboarding blocked entry to the app (its only
+    /// exit was the 60-second emergency hold). Deliberately not one of `FocusSessionPreset`'s
+    /// 25/50/90 presets: `startSession(plannedMinutes:)` accepts any positive value by design.
+    /// Keep `Copy.onboarding.firstWinSubtitle` in step with this.
+    private static let plannedMinutes = 2
     private static let logger = Logger(subsystem: "com.zano.app", category: "OnboardingFirstWin")
 
     private enum Phase: Equatable {
@@ -146,15 +148,12 @@ struct Screen14FirstWin: View {
         content
             .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: phase)
             .alert(
-                "",
-                isPresented: Binding(
-                    get: { errorMessage != nil },
-                    set: { isPresented in if !isPresented { errorMessage = nil } }
-                )
+                Copy.onboarding.firstWinStartErrorTitle,
+                isPresented: $showsStartError
             ) {
-                Button(Copy.common.ok, role: .cancel) { errorMessage = nil }
+                Button(Copy.common.ok, role: .cancel) { showsStartError = false }
             } message: {
-                Text(errorMessage ?? "")
+                Text(Copy.onboarding.firstWinStartErrorMessage)
             }
             .onDisappear { countdownTask?.cancel() }
             .onAppear {
@@ -208,11 +207,22 @@ struct Screen14FirstWin: View {
             .padding(.vertical, Theme.Spacing.lg)
         }
         .onboardingKitActionBar {
-            PrimaryButton(
-                title: Copy.onboarding.firstWinStartButton,
-                isEnabled: !isStarting
-            ) {
-                Task { await start() }
+            VStack(spacing: Theme.Spacing.xs) {
+                PrimaryButton(
+                    title: Copy.onboarding.firstWinStartButton,
+                    isEnabled: !isStarting
+                ) {
+                    Task { await start() }
+                }
+                // Never a trap at the door: the first win is an invitation, not a gate.
+                PrimaryButton(
+                    title: Copy.onboarding.firstWinLaterButton,
+                    style: .secondary,
+                    isEnabled: !isStarting
+                ) {
+                    Analytics.shared.capture(event: "onboarding_first_win_skipped")
+                    finishOnboarding()
+                }
             }
         }
     }
@@ -250,6 +260,12 @@ struct Screen14FirstWin: View {
         .onboardingKitActionBar {
             if let emergencyUnlock {
                 EmergencyHoldControl(emergencyUnlock: emergencyUnlock)
+            } else {
+                // No shield went up (no Screen Time access or no apps, e.g. the Simulator), so
+                // there is nothing to unlock: leaving is a plain button, never a wait.
+                PrimaryButton(title: Copy.onboarding.firstWinLaterButton, style: .secondary) {
+                    Task { await leaveUnshieldedSession() }
+                }
             }
         }
         .onChange(of: emergencyUnlock?.phase) { _, newPhase in
@@ -333,7 +349,8 @@ struct Screen14FirstWin: View {
                 try? await LockEngineManager.shared.endLock(sessionID: lockSessionID, unlockKind: .manual)
                 self.lockSessionID = nil
             }
-            errorMessage = error.localizedDescription
+            Self.logger.error("First-win start failed: \(String(describing: error), privacy: .public)")
+            showsStartError = true
         }
     }
 
@@ -463,6 +480,18 @@ struct Screen14FirstWin: View {
         emergencyUnlock = nil
         Analytics.shared.capture(event: "onboarding_first_win_emergency_unlock")
         phase = .notVerified
+    }
+
+    /// The running phase's exit when no lock was applied: close the focus session unverified and
+    /// go into the app.
+    private func leaveUnshieldedSession() async {
+        countdownTask?.cancel()
+        if let sessionID = focusSessionID {
+            focusSessionID = nil
+            _ = try? await FocusSessionVerifier.shared.endSession(sessionID: sessionID)
+        }
+        Analytics.shared.capture(event: "onboarding_first_win_skipped")
+        finishOnboarding()
     }
 
     private func finishOnboarding() {

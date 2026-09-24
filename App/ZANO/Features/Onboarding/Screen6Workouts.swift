@@ -102,6 +102,7 @@ private struct WorkoutsCounterRow: View {
     let baseline: Int?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverRunning
 
     private let segmentCount = 7
 
@@ -116,10 +117,18 @@ private struct WorkoutsCounterRow: View {
             HStack(spacing: Theme.Spacing.sm) {
                 NumeralText(valueText, size: .large)
                 Spacer(minLength: 0)
-                roundButton(symbol: "minus", isEnabled: value > range.lowerBound) {
+                roundButton(
+                    symbol: "minus",
+                    label: Copy.onboarding.q4DecrementButtonLabel,
+                    isEnabled: value > range.lowerBound
+                ) {
                     value -= 1
                 }
-                roundButton(symbol: "plus", isEnabled: value < range.upperBound) {
+                roundButton(
+                    symbol: "plus",
+                    label: Copy.onboarding.q4IncrementButtonLabel,
+                    isEnabled: value < range.upperBound
+                ) {
                     value += 1
                 }
             }
@@ -133,9 +142,10 @@ private struct WorkoutsCounterRow: View {
         // depends on the baseline), so it animates on that too.
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: baseline)
         .sensoryFeedback(.selection, trigger: value)
-        // One adjustable element, like a system stepper. The visual buttons are decoration for
-        // sighted touch users and are ignored here.
-        .accessibilityElement(children: .ignore)
+        // Under VoiceOver: one adjustable element, like a system stepper (swipe up/down), and the
+        // round buttons are hidden. Everywhere else (Voice Control, Switch Control, Full Keyboard
+        // Access) the buttons stay reachable by their names ("Tap More workouts").
+        .accessibilityElement(children: voiceOverRunning ? .ignore : .contain)
         .accessibilityLabel(label)
         .accessibilityValue(Text(valueText))
         .accessibilityAdjustableAction { direction in
@@ -168,7 +178,7 @@ private struct WorkoutsCounterRow: View {
         return Theme.Colors.track
     }
 
-    private func roundButton(symbol: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+    private func roundButton(symbol: String, label: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(Theme.Typography.icon(.medium, weight: .bold))
@@ -180,6 +190,8 @@ private struct WorkoutsCounterRow: View {
         .buttonStyle(PressableStyle(scale: 0.94))
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.35)
+        .accessibilityLabel(label)
+        .accessibilityHidden(voiceOverRunning)
     }
 }
 

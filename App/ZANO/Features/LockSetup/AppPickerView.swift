@@ -91,18 +91,22 @@ extension FamilyActivitySelection {
 /// roughly 7pt in, which makes the two corners concentric (`docs/design/better-ui-findings.md`
 /// section 2.4). The hairline edge gives the slot a visible boundary on a `surface` card.
 struct ActivityTokenTile: View {
+    /// The one corner radius every activity tile uses (picked strip, overflow tile, the lock-set
+    /// row's icon stack and its empty placeholder), so the tiles read as one family.
+    static let cornerRadius: CGFloat = Theme.Radius.small
+
     let item: PickedActivityItem
     var size: CGFloat = 40
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                 .fill(Theme.Colors.surface2)
             icon
         }
         .frame(width: size, height: size)
         .overlay {
-            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                 .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
         }
         .accessibilityHidden(true)
@@ -137,10 +141,10 @@ struct ActivityOverflowTile: View {
             .frame(width: size, height: size)
             .background(
                 Theme.Colors.surface2,
-                in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                in: RoundedRectangle(cornerRadius: ActivityTokenTile.cornerRadius, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                RoundedRectangle(cornerRadius: ActivityTokenTile.cornerRadius, style: .continuous)
                     .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
             }
             .accessibilityHidden(true)
@@ -162,6 +166,7 @@ struct AppPickerView: View {
 
     @State private var isPickerPresented = false
     @State private var authorizationAlert: AuthorizationAlert?
+    @Environment(\.openURL) private var openURL
 
     /// How many item tiles fit on one line inside the card's 16pt padding on the narrowest supported
     /// phone (375pt): 5 tiles + the overflow tile = 6 x 40 + 5 x 8 = 280pt of 311pt available.
@@ -198,8 +203,22 @@ struct AppPickerView: View {
                 }
             ),
             presenting: authorizationAlert
-        ) { _ in
-            Button(Copy.common.ok, role: .cancel) { authorizationAlert = nil }
+        ) { alert in
+            if alert.offersRecovery {
+                Button(Copy.lockSetup.tryAgainButtonLabel) {
+                    authorizationAlert = nil
+                    Task { await requestAuthorizationThenPresentPicker(forceRequest: true) }
+                }
+                Button(Copy.lockSetup.openSettingsButtonLabel) {
+                    authorizationAlert = nil
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        openURL(url)
+                    }
+                }
+                Button(Copy.common.cancel, role: .cancel) { authorizationAlert = nil }
+            } else {
+                Button(Copy.common.ok, role: .cancel) { authorizationAlert = nil }
+            }
         } message: { alert in
             Text(alert.message)
         }
@@ -246,7 +265,7 @@ struct AppPickerView: View {
     /// gap (`docs/design/competitive-research.md` 3.10: an empty state should invite, not look like a
     /// rendering bug). Decorative; the row's own accessibility label carries the meaning.
     private var emptyDropZone: some View {
-        RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+        RoundedRectangle(cornerRadius: ActivityTokenTile.cornerRadius, style: .continuous)
             .strokeBorder(
                 Theme.Colors.hairlineStrong,
                 style: StrokeStyle(lineWidth: 1.5, dash: [6, 6])
@@ -281,10 +300,15 @@ struct AppPickerView: View {
     ///
     /// `.individual` (not `.child`) is the correct `FamilyControlsMember` here: ZANO restricts the
     /// signed-in user's own device, it is never a parent managing a child's device.
-    private func requestAuthorizationThenPresentPicker() async {
+    ///
+    /// `forceRequest` ("Try again" after a denial) asks again even when the status is `.denied`.
+    /// For `.individual` authorization iOS re-presents its prompt on a repeat request — UNVERIFIED on
+    /// a device (no Mac in this environment); if it doesn't, the status stays `.denied` and the same
+    /// alert (with "Open Settings") comes back, so the user is never left without a next step.
+    private func requestAuthorizationThenPresentPicker(forceRequest: Bool = false) async {
         let center = AuthorizationCenter.shared
 
-        if center.authorizationStatus == .notDetermined {
+        if forceRequest || center.authorizationStatus == .notDetermined {
             do {
                 try await center.requestAuthorization(for: .individual)
             } catch {
@@ -302,7 +326,8 @@ struct AppPickerView: View {
         case .denied, .notDetermined:
             authorizationAlert = AuthorizationAlert(
                 title: Copy.lockSetup.authorizationDeniedTitle,
-                message: Copy.lockSetup.authorizationDeniedMessage
+                message: Copy.lockSetup.authorizationDeniedMessage,
+                offersRecovery: true
             )
         @unknown default:
             isPickerPresented = true
@@ -316,6 +341,8 @@ private struct AuthorizationAlert: Identifiable {
     let id = UUID()
     let title: String
     let message: String
+    /// Denied access: offer "Try again" and "Open Settings" instead of a lone OK.
+    var offersRecovery = false
 }
 
 #Preview {

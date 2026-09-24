@@ -28,6 +28,17 @@
 import SwiftUI
 import Core
 
+// MARK: - Polish pass (2026-09-24)
+//
+//   * No Pro gate on this screen: the paywall is hard, so everyone here is subscribed. The upsell
+//     banner and the "Pro required" alert are gone (a `.proRequired` outcome from the store now
+//     falls through to the generic error).
+//   * The coin is a small brushed-silver disc (`TrophyCoinGlyph`, shared with the Trophy Case),
+//     not a grey cent sign. "Classic" items preview in `metallic`, the logo's metal. Electric Blue
+//     gets its own saturated cyan so it no longer looks like the app's own blue.
+//   * The equipped card keeps its stroke and "Equipped" row; the corner check is gone (one mark,
+//     not two). White labels on blue fills use `onAccent`.
+//
 // MARK: - Visual pass (design wave 2026-09-23)
 //
 // Grade before the pass: D+ (`docs/design/composition-audit.md` 5.3): "it sells cosmetics without
@@ -47,8 +58,7 @@ import Core
 //   * The balance is the screen's hero. Coins are what you are here to spend, so "120 coins" leads as
 //     a `NumeralText` numeral with a quiet unit (from the existing, pluralizing
 //     `Copy.cosmetics.coinBalanceAccessibilityLabel`), not a 17pt pill. Only that wallet and the
-//     category chips are pinned; the Pro upsell scrolls with the grid, so the pinned area stays ~120pt
-//     instead of ~200pt on a small phone.
+//     category chips are pinned.
 //   * Two-column grid of preview tiles instead of five full-width cards each ending in a full-width
 //     accent button. The accent is used for what it means: the *selected category chip* and the
 //     *equipped* item (an accent edge and a check). Actions are quiet capsules (owned: "Equip", not
@@ -72,6 +82,8 @@ public struct CosmeticsShopView: View {
     @State private var pendingPurchaseKey: String?
     @State private var activeAlert: ShopAlert?
     @State private var purchaseSuccessTick = 0
+    /// Bumped on each category change; drives a `.selection` haptic.
+    @State private var selectionTick = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
@@ -94,6 +106,7 @@ public struct CosmeticsShopView: View {
         .navigationTitle(Copy.cosmetics.screenTitle)
         .task { await CosmeticsStore.shared.refresh() }
         .sensoryFeedback(.success, trigger: purchaseSuccessTick)
+        .sensoryFeedback(.selection, trigger: selectionTick)
         .alert(item: $activeAlert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -116,10 +129,7 @@ public struct CosmeticsShopView: View {
         let balance = CosmeticsStore.shared.coinBalance
         return VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
             HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: "centsign.circle.fill")
-                    .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(Theme.Colors.muted)
-                    .accessibilityHidden(true)
+                TrophyCoinGlyph(diameterAtDefaultSize: 24)
                 // A digit-roll when a purchase changes the balance while this screen is open;
                 // `NumeralText` supplies `.numericText()` (identity under Reduce Motion), the
                 // value-keyed animation is the driver, gated like every other one.
@@ -133,23 +143,6 @@ public struct CosmeticsShopView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Spacing.md)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// Informational, not a warning: the lock glyph is `text` on a neutral disc rather than the old
-    /// `warning` tint (`docs/design/typography-color-findings.md` C9), and the banner gets the same
-    /// edge as every other surface. Scrolls with the grid.
-    private var proUpsellBanner: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            IconBadge(systemName: "lock.fill", tint: Theme.Colors.text, size: .small)
-            Text(Copy.cosmetics.proUpsellBannerText)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-        }
-        .padding(Theme.Spacing.sm)
-        .zanoCard(radius: Theme.Radius.small)
         .accessibilityElement(children: .combine)
     }
 
@@ -179,6 +172,8 @@ public struct CosmeticsShopView: View {
     private func categoryChip(_ category: CosmeticCategory) -> some View {
         let isSelected = selectedCategory == category
         return Button {
+            guard selectedCategory != category else { return }
+            selectionTick += 1
             withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
                 selectedCategory = category
             }
@@ -190,12 +185,12 @@ public struct CosmeticsShopView: View {
                     .font(Theme.Typography.captionEmphasized)
                     .lineLimit(1)
             }
-            // Selection is chrome (decision 2026-09-24): `onFill` on a white chip, Spotify-style;
-            // green stays reserved for earned states.
-            .foregroundStyle(isSelected ? Theme.Colors.onFill : Theme.Colors.text)
+            // Selected = a blue fill with a white label: `accentFill` (the fill-safe blue, 5.27:1
+            // with white) and `onAccent`, never `onFill` on blue.
+            .foregroundStyle(isSelected ? Theme.Colors.onAccent : Theme.Colors.text)
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, Theme.Spacing.xs)
-            .background(isSelected ? Theme.Colors.interactive : Theme.Colors.surface2, in: Capsule())
+            .background(isSelected ? Theme.Colors.accentFill : Theme.Colors.surface2, in: Capsule())
             .overlay {
                 Capsule()
                     .strokeBorder(isSelected ? Color.clear : Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
@@ -215,9 +210,6 @@ public struct CosmeticsShopView: View {
     private var itemGrid: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.md) {
-                if !CosmeticsStore.shared.isProSubscriber {
-                    proUpsellBanner
-                }
                 LazyVGrid(columns: gridColumns, spacing: Theme.Spacing.sm) {
                     ForEach(CosmeticsStore.items(in: selectedCategory)) { item in
                         CosmeticItemCard(
@@ -258,17 +250,14 @@ public struct CosmeticsShopView: View {
             purchaseSuccessTick += 1
         case .alreadyOwned:
             break
-        case .proRequired:
-            activeAlert = ShopAlert(
-                title: Copy.cosmetics.proRequiredAlertTitle,
-                message: Copy.cosmetics.proRequiredAlertMessage
-            )
         case .insufficientCoins(let shortBy):
             activeAlert = ShopAlert(
                 title: Copy.cosmetics.insufficientCoinsAlertTitle,
                 message: Copy.cosmetics.insufficientCoinsAlertMessage(shortBy: shortBy)
             )
-        case .noSignedInUser, .unknownItem, .storeFailure:
+        // `.proRequired` can't happen behind a hard paywall; if the store's plan mirror is ever
+        // stale it reads as a generic hiccup, not an upsell.
+        case .proRequired, .noSignedInUser, .unknownItem, .storeFailure:
             activeAlert = ShopAlert(
                 title: Copy.common.somethingWentWrongTitle,
                 message: Copy.common.somethingWentWrongMessage
@@ -290,8 +279,8 @@ private struct ShopAlert: Identifiable {
 /// itself, so it's trivially previewable in every ownership/afford combination.
 ///
 /// Geometry: 8pt inset inside a 20pt card, so the 12pt preview corner is concentric. The equipped
-/// item wears an accent wash and a 1.5pt accent edge (plus a check on its preview): "chosen", the
-/// accent's selection meaning, not a glow (a glow is the reward for *earning*).
+/// item wears a `selectedStroke` accent edge and an "Equipped" row: "chosen", the accent's selection
+/// meaning, not a glow (a glow is the reward for *earning*).
 private struct CosmeticItemCard: View {
     let item: CosmeticItem
     let isOwned: Bool
@@ -309,17 +298,6 @@ private struct CosmeticItemCard: View {
                 .frame(height: 96)
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-                .overlay(alignment: .topTrailing) {
-                    if isEquipped {
-                        Image(systemName: "checkmark")
-                            .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                            .foregroundStyle(Theme.Colors.onFill)
-                            .frame(width: 20, height: 20)
-                            .background(Theme.Colors.interactive, in: Circle())
-                            .padding(Theme.Spacing.xs)
-                            .accessibilityHidden(true)
-                    }
-                }
 
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(Copy.cosmetics.title(forKey: item.key))
@@ -342,7 +320,7 @@ private struct CosmeticItemCard: View {
             // Equipped = the current selection, so it is marked in achromatic chrome, not green.
             if isEquipped {
                 RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                    .strokeBorder(Theme.Colors.interactive, lineWidth: 1.5)
+                    .strokeBorder(Theme.Colors.interactive, lineWidth: Theme.Metrics.selectedStroke)
                     .allowsHitTesting(false)
             }
         }
@@ -372,7 +350,7 @@ private struct CosmeticItemCard: View {
         } else {
             ShopActionCapsule(
                 title: Copy.cosmetics.purchaseButtonTitle(priceCoins: item.priceCoins),
-                systemImage: "centsign.circle.fill",
+                showsCoin: true,
                 isEnabled: canAfford && !isPurchasing,
                 isBusy: isPurchasing,
                 action: onPurchase
@@ -385,7 +363,7 @@ private struct CosmeticItemCard: View {
 /// edge, `text` label); disabled is a borderless muted capsule, never a dimmed accent slab.
 private struct ShopActionCapsule: View {
     let title: String
-    var systemImage: String? = nil
+    var showsCoin = false
     var isEnabled: Bool = true
     var isBusy: Bool = false
     let action: () -> Void
@@ -400,9 +378,9 @@ private struct ShopActionCapsule: View {
                     SwiftUI.ProgressView()
                         .controlSize(.small)
                         .tint(Theme.Colors.muted)
-                } else if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(Theme.Typography.icon(.xsmall))
+                } else if showsCoin {
+                    TrophyCoinGlyph()
+                        .opacity(isEnabled ? 1 : 0.5)
                 }
                 Text(title)
                     .font(Theme.Typography.captionEmphasized)
@@ -433,9 +411,20 @@ private struct ShopActionCapsule: View {
 /// accent values in `Theme` (see the visual-pass note at the top of this file), so previews borrow
 /// the nearest `Theme.Colors.Ring` hue: an honest proxy, easy to replace with real values later.
 private enum CosmeticPreviewPalette {
+    /// Electric Blue's preview hue: a saturated cyan (#00C8FF), deliberately distinct from ZANO Blue
+    /// (`accent`, #3F7BFF) so the theme doesn't read as "the app's default blue". Local, not a
+    /// `Theme` token: it exists only to preview this one cosmetic.
+    static let electricCyan = Color(red: 0, green: 200 / 255, blue: 1)
+
+    /// "Classic" items are the brand's own look, which is the logo's brushed silver.
+    static func isClassic(_ key: String) -> Bool {
+        key == "theme_classic" || key == "shield_classic"
+    }
+
     static func tint(forKey key: String) -> Color {
         switch key {
-        case "theme_electric_blue": Theme.Colors.Ring.sleepOnTime
+        case "theme_classic": Theme.Colors.textSecondary
+        case "theme_electric_blue": electricCyan
         case "theme_magenta_pulse": Theme.Colors.Ring.stretchMobility
         case "theme_gold_rush": Theme.Colors.Ring.sunriseAlarm
         case "theme_ice_mint": Theme.Colors.Ring.mealPrep
@@ -488,23 +477,31 @@ private struct CosmeticPreview: View {
         }
     }
 
-    // The glyphs below are artwork inside a fixed 96pt preview tile, so they are literal sizes rather
-    // than text-relative icons.
+    // The glyphs below are artwork inside a fixed 96pt preview tile: Theme icon sizes, capped so an
+    // accessibility text size can't burst the tile.
     @ViewBuilder
     private var art: some View {
         switch item.category {
         case .theme:
-            CosmeticMiniRing(style: .solid, tint: tint, progress: 0.72, diameter: 64)
+            CosmeticMiniRing(
+                style: .solid,
+                tint: tint,
+                progress: 0.72,
+                diameter: 64,
+                isMetallic: CosmeticPreviewPalette.isClassic(item.key)
+            )
         case .ringStyle:
             CosmeticMiniRing(style: ringStyle, tint: tint, progress: 0.72, diameter: 64)
         case .shieldBackground:
-            Image(systemName: CosmeticIconMap.systemImage(forKey: item.key, category: item.category))
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(Theme.Colors.text.opacity(0.9))
+            shieldGlyph
+                .font(Theme.Typography.icon(.large))
+                .imageScale(.large)
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         case .coachVoicePack:
             VStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: CosmeticIconMap.systemImage(forKey: item.key, category: item.category))
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(Theme.Typography.icon(.large))
+                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                     .foregroundStyle(Theme.Colors.text)
                 // Placeholder message lines: the pack changes how the coach's lines are presented,
                 // and showing real sample copy would need new `Copy` members.
@@ -513,6 +510,16 @@ private struct CosmeticPreview: View {
                     Capsule().fill(Theme.Colors.hairline).frame(width: 44, height: 6)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var shieldGlyph: some View {
+        let glyph = Image(systemName: CosmeticIconMap.systemImage(forKey: item.key, category: item.category))
+        if CosmeticPreviewPalette.isClassic(item.key) {
+            glyph.foregroundStyle(Theme.Colors.metallic)
+        } else {
+            glyph.foregroundStyle(Theme.Colors.text.opacity(0.9))
         }
     }
 
@@ -538,6 +545,8 @@ private struct CosmeticMiniRing: View {
     let tint: Color
     let progress: Double
     let diameter: CGFloat
+    /// Draws the arc in the logo's brushed silver instead of `tint` (the "Classic" theme).
+    var isMetallic = false
 
     private var line: CGFloat { diameter * 0.14 }
     /// The double ring keeps a thin outer ring, so the main ring insets further to make room.
@@ -582,7 +591,11 @@ private struct CosmeticMiniRing: View {
                 .stroke(tint, style: StrokeStyle(lineWidth: line, lineCap: .round))
                 .shadow(color: tint.opacity(0.7), radius: line)
         case .solid, .double:
-            trimmed.stroke(tint, style: StrokeStyle(lineWidth: line, lineCap: .round))
+            if isMetallic {
+                trimmed.stroke(Theme.Colors.metallic, style: StrokeStyle(lineWidth: line, lineCap: .round))
+            } else {
+                trimmed.stroke(tint, style: StrokeStyle(lineWidth: line, lineCap: .round))
+            }
         }
     }
 }

@@ -49,8 +49,13 @@ struct ContentView: View {
 
         Group {
             if router.hasCompletedOnboarding && entitlement.isBlocking {
-                // Any active lock was already released by EntitlementGate before this shows.
+                // EntitlementGate releases any active lock before this shows, but best-effort; if a
+                // lock is still on, the emergency hold sits above the paywall (spec §21: a billing
+                // state never traps anyone). Draws nothing without an active lock.
                 PaywallView(flowState: OnboardingFlowState())
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        PaywallLockEscape()
+                    }
             } else if router.hasCompletedOnboarding {
                 MainTabView(selection: $router.selectedTab, isAlarmRinging: isAlarmRinging)
             } else {
@@ -114,7 +119,10 @@ struct ContentView: View {
 /// UI only — it can never present over onboarding, which runs its own first-win celebration.
 private struct MainTabView: View {
     @Environment(AppRouter.self) private var router
+    @Query private var lockSessions: [LockSession]
     @Binding var selection: AppTab
+    /// Today's "Pick your goals" / "Finish setup" opens the goals editor as a sheet.
+    @State private var showGoalsEditor = false
     /// Passed down (rather than re-read) so this view re-renders exactly when the parent's
     /// `isAlarmRingingPresented` changes.
     let isAlarmRinging: Bool
@@ -133,14 +141,21 @@ private struct MainTabView: View {
             // shell to inject: without it, the "log the rest on Fuel" state (protein/water goals
             // left, nothing else Today can drive) degrades to a read-only status row with no way
             // to get to Fuel from the very screen that says to go there.
-            TodayView(onOpenFuel: { appRouter.selectedTab = .fuel })
-                .zanoTabContent()
-                .tag(AppTab.today)
+            //
+            // `onFinishSetup` opens the goals editor (a sheet, below); `onOpenGymSetup` lands on
+            // Settings, where the gym setup row lives (its detail view is private to Settings).
+            TodayView(
+                onOpenFuel: { appRouter.selectedTab = .fuel },
+                onFinishSetup: { showGoalsEditor = true },
+                onOpenGymSetup: { appRouter.selectedTab = .settings }
+            )
+            .zanoTabContent()
+            .tag(AppTab.today)
 
             // The other four use `.navigationTitle` but carry no stack of their own
             // (`LockStatusView`'s header says so explicitly; `FuelView`/`ProgressView`/
             // `SettingsView` only set titles), so each tab supplies one.
-            NavigationStack { LockStatusView() }
+            NavigationStack { LockStatusView(onGoToToday: { appRouter.selectedTab = .today }) }
                 .zanoTabContent()
                 .tag(AppTab.lock)
 
@@ -160,10 +175,14 @@ private struct MainTabView: View {
         // The floating glass bar replaces the system tab bar (hidden per tab by `zanoTabContent`).
         // It stays put when the keyboard opens rather than riding up on it.
         .overlay(alignment: .bottom) {
-            ZanoTabBar(selection: $selection)
+            ZanoTabBar(selection: $selection, isLockActive: lockSessions.contains(where: \.isActive))
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.bottom, 4)
                 .ignoresSafeArea(.keyboard)
+        }
+        .sheet(isPresented: $showGoalsEditor) {
+            NavigationStack { GoalsEditorView() }
+                .preferredColorScheme(.dark)
         }
         // Held back (getter returns `nil`) while the alarm is ringing, then presents as soon as it
         // clears — the queued `router.unlockCelebration` isn't lost. `UnlockCelebrationView`'s own

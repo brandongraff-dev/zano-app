@@ -11,15 +11,21 @@
 // Layout (2026-09-24, from the trial-timeline paywall the user supplied as the reference): the
 // whole decision on one screen, in this order —
 //
+//   hero        the full-charge `ZanoLivingMark` over a `StarBloom` (what "earned" looks like).
 //   headline    "Start your 7-day free trial." / "Earn your phone back." (the second line in the
 //               earned accent: it is the promise). Without a trial on the selected plan the first
 //               line reads "Subscribe to continue."
-//   timeline    Today → In 5 days, reminder → In 7 days, billing starts, as large icon nodes on one
-//               thick track: the trial stretch in the accent, the paid stretch grey. The billing row
-//               carries the real calendar date.
+//   timeline    Today → Reminder in 5 days → Billing starts in 7 days, as icon nodes on one thick
+//               track: the trial stretch in the accent, the paid stretch grey. The nodes step down
+//               in weight (Today is the blue disc; reminder and billing are grey discs). The
+//               billing row carries the real calendar date.
 //   plans       Monthly and Annual side by side; annual pre-selected with a "7 days free" pill.
 //   CTA block   "✓ No payment due now", one white button, the full terms paragraph, then Terms ·
 //               Privacy · Restore purchases (spec §24).
+//
+// `context`: `.onboarding` (screen 12) or `.lapsed` (the app shell, after a subscription or trial
+// ran out). Lapsed swaps the first headline line for "Welcome back." and sends no onboarding
+// analytics and never advances the onboarding flow.
 //
 // State lives in `PaywallViewModel` (Core); this view is presentation only and mutates
 // `OnboardingFlowState` only through `advance()`. Loading shows skeleton tiles at the real sizes; a
@@ -38,7 +44,17 @@ import Core
 /// `PaywallViewModel` with the annual plan selected (spec §21). The only ways forward are to start
 /// the trial, subscribe, or restore an existing purchase.
 struct PaywallView: View {
+    /// Where the paywall is shown. Changes the first headline line and whether onboarding
+    /// analytics and `flowState.advance()` run.
+    enum Context: Sendable, Equatable {
+        /// Screen 12 of onboarding.
+        case onboarding
+        /// Shown by the app shell after a subscription or trial lapsed.
+        case lapsed
+    }
+
     @Bindable var flowState: OnboardingFlowState
+    let context: Context
     /// `.task` below overwrites `viewModel.coachVoice` with `flowState.coachVoice` before loading.
     @State private var viewModel = PaywallViewModel()
     @State private var hasRevealed = false
@@ -48,11 +64,16 @@ struct PaywallView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
 
-    private static let tileHeight: CGFloat = 96
+    /// The plan tiles' minimum height; they grow with Dynamic Type.
+    private static let tileMinHeight: CGFloat = 96
+    private static let heroMarkHeight: CGFloat = 64
 
-    init(flowState: OnboardingFlowState) {
+    init(flowState: OnboardingFlowState, context: Context = .onboarding) {
         self.flowState = flowState
+        self.context = context
     }
+
+    private var isOnboarding: Bool { context == .onboarding }
 
     private var isRevealed: Bool { reduceMotion || hasRevealed }
 
@@ -76,7 +97,7 @@ struct PaywallView: View {
                         .padding(.top, Theme.Spacing.xs)
                         .paywallReveal(index: 0, isShown: isRevealed, reduceMotion: reduceMotion)
 
-                    Spacer(minLength: Theme.Spacing.lg)
+                    Spacer(minLength: Theme.Spacing.md)
 
                     middle
                         .paywallReveal(index: 1, isShown: isRevealed, reduceMotion: reduceMotion)
@@ -126,19 +147,21 @@ struct PaywallView: View {
             .onAppear {
                 #if DEBUG
                 // UI tests and CI have no RevenueCat products to buy. Compiled out of release builds.
-                if UserDefaults.standard.bool(forKey: "ZANOSkipPaywall") { flowState.advance() }
+                if isOnboarding, UserDefaults.standard.bool(forKey: "ZANOSkipPaywall") { flowState.advance() }
                 #endif
                 hasRevealed = true
-                Analytics.shared.capture(
-                    event: "onboarding_screen_viewed",
-                    properties: ["screen": "paywall", "screen_number": 12]
-                )
+                if isOnboarding {
+                    Analytics.shared.capture(
+                        event: "onboarding_screen_viewed",
+                        properties: ["screen": "paywall", "screen_number": 12]
+                    )
+                }
             }
             .onChange(of: viewModel.purchaseState) { _, newValue in
                 if newValue == .succeeded {
                     // Re-read the entitlement so a lapsed-subscription paywall (ContentView) dismisses.
                     Task { await EntitlementGate.shared.refresh() }
-                    flowState.advance()
+                    if isOnboarding { flowState.advance() }
                 }
             }
             .alert(
@@ -164,20 +187,39 @@ struct PaywallView: View {
 
     private var headline: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            ZanoWordmark(height: 11)
+            hero
             headlineText
+        }
+    }
+
+    /// The fully charged star over its blue bloom: what the user is paying to earn. The bloom is a
+    /// background, so it never adds height.
+    private var hero: some View {
+        ZanoLivingMark(charge: 1, height: Self.heroMarkHeight)
+            .background {
+                OnboardingKit.StarBloom(diameter: Self.heroMarkHeight * 3.5)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var firstHeadlineLine: String {
+        switch context {
+        case .lapsed:
+            Copy.paywall.lapsedHeadline
+        case .onboarding:
+            selectedTrialDays.map { Copy.paywall.trialHeadline(days: $0) } ?? Copy.paywall.subscribeHeadline
         }
     }
 
     private var headlineText: some View {
         VStack(spacing: 2) {
-            Text(selectedTrialDays.map { Copy.paywall.trialHeadline(days: $0) } ?? Copy.paywall.subscribeHeadline)
+            Text(firstHeadlineLine)
                 .foregroundStyle(Theme.Colors.text)
                 .contentTransition(.opacity)
-            Text(Copy.paywall.headline + ".")
+            Text(Copy.paywall.headline)
                 .foregroundStyle(Theme.Colors.accent)
         }
-        .font(.system(size: 36, weight: .heavy).width(.condensed))
+        .font(Theme.Typography.display)
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity)
@@ -250,37 +292,49 @@ struct PaywallView: View {
     }
 
     /// Monthly and annual side by side, annual on the right and pre-selected (the reference's
-    /// order: the eye ends on the recommended plan). Anything else the offering adds follows.
+    /// order: the eye ends on the recommended plan). Anything else the offering adds follows, two
+    /// to a row. Each row is an `HStack` fixed to its tallest tile, so a pair is always one height
+    /// however Dynamic Type grows either tile.
     private var planTiles: some View {
         let annual = viewModel.packages.filter { $0.period == .annual }
         let monthly = viewModel.packages.filter { $0.period == .monthly }
         let rest = viewModel.packages.filter { $0.period != .annual && $0.period != .monthly }
         let ordered = monthly + annual + rest
-        return LazyVGrid(
-            columns: [GridItem(.flexible(), spacing: Theme.Spacing.sm), GridItem(.flexible(), spacing: Theme.Spacing.sm)],
-            spacing: Theme.Spacing.lg
-        ) {
-            ForEach(ordered) { package in
-                PaywallPlanTile(
-                    title: planTitle(for: package),
-                    price: package.priceString,
-                    priceSuffix: package.period == .monthly ? Copy.paywall.perMonthSuffix : nil,
-                    detail: package.period == .annual ? package.pricePerMonthString : nil,
-                    pill: package.introductoryTrialDays.flatMap { $0 > 0 ? Copy.paywall.trialPill(days: $0) : nil },
-                    isSelected: viewModel.selectedPackageID == package.id,
-                    action: { viewModel.selectPackage(id: package.id) }
-                )
-                .frame(height: Self.tileHeight)
+        let rows = stride(from: 0, to: ordered.count, by: 2).map { Array(ordered[$0..<min($0 + 2, ordered.count)]) }
+        return VStack(spacing: Theme.Spacing.lg) {
+            ForEach(rows, id: \.first?.id) { row in
+                HStack(spacing: Theme.Spacing.sm) {
+                    ForEach(row) { package in
+                        planTile(for: package)
+                    }
+                    if row.count == 1 {
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.top, Theme.Spacing.sm)
+    }
+
+    private func planTile(for package: SubscriptionPackage) -> some View {
+        PaywallPlanTile(
+            title: planTitle(for: package),
+            price: package.priceString,
+            priceSuffix: package.period == .monthly ? Copy.paywall.perMonthSuffix : nil,
+            detail: package.period == .annual ? package.pricePerMonthString : nil,
+            pill: package.introductoryTrialDays.flatMap { $0 > 0 ? Copy.paywall.trialPill(days: $0) : nil },
+            isSelected: viewModel.selectedPackageID == package.id,
+            action: { viewModel.selectPackage(id: package.id) }
+        )
+        .frame(maxWidth: .infinity, minHeight: Self.tileMinHeight, maxHeight: .infinity)
     }
 
     private var plansPlaceholder: some View {
         HStack(spacing: Theme.Spacing.sm) {
             ForEach(0..<2, id: \.self) { _ in
                 Color.clear
-                    .frame(height: Self.tileHeight)
+                    .frame(height: Self.tileMinHeight)
                     .zanoCard(radius: Theme.Radius.medium)
             }
         }
@@ -289,7 +343,8 @@ struct PaywallView: View {
                 .tint(Theme.Colors.muted)
         }
         .padding(.top, Theme.Spacing.sm)
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.paywall.loadingPlansLabel)
     }
 
     /// A designed state, not a dead end: what happened in one line; "Try again" and Restore below.
@@ -316,10 +371,10 @@ struct PaywallView: View {
     private var reassurance: some View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: "checkmark")
-                .font(.system(size: 17, weight: .heavy))
+                .font(Theme.Typography.icon(.medium, weight: .heavy))
                 .accessibilityHidden(true)
             Text(selectedTrialDays != nil ? Copy.paywall.noPaymentDueNow : Copy.paywall.cancelAnytime)
-                .font(.system(.headline, weight: .semibold))
+                .font(Theme.Typography.headline)
         }
         .foregroundStyle(Theme.Colors.text)
         .padding(.top, Theme.Spacing.xs)
@@ -336,13 +391,14 @@ struct PaywallView: View {
             .opacity(viewModel.isPurchasing ? 0 : 1)
 
             if viewModel.isPurchasing {
-                // The same white capsule with a spinner in it, so the button doesn't change mid-purchase.
+                // The same blue capsule (`PrimaryButton`'s accent fill) with a white spinner in it, so
+                // the button doesn't change mid-purchase.
                 Capsule()
-                    .fill(Theme.Colors.interactive)
+                    .fill(Theme.Colors.accentFill)
                     .frame(height: Theme.Metrics.primaryButtonHeight)
                     .overlay {
                         SwiftUI.ProgressView()
-                            .tint(Theme.Colors.onFill)
+                            .tint(Theme.Colors.onAccent)
                     }
             }
         }
@@ -364,7 +420,7 @@ struct PaywallView: View {
             Text(Copy.paywall.termsParagraph(
                 trialDays: selectedTrialDays,
                 price: package.priceString,
-                period: package.period == .annual ? "year" : "month"
+                period: package.period
             ))
             .font(Theme.Typography.caption)
             .foregroundStyle(Theme.Colors.muted)
@@ -529,7 +585,7 @@ private struct PaywallTrialTimeline: View {
             nodeGlyph(node)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(node.title)
-                    .font(.system(.title3, weight: .semibold))
+                    .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(node.detail)
@@ -539,8 +595,8 @@ private struct PaywallTrialTimeline: View {
             }
             .padding(.top, Theme.Spacing.xs)
             // Tight enough that Terms / Privacy / Restore stay on the first screen (spec §24:
-            // restore purchases visible) on a 393 × 852 phone.
-            .padding(.bottom, Theme.Spacing.md)
+            // restore purchases visible) on a 393 × 852 phone, hero included.
+            .padding(.bottom, Theme.Spacing.sm)
         }
         // The track segment below this node, behind it: accent while still in the trial, grey for
         // the tail after billing. A background, so it spans the row whatever the text does.
@@ -554,23 +610,30 @@ private struct PaywallTrialTimeline: View {
         }
     }
 
+    /// The nodes step down in weight along the timeline: today is the blue disc with a white
+    /// glyph (the part that is yours now), the reminder a grey disc with a secondary glyph, the
+    /// billing date a grey disc with a muted glyph.
     private func nodeGlyph(_ node: Node) -> some View {
         let symbol: String
         let fill: Color
+        let glyph: Color
         switch node.kind {
         case .today:
             symbol = "lock.open.fill"
             fill = Theme.Colors.accent
+            glyph = Theme.Colors.onAccent
         case .reminder:
             symbol = "bell.fill"
-            fill = Theme.Colors.accent
+            fill = Theme.Colors.surface2
+            glyph = Theme.Colors.textSecondary
         case .billing:
             symbol = "crown.fill"
-            fill = Theme.Colors.interactive
+            fill = Theme.Colors.surface2
+            glyph = Theme.Colors.muted
         }
         return Image(systemName: symbol)
-            .font(.system(size: 17, weight: .bold))
-            .foregroundStyle(Theme.Colors.onFill)
+            .font(Theme.Typography.icon(.medium, weight: .bold))
+            .foregroundStyle(glyph)
             .frame(width: Self.nodeSize, height: Self.nodeSize)
             .background(fill, in: Circle())
             .zIndex(1)
@@ -581,8 +644,8 @@ private struct PaywallTrialTimeline: View {
 // MARK: - Plan tile
 
 /// One plan: its name, the price large, an optional per-month line, a radio on the right, and an
-/// optional pill ("7 days free") sitting on the top edge. Selected is a thick white edge, a lifted
-/// fill and a filled check (selection is chrome, not an earned state).
+/// optional pill ("7 days free") sitting on the top edge. Selected is the blue selection edge
+/// (`Metrics.selectedStroke`), the `accentWash` fill and a filled check.
 private struct PaywallPlanTile: View {
     let title: String
     let price: String
@@ -614,13 +677,13 @@ private struct PaywallPlanTile: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(price)
-                            .font(.system(size: 26, weight: .heavy).width(.condensed))
+                            .font(.system(.title2, weight: .heavy).width(.condensed))
                             .foregroundStyle(Theme.Colors.text)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                         if let priceSuffix {
                             Text(priceSuffix)
-                                .font(.system(.subheadline, weight: .semibold).width(.condensed))
+                                .font(Theme.Typography.unit)
                                 .foregroundStyle(Theme.Colors.muted)
                         }
                     }
@@ -632,22 +695,31 @@ private struct PaywallPlanTile: View {
                 }
                 Spacer(minLength: 0)
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 28, weight: .regular))
+                    .font(Theme.Typography.icon(.large, weight: .regular))
                     .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.hairlineStrong)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
             }
             .padding(.horizontal, Theme.Spacing.md)
+            // Room for the pill on top and for larger text; the tile grows instead of clipping.
+            .padding(.vertical, Theme.Spacing.sm)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(isSelected ? Theme.Colors.surface2 : Theme.Colors.surface, in: shape)
-            .overlay(shape.strokeBorder(isSelected ? Theme.Colors.interactive : Theme.Colors.hairlineStrong, lineWidth: isSelected ? 3 : 1.5))
+            .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface, in: shape)
+            .overlay(
+                shape.strokeBorder(
+                    isSelected ? Theme.Colors.interactive : Theme.Colors.hairlineStrong,
+                    lineWidth: isSelected ? Theme.Metrics.selectedStroke : Theme.Metrics.edgeWidth
+                )
+            )
             .overlay(alignment: .top) {
                 if let pill {
                     Text(pill)
-                        .font(.system(.caption, weight: .heavy))
-                        .foregroundStyle(Theme.Colors.onFill)
+                        .font(Theme.Typography.captionEmphasized)
+                        .foregroundStyle(Theme.Colors.onAccent)
+                        .lineLimit(1)
                         .padding(.horizontal, Theme.Spacing.sm)
-                        .padding(.vertical, 5)
-                        .background(Theme.Colors.interactive, in: Capsule())
+                        .padding(.vertical, Theme.Spacing.xxs)
+                        // `accentFill`, not `accent`: white caption text needs the deeper blue.
+                        .background(Theme.Colors.accentFill, in: Capsule())
                         .offset(y: -13)
                 }
             }
@@ -693,4 +765,8 @@ private extension View {
 
 #Preview {
     PaywallView(flowState: OnboardingFlowState())
+}
+
+#Preview("Lapsed") {
+    PaywallView(flowState: OnboardingFlowState(), context: .lapsed)
 }

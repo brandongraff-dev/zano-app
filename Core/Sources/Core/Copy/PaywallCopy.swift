@@ -21,10 +21,12 @@ extension Copy {
 
         // MARK: - Lapsed subscription (the paywall shown by the app shell, not onboarding)
 
-        /// Line one when a trial ended without a subscription.
-        public static let lapsedTrialHeadline = "Your trial ended."
-        /// Line one when a paid subscription lapsed.
+        /// Line one on the paywall the app shell shows after a trial or subscription ran out
+        /// (`PaywallView(context: .lapsed)`). Line two stays `headline`.
         public static let lapsedHeadline = "Welcome back."
+
+        /// VoiceOver label for the plan tiles' loading placeholder.
+        public static let loadingPlansLabel = "Loading plans"
 
         /// One line under the headline: the product's promise in the user's terms.
         public static let subheadline = "Do what you said you'd do, and your apps open back up."
@@ -147,10 +149,10 @@ extension Copy {
         public static func trialHeadline(days: Int) -> String { "Start your \(days)-day free trial." }
         public static let subscribeHeadline = "Subscribe to continue."
         public static let timelineTodayTitle = "Today"
-        public static let timelineTodayDetail = "Everything unlocks: unlimited goals and lock sets, Earn Mode, the adaptive plan and the Sunrise Alarm."
-        public static func timelineReminderTitle(inDays days: Int) -> String { "Reminder in \(days) days" }
-        public static let timelineReminderDetail = "We'll send you a reminder that your trial is ending, if you've allowed notifications."
-        public static func timelineBillingTitle(inDays days: Int) -> String { "Billing starts in \(days) days" }
+        public static let timelineTodayDetail = "Unlimited goals and lock sets, Earn Mode, the adaptive plan and the Sunrise Alarm."
+        public static func timelineReminderTitle(inDays days: Int) -> String { days == 1 ? "Reminder in 1 day" : "Reminder in \(days) days" }
+        public static let timelineReminderDetail = "We'll remind you before your trial ends, if notifications are on."
+        public static func timelineBillingTitle(inDays days: Int) -> String { days == 1 ? "Billing starts in 1 day" : "Billing starts in \(days) days" }
         public static func timelineBillingDetail(date: String) -> String {
             "You'll be charged on \(date) unless you cancel before then."
         }
@@ -159,26 +161,23 @@ extension Copy {
         /// The full terms under the button: what, when, how much, how to cancel. `price` is the
         /// store-formatted price for `period` (never a literal).
         public static func termsParagraph(trialDays: Int?, price: String, period: SubscriptionPackage.Period) -> String {
-            let cancel = "Cancel anytime in Settings > [your name] > Subscriptions."
             let unit: String
-            let billed: String
             switch period {
-            case .lifetime:
-                return "\(price). One-time purchase."
-            case .weekly: unit = "week"; billed = "Billed weekly."
-            case .monthly: unit = "month"; billed = "Billed monthly."
-            case .twoMonth: unit = "2 months"; billed = "Billed every 2 months."
-            case .threeMonth: unit = "3 months"; billed = "Billed every 3 months."
-            case .sixMonth: unit = "6 months"; billed = "Billed every 6 months."
-            case .annual: unit = "year"; billed = "Billed yearly."
-            case .other: unit = "period"; billed = "Billed each period."
+            case .lifetime: return "\(price). One-time purchase."
+            case .weekly: unit = "week"
+            case .monthly: unit = "month"
+            case .twoMonth: unit = "2 months"
+            case .threeMonth: unit = "3 months"
+            case .sixMonth: unit = "6 months"
+            case .annual: unit = "year"
+            case .other: unit = "billing period"
             }
-            let renew = "Auto-renews unless you cancel at least 24 hours before the period ends. \(cancel)"
+            let renew = "Auto-renews until you cancel. Cancel anytime in Settings > [your name] > Subscriptions."
             if let trialDays, trialDays > 0 {
                 let days = trialDays == 1 ? "1 day" : "\(trialDays) days"
-                return "\(days) free, then \(price) per \(unit). \(billed) \(renew)"
+                return "\(days) free, then \(price) per \(unit). \(renew)"
             }
-            return "\(price) per \(unit). \(billed) \(renew)"
+            return "\(price) per \(unit). \(renew)"
         }
         public static func trialPill(days: Int) -> String { days == 1 ? "1 day free" : "\(days) days free" }
 

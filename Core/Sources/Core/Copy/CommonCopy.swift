@@ -36,6 +36,8 @@ extension Copy {
         /// swipe-to-delete and `SettingsView.swift`'s Gym swipe-to-delete both already call
         /// `Copy.common.delete` (same 2026-09-22 sweep as `save` above).
         public static let delete = "Delete"
+        /// Closes a sheet.
+        public static let done = "Done"
 
         /// Generic failure alert title/message, for a screen that has nothing more specific to say
         /// about why an action failed (e.g. `CosmeticsShopView.swift`'s `.noSignedInUser`/

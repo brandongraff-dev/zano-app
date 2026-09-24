@@ -181,7 +181,7 @@ private struct MainTabView: View {
                 .ignoresSafeArea(.keyboard)
         }
         .sheet(isPresented: $showGoalsEditor) {
-            NavigationStack { GoalsEditorView() }
+            NavigationStack { GoalsEditorView(showsDoneButton: true) }
                 .preferredColorScheme(.dark)
         }
         // Held back (getter returns `nil`) while the alarm is ringing, then presents as soon as it

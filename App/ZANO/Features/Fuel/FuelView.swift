@@ -376,7 +376,7 @@ struct FuelView: View {
         }
         .sheet(isPresented: $isGoalsEditorPresented) {
             NavigationStack {
-                GoalsEditorView()
+                GoalsEditorView(showsDoneButton: true)
             }
         }
         .preferredColorScheme(.dark)

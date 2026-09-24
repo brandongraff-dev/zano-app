@@ -173,3 +173,35 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
   equal 4h locks; demo now varies lengths.
 - **Unverified:** everything above is syntax-checked only (no Mac; Codemagic results need the
   GITHUB_TOKEN). Screenshot tour now also covers onboarding-10/14, celebration and recap.
+
+### 2026-09-24 — Audit-driven polish pass (skills: ui-ux-pro-max, ux-designer, appstore-mvp-review)
+
+Three read-only audits (visual, UX/accessibility, completeness/App Store) → six fixers by file
+ownership. Highlights:
+- **Core:** `accentFill` #2A62E6 for filled blue (white label 5.3:1); scalable numeralSmall/Medium;
+  ZanoGlass + ZanoStatusCapsule; star throttled to 30 fps, paused in background, blended glow,
+  hidden from VoiceOver except the screen-time hero; spoken durations; chart summary; navy/silver
+  ShieldPreview; `StickyActionBar(extendsToBottomEdge:)` so the glass tab bar floats over content.
+- **Today/Lock/shell:** emergency unlock = 60 s hold on Core `EmergencyUnlock` with streak toggle
+  (spec §8), also above a lapsed-subscription paywall; red only for emergencies; undo toast after
+  quick-add; every goal row has an action/status; goal-done bug fixed (one +25 g `.verify` no
+  longer completes a 150 g goal); tab bar tokens, fork.knife, Large Content Viewer, lock dot.
+- **Settings:** new `GoalsEditorView` (additive types only; Done button when shown as a sheet);
+  plan status card + Manage subscription (no Free/Go Pro); Notifications, Help & feedback, Terms,
+  Privacy, Pause for health reasons (explanatory only — no Core pause mechanism yet), Delete all my
+  data; monochrome icons; LockSetup denial recovery.
+- **Onboarding/paywall:** Screen Time denial → Open Settings / Try again; first win 2 min + "Do it
+  later"; paywall lists only shipped benefits (no squads/duels), star hero, readable blue, lapsed
+  context; Flow1 UI test rewritten.
+- **Fuel/Progress/Trophy/Share:** shared glass, silver `TrophyBadgeDisc`, undo, add-goal entry,
+  spoken durations, recap pause button + accessibility-aware auto-advance; cosmetics Pro gate removed
+  (view and `CosmeticsStore`).
+- **Review readiness:** PrivacyInfo.xcprivacy (app + 5 extensions), accurate camera/Health strings,
+  background modes → location only, NSSupportsLiveActivities, ITSAppUsesNonExemptEncryption,
+  AlarmKit/Calendars strings (key names unverified), demo data release-gated, review notes rewritten.
+
+**Needs the founder:** RevenueCat package + API key (purchases can't complete without it — hard
+paywall would block entry), real privacy/terms URLs (placeholders `zano.app/privacy|terms`), support
+email (placeholder `support@zano.app`), product calls (streak freeze in emergency unlock, meal-prep
+verification, pause-for-health mechanism).
+**Unverified:** all of it is syntax-checked only; Flow2 UI test still expects the old free path.

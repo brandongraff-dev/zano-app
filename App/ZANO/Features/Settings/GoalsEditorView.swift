@@ -38,7 +38,14 @@ struct GoalsEditorView: View {
     @State private var saveFailed = false
     @State private var stepTick = 0
 
-    init() {}
+    /// `true` when shown as a sheet (from Today or Fuel): adds a Done button. Pushed from Settings,
+    /// the back button already closes it.
+    private let showsDoneButton: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    init(showsDoneButton: Bool = false) {
+        self.showsDoneButton = showsDoneButton
+    }
 
     /// The additive goal types onboarding offers, in onboarding's order.
     private static let addableTypes: [GoalType] = [.workoutGym, .focusSession, .protein]
@@ -73,6 +80,13 @@ struct GoalsEditorView: View {
         .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.goalsEditorTitle)
+        .toolbar {
+            if showsDoneButton {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(Copy.common.done) { dismiss() }
+                }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.selection, trigger: stepTick)
         .onAppear { Analytics.shared.capture(event: "goals_editor_viewed") }

@@ -17,9 +17,13 @@
 // - The page light follows the state (`zanoAmbient`): cool while locked, warming as goals finish.
 // - Required goals are the same rows as Today (`GoalActionList`), read-only here, open goals first.
 // - The three-line "time context" is three quiet caption rows at the bottom.
-// - Emergency unlock is pinned to the bottom in a `StickyActionBar`, always visible, and reads as
-//   danger, not as a CTA: `PrimaryButton(.holdToCommit, tint: .danger)`. VoiceOver's double-tap
-//   fires it immediately.
+// - Emergency unlock is pinned to the bottom in a `StickyActionBar`, always visible while locked:
+//   `EmergencyUnlockControl`, Core's `EmergencyUnlock` state machine behind a 60-second hold with a
+//   visible countdown and the streak-penalty toggle (spec §8, §14; the shield's "60-second hold").
+//   It's the one place on this screen that is red. VoiceOver double-tap starts/stops the countdown.
+// - While locked the screen leads with the ZANO mark on a navy halo, charged by required goals done,
+//   like Today's hero. A running lock is navy/grey, never `danger`.
+// - Goal rows here are read-only; a "Go to Today" link under them says where to act.
 // - Large navigation title, like every other tab.
 //
 // Shared pieces (`LockVaultCard`, `GoalActionList`, `GoalDayProgress`, `goalIconName`) live in
@@ -59,6 +63,14 @@ import Core
 
 struct LockStatusView: View {
 
+    /// Takes the person to Today, where the goal rows are actionable: a tab switch from the Lock tab,
+    /// a pop when this screen was pushed from Today. `nil` hides the link.
+    private let onGoToToday: (() -> Void)?
+
+    init(onGoToToday: (() -> Void)? = nil) {
+        self.onGoToToday = onGoToToday
+    }
+
     // MARK: - Data
 
     @Query private var users: [User]
@@ -76,7 +88,6 @@ struct LockStatusView: View {
 
     // MARK: - Local state
 
-    @State private var isEmergencyUnlocking = false
     /// The idle state's "Start a lock now" is running `StartLockIntent`.
     @State private var isStartingLock = false
     @State private var actionError: String?
@@ -88,6 +99,9 @@ struct LockStatusView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                if activeSession != nil {
+                    lockedMark
+                }
                 heroCard
 
                 if !requiredGoals.isEmpty {
@@ -106,6 +120,10 @@ struct LockStatusView: View {
         .zanoAmbient(reduceTransparency ? .neutral : ambientState)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             emergencyBar
+        }
+        // A lock starting is felt, not just seen.
+        .sensoryFeedback(.impact(weight: .medium), trigger: activeSession?.id) { oldValue, newValue in
+            oldValue == nil && newValue != nil
         }
         .preferredColorScheme(.dark)
         .navigationTitle(Copy.lockStatus.screenTitle)
@@ -253,18 +271,7 @@ struct LockStatusView: View {
             }
             .frame(height: 190)
 
-            HStack(spacing: Theme.Spacing.xs) {
-                Circle()
-                    .fill(Theme.Colors.accent)
-                    .frame(width: 7, height: 7)
-                Text(Copy.lockStatus.unlockedHeadline)
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-            .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.vertical, 6)
-            .background(Theme.Colors.surface.opacity(0.8), in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+            ZanoStatusCapsule(dotColor: Theme.Colors.accent, text: Copy.lockStatus.unlockedHeadline)
 
             Text(Copy.lockStatus.idleHeadline)
                 .font(Theme.Typography.titleLarge)
@@ -310,8 +317,53 @@ struct LockStatusView: View {
             do {
                 _ = try await StartLockIntent(mode: .earn).perform()
             } catch {
-                actionError = error.localizedDescription
+                showError(Copy.lockStatus.lockStartFailed)
             }
+        }
+    }
+
+    /// Sets the bottom bar's error line and announces it (a line appearing at the bottom is missed
+    /// by anyone not looking there).
+    private func showError(_ message: String) {
+        actionError = message
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    // MARK: - Locked mark (matches Today's hero)
+
+    /// The ZANO mark on a navy halo, charged by how much of the lock's work is done.
+    private var lockedMark: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Theme.Colors.lockedAmbient.opacity(reduceTransparency ? 0 : 0.6), Theme.Colors.lockedAmbient.opacity(0)],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: 130
+                    )
+                )
+                .frame(maxWidth: 260, maxHeight: 260)
+                .aspectRatio(1, contentMode: .fit)
+            ZanoLivingMark(charge: lockedCharge, height: 120)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: lockedCharge)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 200)
+        .accessibilityHidden(true)
+    }
+
+    /// Required goals done over required goals; full once everything is done.
+    private var lockedCharge: Double {
+        switch heroState {
+        case .allDone: return 1
+        case .goals(let remaining, let total):
+            return Double(total - remaining) / Double(max(total, 1))
+        case .bank(_, _, let goalsLeft):
+            let total = max(requiredGoals.count, goalsLeft)
+            return total == 0 ? 1 : Double(total - goalsLeft) / Double(total)
+        case .unlocked:
+            return 0
         }
     }
 
@@ -352,7 +404,7 @@ struct LockStatusView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.lg)
         .zanoHero(
-            tint: reduceTransparency ? nil : heroBadgeTint,
+            tint: reduceTransparency ? nil : heroWashTint,
             active: heroIsEarned && !reduceTransparency
         )
         // One announcement for the card instead of a swipe through its parts.
@@ -409,6 +461,7 @@ struct LockStatusView: View {
                 // Decorative here (the hero card speaks the balance); no `label`, so the bar is just
                 // the fill, on the shared `track`, with the low-balance tint and one-shot pulse.
                 TimeBankBar(remainingMinutes: minutes, totalMinutes: total, isLow: isLow)
+                    .accessibilityHidden(true)
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
                     Text(Copy.lockStatus.timeBankHeading)
                         .font(Theme.Typography.captionEmphasized)
@@ -486,10 +539,19 @@ struct LockStatusView: View {
         }
     }
 
-    /// `danger` for a running lock (spec §15), `accent` once it is earned/released.
+    /// Quiet grey for a running lock (red is reserved for emergency), `accent` once it is
+    /// earned/released.
     private var heroBadgeTint: Color {
         switch heroState {
-        case .bank, .goals: Theme.Colors.danger
+        case .bank, .goals: Theme.Colors.textSecondary
+        case .unlocked, .allDone: Theme.Colors.accent
+        }
+    }
+
+    /// The hero surface's wash: navy while locked, accent once earned.
+    private var heroWashTint: Color {
+        switch heroState {
+        case .bank, .goals: Theme.Colors.lockedAmbient
         case .unlocked, .allDone: Theme.Colors.accent
         }
     }
@@ -542,6 +604,26 @@ struct LockStatusView: View {
             // Same rows as Today, read-only here: Lock is where you check what the lock is waiting
             // on; Today is where you act on it.
             GoalActionList(items: orderedRequiredGoals.map(statusItem(for:))) { _ in }
+
+            if let onGoToToday, remainingRequiredGoalCount > 0 {
+                Button {
+                    Analytics.shared.capture(event: "lock_go_to_today_tapped")
+                    onGoToToday()
+                } label: {
+                    HStack(spacing: Theme.Spacing.xxs) {
+                        Text(Copy.lockStatus.goToTodayTitle)
+                        Image(systemName: "chevron.forward")
+                            .font(Theme.Typography.icon(.xsmall))
+                            .accessibilityHidden(true)
+                    }
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.accent)
+                    .frame(minHeight: Theme.Metrics.minTapTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+                .padding(.leading, Theme.Spacing.xxs)
+            }
         }
     }
 
@@ -617,32 +699,21 @@ struct LockStatusView: View {
 
     // MARK: - Emergency unlock (CLAUDE.md: every lock keeps a way out — no exceptions)
 
-    /// Pinned, so "always available" is also "always visible". Also carries `actionError`, so a
-    /// failed emergency unlock is never off-screen behind a scroll.
+    /// Pinned, so "always available" is also "always visible". Also carries `actionError`.
     @ViewBuilder
     private var emergencyBar: some View {
         if activeSession != nil || actionError != nil || canStartLock {
-            StickyActionBar {
+            StickyActionBar(extendsToBottomEdge: false) {
                 VStack(spacing: Theme.Spacing.xs) {
                     if let actionError {
                         Text(actionError)
                             .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.danger)
+                            // `warning`: red is reserved for the emergency control itself.
+                            .foregroundStyle(Theme.Colors.warning)
                             .multilineTextAlignment(.center)
                     }
-                    if activeSession != nil {
-                        PrimaryButton(
-                            title: Copy.lockStatus.emergencyUnlockTitle,
-                            systemImage: "exclamationmark.triangle.fill",
-                            style: .holdToCommit,
-                            isEnabled: !isEmergencyUnlocking,
-                            tint: .danger,
-                            action: performEmergencyUnlock
-                        )
-                        Text(Copy.lockStatus.emergencyUnlockFootnote)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.muted)
-                            .multilineTextAlignment(.center)
+                    if let session = activeSession {
+                        EmergencyUnlockControl(sessionID: session.id)
                     } else if canStartLock {
                         PrimaryButton(
                             title: Copy.lockStatus.idleStartLockTitle,
@@ -652,26 +723,6 @@ struct LockStatusView: View {
                         )
                     }
                 }
-            }
-        }
-    }
-
-    private func performEmergencyUnlock() {
-        guard let session = activeSession else { return }
-        actionError = nil
-        isEmergencyUnlocking = true
-        Analytics.shared.capture(event: "lock_emergency_unlock_started")
-        Task {
-            defer { isEmergencyUnlocking = false }
-            do {
-                try await LockEngineManager.shared.emergencyUnlock(sessionID: session.id)
-                Analytics.shared.capture(event: "lock_emergency_unlock_succeeded")
-            } catch {
-                actionError = error.localizedDescription
-                Analytics.shared.capture(
-                    event: "lock_emergency_unlock_failed",
-                    properties: ["reason": error.localizedDescription]
-                )
             }
         }
     }

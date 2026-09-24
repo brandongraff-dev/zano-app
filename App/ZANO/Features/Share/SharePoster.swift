@@ -108,10 +108,9 @@ struct PosterChassis<Content: View>: View {
             )
 
             VStack(alignment: .leading, spacing: 0) {
+                // Sentence case, the shared eyebrow (tracked caps were retired app-wide).
                 Text(eyebrow)
-                    .font(Theme.Typography.captionEmphasized)
-                    .tracking(1.2)
-                    .textCase(.uppercase)
+                    .zanoText(.eyebrow)
                     .foregroundStyle(Theme.Colors.accent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -437,9 +436,25 @@ enum ShareRenderState: Equatable {
 /// (`docs/design/composition-audit.md` offender 6). Pass `title: nil` when the poster already carries
 /// the screen's title as its own eyebrow.
 struct ShareMomentHeader: View {
+    /// An optional pause/play control drawn just before Close (the recap story's auto-advance).
+    struct Playback {
+        let isPaused: Bool
+        let pauseLabel: String
+        let playLabel: String
+        let onToggle: () -> Void
+    }
+
     let title: String?
     let dismissLabel: String
+    var playback: Playback? = nil
     let onDismiss: () -> Void
+
+    init(title: String?, dismissLabel: String, playback: Playback? = nil, onDismiss: @escaping () -> Void) {
+        self.title = title
+        self.dismissLabel = dismissLabel
+        self.playback = playback
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
@@ -451,16 +466,15 @@ struct ShareMomentHeader: View {
                     .accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: 0)
+            if let playback {
+                Button(action: playback.onToggle) {
+                    headerDisc(systemImage: playback.isPaused ? "play.fill" : "pause.fill")
+                }
+                .buttonStyle(.pressable(scale: 0.92))
+                .accessibilityLabel(playback.isPaused ? playback.playLabel : playback.pauseLabel)
+            }
             Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(Theme.Typography.icon(.small, weight: .bold))
-                    .foregroundStyle(Theme.Colors.text)
-                    .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                    .background(Theme.Colors.surface2, in: Circle())
-                    .overlay {
-                        Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-                    }
-                    .minTapTarget()
+                headerDisc(systemImage: "xmark")
             }
             .buttonStyle(.pressable(scale: 0.92))
             .padding(.trailing, -Theme.Spacing.xxs)
@@ -469,11 +483,24 @@ struct ShareMomentHeader: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
     }
+
+    /// A 32pt glass-free disc in a 44pt tappable frame.
+    private func headerDisc(systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(Theme.Typography.icon(.small, weight: .bold))
+            .foregroundStyle(Theme.Colors.text)
+            .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+            .background(Theme.Colors.surface2, in: Circle())
+            .overlay {
+                Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+            }
+            .minTapTarget()
+    }
 }
 
 /// The share action's face. A capsule at least `Theme.Metrics.primaryButtonHeight` tall (it mirrors
 /// `PrimaryButton`, which cannot wrap a `ShareLink`: the link must own the tap). Ready is the one
-/// white-filled control on the screen (sharing is an action, not an earned state), with the same top-lit edge as `PrimaryButton`; preparing is a
+/// blue-filled control on the screen (`accentFill` + `onAccent`, like `PrimaryButton`) (sharing is an action, not an earned state), with the same top-lit edge as `PrimaryButton`; preparing is a
 /// neutral `surface2` state, not a dimmed accent slab (`docs/design/better-ui-findings.md` MOT-04);
 /// failed is a neutral retry with a danger edge, so it does not read as another affirmative "share
 /// now". Wrap it in a `Button`/`ShareLink` styled with `.pressable`.
@@ -525,10 +552,10 @@ struct ShareActionLabel: View {
         }
     }
 
-    /// `onFill` on the white fill, never `text`.
+    /// `onAccent` (white) on the blue fill, never `onFill`.
     private var foreground: Color {
         switch state {
-        case .ready: Theme.Colors.onFill
+        case .ready: Theme.Colors.onAccent
         case .preparing: Theme.Colors.muted
         case .failed: Theme.Colors.text
         }
@@ -536,7 +563,8 @@ struct ShareActionLabel: View {
 
     private var fill: Color {
         switch state {
-        case .ready: Theme.Colors.interactive
+        // `accentFill`, not `accent`: the fill-safe blue (white on it is 5.27:1), as `PrimaryButton`.
+        case .ready: Theme.Colors.accentFill
         case .preparing, .failed: Theme.Colors.surface2
         }
     }

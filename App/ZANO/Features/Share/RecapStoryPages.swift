@@ -181,15 +181,14 @@ private extension View {
     }
 }
 
-/// The small uppercase accent label at the top of each page.
+/// The small accent label at the top of each page: the shared sentence-case eyebrow (tracked caps
+/// were retired app-wide, and the poster these pages end on uses the same style).
 private struct StoryEyebrow: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(Theme.Typography.captionEmphasized)
-            .tracking(1.4)
-            .textCase(.uppercase)
+            .zanoText(.eyebrow)
             .foregroundStyle(Theme.Colors.accent)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
@@ -214,6 +213,7 @@ struct RecapIntroPage: View {
             Spacer(minLength: 0)
 
             ZanoLivingMark(charge: max(0.25, data.completion), height: 150)
+                .accessibilityHidden(true)
                 .storyReveal(appeared, delay: 0, distance: 0)
                 .padding(.bottom, Theme.Spacing.md)
 
@@ -240,7 +240,7 @@ struct RecapIntroPage: View {
 
             HStack(spacing: Theme.Spacing.xxs) {
                 Text(Copy.share.storyTapHint)
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
             }
             .font(Theme.Typography.captionEmphasized)
             .foregroundStyle(Theme.Colors.muted)
@@ -354,22 +354,27 @@ struct RecapGoalsPage: View {
                         .shadow(color: Theme.Colors.accent.opacity(0.6), radius: 16)
                         .animation(reduceMotion ? nil : .easeOut(duration: 1.1).delay(0.25), value: appeared)
 
-                    VStack(spacing: 0) {
-                        Text(appeared || reduceMotion ? "\(data.goalsCompleted)" : "0")
-                            .font(StoryType.big)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .contentTransition(.numericText())
-                            .animation(reduceMotion ? nil : .spring(response: 1.0, dampingFraction: 0.9).delay(0.2), value: appeared)
-                        Text(Copy.share.storyGoalsCaption(planned: data.goalsPlanned))
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.muted)
-                    }
-                    .padding(Theme.Spacing.xl)
+                    // Only the number lives inside the ring; the caption sits under it, where it can
+                    // wrap at accessibility sizes instead of clipping against the ring.
+                    Text(appeared || reduceMotion ? "\(data.goalsCompleted)" : "0")
+                        .font(StoryType.big)
+                        .foregroundStyle(Theme.Colors.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .contentTransition(.numericText())
+                        .animation(reduceMotion ? nil : .spring(response: 1.0, dampingFraction: 0.9).delay(0.2), value: appeared)
+                        .padding(Theme.Spacing.xl)
                 }
                 .frame(width: 270, height: 270)
                 .storyReveal(appeared, delay: 0.1, distance: 0)
+
+                Text(Copy.share.storyGoalsCaption(planned: data.goalsPlanned))
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, -Theme.Spacing.sm)
+                    .storyReveal(appeared, delay: 0.2)
             } else {
                 VStack(spacing: Theme.Spacing.sm) {
                     Text(Copy.share.storyGoalsEmptyHeadline)
@@ -390,7 +395,7 @@ struct RecapGoalsPage: View {
                     chip(icon: "flame.fill", text: Copy.share.storyStreakLine(days: data.streak))
                 }
                 if let rank = data.rankMovement, rank > 0 {
-                    chip(icon: "arrow.up.right", text: Copy.share.storyRankUpLine(places: rank))
+                    chip(icon: "arrow.up.right", text: Copy.share.storyRankUpLine(ranks: rank))
                 }
             }
             .storyReveal(appeared, delay: 0.55)

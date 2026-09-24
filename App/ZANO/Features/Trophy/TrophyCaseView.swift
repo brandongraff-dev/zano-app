@@ -28,11 +28,9 @@
 // ── The six milestone badge keys below ──
 //
 // `first_earned_unlock`, `streak_7`, `streak_30`, `streak_100`, `protein_1000g_week`,
-// `gym_50_sessions` are exactly spec §5.17's own list. Icons are declared locally on each
-// `TrophyMilestone` entry rather than imported: `ProgressView.swift`'s `ProgressBadgeIconMap` is
-// `private` to that file, and this task does not own it. Keeping the same SF Symbol *family* is a
-// deliberate visual-consistency decision — flagged in case a future session changes one without
-// knowing to update the other.
+// `gym_50_sessions` are exactly spec §5.17's own list (`TrophyMilestone.milestoneKeys`). Their
+// glyphs, and the disc they sit in, come from `TrophyBadgeDisc.swift` (this folder), which the
+// Progress trophy strip uses too, so the two screens can't drift apart.
 //
 // **No engine currently awards most of these badges.** Only `StreakEngine.awardComebackBadge`
 // (`"comeback_<date>"`) and `ComebackMode.awardChallengeCompleteBadge` (`"comeback_challenge_<date>"`)
@@ -72,8 +70,8 @@ import Core
 //   * Every tile has a status line ("Earned Mar 3" / the existing `lockedAccessibilityHint`), so tiles
 //     align to the same baseline.
 //   * Icons swap `star.circle.fill` / `fork.knife.circle.fill` for the un-circled glyphs: a circle
-//     inside a 60pt circle is a double frame (`ICO-09`). `ProgressView.swift`'s `ProgressBadgeIconMap`
-//     still uses the circled variants (not this wave's file); reconcile when that file is next touched.
+//     inside a 60pt circle is a double frame (`ICO-09`). (Reconciled with Progress since: both
+//     now read `TrophyBadgeGlyph.forKey(_:)`.)
 //   * The shop entry uses `paintpalette.fill`, the glyph `SettingsView` uses for the same destination
 //     (`ICO-05`), and the coin currency reads as a neutral `centsign.circle.fill` and a numeral with a
 //     quiet unit rather than a warning-colored seal (`typography-color-findings.md` C9: `warning` means

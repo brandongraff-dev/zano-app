@@ -154,7 +154,7 @@ struct LockVaultCard: View {
             .font(Theme.Typography.icon(.xsmall, weight: .bold))
             .foregroundStyle(status == .earned ? Theme.Colors.onAccent : statusColor)
             .frame(width: 24, height: 24)
-            .background(status == .earned ? statusColor : Theme.Colors.wash(statusColor), in: Circle())
+            .background(statusDotFill, in: Circle())
             .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
     }
 
@@ -206,6 +206,15 @@ struct LockVaultCard: View {
         case .locked: "lock.fill"
         case .earned: "checkmark"
         case .unlocked: "lock.open.fill"
+        }
+    }
+
+    /// Solid accent once earned, navy while locked, a faint wash otherwise.
+    private var statusDotFill: Color {
+        switch status {
+        case .earned: Theme.Colors.accent
+        case .locked: Theme.Colors.lockedAmbient
+        case .setup, .unlocked: Theme.Colors.wash(statusColor)
         }
     }
 

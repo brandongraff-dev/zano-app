@@ -9,8 +9,10 @@
 // a tap, and it showed only the goals gating the lock. Now every goal is visible with its progress
 // in words ("72 of 150g · 78g to go"), and logging is one tap in place, with a haptic and the ring
 // filling where you're already looking. Actions that start something (a focus session, gym dwell
-// tracking) are white capsules; quick-logs wear the goal's own color (content color, not chrome);
-// a done goal gets the accent check, the one earned mark in the row.
+// tracking) are blue capsules; quick-logs wear the goal's own color (content color, not chrome);
+// a done goal gets the accent check, the one earned mark in the row. Glyphs on the blue fills use
+// `onAccent`. At accessibility text sizes a row stacks (ring and words, then the action) so titles
+// and progress get two lines instead of truncating beside a capsule.
 
 import SwiftUI
 import Core
@@ -19,9 +21,9 @@ struct GoalActionItem: Identifiable, Equatable {
     enum Trailing: Equatable {
         /// A one-tap log in the goal's color ("+25g").
         case quickAdd(label: String, accessibilityLabel: String)
-        /// Starts something (a focus session, gym tracking). White capsule.
+        /// Starts something (a focus session, gym tracking, a one-tap log). Blue capsule.
         case start(label: String)
-        /// Read-only state ("Running", "12 min", "Auto at gym").
+        /// Read-only state ("Running", "12 min", "Verifies automatically").
         case status(String, isLive: Bool)
         case done
         case none
@@ -84,6 +86,7 @@ struct GoalActionRow: View {
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(item: GoalActionItem, isBusy: Bool, action: @escaping () -> Void) {
         self.item = item
@@ -93,49 +96,75 @@ struct GoalActionRow: View {
 
     private var isDone: Bool { item.trailing == .done }
 
-    var body: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            GoalRing(
-                progress: item.progress,
-                color: item.color,
-                size: .custom(Self.ringSize),
-                center: .icon(systemName: isDone ? "checkmark" : item.icon)
-            )
-            .accessibilityHidden(true)
+    /// Stacked at accessibility sizes; side by side otherwise.
+    private var isStacked: Bool { dynamicTypeSize.isAccessibilitySize }
+    private var textLineLimit: Int { isStacked ? 2 : 1 }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .lineLimit(1)
-                HStack(spacing: Theme.Spacing.xxs) {
-                    Text(item.primaryLine)
-                        .font(Theme.Typography.captionEmphasized)
-                        .foregroundStyle(isDone ? Theme.Colors.accent : Theme.Colors.textSecondary)
-                        .contentTransition(reduceMotion ? .identity : .numericText())
-                    if let secondary = item.secondaryLine {
-                        Text("·")
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.muted)
-                        Text(secondary)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.muted)
-                            .contentTransition(reduceMotion ? .identity : .numericText())
+    var body: some View {
+        Group {
+            if isStacked {
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        ring
+                        words
+                        Spacer(minLength: 0)
+                    }
+                    if item.trailing != .none {
+                        trailing
                     }
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+            } else {
+                HStack(spacing: Theme.Spacing.sm) {
+                    ring
+                    words
+                    Spacer(minLength: Theme.Spacing.xs)
+                    trailing
+                }
             }
-            .accessibilityElement(children: .combine)
-
-            Spacer(minLength: Theme.Spacing.xs)
-
-            trailing
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)
         .frame(minHeight: 68)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: item)
+    }
+
+    private var ring: some View {
+        GoalRing(
+            progress: item.progress,
+            color: item.color,
+            size: .custom(Self.ringSize),
+            center: .icon(systemName: isDone ? "checkmark" : item.icon)
+        )
+        .accessibilityHidden(true)
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.title)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(textLineLimit)
+            HStack(spacing: Theme.Spacing.xxs) {
+                Text(item.primaryLine)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(isDone ? Theme.Colors.accent : Theme.Colors.textSecondary)
+                    .contentTransition(reduceMotion ? .identity : .numericText())
+                if let secondary = item.secondaryLine {
+                    Text(Copy.today.goalLineSeparator)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .accessibilityHidden(true)
+                    Text(secondary)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                }
+            }
+            .lineLimit(textLineLimit)
+            .minimumScaleFactor(0.85)
+        }
+        .fixedSize(horizontal: false, vertical: isStacked)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -161,7 +190,8 @@ struct GoalActionRow: View {
             Button(action: action) {
                 Text(label)
                     .font(.system(.subheadline, weight: .bold).width(.condensed))
-                    .foregroundStyle(Theme.Colors.onFill)
+                    .foregroundStyle(Theme.Colors.onAccent)
+                    .lineLimit(1)
                     .padding(.horizontal, Theme.Spacing.md)
                     .frame(minHeight: 36)
                     .background(Theme.Colors.interactive, in: Capsule())
@@ -170,7 +200,7 @@ struct GoalActionRow: View {
             }
             .buttonStyle(.pressable(scale: 0.92))
             .disabled(isBusy)
-            .accessibilityLabel("\(label) \(item.title)")
+            .accessibilityLabel(Copy.today.startActionSpoken(label: label, goal: item.title))
 
         case .status(let text, let isLive):
             HStack(spacing: Theme.Spacing.xxs) {
@@ -183,14 +213,14 @@ struct GoalActionRow: View {
                 Text(text)
                     .font(Theme.Typography.captionEmphasized)
                     .foregroundStyle(isLive ? Theme.Colors.text : Theme.Colors.muted)
-                    .lineLimit(1)
+                    .lineLimit(textLineLimit)
             }
-            .fixedSize()
+            .fixedSize(horizontal: !isStacked, vertical: true)
 
         case .done:
             Image(systemName: "checkmark")
                 .font(Theme.Typography.icon(.small, weight: .heavy))
-                .foregroundStyle(Theme.Colors.onFill)
+                .foregroundStyle(Theme.Colors.onAccent)
                 .frame(width: 28, height: 28)
                 .background(Theme.Colors.accent, in: Circle())
                 .shadow(color: Theme.Colors.accent.opacity(0.45), radius: 8)

@@ -247,19 +247,24 @@ struct ProgressView: View {
             }
 
             if hasHistory {
-                NumeralText(formatDuration(minutes: minutes), size: .hero, color: Theme.Colors.accent)
+                NumeralText(Copy.progress.duration(minutes: minutes), size: .hero, color: Theme.Colors.accent)
                     .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: minutes)
+                    // "4 hours 10 minutes", not "4h 10m" (which VoiceOver reads as letters).
+                    .accessibilityLabel(Copy.progress.spokenDuration(minutes: minutes))
 
                 Text(weekMinutes > 0
-                     ? Copy.progress.last7DaysReclaimedLabel(duration: formatDuration(minutes: weekMinutes))
+                     ? Copy.progress.last7DaysReclaimedLabel(duration: Copy.progress.duration(minutes: weekMinutes))
                      : Copy.progress.last7DaysEmptyLabel)
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(weekMinutes > 0
+                        ? Copy.progress.last7DaysReclaimedLabel(duration: Copy.progress.spokenDuration(minutes: weekMinutes))
+                        : Copy.progress.last7DaysEmptyLabel)
             } else {
                 // Day 1: the number is an honest, quiet 0 (muted, not accent: nothing is earned
                 // yet), and the line under it says what fills it.
-                NumeralText(formatDuration(minutes: 0), size: .hero, color: Theme.Colors.muted)
+                NumeralText(Copy.progress.duration(minutes: 0), size: .hero, color: Theme.Colors.muted)
                     .accessibilityHidden(true)
                 Text(Copy.progress.timeReclaimedEmptyMessage)
                     .font(Theme.Typography.body)
@@ -328,9 +333,10 @@ struct ProgressView: View {
         }
     }
 
-    /// Data only (no sentence): "45m, 0m, 1h 10m, ..." oldest to newest.
+    /// Data only (no sentence), spoken: "45 minutes, 0 minutes, 1 hour 10 minutes, ..." oldest to
+    /// newest.
     private var last7DaysAccessibilityText: String {
-        last7DaysReclaim.map { formatDuration(minutes: $0.minutes) }.joined(separator: ", ")
+        last7DaysReclaim.map { Copy.progress.spokenDuration(minutes: $0.minutes) }.joined(separator: ", ")
     }
 
     // MARK: - Streak (spec §8)
@@ -488,7 +494,7 @@ struct ProgressView: View {
             ProgressTrophyEntry(id: "earned-\($0.id.uuidString)", key: $0.key, earnedAt: $0.earnedAt)
         }
         let earnedKeys = Set(badges.map(\.key))
-        for key in ProgressBadgeIconMap.milestoneKeys where !earnedKeys.contains(key) {
+        for key in TrophyMilestone.milestoneKeys where !earnedKeys.contains(key) {
             entries.append(ProgressTrophyEntry(id: "locked-\(key)", key: key, earnedAt: nil))
         }
         return entries
@@ -514,7 +520,7 @@ struct ProgressView: View {
                     planned: recap.stats.goalsPlanned
                 ),
                 timeReclaimedLabel: Copy.progress.timeReclaimedLabel(
-                    duration: formatDuration(minutes: recap.stats.timeReclaimedMinutes)
+                    duration: Copy.progress.duration(minutes: recap.stats.timeReclaimedMinutes)
                 ),
                 bestDayLabel: recap.stats.bestDay.map { Copy.progress.bestDayLabel(day: $0) },
                 streak: recap.stats.streak
@@ -535,8 +541,8 @@ struct ProgressView: View {
         }
     }
 
-    /// Nothing to show yet: a dashed outline (the "not yet" language) rather than a filled card,
-    /// so an empty week reads as a placeholder, not a broken card.
+    /// Nothing to show yet: a recessed well (the "not yet" surface) rather than a raised card, so
+    /// an empty week reads as a placeholder, not a broken card.
     private var recapEmptyState: some View {
         VStack(alignment: .leading, spacing: 0) {
             ProgressSectionLabel(text: Copy.progress.recapSectionTitle)
@@ -552,18 +558,13 @@ struct ProgressView: View {
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).strokeBorder(
-                    Theme.Colors.hairlineStrong,
-                    style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [6, 5])
-                )
-            )
+            .zanoWell(radius: Theme.Radius.medium)
         }
     }
 
     /// A handful of rings keep each goal's own hue (a legend the eye can learn). Past
     /// `ProgressMetrics.denseRecapRingCount` the row switches to the one-accent scheme instead —
-    /// done = `accent`, not done = a quiet `text` tint — because a fifth and sixth hue turn a legend
+    /// done = `accent`, not done = `textSecondary` — because a fifth and sixth hue turn a legend
     /// into confetti and dilute the accent's one meaning ("earned"). Either way every ring carries
     /// its goal's glyph in the middle plus its title underneath, so nothing is told apart by hue
     /// alone (glyph-first rule; 18 of the 66 ring-hue pairs are not separable under colour-vision
@@ -575,7 +576,7 @@ struct ProgressView: View {
             let goal = allGoals.first { $0.id == goalID }
             let color: Color
             if isDense {
-                color = progress >= 1 ? Theme.Colors.accent : Theme.Colors.text.opacity(0.55)
+                color = progress >= 1 ? Theme.Colors.accent : Theme.Colors.textSecondary
             } else {
                 color = goal.map { Theme.Colors.Ring.color(for: $0.type) } ?? Theme.Colors.muted
             }
@@ -589,15 +590,6 @@ struct ProgressView: View {
         }
         .sorted { $0.title < $1.title }
     }
-
-    // MARK: - Formatting
-
-    private func formatDuration(minutes: Int) -> String {
-        let hours = minutes / 60
-        let mins = minutes % 60
-        guard hours > 0 else { return "\(mins)m" }
-        return "\(hours)h \(mins)m"
-    }
 }
 
 // MARK: - Screen-local primitives
@@ -610,8 +602,6 @@ private enum ProgressMetrics {
     /// Trophy tile: circle diameter and tile width (wide enough for a two-line title at 13pt).
     static let trophyDiameter: CGFloat = 56
     static let trophyTileWidth: CGFloat = 84
-    /// The small lock badge on a not-yet-earned trophy disc.
-    static let lockBadgeDiameter: CGFloat = 20
     /// More recap rings than this and the row drops per-goal hues for the one-accent scheme.
     static let denseRecapRingCount = 4
     /// 7-day strip: bar width, and the tallest/shortest bar.
@@ -739,7 +729,7 @@ private struct ProgressWeekBars: View {
 }
 
 /// The first week, before any lock has ended: seven dots starting today (outlined in blue, with a
-/// soft wash) and running into the six days ahead (dashed, empty), weekday initials under them, and
+/// soft wash) and running into the six days ahead (empty hairline rings), weekday initials under them, and
 /// "Your first week starts today" above. Static; one VoiceOver sentence for the whole row.
 private struct ProgressFirstWeekDots: View {
     let startingAt: Date
@@ -783,14 +773,11 @@ private struct ProgressFirstWeekDots: View {
         if isToday {
             Circle()
                 .fill(Theme.Colors.accentWash)
-                .overlay(Circle().strokeBorder(Theme.Colors.accent, lineWidth: 1.5))
+                .overlay(Circle().strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke))
                 .frame(width: size, height: size)
         } else {
             Circle()
-                .strokeBorder(
-                    Theme.Colors.hairlineStrong,
-                    style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [2, 3])
-                )
+                .strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth)
                 .frame(width: size, height: size)
         }
     }
@@ -835,7 +822,7 @@ private struct ProgressComingUpList: View {
 /// weekday) rows ending with the current week. Earned days are an `accentWash` cell with a check; the
 /// streak's head (the latest earned day, if it's today or yesterday) is the one solid accent cell
 /// with a static glow; today is outlined; empty past days are a visible `track`; the rest of the
-/// current week is a dashed outline. Replaces 28 rolling same-size squares with no weekday labels
+/// current week is an empty hairline outline. Replaces 28 rolling same-size squares with no weekday labels
 /// and 1.08:1 empty days.
 private struct ProgressStreakGrid: View {
     let earnedDays: Set<Date>
@@ -919,8 +906,8 @@ private struct ProgressStreakGrid: View {
 
 /// One day cell in `ProgressStreakGrid`. Pure state -> paint; the glow is static (never animated).
 /// Earned is the on-hue `accentWash` with an `accentDim` edge and an accent check; only the head cell
-/// is the solid accent (with the `onFill` label colour, 16.4:1) — the brand's scarcest colour is
-/// spent on one cell, not 28.
+/// is a solid blue fill — `accentFill` with a white `onAccent` check (5.27:1), the same fill/label
+/// pair as `PrimaryButton` — so the brand's scarcest colour is spent on one cell, not 28.
 private struct ProgressStreakCell: View {
     enum Kind { case head, earned, today, missed, future }
 
@@ -936,7 +923,7 @@ private struct ProgressStreakCell: View {
                 case .head:
                     Image(systemName: "checkmark")
                         .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                        .foregroundStyle(Theme.Colors.onFill)
+                        .foregroundStyle(Theme.Colors.onAccent)
                 case .earned:
                     Image(systemName: "checkmark")
                         .font(Theme.Typography.icon(.xsmall, weight: .bold))
@@ -951,7 +938,7 @@ private struct ProgressStreakCell: View {
 
     private var fill: Color {
         switch kind {
-        case .head: Theme.Colors.accent
+        case .head: Theme.Colors.accentFill
         case .earned: Theme.Colors.accentWash
         case .today, .missed: Theme.Colors.track
         case .future: Color.clear
@@ -962,11 +949,11 @@ private struct ProgressStreakCell: View {
     private func cellEdge(_ shape: RoundedRectangle) -> some View {
         switch kind {
         case .today:
-            shape.strokeBorder(Theme.Colors.text.opacity(0.55), lineWidth: 1.5)
+            shape.strokeBorder(Theme.Colors.textSecondary, lineWidth: Theme.Metrics.selectedStroke)
         case .earned:
             shape.strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
         case .future:
-            shape.strokeBorder(Theme.Colors.hairline, style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [2, 3]))
+            shape.strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
         case .head, .missed:
             EmptyView()
         }
@@ -982,10 +969,10 @@ private struct ProgressTrophyEntry: Identifiable {
     var isEarned: Bool { earnedAt != nil }
 }
 
-/// One tile in the trophy strip. Earned = accent glyph on an `accentWash` disc with an `accentDim`
-/// edge and a soft static glow. Not earned = the milestone's OWN glyph in `muted` on a dim disc, with
-/// a small lock badge — six identical padlocks say nothing, the actual silhouettes say what there is
-/// to win. Title stays `muted` (5.6:1), not dimmed: the name of the thing to earn is the content.
+/// One tile in the trophy strip: the shared `TrophyBadgeDisc` (silver when earned, an empty
+/// hairline socket with the milestone's own glyph and a lock badge when not — the same disc as the
+/// Trophy Case) over its title. Title stays `muted` (5.6:1) when locked, not dimmed: the name of
+/// the thing to earn is the content.
 private struct ProgressTrophyTile: View {
     let entry: ProgressTrophyEntry
 
@@ -993,32 +980,11 @@ private struct ProgressTrophyTile: View {
 
     var body: some View {
         VStack(spacing: Theme.Spacing.xs) {
-            ZStack(alignment: .bottomTrailing) {
-                Image(systemName: ProgressBadgeIconMap.systemImage(forKey: entry.key))
-                    .font(.system(size: ProgressMetrics.trophyDiameter * 0.42, weight: .semibold))
-                    .foregroundStyle(entry.isEarned ? Theme.Colors.accent : Theme.Colors.muted)
-                    .frame(width: ProgressMetrics.trophyDiameter, height: ProgressMetrics.trophyDiameter)
-                    .background(
-                        entry.isEarned ? Theme.Colors.accentWash : Theme.Colors.hairline,
-                        in: Circle()
-                    )
-                    .overlay {
-                        if entry.isEarned {
-                            Circle().strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
-                        }
-                    }
-                    .shadow(color: Theme.Colors.accent.opacity(entry.isEarned ? 0.30 : 0), radius: 10)
-
-                if !entry.isEarned {
-                    Image(systemName: "lock.fill")
-                        .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                        .foregroundStyle(Theme.Colors.muted)
-                        .frame(width: ProgressMetrics.lockBadgeDiameter, height: ProgressMetrics.lockBadgeDiameter)
-                        .background(Theme.Colors.surface2, in: Circle())
-                        // A cutout ring in the card's own colour separates the badge from the disc.
-                        .overlay(Circle().strokeBorder(Theme.Colors.surface, lineWidth: 2))
-                }
-            }
+            TrophyBadgeDisc(
+                isEarned: entry.isEarned,
+                glyph: .forKey(entry.key),
+                diameter: ProgressMetrics.trophyDiameter
+            )
 
             Text(title)
                 .font(Theme.Typography.caption)
@@ -1037,49 +1003,6 @@ private struct ProgressTrophyTile: View {
             return Text("\(title), \(Copy.badges.earnedOnLabel(date: earnedAt))")
         }
         return Text("\(title), \(Copy.trophyCase.lockedAccessibilityHint)")
-    }
-}
-
-/// Small, non-voiced reference data (SF Symbol identifiers only — see this file's header comment
-/// for why badge *titles* still route through `Copy.badges`, unlike these icon names).
-private enum ProgressBadgeIconMap {
-    /// The spec §5.17 milestone keys, in the order the spec lists them (mirrors
-    /// `TrophyCaseView`'s own private list; kept here rather than shared because that file isn't
-    /// owned by this screen). Drives the not-yet-earned tiles in the trophy strip.
-    static let milestoneKeys = [
-        "first_earned_unlock",
-        "streak_7",
-        "streak_30",
-        "streak_100",
-        "protein_1000g_week",
-        "gym_50_sessions",
-    ]
-
-    /// Fixed in an earlier cross-check: the only badge-awarding code that actually runs in this
-    /// codebase today (`Core/Sources/Core/Retention/StreakEngine.swift`'s `awardComebackBadge`,
-    /// `ComebackMode.swift`'s `awardChallengeCompleteBadge`) keys comeback badges **per occurrence**
-    /// — `"comeback_<yyyy-MM-dd>"` / `"comeback_challenge_<date>"` — not the single static
-    /// `"comeback"` key `Models/Badge.swift`'s doc comment uses only as a shorthand example. Matched
-    /// by prefix below so every real comeback badge actually resolves an icon instead of silently
-    /// falling through to the generic default every time.
-    ///
-    /// Design pass: the `.circle.fill` variants are gone — these glyphs sit inside a disc already, and
-    /// a circle inside a circle read as two competing shapes next to bare siblings like `dumbbell.fill`
-    /// (better-ui ICO-09). SF Symbol names are from memory of the catalog; confirm each in the SF
-    /// Symbols app on a Mac.
-    static func systemImage(forKey key: String) -> String {
-        if key.hasPrefix("comeback_challenge") { return "flag.checkered" }
-        if key.hasPrefix("comeback") { return "arrow.uturn.forward" }
-        switch key {
-        case "first_earned_unlock": return "star.fill"
-        case "streak_7": return "flame"
-        case "streak_14", "streak_30": return "flame.fill"
-        case "streak_100": return "crown.fill"
-        case "streak_365": return "trophy.fill"
-        case "protein_1000g_week": return "fork.knife"
-        case "gym_50_sessions": return "dumbbell.fill"
-        default: return "rosette"
-        }
     }
 }
 

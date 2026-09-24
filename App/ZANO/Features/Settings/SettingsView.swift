@@ -15,6 +15,21 @@
 // immunity gotcha), §23 (Instrument from day one — `Analytics.shared.capture`).
 //
 // ---------------------------------------------------------------------------------------------
+// POLISH PASS (2026-09-24) — supersedes the notes below where they disagree:
+//   * Hard paywall (spec §21): the Free/"Go Pro"/Upgrade upsell and the RevenueCatUI sheet are gone.
+//     The hero is a plan *status* card (ZANO Pro, Active/Free trial, renew/trial-end date, "Manage
+//     subscription"). Restore goes through `RevenueCatManager` and refreshes `EntitlementGate`.
+//   * New rows: Goals (`GoalsEditorView`), Notifications (iOS notification settings), Help &
+//     feedback, Pause for health reasons (spec §24; explanation + next steps, no pause mechanism
+//     exists in Core yet), Terms of use, Privacy policy, Delete all my data.
+//   * Monochrome rows: `SettingsIconBadge` is always `textSecondary` on `surface2`, outline
+//     symbols; no per-row ring tints. Disabled = `muted` text, never stacked opacity.
+//   * Coach-voice tiles: no border unselected, accent stroke at `Metrics.selectedStroke` selected;
+//     the sample quote sits on the card with no recessed box.
+//   * Gear store row + offer hidden until `SettingsReferenceData.gearStoreURL` is real.
+//   * Confirmations name the thing ("Delete <gym>?", "Remove <tag>?"), ellipsis menus say "More
+//     options for <name>", and no alert shows raw `error.localizedDescription` text.
+//
 // DESIGN PASSES (2026-09-23) — what changed and why. Nothing here was ever rendered (no Mac); every
 // size below is arithmetic against a 393 x 852 pt iPhone, 16 pt gutters (361 pt content width).
 // Sources: docs/design/composition-audit.md §5.2 + S-2/S-4/S-6/S-8, better-layout-findings.md
@@ -106,12 +121,6 @@ import MapKit
 // for the same reason.
 import FamilyControls
 import Core
-#if canImport(RevenueCat)
-import RevenueCat
-#endif
-#if canImport(RevenueCatUI)
-import RevenueCatUI
-#endif
 
 // MARK: - Settings root
 
@@ -125,6 +134,8 @@ struct SettingsView: View {
     @Query(sort: \LockSet.name) private var lockSets: [LockSet]
     // Read only for the trailing count on the "Gym setup" row; `GymSetupDetailView` owns the CRUD.
     @Query private var gyms: [Gym]
+    // Read only for the trailing count on the "Goals" row; `GoalsEditorView` owns the edits.
+    @Query(filter: #Predicate<Goal> { $0.active }) private var activeGoals: [Goal]
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
@@ -135,10 +146,12 @@ struct SettingsView: View {
     // past session doesn't see it again this session either — see `alwaysAllowedSection` below.
     @State private var alwaysAllowedWarningDismissed = AlwaysAllowedCheck.hasAcknowledgedWarning
     @State private var isRestoringPurchases = false
-    @State private var isPaywallPresented = false
+    @State private var isConfirmingDeleteAll = false
+    @State private var isDeletingData = false
 
     /// The sign-off at the bottom of Settings: the wordmark, the tagline and the build, the way
-    /// premium apps close their settings (docs/brand/brand-kit.md).
+    /// premium apps close their settings (docs/brand/brand-kit.md). The version line is plain
+    /// `muted` — no extra opacity stacked on top of an already-quiet token.
     private var brandFooter: some View {
         VStack(spacing: Theme.Spacing.xs) {
             ZanoWordmark(height: 12, style: .mono(Theme.Colors.muted))
@@ -150,7 +163,8 @@ struct SettingsView: View {
                 build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
             ))
             .font(Theme.Typography.caption)
-            .foregroundStyle(Theme.Colors.muted.opacity(0.7))
+            .foregroundStyle(Theme.Colors.muted)
+            .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, Theme.Spacing.lg)
@@ -159,7 +173,6 @@ struct SettingsView: View {
 
     private var currentUser: User? { users.first }
     private var subscription: Subscription? { subscriptions.first }
-    private var isPro: Bool { currentUser?.planTier == .pro }
     private var currentStreak: Int { streaks.first?.current ?? 0 }
 
     var body: some View {
@@ -171,8 +184,10 @@ struct SettingsView: View {
                 coachVoiceSection
                 dailyRhythmSection
                 rewardsSection
+                notificationsSection
                 subscriptionSection
                 aboutSection
+                dataSection
                 brandFooter
             }
             .padding(.horizontal, Theme.Spacing.md)
@@ -189,36 +204,37 @@ struct SettingsView: View {
         // system background there. No `glow:` — this is an admin screen, not a moment.
         .zanoBackdrop()
         .preferredColorScheme(.dark)
-        // No root tint exists yet (`ZANOApp`/`ContentView` belong to another workflow this run), so
-        // toolbar buttons, sliders, and menus in this screen would otherwise render system blue.
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.screenTitle)
         .onAppear {
-            // Mirrors `ProgressView.swift`'s exact `"<screen>_viewed"` precedent (read, not
-            // edited, for the convention) — synchronous, fire-and-forget, so `.onAppear` over
-            // `.task` (no async work needed just to fire this).
             Analytics.shared.capture(event: "settings_viewed")
         }
         .settingsErrorAlert($errorAlert)
-        .sheet(isPresented: $isPaywallPresented) { paywallSheet }
+        .confirmationDialog(
+            Copy.settings.deleteAllDataConfirmTitle,
+            isPresented: $isConfirmingDeleteAll,
+            titleVisibility: .visible
+        ) {
+            Button(Copy.settings.deleteAllDataConfirmButtonLabel, role: .destructive) {
+                Task { await deleteAllData() }
+            }
+            Button(Copy.common.cancel, role: .cancel) {}
+        } message: {
+            Text(Copy.settings.deleteAllDataConfirmMessage)
+        }
     }
 
     // MARK: - Always-Allowed warning (spec §20.2, §27)
     //
     // Computed from every saved `LockSet`'s decoded app selection — a real, on-device signal
     // (not a guess) for whether this warning is actually relevant right now, using the exact
-    // public entry points `AlwaysAllowedCheck`/`LockSetManager` already expose for this
-    // (`AlwaysAllowedCheck.assessment(for:)`, `LockSetManager.shared.selection(for:)`). Promoted to
+    // public entry points `AlwaysAllowedCheck`/`LockSetManager` already expose for this. Promoted to
     // the top of the screen (it says shielded apps may never actually block — that outranks every
-    // preference below it). `AlwaysAllowedWarningView` already has the app's one visible card
-    // stroke and is left untouched (it lives in `LockSetup/`, not this file's list).
+    // preference below it).
     @ViewBuilder
     private var alwaysAllowedSection: some View {
         if !alwaysAllowedWarningDismissed {
-            // Computed once here; the pre-redesign code evaluated this (and its `LockSet` token
-            // decode) twice per render via `shouldShowAlwaysAllowedWarning` + the view's argument.
             let assessment = alwaysAllowedAssessment
-            // Reduce Motion: a plain fade; otherwise a fade + slight top-anchored shrink.
             let bannerTransition: AnyTransition = reduceMotion
                 ? .opacity
                 : .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
@@ -233,8 +249,7 @@ struct SettingsView: View {
     }
 
     /// Every saved `LockSet`'s app/category/web-domain token counts, summed — a user can have
-    /// several lock sets, and Always Allowed can plausibly affect any app across all of them, not
-    /// just whichever one happens to be currently armed.
+    /// several lock sets, and Always Allowed can plausibly affect any app across all of them.
     private var alwaysAllowedAssessment: AlwaysAllowedCheck.Assessment {
         let selections = lockSets.map { LockSetManager.shared.selection(for: $0) }
         return AlwaysAllowedCheck.Assessment(
@@ -244,42 +259,39 @@ struct SettingsView: View {
         )
     }
 
-    // MARK: - Plan / profile hero (spec §21, §24)
+    // MARK: - Plan status (spec §21 hard paywall)
     //
-    // Leads the screen (composition-audit §5.2: "Lead with a profile/plan card — plan tier, streak,
-    // 'Upgrade' CTA"). Free: tier + the pitch + the screen's one accent-filled control (a neutral
-    // card — the CTA is the focal point). Pro: tier + renewal date on the shared card's *active*
-    // treatment (accent wash + a static glow): an entitled account is the earned state, which is
-    // exactly what `zanoCard(active:)` is reserved for.
-    // Manage/Restore live in the "Subscription" group below (App Review wants Restore visible,
-    // spec §24, and it stays visible regardless of tier).
+    // There is no free tier (decision 2026-09-23): anyone who can see this screen is on the trial
+    // or paid, so this is a status card, not a pitch. The old "Free / Go Pro / Upgrade" upsell and
+    // the RevenueCatUI paywall sheet it opened (which failed without RevenueCatUI linked) are gone.
+    //
+    // Trial vs paid: nothing in Core stores the trial flag yet. `Subscription.status` is
+    // RevenueCat's passthrough string, so "trial" appearing in it is treated as the trial state;
+    // otherwise the plan reads "Active". Flagged in this pass's report: a real `periodType` field
+    // (RevenueCat `EntitlementInfo.periodType == .trial`) should replace this string check.
+
+    private var isOnTrial: Bool {
+        subscription?.status?.lowercased().contains("trial") == true
+    }
 
     private var planCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     SettingsEyebrow(text: Copy.settings.planLabel)
-                    HStack(spacing: Theme.Spacing.xs) {
-                        // `titleLarge` (28 pt bold), not `title` (22): the tier is the anchor of the
-                        // screen's first card, and a 22 pt line beside 22 pt row headlines is no anchor.
-                        Text(isPro ? Copy.settings.planProLabel : Copy.settings.planFreeLabel)
-                            .zanoText(.titleLarge)
-                            .foregroundStyle(Theme.Colors.text)
-                        if isPro {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(Theme.Typography.icon(.large))
-                                .foregroundStyle(Theme.Colors.accent)
-                                .accessibilityHidden(true)
-                        }
-                    }
+                    Text(Copy.settings.planProLabel)
+                        .zanoText(.titleLarge)
+                        .foregroundStyle(Theme.Colors.text)
+                    ZanoStatusCapsule(
+                        dotColor: Theme.Colors.accent,
+                        text: isOnTrial ? Copy.settings.planStatusTrial : Copy.settings.planStatusActive
+                    )
                 }
                 .accessibilityElement(children: .combine)
 
                 Spacer(minLength: Theme.Spacing.sm)
 
-                // Same component + same VoiceOver phrasing `TodayView` uses for the pill. Hidden
-                // at 0 so a brand-new user isn't greeted by a zero in the app's most prominent card
-                // (spec §8: never show an empty/shaming state).
+                // Hidden at 0 so a brand-new user isn't greeted by a zero (spec §8).
                 if currentStreak > 0 {
                     StreakPill(
                         count: currentStreak,
@@ -291,146 +303,62 @@ struct SettingsView: View {
                 }
             }
 
-            if isPro {
-                proPlanDetails
-            } else {
-                proUpsell
+            if let renewsAt = subscription?.renewsAt {
+                HStack {
+                    Text(isOnTrial ? Copy.settings.trialEndsLabel : Copy.settings.renewsLabel)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    Text(renewsAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                }
+                .padding(Theme.Spacing.sm)
+                .zanoGlass(in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                .accessibilityElement(children: .combine)
+            }
+
+            Text(Copy.settings.planManagedByAppleNote)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            PrimaryButton(
+                title: Copy.settings.manageSubscriptionButtonLabel,
+                systemImage: "arrow.up.right",
+                style: .secondary
+            ) {
+                openURL(SettingsReferenceData.manageSubscriptionsURL)
             }
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(
-            radius: Theme.Radius.large,
-            tint: isPro ? Theme.Colors.accent : nil,
-            active: isPro
-        )
+        .zanoCard(radius: Theme.Radius.large)
     }
 
-    @ViewBuilder
-    private var proPlanDetails: some View {
-        if let renewsAt = subscription?.renewsAt {
-            HStack {
-                Text(Copy.settings.renewsLabel)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.muted)
-                Spacer(minLength: Theme.Spacing.sm)
-                Text(renewsAt.formatted(date: .abbreviated, time: .omitted))
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-            }
-            .padding(Theme.Spacing.sm)
-            // 28 (hero) - 16 (card padding) = 12 = `Radius.small`, `zanoWell`'s default radius:
-            // concentric with the hero card.
-            .zanoWell()
-            .accessibilityElement(children: .combine)
-        }
-    }
-
-    /// Glyphs for `Copy.settings.proBenefits`, by position. They are the ones `PaywallView` shows
-    /// for the same three benefits (`infinity` / `brain.head.profile` / `person.3.fill`), so the
-    /// pitch looks the same on both screens. Positional because `proBenefits` is a plain `[String]`
-    /// (it is deliberately the paywall's own titles); a fourth benefit falls back to a checkmark
-    /// instead of dropping its badge.
-    private static let benefitSymbols = ["infinity", "brain.head.profile", "person.3.fill"]
-
-    private static func benefitSymbol(at index: Int) -> String {
-        benefitSymbols.indices.contains(index) ? benefitSymbols[index] : "checkmark"
-    }
-
-    /// Free-tier upsell (spec §21, §16 P5 "annual plan card"). Repo-wide Copy/API sweep
-    /// (2026-09-22): this used to call `Core.PaywallCard` with a guessed initializer that never
-    /// matched the real component (a single selectable plan *row*, no benefits list, no CTA), so it
-    /// stays a file-local composition built from `Copy.settings.*` and Theme tokens. Benefit badges
-    /// are neutral (`text` on a `wash` disc), not accent — accent is spent once, on the CTA below
-    /// (`docs/design/typography-color-findings.md` C7: decorative accent dilutes "earned").
-    private var proUpsell: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SettingsHairline()
-
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                Text(Copy.settings.proHeadline)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                Spacer(minLength: Theme.Spacing.sm)
-                Text(Copy.settings.proPriceLabel)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-            .accessibilityElement(children: .combine)
-
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                ForEach(Array(Copy.settings.proBenefits.enumerated()), id: \.offset) { index, benefit in
-                    HStack(spacing: Theme.Spacing.sm) {
-                        SettingsIconBadge(systemImage: Self.benefitSymbol(at: index))
-                        Text(benefit)
-                            .font(Theme.Typography.body)
-                            .foregroundStyle(Theme.Colors.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            }
-
-            PrimaryButton(
-                title: Copy.settings.proCtaLabel,
-                systemImage: "sparkles",
-                action: presentPaywall
-            )
-        }
-    }
-
-    // Cross-module seam (Session 6 `feat/onboarding` — Paywall, spec §17 row 6). The app's own
-    // `PaywallView` (`Features/Onboarding/PaywallView.swift`) takes an `OnboardingFlowState` and
-    // calls `flowState.advance()` on purchase/skip — there is no onboarding container to advance in
-    // a Settings sheet, so a purchase would leave the user stranded on it. RevenueCatUI's own
-    // paywall is the standalone answer, so that is what this presents *once RevenueCatUI is linked*
-    // (it is not in `project.yml` yet, hence the `canImport` guards, same as `restorePurchases`).
-    // Until then the CTA says so out loud instead of doing nothing: a dead primary button was the
-    // audit's loudest complaint about Today (composition-audit §2.1). The fallback strings are the
-    // generic `Copy.common` pair; a "Plans aren't available yet" pair is a `SettingsCopy.swift`
-    // follow-up (outside this file list). `displayCloseButton:` is recalled from RevenueCatUI's
-    // API, not compiled against — verify when the package is added.
-    private func presentPaywall() {
-        #if canImport(RevenueCatUI)
-        isPaywallPresented = true
-        #else
-        errorAlert = SettingsErrorAlert(
-            title: Copy.common.somethingWentWrongTitle,
-            message: Copy.common.somethingWentWrongMessage
-        )
-        #endif
-    }
-
-    @ViewBuilder
-    private var paywallSheet: some View {
-        #if canImport(RevenueCatUI)
-        // Module-qualified: the app target's own `PaywallView` shadows RevenueCatUI's.
-        RevenueCatUI.PaywallView(displayCloseButton: true)
-        #else
-        EmptyView()
-        #endif
-    }
-
-    // MARK: - Lock + verification setup (spec §3, §6, §9.4, §25.1)
+    // MARK: - Setup: goals, lock sets, gyms, tags (spec §3, §6, §9.4, §25.1)
     //
-    // Lock Sets is new here (the screen existed with no entry point anywhere — composition-audit
-    // offender 7). Deliberately headerless: `Copy.settings` has no title for this cluster (see
-    // this task's `knownIssues`), and it sits directly under the hero where its purpose is obvious.
-    //
-    // Lock sets and gyms show a trailing count once any exist: a bare numeral (no copy needed) that
-    // turns a menu of destinations into a status readout — "3" next to Lock sets says the setup is
-    // done without opening it. Hidden at 0 rather than showing a zero (spec §8: no empty/shaming
-    // states). The Ring.focus hue is used only as an icon glyph on its own wash disc (a graphic:
-    // 3.15:1 there, over the 3:1 graphics bar) and never as text (3.9:1 on `background`, under the
-    // 4.5:1 text bar — `Theme.Colors.Ring` doc), so the row's count and title stay `muted`/`text`.
+    // Rows show state, not just destinations: a trailing count once any exist (hidden at 0 —
+    // spec §8, no empty/shaming states). Monochrome badges (polish pass 2026-09-24): the ring hues
+    // belong to goal progress, not to a settings menu.
 
     private var verificationSetupSection: some View {
         SettingsSection(footer: currentUser == nil ? Copy.settings.finishSetupFooter : nil) {
             SettingsGroupCard {
                 SettingsNavRow(
+                    Copy.settings.goalsRowLabel,
+                    systemImage: "target",
+                    value: activeGoals.isEmpty ? nil : "\(activeGoals.count)"
+                ) {
+                    GoalsEditorView()
+                }
+                .disabled(currentUser == nil)
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
                     Copy.lockSetup.screenTitle,
-                    systemImage: "lock.rectangle.stack.fill",
-                    tint: Theme.Colors.Ring.focus,
+                    systemImage: "lock.rectangle.stack",
                     value: lockSets.isEmpty ? nil : "\(lockSets.count)"
                 ) {
                     LockSetupView()
@@ -440,8 +368,7 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.gymSetupRowLabel,
-                    systemImage: "figure.strengthtraining.traditional",
-                    tint: Theme.Colors.Ring.workout,
+                    systemImage: "dumbbell",
                     value: gyms.isEmpty ? nil : "\(gyms.count)"
                 ) {
                     GymSetupDetailView(userID: currentUser?.id)
@@ -452,8 +379,7 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.nfcTagSetupRowLabel,
-                    systemImage: "wave.3.right.circle.fill",
-                    tint: Theme.Colors.Ring.water
+                    systemImage: "wave.3.right"
                 ) {
                     NFCTagSetupDetailView()
                 }
@@ -469,9 +395,6 @@ struct SettingsView: View {
             footer: Copy.settings.coachVoiceSectionFooter
         ) {
             CoachVoiceCard(selected: currentUser?.coachVoice, onSelect: selectCoachVoice)
-                // Same rule as the Gym row above: with no profile yet a tap would silently do
-                // nothing (`selectCoachVoice` guards on `currentUser`), so the tiles say so by
-                // dimming instead.
                 .disabled(currentUser == nil)
         }
     }
@@ -483,24 +406,18 @@ struct SettingsView: View {
             try modelContext.save()
             SharedDefaults.coachVoice = voice.rawValue
         } catch {
-            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: error.localizedDescription)
+            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: Copy.settings.saveErrorMessage)
         }
     }
 
     // MARK: - Sunrise Alarm + Bedtime Gate entries (spec §5.10)
-    //
-    // Both screens were fully built in an earlier wave with no entry point anywhere — see this
-    // file's header. Neither owns navigation chrome itself (both push cleanly onto this screen's
-    // existing `NavigationStack`, same convention `GymSetupDetailView`/`NFCTagSetupDetailView`
-    // below already use). Hues are the existing `Ring.sunriseAlarm` / `Ring.sleepOnTime` tokens.
 
     private var dailyRhythmSection: some View {
         SettingsSection(title: Copy.settings.dailyRhythmSectionTitle) {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.sunriseAlarmRowLabel,
-                    systemImage: "sunrise.fill",
-                    tint: Theme.Colors.Ring.sunriseAlarm
+                    systemImage: "sunrise"
                 ) {
                     SunriseAlarmSetupView()
                 }
@@ -509,8 +426,7 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.bedtimeGateRowLabel,
-                    systemImage: "moon.zzz.fill",
-                    tint: Theme.Colors.Ring.sleepOnTime
+                    systemImage: "moon.zzz"
                 ) {
                     BedtimeGateSetupView()
                 }
@@ -518,23 +434,19 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Rewards: Trophy Case, Cosmetics Shop, Gear store (spec §5.17, §25.6)
+    // MARK: - Rewards: Trophy Case, Cosmetics Shop (spec §5.17)
     //
-    // Trophy Case / Cosmetics Shop: same gap as Sunrise Alarm/Bedtime Gate — both screens exist,
-    // fully built, with no entry point until the 2026-09-22 pass. "paintpalette.fill" (not
-    // "bag.fill") for the Cosmetics Shop row so it can't be confused with the physical gear
-    // store's "bag.fill" below (better-ui ICO-05).
-    //
-    // The Gear store used to be its own one-row section under its own header; better-layout §2.5
-    // says not to give a one-row section a header, and earned-card/shaker offers are rewards, so
-    // it now lives here, with its contextual offer (spec §25.6) as a callout directly above it.
+    // The Gear store row (spec §25.6) and its contextual offer callout are hidden until a real
+    // store exists: the row opened a placeholder domain, and the offer pointed at it. Re-enable by
+    // setting `SettingsReferenceData.gearStoreURL` to the live store URL — the row and the offer
+    // both key off it.
 
     private var rewardsSection: some View {
         SettingsSection(title: Copy.settings.rewardsSectionTitle) {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.trophyCaseRowLabel,
-                    systemImage: "trophy.fill"
+                    systemImage: "trophy"
                 ) {
                     TrophyCaseView()
                 }
@@ -543,45 +455,44 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.cosmeticsShopRowLabel,
-                    systemImage: "paintpalette.fill"
+                    systemImage: "paintpalette"
                 ) {
                     CosmeticsShopView()
                 }
 
-                SettingsRowDivider()
-
-                if let offer = contextualGearOffer {
-                    HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                        SettingsIconBadge(systemImage: "gift.fill")
-                        Text(offer)
-                            .font(Theme.Typography.body)
-                            .foregroundStyle(Theme.Colors.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.vertical, Theme.Spacing.sm)
-                    .accessibilityElement(children: .combine)
-
+                if let gearStoreURL = SettingsReferenceData.gearStoreURL {
                     SettingsRowDivider()
-                }
 
-                SettingsActionRow(
-                    title: Copy.settings.gearRowLabel,
-                    systemImage: "bag.fill",
-                    accessory: .external
-                ) {
-                    openURL(SettingsReferenceData.gearStoreURL)
+                    if let offer = contextualGearOffer {
+                        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                            SettingsIconBadge(systemImage: "gift")
+                            Text(offer)
+                                .font(Theme.Typography.body)
+                                .foregroundStyle(Theme.Colors.text)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.vertical, Theme.Spacing.sm)
+                        .accessibilityElement(children: .combine)
+
+                        SettingsRowDivider()
+                    }
+
+                    SettingsActionRow(
+                        title: Copy.settings.gearRowLabel,
+                        systemImage: "bag",
+                        accessory: .external
+                    ) {
+                        openURL(gearStoreURL)
+                    }
                 }
             }
         }
     }
 
-    /// One contextual offer at a time (spec §25.6: "You've logged 40 shakes — here's the bottle
-    /// that logs itself"; earned-card shipping prompts at streak milestones, spec §25.3). Reads
-    /// only already-fetched `@Query` rows — no unbounded new fetch — capped defensively since
-    /// `recentEvents` itself is an unbounded history query (flagged in this task's `knownIssues`:
-    /// a later session should pre-aggregate this instead of re-scanning full history on appearance).
+    /// One contextual offer at a time (spec §25.6; earned-card prompts at streak milestones,
+    /// spec §25.3). Reads only already-fetched `@Query` rows, capped defensively.
     private var contextualGearOffer: String? {
         let shakerTaps = recentEvents.prefix(1000).filter { $0.source == .nfc && $0.goal?.type == .protein }.count
         if shakerTaps >= 40 {
@@ -593,25 +504,32 @@ struct SettingsView: View {
         return nil
     }
 
-    // MARK: - Subscription admin (spec §21, §24)
+    // MARK: - Notifications
     //
-    // Both rows stay visible for every tier (App Review: "restore purchases visible", spec §24).
-    // Restore now shows an in-row spinner while the RevenueCat call runs — it previously gave no
-    // feedback at all until an error alert.
+    // ZANO has no in-app notification switches; iOS owns them. The row deep-links to this app's
+    // page in the iPhone Settings app (`openNotificationSettingsURLString`, iOS 16+).
+
+    private var notificationsSection: some View {
+        SettingsSection(footer: Copy.settings.notificationsFooter) {
+            SettingsGroupCard {
+                SettingsActionRow(
+                    title: Copy.settings.notificationsRowLabel,
+                    systemImage: "bell",
+                    accessory: .external
+                ) {
+                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                        openURL(url)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Subscription admin (spec §21, §24 "restore purchases visible")
 
     private var subscriptionSection: some View {
         SettingsSection(title: Copy.settings.subscriptionSectionTitle) {
             SettingsGroupCard {
-                SettingsActionRow(
-                    title: Copy.settings.manageSubscriptionButtonLabel,
-                    systemImage: "creditcard.fill",
-                    accessory: .external
-                ) {
-                    openURL(SettingsReferenceData.manageSubscriptionsURL)
-                }
-
-                SettingsRowDivider()
-
                 SettingsActionRow(
                     title: Copy.settings.restorePurchasesButtonLabel,
                     systemImage: "arrow.clockwise",
@@ -624,41 +542,72 @@ struct SettingsView: View {
         }
     }
 
+    /// Goes through `RevenueCatManager` (the only file that talks to the SDK), then refreshes the
+    /// hard-paywall gate so a restored subscription takes effect immediately.
     private func restorePurchases() async {
         isRestoringPurchases = true
         defer { isRestoringPurchases = false }
-        #if canImport(RevenueCat)
         do {
-            _ = try await Purchases.shared.restorePurchases()
+            let restored = try await RevenueCatManager.shared.restorePurchases()
+            await EntitlementGate.shared.refresh()
+            errorAlert = restored
+                ? SettingsErrorAlert(
+                    title: Copy.settings.restoreSucceededTitle,
+                    message: Copy.settings.restoreSucceededMessage
+                )
+                : SettingsErrorAlert(
+                    title: Copy.settings.restoreNothingFoundTitle,
+                    message: Copy.settings.restoreNothingFoundMessage
+                )
+        } catch RevenueCatManagerError.notConfigured {
+            errorAlert = SettingsErrorAlert(
+                title: Copy.settings.restoreUnavailableTitle,
+                message: Copy.settings.restoreUnavailableMessage
+            )
         } catch {
-            errorAlert = SettingsErrorAlert(title: Copy.settings.restoreFailedTitle, message: error.localizedDescription)
+            errorAlert = SettingsErrorAlert(
+                title: Copy.settings.restoreFailedTitle,
+                message: Copy.settings.restoreFailedMessage
+            )
         }
-        #else
-        errorAlert = SettingsErrorAlert(
-            title: Copy.settings.restoreUnavailableTitle,
-            message: Copy.settings.restoreUnavailableMessage
-        )
-        #endif
     }
 
-    // MARK: - About (spec §24)
+    // MARK: - About: help, legal, health pause (spec §24)
 
     private var aboutSection: some View {
         SettingsSection(title: Copy.settings.aboutSectionTitle) {
             SettingsGroupCard {
-                SettingsRowLabel(
-                    title: Copy.settings.versionLabel,
-                    systemImage: "info.circle.fill",
-                    value: appVersionString,
-                    accessory: .none
-                )
-                .accessibilityElement(children: .combine)
+                SettingsNavRow(
+                    Copy.settings.helpRowLabel,
+                    systemImage: "questionmark.circle"
+                ) {
+                    HelpFeedbackView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
+                    Copy.settings.pauseRowLabel,
+                    systemImage: "heart"
+                ) {
+                    PauseForHealthView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsActionRow(
+                    title: Copy.settings.termsOfUseButtonLabel,
+                    systemImage: "doc.text",
+                    accessory: .external
+                ) {
+                    openURL(SettingsReferenceData.termsOfUseURL)
+                }
 
                 SettingsRowDivider()
 
                 SettingsActionRow(
                     title: Copy.settings.privacyPolicyButtonLabel,
-                    systemImage: "hand.raised.fill",
+                    systemImage: "hand.raised",
                     accessory: .external
                 ) {
                     openURL(SettingsReferenceData.privacyPolicyURL)
@@ -667,10 +616,90 @@ struct SettingsView: View {
         }
     }
 
-    private var appVersionString: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return "\(version) (\(build))"
+    // MARK: - Delete all data (spec §24 privacy)
+
+    private var dataSection: some View {
+        SettingsSection(
+            title: Copy.settings.dataSectionTitle,
+            footer: Copy.settings.deleteAllDataFooter
+        ) {
+            SettingsGroupCard {
+                SettingsActionRow(
+                    title: Copy.settings.deleteAllDataRowLabel,
+                    systemImage: "trash",
+                    accessory: .none,
+                    isBusy: isDeletingData,
+                    isDestructive: true
+                ) {
+                    isConfirmingDeleteAll = true
+                }
+            }
+        }
+    }
+
+    /// Wipes this device's ZANO data. Order matters:
+    ///   1. End any active lock through the emergency path, which also clears the shields
+    ///      (`LockEngineManager.emergencyUnlock` -> `ManagedSettingsStore.clearAllSettings()`). Never
+    ///      leave someone shielded with no data left to unlock against (CLAUDE.md: never trap).
+    ///   2. Delete every SwiftData row of every registered model type
+    ///      (`ModelContainer.appGroupModelTypes`, the store's own schema list).
+    ///   3. Clear the App Group defaults domain (streak mirrors, active-lock ids, tag mappings,
+    ///      acknowledgement flags — every `SharedDefaults` key and every manager that shares the
+    ///      suite) and the onboarding-completed flag.
+    /// Remote (Supabase) rows are NOT deleted here — see this pass's report. The subscription is
+    /// Apple's and is untouched.
+    private func deleteAllData() async {
+        isDeletingData = true
+        defer { isDeletingData = false }
+
+        if let sessionID = SharedDefaults.activeLockSessionID {
+            try? await LockEngineManager.shared.emergencyUnlock(sessionID: sessionID)
+        }
+
+        do {
+            // Saved per type so a later fetch never sees rows a cascade already removed.
+            for modelType in ModelContainer.appGroupModelTypes {
+                try SettingsDataReset.deleteAll(modelType, in: modelContext)
+                try modelContext.save()
+            }
+        } catch {
+            errorAlert = SettingsErrorAlert(
+                title: Copy.settings.deleteAllDataFailedTitle,
+                message: Copy.settings.deleteAllDataFailedMessage
+            )
+            return
+        }
+
+        SettingsDataReset.clearDefaults()
+        Analytics.shared.capture(event: "settings_all_data_deleted")
+        errorAlert = SettingsErrorAlert(
+            title: Copy.settings.deleteAllDataDoneTitle,
+            message: Copy.settings.deleteAllDataDoneMessage
+        )
+    }
+}
+
+/// The non-UI half of "Delete all my data".
+private enum SettingsDataReset {
+    /// `AppRouter.onboardingCompletedKey` (private there, in `App/ZANO/AppRouter.swift`). Duplicated
+    /// because AppRouter exposes no reset API — clearing it sends the next launch to onboarding. A
+    /// live `AppRouter.shared` keeps its in-memory `hasCompletedOnboarding` until relaunch, hence
+    /// the "close and reopen" message. Follow-up: `AppRouter.resetOnboarding()`.
+    static let onboardingCompletedKey = "zano.app.hasCompletedOnboarding.v1"
+
+    /// Opens `any PersistentModel.Type` into a concrete `T` (SE-0352) so it can build a
+    /// `FetchDescriptor<T>`. Row-by-row delete (not the batch `delete(model:)`) so SwiftData runs
+    /// each relationship's delete rule.
+    @MainActor
+    static func deleteAll<T: PersistentModel>(_ type: T.Type, in context: ModelContext) throws {
+        for model in try context.fetch(FetchDescriptor<T>()) {
+            context.delete(model)
+        }
+    }
+
+    static func clearDefaults() {
+        UserDefaults(suiteName: AppGroup.identifier)?.removePersistentDomain(forName: AppGroup.identifier)
+        UserDefaults.standard.removeObject(forKey: onboardingCompletedKey)
     }
 }
 
@@ -682,15 +711,17 @@ private struct SettingsErrorAlert: Identifiable {
     let message: String
 }
 
-/// Small reference URLs. `manageSubscriptionsURL` is Apple's real, documented subscription-
-/// management deep link (App Review expects "restore purchases visible", spec §24, and this is the
-/// standard way to satisfy the adjacent "manage" affordance without RevenueCat linked yet).
-/// `gearStoreURL`/`privacyPolicyURL` are placeholders pending real domains (spec §25.5 names
-/// Shopify as the store platform but not a domain) — flagged in this task's `decisions`.
-private enum SettingsReferenceData {
-    static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
-    static let gearStoreURL = URL(string: "https://gear.zano.app")!
-    static let privacyPolicyURL = URL(string: "https://zano.app/privacy")!
+/// Reference URLs. The strings live in `Copy.settings` (one place for the founder to confirm).
+/// `manageSubscriptionsURL` is Apple's documented subscription-management page. Terms and privacy
+/// are PLACEHOLDERS that must point at real, published pages before release. `gearStoreURL` is
+/// `nil` until a real store exists (spec §25.5 names Shopify, not a domain) — `nil` hides the Gear
+/// row and its offer callout.
+enum SettingsReferenceData {
+    static let manageSubscriptionsURL = URL(string: Copy.settings.manageSubscriptionsURLString)!
+    static let termsOfUseURL = URL(string: Copy.settings.termsOfUseURLString)!
+    static let privacyPolicyURL = URL(string: Copy.settings.privacyPolicyURLString)!
+    static let supportMailURL = URL(string: "mailto:\(Copy.settings.supportEmail)")!
+    static let gearStoreURL: URL? = nil
 }
 
 private extension View {
@@ -749,15 +780,24 @@ private extension View {
     }
 }
 
-/// The badge every row uses: the shared `IconBadge(.small)` (32 pt, `wash` disc, scales with
-/// Dynamic Type). `tint == nil` means a *meta* row — neutral `text`, the same neutral
-/// `SelectableCard` uses for an unselected leader — so the goal hues stay meaningful.
+/// The badge every row uses: monochrome, always `textSecondary` on a `surface2` disc (polish pass
+/// 2026-09-24 — Opal/Spotify-style settings; ring hues belong to goal progress, not menus). Same
+/// 32 pt base diameter and Dynamic Type scaling (clamped to 1.4x) as `IconBadge(.small)`, which
+/// `SettingsRowDivider`'s inset math relies on. Disabled rows dim the glyph to `muted`.
 private struct SettingsIconBadge: View {
     let systemImage: String
-    var tint: Color? = nil
+
+    @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
 
     var body: some View {
-        IconBadge(systemName: systemImage, tint: tint ?? Theme.Colors.text, size: .small)
+        let diameter = Theme.Metrics.iconBadgeSmall * min(scale, 1.4)
+        Image(systemName: systemImage)
+            .font(.system(size: diameter * 0.45, weight: .medium))
+            .foregroundStyle(isEnabled ? Theme.Colors.textSecondary : Theme.Colors.muted)
+            .frame(width: diameter, height: diameter)
+            .background(Theme.Colors.surface2, in: Circle())
+            .accessibilityHidden(true)
     }
 }
 
@@ -873,20 +913,27 @@ private struct SettingsRowLabel: View {
 
     let title: String
     let systemImage: String
-    var tint: Color? = nil
     var value: String? = nil
     var accessory: Accessory = .chevron
     var isBusy = false
+    /// Destructive rows ("Delete all my data") set the title in `danger`.
+    var isDestructive = false
 
     @Environment(\.isEnabled) private var isEnabled
 
+    /// Disabled = `muted` text, not a stacked opacity over the whole row.
+    private var titleColor: Color {
+        guard isEnabled else { return Theme.Colors.muted }
+        return isDestructive ? Theme.Colors.danger : Theme.Colors.text
+    }
+
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            SettingsIconBadge(systemImage: systemImage, tint: tint)
+            SettingsIconBadge(systemImage: systemImage)
 
             Text(title)
                 .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
+                .foregroundStyle(titleColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let value {
@@ -902,7 +949,6 @@ private struct SettingsRowLabel: View {
         .padding(.vertical, Theme.Spacing.sm)
         .frame(minHeight: Theme.Metrics.minTapTarget)
         .contentShape(Rectangle())
-        .opacity(isEnabled ? 1 : 0.4)
     }
 
     @ViewBuilder
@@ -976,20 +1022,17 @@ private struct SettingsConfirmButtonStyle: ButtonStyle {
 private struct SettingsNavRow<Destination: View>: View {
     let title: String
     let systemImage: String
-    let tint: Color?
     let value: String?
     let destination: () -> Destination
 
     init(
         _ title: String,
         systemImage: String,
-        tint: Color? = nil,
         value: String? = nil,
         @ViewBuilder destination: @escaping () -> Destination
     ) {
         self.title = title
         self.systemImage = systemImage
-        self.tint = tint
         self.value = value
         self.destination = destination
     }
@@ -998,7 +1041,7 @@ private struct SettingsNavRow<Destination: View>: View {
         NavigationLink {
             destination()
         } label: {
-            SettingsRowLabel(title: title, systemImage: systemImage, tint: tint, value: value)
+            SettingsRowLabel(title: title, systemImage: systemImage, value: value)
         }
         .buttonStyle(SettingsRowButtonStyle())
     }
@@ -1009,9 +1052,9 @@ private struct SettingsNavRow<Destination: View>: View {
 private struct SettingsActionRow: View {
     let title: String
     let systemImage: String
-    var tint: Color? = nil
     var accessory: SettingsRowLabel.Accessory = .external
     var isBusy = false
+    var isDestructive = false
     let action: () -> Void
 
     var body: some View {
@@ -1019,9 +1062,9 @@ private struct SettingsActionRow: View {
             SettingsRowLabel(
                 title: title,
                 systemImage: systemImage,
-                tint: tint,
                 accessory: accessory,
-                isBusy: isBusy
+                isBusy: isBusy,
+                isDestructive: isDestructive
             )
         }
         .buttonStyle(SettingsRowButtonStyle())
@@ -1050,27 +1093,26 @@ private struct SettingsChoiceTile: View {
             VStack(spacing: Theme.Spacing.xxs) {
                 Image(systemName: systemImage)
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.muted)
+                    .foregroundStyle(isSelected && isEnabled ? Theme.Colors.accent : Theme.Colors.muted)
                     .frame(height: 24)
                 Text(title)
                     .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
+                    .foregroundStyle(isSelected && isEnabled ? Theme.Colors.text : Theme.Colors.muted)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, Theme.Spacing.xxs)
             .frame(maxWidth: .infinity, minHeight: SettingsMetrics.choiceTileHeight)
-            // Selection is chrome, so it's white (decision 2026-09-24: green only for earned states).
-            .background(isSelected ? Theme.Colors.interactiveWash : Theme.Colors.surface2, in: shape)
-            .overlay(
-                shape.strokeBorder(
-                    isSelected ? Theme.Colors.interactive : Theme.Colors.hairline,
-                    lineWidth: isSelected ? 1.5 : Theme.Metrics.edgeWidth
-                )
-            )
+            // Unselected: a plain `surface2` tile, no border. Selected: the accent stroke at
+            // `Metrics.selectedStroke` (strokeBorder, so no layout shift). Polish pass 2026-09-24.
+            .background(Theme.Colors.surface2, in: shape)
+            .overlay {
+                if isSelected {
+                    shape.strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke)
+                }
+            }
             .contentShape(shape)
-            .opacity(isEnabled ? 1 : 0.4)
         }
         .buttonStyle(.pressable(scale: 0.96))
         .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: isSelected)
@@ -1187,14 +1229,13 @@ private struct CoachVoiceCard: View {
     }
 
     private func preview(for voice: CoachVoice) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
         // The sample line is the spec §5.13 line verbatim (`CoachVoice.sampleLine`); curly quotes
         // are punctuation around it, not copy. It is `headline` (17 pt), not 15 pt italic body: the
         // coach's voice is the one moment of personality on this screen and it was set like a
         // footnote. Height is held at two lines' worth (2 x 22 + 2 x 12 = 68 -> 72) so switching
         // between a one-line and a two-line voice doesn't jolt the layout below; it still grows
         // if Dynamic Type needs a third line.
-        return Text("\u{201C}\(voice.sampleLine)\u{201D}")
+        Text("\u{201C}\(voice.sampleLine)\u{201D}")
             .font(Theme.Typography.headline)
             .foregroundStyle(Theme.Colors.text)
             .contentTransition(.opacity)
@@ -1202,8 +1243,7 @@ private struct CoachVoiceCard: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.sm)
             .frame(minHeight: 72)
-            .background(Theme.Colors.background, in: shape)
-            .overlay(shape.strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+            // No recessed box: the quote sits straight on the card (polish pass 2026-09-24).
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(voice.displayName), \(voice.sampleLine)")
     }
@@ -1215,10 +1255,10 @@ private extension CoachVoice {
     /// wherever it appears (better-ui ICO-03).
     var settingsSymbol: String {
         switch self {
-        case .hype: "megaphone.fill"
-        case .toughLove: "flame.fill"
-        case .chill: "leaf.fill"
-        case .data: "chart.bar.fill"
+        case .hype: "megaphone"
+        case .toughLove: "flame"
+        case .chill: "leaf"
+        case .data: "chart.bar"
         }
     }
 }
@@ -1226,24 +1266,12 @@ private extension CoachVoice {
 private extension NFCTagKind {
     var settingsSymbol: String {
         switch self {
-        case .sunrise: "sunrise.fill"
-        case .bottle: "drop.fill"
+        case .sunrise: "sunrise"
+        case .bottle: "drop"
         case .shaker: "fork.knife"
         case .desk: "desktopcomputer"
-        case .gymBag: "figure.strengthtraining.traditional"
+        case .gymBag: "dumbbell"
         case .custom: "wave.3.right"
-        }
-    }
-
-    /// The goal ring hue the tag's placement belongs to; `nil` (neutral) for a custom tag.
-    var settingsTint: Color? {
-        switch self {
-        case .sunrise: Theme.Colors.Ring.sunriseAlarm
-        case .bottle: Theme.Colors.Ring.water
-        case .shaker: Theme.Colors.Ring.protein
-        case .desk: Theme.Colors.Ring.focus
-        case .gymBag: Theme.Colors.Ring.workout
-        case .custom: nil
         }
     }
 }
@@ -1314,17 +1342,18 @@ private struct GymSetupDetailView: View {
             )
         }
         .confirmationDialog(
-            Copy.common.delete,
+            Copy.settings.gymDeleteConfirmTitle(name: pendingDeletion?.name ?? Copy.settings.gymUnnamedLabel),
             isPresented: Binding(
                 get: { pendingDeletion != nil },
                 set: { isPresented in if !isPresented { pendingDeletion = nil } }
             ),
+            titleVisibility: .visible,
             presenting: pendingDeletion
         ) { gym in
             Button(Copy.common.delete, role: .destructive) { delete(gym) }
             Button(Copy.common.cancel, role: .cancel) { pendingDeletion = nil }
-        } message: { gym in
-            Text(gym.name ?? Copy.settings.gymUnnamedLabel)
+        } message: { _ in
+            Text(Copy.settings.gymDeleteConfirmMessage)
         }
         .settingsErrorAlert($errorAlert)
     }
@@ -1376,10 +1405,7 @@ private struct GymSetupDetailView: View {
     private func gymCard(_ gym: Gym) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                SettingsIconBadge(
-                    systemImage: "figure.strengthtraining.traditional",
-                    tint: Theme.Colors.Ring.workout
-                )
+                SettingsIconBadge(systemImage: "dumbbell")
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(gym.name ?? Copy.settings.gymUnnamedLabel)
@@ -1458,7 +1484,7 @@ private struct GymSetupDetailView: View {
                 .foregroundStyle(Theme.Colors.muted)
                 .minTapTarget()
         }
-        .accessibilityLabel(Copy.common.delete)
+        .accessibilityLabel(Copy.common.moreOptions(for: gym.name ?? Copy.settings.gymUnnamedLabel))
     }
 
     // MARK: Persistence (unchanged)
@@ -1469,7 +1495,7 @@ private struct GymSetupDetailView: View {
             try modelContext.save()
             confirmTick += 1
         } catch {
-            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: error.localizedDescription)
+            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: Copy.settings.saveErrorMessage)
         }
     }
 
@@ -1489,7 +1515,7 @@ private struct GymSetupDetailView: View {
         do {
             try modelContext.save()
         } catch {
-            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: error.localizedDescription)
+            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: Copy.settings.saveErrorMessage)
         }
     }
 
@@ -1499,7 +1525,7 @@ private struct GymSetupDetailView: View {
         do {
             try modelContext.save()
         } catch {
-            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: error.localizedDescription)
+            errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: Copy.settings.saveErrorMessage)
         }
     }
 }
@@ -1689,7 +1715,7 @@ private struct AddGymSheet: View {
             coordinate = try await activeFetcher.fetch()
             locateSuccessTick += 1
         } catch {
-            locationErrorMessage = error.localizedDescription
+            locationErrorMessage = Copy.settings.gymLocationFailedMessage
         }
     }
 }
@@ -1925,19 +1951,20 @@ private struct NFCTagSetupDetailView: View {
             )
         }
         .confirmationDialog(
-            Copy.settings.nfcForgetTagButtonLabel,
+            Copy.settings.nfcRemoveConfirmTitle(label: pendingRemoval.map { tagDisplayName($0) } ?? Copy.settings.nfcUnnamedTagLabel),
             isPresented: Binding(
                 get: { pendingRemoval != nil },
                 set: { isPresented in if !isPresented { pendingRemoval = nil } }
             ),
+            titleVisibility: .visible,
             presenting: pendingRemoval
         ) { mapping in
             Button(Copy.settings.nfcForgetTagButtonLabel, role: .destructive) {
                 Task { await remove(mapping) }
             }
             Button(Copy.common.cancel, role: .cancel) { pendingRemoval = nil }
-        } message: { mapping in
-            Text(mapping.label)
+        } message: { _ in
+            Text(Copy.settings.nfcRemoveConfirmMessage)
         }
         .settingsErrorAlert($errorAlert)
     }
@@ -1990,7 +2017,7 @@ private struct NFCTagSetupDetailView: View {
 
     private func tagRow(_ mapping: NFCTagMapping) -> some View {
         HStack(spacing: Theme.Spacing.sm) {
-            SettingsIconBadge(systemImage: mapping.kind.settingsSymbol, tint: mapping.kind.settingsTint)
+            SettingsIconBadge(systemImage: mapping.kind.settingsSymbol)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(mapping.label)
@@ -2015,7 +2042,7 @@ private struct NFCTagSetupDetailView: View {
                     .foregroundStyle(Theme.Colors.muted)
                     .minTapTarget()
             }
-            .accessibilityLabel(Copy.settings.nfcForgetTagButtonLabel)
+            .accessibilityLabel(Copy.common.moreOptions(for: tagDisplayName(mapping)))
         }
         .padding(.leading, Theme.Spacing.md)
         .padding(.trailing, Theme.Spacing.xs)
@@ -2126,8 +2153,14 @@ private struct NFCTagSetupDetailView: View {
         } catch NFCReaderFailure.cancelled {
             // User backed out of the system sheet — not an error worth surfacing.
         } catch {
-            errorAlert = SettingsErrorAlert(title: Copy.settings.nfcScanFailedTitle, message: error.localizedDescription)
+            errorAlert = SettingsErrorAlert(title: Copy.settings.nfcScanFailedTitle, message: Copy.settings.nfcScanFailedMessage)
         }
+    }
+
+    /// A tag's own label, or "this tag" when it was saved without one.
+    private func tagDisplayName(_ mapping: NFCTagMapping) -> String {
+        let trimmed = mapping.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Copy.settings.nfcUnnamedTagLabel : trimmed
     }
 
     private func reloadMappings() async {

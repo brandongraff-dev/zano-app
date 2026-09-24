@@ -51,10 +51,10 @@ import Core
 public struct UnlockCelebrationBadge: Equatable, Sendable {
     /// Caller-resolved display title, e.g. `"Comeback"`.
     public let title: String
-    /// SF Symbol name. `"arrow.uturn.forward.circle.fill"` matches the icon
-    /// `App/ZANO/Features/Progress/ProgressView.swift`'s `ProgressBadgeIconMap` already uses for a
-    /// `"comeback"`-prefixed `Badge.key`, though any SF Symbol name is accepted for any other badge.
-    /// Prefer the un-circled variant (`"arrow.uturn.forward"`): the badge is drawn inside its own
+    /// SF Symbol name. `"arrow.uturn.forward"` matches the icon `TrophyBadgeGlyph.forKey(_:)`
+    /// (`App/ZANO/Features/Trophy/TrophyBadgeDisc.swift`) uses for a `"comeback"`-prefixed
+    /// `Badge.key`, though any SF Symbol name is accepted for any other badge. Prefer the
+    /// un-circled variant (`"arrow.uturn.forward"`): the badge is drawn inside its own
     /// capsule, so a circled glyph is a circle inside a pill.
     public let systemImage: String
 

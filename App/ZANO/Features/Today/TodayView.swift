@@ -17,7 +17,11 @@
 //   Nothing locked: one "Today's goals" group.
 // - The bottom bar only carries what a row can't: starting today's lock, finishing setup, and the
 //   live status of a running focus session or gym check-in. No duplicate CTA for a row's action.
-// - Begin-lock is a plain tap (the 2 s hold is the commitment/emergency gesture).
+// - Begin-lock is a plain tap (holds are for commitment and the 60-second emergency unlock).
+// - Red means emergency only: a running lock is cool navy/grey, never `danger`.
+// - A quick-log shows a 5-second undo toast (longer under VoiceOver). Goals that verify on their own
+//   say so in their row; honor-system goals get a "Log" with one confirmation; a gym goal with no
+//   saved gym says "Set up your gym" and goes to Settings.
 //
 // Every animation is gated on Reduce Motion; the ambient light and washes drop under Reduce
 // Transparency. User-facing strings live in `Copy.today` (`Core/Sources/Core/Copy/TodayCopy.swift`);
@@ -42,9 +46,19 @@ struct TodayView: View {
     /// shows no bottom action — the hero already says "Finish setup to start locking".
     private let onFinishSetup: (() -> Void)?
 
-    init(onOpenFuel: (() -> Void)? = nil, onFinishSetup: (() -> Void)? = nil) {
+    /// Opens gym setup (the shell switches to Settings, where the gym row lives). While `nil`, a gym
+    /// goal with no saved gym shows a read-only status instead of an action.
+    private let onOpenGymSetup: (() -> Void)?
+
+    init(
+        onOpenFuel: (() -> Void)? = nil,
+        onFinishSetup: (() -> Void)? = nil,
+        onOpenGymSetup: (() -> Void)? = nil
+    ) {
         self.onOpenFuel = onOpenFuel
         self.onFinishSetup = onFinishSetup
+        self.onOpenGymSetup = onOpenGymSetup
+        _screenTimeStatus = State(initialValue: AuthorizationCenter.shared.authorizationStatus)
     }
 
     // MARK: - Data
@@ -63,8 +77,19 @@ struct TodayView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
 
     // MARK: - Local state
+
+    /// Screen Time authorization, kept in state (the `AuthorizationCenter` value isn't observed by
+    /// SwiftUI) and refreshed after a request and whenever the scene becomes active.
+    @State private var screenTimeStatus: AuthorizationStatus
+    /// The undo toast after a quick-log. Cleared after `undoDuration` or on undo.
+    @State private var pendingUndo: QuickLogUndo?
+    /// An honor-system goal waiting on its one confirmation before it's logged.
+    @State private var confirmingLogGoal: Goal?
 
     /// Set the moment this screen starts a focus session, so its row and the status bar reflect
     /// "running" without waiting on a round trip. Cleared once a completion lands (read via
@@ -119,7 +144,8 @@ struct TodayView: View {
                 bottomBar
             }
             .navigationDestination(isPresented: $showLockDetail) {
-                LockStatusView()
+                // Pushed from Today, "Go to Today" is just the way back.
+                LockStatusView(onGoToToday: { showLockDetail = false })
             }
             .navigationDestination(isPresented: $showLockSetup) {
                 LockSetupView()
@@ -133,6 +159,28 @@ struct TodayView: View {
             .task {
                 // spec §23: "every screen view... (count only, on device → aggregate)".
                 Analytics.shared.capture(event: "screen_viewed", properties: ["screen": "today"])
+            }
+            .task(id: pendingUndo?.id) {
+                guard let undo = pendingUndo else { return }
+                try? await Task.sleep(for: .seconds(voiceOverEnabled ? 10 : 5))
+                guard !Task.isCancelled, pendingUndo?.id == undo.id else { return }
+                withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { refreshScreenTimeStatus() }
+            }
+            .confirmationDialog(
+                confirmingLogGoal.map { Copy.today.logGoalConfirmTitle(goal: $0.title) } ?? "",
+                isPresented: Binding(
+                    get: { confirmingLogGoal != nil },
+                    set: { if !$0 { confirmingLogGoal = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: confirmingLogGoal
+            ) { goal in
+                Button(Copy.today.logGoalConfirmAction) { logHonorGoal(goal) }
+            } message: { _ in
+                Text(Copy.today.logGoalConfirmMessage)
             }
             .task(id: defaultLockSet?.appTokensBlob) {
                 // Lets the screen-time report (ZANOReport) mark locked apps even when no lock runs.
@@ -264,10 +312,13 @@ struct TodayView: View {
                             endRadius: 175
                         )
                     )
-                    .frame(width: 350, height: 350)
+                    // Capped at 350 but never wider than the screen (an SE is 320 wide).
+                    .frame(maxWidth: 350, maxHeight: 350)
+                    .aspectRatio(1, contentMode: .fit)
                 heroStar
             }
-            .frame(height: 330)
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.heroStageHeight)
 
             heroNumber
 
@@ -277,22 +328,7 @@ struct TodayView: View {
                     .padding(.vertical, Theme.Spacing.xxs)
             }
 
-            HStack(spacing: Theme.Spacing.xs) {
-                Circle()
-                    .fill(heroStatusColor)
-                    .frame(width: 7, height: 7)
-                Text(heroStatusLine)
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .lineLimit(1)
-                Image(systemName: "chevron.forward")
-                    .font(Theme.Typography.icon(.xsmall))
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-            .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.vertical, 6)
-            .background(Theme.Colors.surface.opacity(0.8), in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+            ZanoStatusCapsule(dotColor: heroStatusColor, text: heroStatusLine, showsChevron: true)
 
             if let chip = bankChipText {
                 Text(chip)
@@ -358,14 +394,23 @@ struct TodayView: View {
     @ViewBuilder
     private var heroStar: some View {
         if ScreenshotMode.screen != nil {
-            ScreenTimeChargeView(summary: DemoData.screenTime, height: 124)
-        } else if AuthorizationCenter.shared.authorizationStatus == .approved {
+            ScreenTimeChargeView(summary: DemoData.screenTime, height: Self.heroMarkHeight)
+        } else if screenTimeStatus == .approved {
             DeviceActivityReport(.zanoMark, filter: Self.todayFilter)
-                .frame(height: 330)
+                .frame(height: Self.heroStageHeight)
                 .allowsHitTesting(false)
         } else {
-            ScreenTimeChargeView(height: 124)
+            ScreenTimeChargeView(height: Self.heroMarkHeight)
         }
+    }
+
+    /// The hero's stage (halo + star) and the star itself. One pair of constants for the screenshot,
+    /// no-access and on-device (report extension) paths, so all three lay out the same.
+    private static let heroStageHeight: CGFloat = 330
+    private static let heroMarkHeight: CGFloat = 124
+
+    private func refreshScreenTimeStatus() {
+        screenTimeStatus = AuthorizationCenter.shared.authorizationStatus
     }
 
     private var heroSegments: [VaultSegment] {
@@ -385,9 +430,10 @@ struct TodayView: View {
         }
     }
 
+    /// Red is reserved for emergency: a running lock is a quiet grey dot on the navy halo.
     private var heroStatusColor: Color {
         switch heroState {
-        case .locked: Theme.Colors.danger
+        case .locked: Theme.Colors.textSecondary
         case .unlocking, .unlocked: Theme.Colors.accent
         case .setup: Theme.Colors.muted
         }
@@ -648,9 +694,15 @@ struct TodayView: View {
                 : .start(label: Copy.today.actionStart)
         case .workoutGym:
             if trackingGymID != nil { return .status(Copy.today.statusDwell(minutes: gymDwellMinutes), isLive: true) }
-            return primaryGym == nil ? .status(Copy.today.statusVerifiesAtGym, isLive: false) : .start(label: Copy.today.actionGo)
-        default:
-            return .none
+            if primaryGym != nil { return .start(label: Copy.today.actionGo) }
+            return onOpenGymSetup == nil
+                ? .status(Copy.today.statusVerifiesAtGym, isLive: false)
+                : .start(label: Copy.today.actionSetUpGym)
+        case .workoutHomeOutdoor, .steps, .sleepOnTime, .sunriseAlarm:
+            // HealthKit, the step counter, the bedtime gate and the alarm verify these on their own.
+            return .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+        case .creatine, .custom, .coldShowerSauna, .reading, .stretchMobility, .mealPrep:
+            return .start(label: Copy.today.actionLog)
         }
     }
 
@@ -666,13 +718,60 @@ struct TodayView: View {
             let minutes = Int(todaysPlan(for: goal)?.plannedValue ?? goal.targetValue ?? 25)
             startFocus(goalID: goal.id, minutes: max(1, minutes))
         case .workoutGym:
-            guard let gym = primaryGym else { return }
+            guard let gym = primaryGym else {
+                Analytics.shared.capture(event: "today_set_up_gym_tapped")
+                onOpenGymSetup?()
+                return
+            }
             Analytics.shared.capture(event: "today_verify_at_gym_tapped")
             trackingGymID = gym.id
             Task { await GymVerifier.shared.beginDwellTracking(gymID: gym.id) }
-        default:
+        case .creatine:
+            // One tap, like the Control Center control that calls the same intent.
+            logCreatine()
+        case .custom, .coldShowerSauna, .reading, .stretchMobility, .mealPrep:
+            // Honor-system goals: one confirmation is the friction before the log.
+            confirmingLogGoal = goal
+        case .workoutHomeOutdoor, .steps, .sleepOnTime, .sunriseAlarm:
             break
         }
+    }
+
+    private func logCreatine() {
+        Analytics.shared.capture(event: "today_log_creatine_tapped")
+        isPerformingAction = true
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                _ = try await LogCreatineIntent(source: .manual).perform()
+            } catch {
+                showError(Copy.today.logFailedTitle)
+            }
+        }
+    }
+
+    /// `LogCustomGoalIntent` records a verified completion for the goal (spec's Tier C: honesty
+    /// with friction; the confirmation dialog is the friction).
+    private func logHonorGoal(_ goal: Goal) {
+        confirmingLogGoal = nil
+        Analytics.shared.capture(event: "today_log_honor_goal_tapped", properties: ["goal_type": goal.type.rawValue])
+        isPerformingAction = true
+        let entity = GoalEntity(id: goal.id, title: goal.title)
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                _ = try await LogCustomGoalIntent(goal: entity).perform()
+            } catch {
+                showError(Copy.today.logFailedTitle)
+            }
+        }
+    }
+
+    /// Shows `message` in the bottom bar and announces it to VoiceOver (an error line that appears
+    /// silently is missed by anyone not looking at the bottom of the screen).
+    private func showError(_ message: String) {
+        actionError = message
+        AccessibilityNotification.Announcement(message).post()
     }
 
     /// Logs through the same App Intents the widgets, Siri and NFC tags use (CLAUDE.md: every user
@@ -683,6 +782,7 @@ struct TodayView: View {
             properties: ["goal_type": goalType.rawValue, "amount": amount]
         )
         isPerformingAction = true
+        let startedAt = Date.now
         Task {
             defer { isPerformingAction = false }
             do {
@@ -700,9 +800,45 @@ struct TodayView: View {
                 default:
                     return
                 }
+                offerUndo(goalType: goalType, amount: amount, since: startedAt)
             } catch {
-                actionError = Copy.today.logFailedTitle
+                showError(Copy.today.logFailedTitle)
             }
+        }
+    }
+
+    /// Finds the event the intent just wrote (it saves through its own context on the same store)
+    /// and offers to remove it. No toast if it can't be found: an undo that can't undo is worse.
+    private func offerUndo(goalType: GoalType, amount: Double, since startedAt: Date) {
+        guard let goal = activeGoals.first(where: { $0.type == goalType }) else { return }
+        let goalID = goal.id
+        let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.ts >= startedAt })
+        let recent = (try? modelContext.fetch(descriptor)) ?? []
+        guard let event = recent
+            .filter({ $0.goal?.id == goalID && $0.value == amount && $0.source == .manual })
+            .max(by: { $0.ts < $1.ts })
+        else { return }
+        let unit = goalType == .water ? "ml" : "g"
+        let message = Copy.today.quickLogConfirmation(Int(amount), unit: unit, goal: goal.title)
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+            pendingUndo = QuickLogUndo(eventID: event.id, message: message)
+        }
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    private func undo(_ undo: QuickLogUndo) {
+        let eventID = undo.eventID
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
+        Analytics.shared.capture(event: "today_quick_log_undone")
+        do {
+            let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.id == eventID })
+            for event in try modelContext.fetch(descriptor) {
+                modelContext.delete(event)
+            }
+            try modelContext.save()
+            AccessibilityNotification.Announcement(Copy.today.undoDone).post()
+        } catch {
+            showError(Copy.today.undoFailed)
         }
     }
 
@@ -715,7 +851,7 @@ struct TodayView: View {
                 _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: minutes)
                 runningFocusGoalID = goalID
             } catch {
-                actionError = error.localizedDescription
+                showError(Copy.today.focusStartFailed)
             }
         }
     }
@@ -741,7 +877,7 @@ struct TodayView: View {
     private var screenTimeContent: some View {
         if ScreenshotMode.screen != nil {
             ScreenTimeSummaryView(summary: DemoData.screenTime)
-        } else if AuthorizationCenter.shared.authorizationStatus == .approved {
+        } else if screenTimeStatus == .approved {
             DeviceActivityReport(.zanoToday, filter: Self.todayFilter)
                 .frame(height: 660)
         } else {
@@ -773,7 +909,10 @@ struct TodayView: View {
                 }
             }
             PrimaryButton(title: Copy.screenTime.accessButton, style: .secondary) {
-                Task { try? await AuthorizationCenter.shared.requestAuthorization(for: .individual) }
+                Task {
+                    try? await AuthorizationCenter.shared.requestAuthorization(for: .individual)
+                    refreshScreenTimeStatus()
+                }
             }
         }
         .padding(Theme.Spacing.md)
@@ -853,18 +992,24 @@ struct TodayView: View {
 
     @ViewBuilder
     private var bottomBar: some View {
-        if barState != .none || actionError != nil {
-            StickyActionBar {
+        if barState != .none || actionError != nil || pendingUndo != nil {
+            StickyActionBar(extendsToBottomEdge: false) {
                 VStack(spacing: Theme.Spacing.xs) {
+                    if let pendingUndo {
+                        UndoToast(message: pendingUndo.message) { undo(pendingUndo) }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                     if let actionError {
                         Text(actionError)
                             .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.danger)
+                            // `warning`, not `danger`: red is reserved for emergency.
+                            .foregroundStyle(Theme.Colors.warning)
                             .multilineTextAlignment(.center)
                     }
                     barControl
                 }
                 .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: barState)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: pendingUndo)
             }
         }
     }
@@ -914,7 +1059,7 @@ struct TodayView: View {
                     trigger: .manual
                 )
             } catch {
-                actionError = error.localizedDescription
+                showError(Copy.today.lockStartFailed)
             }
         }
     }
@@ -1052,6 +1197,11 @@ func goalIconName(for type: GoalType) -> String {
 /// A goal's progress for today, shared by Today and Lock. A goal with no numeric target (e.g. a
 /// dwell-based workout with no `targetValue`/`plannedValue`) is binary: done once a `.complete`,
 /// `.verify`, or `.planB` (spec §8 Plan B days still count as done) event lands today.
+///
+/// A numeric goal is done when its logged amount reaches the target, or on a `.complete`/`.planB`
+/// event, or a `.verify` that carries no amount. A `.verify` *with* an amount is a log (protein and
+/// water intents write `.verify` + grams/ml), so one +25g no longer marks a 150g goal done.
+/// Unverified logs (a duplicate NFC tap, marked not counted) don't add to the total.
 struct GoalDayProgress {
     /// `0...1`.
     let fraction: Double
@@ -1066,9 +1216,8 @@ struct GoalDayProgress {
     var hasStarted: Bool { fraction > 0 }
 
     init(goal: Goal, todaysEvents events: [GoalEvent], plannedValue: Double?) {
-        let hasCompletion = events.contains { [.complete, .verify, .planB].contains($0.kind) }
-
         guard let targetValue = plannedValue ?? goal.targetValue, targetValue > 0 else {
+            let hasCompletion = events.contains { [.complete, .verify, .planB].contains($0.kind) }
             fraction = hasCompletion ? 1 : 0
             current = nil
             target = nil
@@ -1076,7 +1225,13 @@ struct GoalDayProgress {
             return
         }
 
-        let logged = events.compactMap(\.value).reduce(0, +)
+        let hasCompletion = events.contains {
+            $0.kind == .complete || $0.kind == .planB || ($0.kind == .verify && $0.value == nil)
+        }
+        let logged = events
+            .filter { !($0.kind == .verify && !$0.verified) }
+            .compactMap(\.value)
+            .reduce(0, +)
         let targetInt = Int(targetValue.rounded())
         let loggedInt = Int(logged.rounded())
         fraction = hasCompletion ? 1 : min(1, logged / targetValue)
@@ -1254,6 +1409,13 @@ private struct TodayStatusRow: View {
         }
         .accessibilityElement(children: .combine)
     }
+}
+
+/// The pending undo for the last quick-log.
+private struct QuickLogUndo: Identifiable, Equatable {
+    let id = UUID()
+    let eventID: UUID
+    let message: String
 }
 
 #Preview {

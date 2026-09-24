@@ -25,6 +25,8 @@ extension Copy {
 
         public static let emptyGoalsTitle = "No fuel goals yet"
         public static let emptyGoalsMessage = "Add a protein or water goal to start logging here."
+        /// The empty state's one action: opens the goals editor.
+        public static let addGoalButton = "Add a goal"
         /// Empty-states pass 2026-09-24: the ways to log that this screen fills with once a goal
         /// exists, shown as a quiet preview under the empty rings.
         public static let emptyGoalsPreviewTitle = "Log it your way"
@@ -36,24 +38,51 @@ extension Copy {
         public static func customAmountSheetTitle(goalLabel: String) -> String { "Log \(goalLabel)" }
         public static let amountFieldLabel = "Amount"
 
-        // Protein Gap Planner (spec §5.20)
-        public static let gapPlannerTitle = "Protein Gap Planner"
+        // Units. "25 g", "500 mL": a space before the unit, and SI's capital L.
+        public static let gramsUnit = "g"
+        public static let millilitersUnit = "mL"
+        public static func grams(_ grams: Int) -> String { "\(grams) g" }
+        public static func milliliters(_ milliliters: Int) -> String { "\(milliliters) mL" }
+
+        /// VoiceOver for a quick-add chip: "Log 25 g of protein" / "Log 500 mL of water".
+        public static func quickAddProteinAccessibilityLabel(grams: Int) -> String {
+            "Log \(Self.grams(grams)) of protein"
+        }
+        public static func quickAddWaterAccessibilityLabel(milliliters: Int) -> String {
+            "Log \(Self.milliliters(milliliters)) of water"
+        }
+        /// VoiceOver value for a metric card: "72 of 150 g" (or "72 g" with no target yet).
+        public static func metricAccessibilityValue(current: Int, target: Int?, unit: String) -> String {
+            guard let target else { return "\(current) \(unit)" }
+            return "\(current) of \(target) \(unit)"
+        }
+
+        // Undo toast after a quick-add.
+        public static func undoToastProteinMessage(grams: Int) -> String { "Logged \(Self.grams(grams)) of protein" }
+        public static func undoToastWaterMessage(milliliters: Int) -> String { "Logged \(Self.milliliters(milliliters)) of water" }
+        public static let undoButtonLabel = "Undo"
+        public static let undoFailedTitle = "Couldn't undo that"
+        public static let undoFailedMessage = "It's still logged. You can try again from the goal's history."
+
+        // Protein gap planner (spec §5.20)
+        public static let gapPlannerTitle = "Protein gap planner"
         /// Additive framing (spec §24 disordered-eating-safe copy): grams still to reach, never a
         /// deficit word like "behind".
-        public static func gapPlannerSubtitle(gapGrams: Int) -> String { "\(gapGrams)g to go today" }
+        public static func gapPlannerSubtitle(gapGrams: Int) -> String { "\(grams(gapGrams)) to go today" }
         public static let gapOptionStapleTitle = "From your kitchen"
         public static let gapOptionRestaurantTitle = "Nearby restaurant"
         public static let gapOptionRestaurantDetail = "Find something high-protein close by"
         public static let gapOptionSnackTitle = "Quick snack"
 
-        // Quick Repeat (spec §5.19)
-        public static let quickRepeatSectionTitle = "Quick Repeat"
+        // Quick repeat (spec §5.19)
+        public static let quickRepeatSectionTitle = "Quick repeat"
         public static let quickRepeatEmptyMealLabel = "your usual meal"
         public static func quickRepeatPrompt(label: String, grams: Int) -> String {
-            "Your usual \(label) (\(grams)g)?"
+            "Your usual \(label) (\(Self.grams(grams)))?"
         }
 
         public static let logFailedTitle = "Couldn't log that"
+        public static let logFailedMessage = "Nothing was logged. Try again in a moment."
 
         // Barcode scan (VisionKit DataScannerViewController)
         public static let barcodeScanButtonLabel = "Scan barcode"
@@ -64,12 +93,12 @@ extension Copy {
         public static let barcodeManualEntrySubmitLabel = "Look up"
         public static let barcodeUnavailableMessage = "Barcode scanning isn't available on this device."
         public static let barcodeUnknownProductLabel = "Scanned item"
-        public static func barcodeResultProteinLabel(grams: Int) -> String { "\(grams)g protein per serving" }
+        public static func barcodeResultProteinLabel(grams: Int) -> String { "\(Self.grams(grams)) protein per serving" }
         public static func barcodeServingPromptTitle(productName: String) -> String {
             "How much \(productName) are you having?"
         }
         public static let barcodeServingGramsFieldLabel = "Grams"
-        public static func barcodeServingProteinPreview(grams: Int) -> String { "≈ \(grams)g protein" }
+        public static func barcodeServingProteinPreview(grams: Int) -> String { "≈ \(Self.grams(grams)) protein" }
         public static let barcodeLogButtonLabel = "Log this"
         public static let barcodeRetryButtonLabel = "Try again"
         public static let barcodeErrorInvalidBarcode = "That doesn't look like a valid barcode."
@@ -89,5 +118,12 @@ extension Copy {
         public static let kitchenStapleNameFieldLabel = "Name"
         public static let kitchenStapleProteinFieldLabel = "Protein (g)"
         public static let kitchenStapleSaveFailedTitle = "Couldn't save that staple"
+        public static let kitchenStapleSaveFailedMessage = "Nothing changed. Try again in a moment."
+        /// VoiceOver for a staple row: "Greek yogurt, 15 g protein".
+        public static func kitchenStapleAccessibilityLabel(name: String, grams: Int) -> String {
+            "\(name), \(Self.grams(grams)) protein"
+        }
+        /// The staple row's "…" menu, named for the staple it acts on.
+        public static func kitchenStapleMoreOptionsLabel(name: String) -> String { "More options for \(name)" }
     }
 }

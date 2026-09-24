@@ -62,15 +62,19 @@
 //   * Snooze is a real 44pt control instead of 17pt grey text (better-layout HIT-02 / 3.2).
 //   * The escape hatch is a pinned 56pt danger capsule with a progress fill whose label inverts
 //     under the fill (so it stays legible as the fill sweeps, better-ui BRK-02), with the "I'm not
-//     home" toggle above it (better-layout 1.10). Only one ring is on screen now, so the task and
+//     home" toggle beside it (better-layout 1.10). Only one ring is on screen now, so the task and
 //     the way out no longer compete at equal size.
 //   * `ProgressView()` is qualified as `SwiftUI.ProgressView()`: the app declares its own
 //     `ProgressView` screen type, so the bare name mounted the whole Progress tab in the spinner slot
 //     (better-ui BRK-01).
 //
-// Copy: every string is an existing `Copy.alarmRinging.*` / `SunriseAlarmCopy.*` key. Numbers
-// ("12", "/40", "3:00", "60s") are formatted here the same way the previous version formatted them.
-// No new keys were added because `Core/Sources/Core/Copy` is outside this file list.
+//   * Polish pass (2026-09-24): the escape dock was ~30% of the screen. The "I'm not home" toggle
+//     now sits beside the hold bar in one row, the explanation is a one-line footnote (the full
+//     text stays on the hold bar as its VoiceOver hint), and the dock's top padding is tighter.
+//
+// Copy: every string is a `Copy.alarmRinging.*` / `SunriseAlarmCopy.*` key. Numbers ("12", "/40",
+// "3:00") are formatted here the same way the previous version formatted them. Errors show fixed
+// Copy strings, never `error.localizedDescription`.
 
 import SwiftUI
 import Core
@@ -255,7 +259,7 @@ struct AlarmRingingView: View {
     private var phaseChip: some View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: phase.symbol)
-                .font(.system(size: 13, weight: .bold))
+                .font(Theme.Typography.icon(.small, weight: .bold))
             // Sentence case, no tracking (premium pass 2026-09-24: no all-caps labels).
             Text(eyebrowText)
                 .font(Theme.Typography.captionEmphasized)
@@ -328,16 +332,17 @@ struct AlarmRingingView: View {
         let tint = Theme.Colors.Ring.sunriseAlarm
         return ZStack {
             Circle()
-                .strokeBorder(tint.opacity(0.10), lineWidth: 1)
+                .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
                 .frame(width: AlarmMetrics.glyphOuterRing, height: AlarmMetrics.glyphOuterRing)
             Circle()
-                .strokeBorder(tint.opacity(0.20), lineWidth: 1)
+                .strokeBorder(Theme.Colors.wash(tint), lineWidth: Theme.Metrics.edgeWidth)
                 .frame(width: AlarmMetrics.glyphInnerRing, height: AlarmMetrics.glyphInnerRing)
             Circle()
-                .fill(tint.opacity(0.14))
+                .fill(Theme.Colors.wash(tint))
                 .frame(width: AlarmMetrics.glyphDisc, height: AlarmMetrics.glyphDisc)
             Image(systemName: "wave.3.right")
-                .font(.system(size: 28, weight: .semibold))
+                .font(Theme.Typography.icon(.large))
+                .imageScale(.large)
                 .foregroundStyle(tint)
                 .symbolEffect(.variableColor.iterative, options: .repeating, isActive: !reduceMotion)
         }
@@ -397,10 +402,11 @@ struct AlarmRingingView: View {
         VStack(spacing: Theme.Spacing.md) {
             ZStack {
                 Circle()
-                    .fill(Theme.Colors.Ring.sunriseAlarm.opacity(0.14))
+                    .fill(Theme.Colors.wash(Theme.Colors.Ring.sunriseAlarm))
                     .frame(width: AlarmMetrics.glyphDisc, height: AlarmMetrics.glyphDisc)
-                Image(systemName: "person.3.fill")
-                    .font(.system(size: 26, weight: .semibold))
+                Image(systemName: "person.3")
+                    .font(Theme.Typography.icon(.large))
+                    .imageScale(.large)
                     .foregroundStyle(Theme.Colors.Ring.sunriseAlarm)
             }
             .accessibilityHidden(true)
@@ -448,11 +454,11 @@ struct AlarmRingingView: View {
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)
                 .padding(.horizontal, Theme.Spacing.lg)
-                .frame(minHeight: AlarmMetrics.minTapTarget)
+                .frame(minHeight: Theme.Metrics.minTapTarget)
                 .background(Theme.Colors.surface2, in: Capsule())
                 .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
             }
-            .buttonStyle(AlarmPressStyle())
+            .buttonStyle(.pressable(scale: 0.96))
         } else {
             Text(Copy.alarmRinging.snoozeUsedLabel)
                 .font(Theme.Typography.caption)
@@ -464,22 +470,33 @@ struct AlarmRingingView: View {
     // MARK: - Escape hatch (spec §5.10 point 6, §24 — see file header for the toggle+hold design)
 
     private var escapeDock: some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            // The toggle changes what completing the hold means, so it sits *above* the control it
-            // configures (docs/design/better-layout-findings.md 1.10).
-            Toggle(Copy.alarmRinging.imNotHomeToggleLabel, isOn: $isNotHome)
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.text)
-                .tint(Theme.Colors.warning)
-                .frame(minHeight: AlarmMetrics.minTapTarget)
+        VStack(spacing: Theme.Spacing.xs) {
+            // One row: the hold bar, and beside it the toggle that changes what completing the hold
+            // means (docs/design/better-layout-findings.md 1.10 — still adjacent, now side by side).
+            HStack(spacing: Theme.Spacing.sm) {
+                escapeHatchHoldControl
 
-            escapeHatchHoldControl
+                VStack(spacing: Theme.Spacing.xxs) {
+                    Toggle(Copy.alarmRinging.imNotHomeToggleLabel, isOn: $isNotHome)
+                        .labelsHidden()
+                        .tint(Theme.Colors.warning)
+                    // The toggle's own accessibility label carries this; the caption is visual only.
+                    Text(Copy.alarmRinging.imNotHomeToggleLabel)
+                        .font(Theme.Typography.captionEmphasized)
+                        .foregroundStyle(Theme.Colors.text)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .accessibilityHidden(true)
+                }
+            }
 
-            Text(Copy.alarmRinging.escapeHatchHoldHint)
+            // One line on screen; the full explanation is the hold bar's VoiceOver hint.
+            Text(Copy.alarmRinging.escapeHatchFootnote)
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity)
 
             if let escapeError {
                 Text(escapeError)
@@ -489,7 +506,8 @@ struct AlarmRingingView: View {
             }
         }
         .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.sm)
+        .padding(.top, Theme.Spacing.xs)
+        .padding(.bottom, Theme.Spacing.sm)
         .frame(maxWidth: .infinity)
         .background {
             // Opaque, with a fade above it: at 94% the scrolled content read through the dock as
@@ -509,7 +527,7 @@ struct AlarmRingingView: View {
         }
     }
 
-    /// A 56pt danger capsule that fills left-to-right as the 60-second hold progresses. Danger, not
+    /// A 56pt danger capsule (sharing its row with the "I'm not home" toggle) that fills left-to-right as the 60-second hold progresses. Danger, not
     /// accent: accent means "earned", and this exit costs the morning goal. The label is drawn
     /// twice — light underneath, dark on top masked to the fill's width — so each glyph flips
     /// colour exactly where the fill crosses it and never sits light-on-red (3.1:1) mid-hold.
@@ -572,8 +590,10 @@ struct AlarmRingingView: View {
     private func escapeHatchBarLabel(foreground: Color) -> some View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 15, weight: .semibold))
+                .font(Theme.Typography.icon(.medium))
 
+            // The idle label is long for a bar that shares its row, so it may shrink a little;
+            // the "hold 60 seconds" duration lives in the footnote under the row.
             Text(
                 isHoldingEscapeHatch
                     ? SunriseAlarmCopy.escapeHatchHolding(secondsRemaining: escapeHatchRemainingSeconds)
@@ -581,13 +601,9 @@ struct AlarmRingingView: View {
             )
             .font(Theme.Typography.headline)
             .lineLimit(1)
+            .minimumScaleFactor(0.7)
 
-            Spacer(minLength: Theme.Spacing.sm)
-
-            if !isHoldingEscapeHatch {
-                Text(escapeHatchSecondsLabel)
-                    .font(Theme.Typography.numeralSmall())
-            }
+            Spacer(minLength: 0)
         }
         .foregroundStyle(foreground)
         .padding(.horizontal, Theme.Spacing.md)
@@ -596,10 +612,6 @@ struct AlarmRingingView: View {
 
     private var escapeHatchRemainingSeconds: Int {
         Int((EmergencyUnlock.holdDuration * (1 - holdProgress)).rounded(.up))
-    }
-
-    private var escapeHatchSecondsLabel: String {
-        "\(escapeHatchRemainingSeconds)s"
     }
 
     // MARK: - Clock / pulse loops
@@ -659,7 +671,7 @@ struct AlarmRingingView: View {
             try await action()
         } catch {
             didDismiss = false
-            dismissError = error.localizedDescription
+            dismissError = Copy.alarmRinging.dismissErrorText
         }
     }
 
@@ -701,7 +713,7 @@ struct AlarmRingingView: View {
                 isScanningTag = false
             } catch {
                 isScanningTag = false
-                dismissError = error.localizedDescription
+                dismissError = Copy.alarmRinging.tagScanErrorText
             }
         }
     }
@@ -732,7 +744,7 @@ struct AlarmRingingView: View {
             do {
                 _ = try await manager.snooze()
             } catch {
-                dismissError = error.localizedDescription
+                dismissError = Copy.alarmRinging.snoozeErrorText
             }
         }
     }
@@ -788,7 +800,7 @@ struct AlarmRingingView: View {
         do {
             try await manager.triggerEscapeHatch(reason: isNotHome ? .imNotHome : .other)
         } catch {
-            escapeError = error.localizedDescription
+            escapeError = Copy.alarmRinging.escapeHatchErrorText
             // Same gate as `endEscapeHatchHold()` above — see that call's comment.
             withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
                 holdProgress = 0
@@ -850,8 +862,6 @@ private enum RingingPhase: Sendable, Equatable {
 // before `Theme.Colors.hairline` / `zanoCard` existed were removed).
 
 private enum AlarmMetrics {
-    /// HIG minimum hit target.
-    static let minTapTarget: CGFloat = Theme.Metrics.minTapTarget
     /// Height of the pinned escape-hatch capsule.
     static let holdBarHeight: CGFloat = 56
     /// Reserve for the loading state so the card doesn't pop in from nothing.
@@ -900,23 +910,6 @@ private struct AlarmDial: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(Text(accessibilityValue))
-    }
-}
-
-/// Press feedback for the alarm's secondary controls (snooze). Same numbers as
-/// `PrimaryButton`'s standard press (fast spring, 0.97) and the same Reduce Motion rule: keep the
-/// opacity dip (it is real information — "the interface heard you") but drop the scale and settle.
-private struct AlarmPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.1) : .spring(response: 0.16, dampingFraction: 0.75),
-                value: configuration.isPressed
-            )
     }
 }
 

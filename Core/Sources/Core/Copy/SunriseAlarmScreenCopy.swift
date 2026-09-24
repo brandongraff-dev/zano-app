@@ -37,9 +37,13 @@ extension Copy {
         public static let tagScanButtonLabel = "Scan Sunrise Tag"
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
         // While the alarm is ringing, never tell a half-asleep user to add a new tag: the only
-        // useful instruction is to find the one they already set up.
-        public static let tagScanNoMatchMessage = "This isn't your Sunrise Tag. Find the one you set up."
-        public static let wrongTagErrorText = "That's a different ZANO tag — find your Sunrise Tag instead."
+        // useful instruction is to find the one they already set up. One sentence for both the
+        // scan sheet's no-match message and the wrong-tag error, so the two never disagree.
+        public static let wrongTagErrorText = "That's a different tag. Scan your Sunrise Tag to turn off the alarm."
+        public static let tagScanNoMatchMessage = wrongTagErrorText
+        public static let tagScanErrorText = "Couldn't read the tag. Try again."
+        public static let dismissErrorText = "Couldn't turn off the alarm. Try again."
+        public static let snoozeErrorText = "Couldn't snooze. Try again."
 
         // Steps
         public static func stepsPromptLabel(target: Int) -> String {
@@ -62,9 +66,12 @@ extension Copy {
 
         // Escape hatch — spec §5.10 point 6 / §24, voice-invariant. Reuses SunriseAlarmCopy's
         // escape-hatch/standard-alarm strings directly rather than re-authoring the same promise.
-        public static let escapeHatchSectionLabel = "Emergency"
+        public static let escapeHatchSectionLabel = "Emergency: turn off without verifying"
         public static let escapeHatchHoldLabel = "Hold to turn off the alarm without verifying your morning goal"
         public static let escapeHatchHoldHint = SunriseAlarmCopy.escapeHatchExplanation
+        /// The one-line version under the hold bar; `escapeHatchHoldHint` is the full text (VoiceOver).
+        public static let escapeHatchFootnote = "Hold 60 seconds. Your morning goal won't count."
+        public static let escapeHatchErrorText = "Couldn't turn off the alarm. Hold again."
         public static let imNotHomeToggleLabel = SunriseAlarmCopy.escapeHatchLabel
         public static let standardAlarmFootnote = SunriseAlarmCopy.standardAlarmReminder
     }
@@ -77,6 +84,7 @@ extension Copy {
         public static let screenTitle = "Sunrise Alarm"
         public static let saveButtonLabel = "Save"
         public static let saveErrorTitle = "Couldn't save"
+        public static let saveErrorMessage = "Your alarm settings weren't saved. Try again."
 
         // Wake time
         public static let wakeTimeSectionHeader = "Wake time"
@@ -120,6 +128,8 @@ extension Copy {
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
         public static let tagScanNoMatchMessage = "That tag isn't added yet. Scan it again to add it."
         public static let tagScanErrorTitle = "Couldn't read tag"
+        public static let tagScanErrorMessage = "Couldn't read the tag. Hold your phone still near it and try again."
+        public static let tagReaderUnavailableText = "This iPhone can't read tags."
         public static let tagPlacementHeader =
             "Put it somewhere you have to get up for — bathroom mirror, kitchen, coffee machine."
         public static let tagBackgroundReadHeader = "Turn it off without opening ZANO"
@@ -139,7 +149,8 @@ extension Copy {
         public static let focusSectionHeader = "Wake-up timer"
         public static let focusHelperText = "A 3-minute timer you have to stay in the app for."
 
-        // Squad
+        // Squad (the Squad dismiss method is hidden in setup until squads exist; kept for the
+        // ringing screen and for when it returns)
         public static let squadSectionHeader = "Squad"
         public static let squadPickerLabel = "Notify"
         public static let squadNoneOption = "None"
@@ -166,6 +177,7 @@ extension Copy {
         public static let screenTitle = "Bedtime Gate"
         public static let saveButtonLabel = "Save"
         public static let saveErrorTitle = "Couldn't save"
+        public static let saveErrorMessage = "Your bedtime settings weren't saved. Try again."
 
         public static let bedtimeSectionHeader = "Bedtime"
         public static let bedtimeLabel = "Lock at"

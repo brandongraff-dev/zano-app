@@ -113,8 +113,10 @@ extension Copy {
         public static let storyGoalsEmptyHeadline = "Next week starts fresh."
         public static let storyGoalsEmptyCaption = "Pick one goal and earn your first unlock."
         public static func storyStreakLine(days: Int) -> String { "\(days)-day streak" }
-        public static func storyRankUpLine(places: Int) -> String {
-            "Up \(places) \(places == 1 ? "place" : "places")"
+        /// "Up 2 ranks": the same words Progress uses (`Copy.progress.rankMovementLabel`), so rank
+        /// movement reads one way everywhere.
+        public static func storyRankUpLine(ranks: Int) -> String {
+            Copy.progress.rankMovementLabel(delta: ranks)
         }
 
         // Page 4: best day and the goal that pushed back hardest.
@@ -136,6 +138,13 @@ extension Copy {
         // Page 6: the share card.
         public static let storyShareEyebrow = "Share your week"
         public static let storyShareHeadline = "Ready to post."
+
+        /// The story's pause/play control (beside Close). Auto-advance is also off entirely for
+        /// VoiceOver, Switch Control, Reduce Motion and accessibility text sizes.
+        public static let storyPauseLabel = "Pause"
+        public static let storyPlayLabel = "Play"
+        /// VoiceOver hint on the story, which is one adjustable element.
+        public static let storyPageAccessibilityHint = "Swipe up or down to change page"
 
         /// VoiceOver value for the story, e.g. "Page 2 of 6".
         public static func storyPageAccessibilityValue(page: Int, total: Int) -> String {

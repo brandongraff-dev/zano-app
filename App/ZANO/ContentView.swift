@@ -52,7 +52,7 @@ struct ContentView: View {
                 // EntitlementGate releases any active lock before this shows, but best-effort; if a
                 // lock is still on, the emergency hold sits above the paywall (spec §21: a billing
                 // state never traps anyone). Draws nothing without an active lock.
-                PaywallView(flowState: OnboardingFlowState())
+                PaywallView(flowState: OnboardingFlowState(), context: .lapsed)
                     .safeAreaInset(edge: .top, spacing: 0) {
                         PaywallLockEscape()
                     }

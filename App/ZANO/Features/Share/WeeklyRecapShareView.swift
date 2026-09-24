@@ -12,9 +12,11 @@
 // & toughest goal → the week's rings → the share card. Top progress segments, 4s auto-advance,
 // tap left third = back / elsewhere = forward, swipe, hold to pause. Pages live in
 // `RecapStoryPages.swift`; this file owns the pager, the timer and the share/export logic, which is
-// unchanged. Auto-advance is off under VoiceOver (the story is one adjustable element instead) and
-// for CI screenshot launches (`ScreenshotMode.screen != nil`), so a screenshot always sees a
-// complete first page. The init is unchanged; no caller edits needed.
+// unchanged. Auto-advance is off under VoiceOver (the story is one adjustable element instead),
+// Switch Control, Reduce Motion and accessibility text sizes (a page someone is reading slowly must
+// not turn itself), and for CI screenshot launches (`ScreenshotMode.screen != nil`), so a screenshot
+// always sees a complete first page. A visible pause/play control sits beside Close. The init is
+// unchanged; no caller edits needed.
 //   - "Toughest day": `RecapStats` has only `bestDay`, no per-weekday data, so page 4 pairs the best
 //     day with the *goal* that pushed back hardest (lowest unclosed ring) rather than inventing a
 //     worst day. Pages with nothing honest to show are skipped.
@@ -103,6 +105,10 @@ public struct WeeklyRecapShareView: View {
     @State private var segmentProgress: Double = 0
     /// True while a finger is down on the story: auto-advance pauses, like any stories UI.
     @State private var isHolding = false
+    /// Paused with the visible pause/play control (a hold only pauses while held).
+    @State private var isPaused = false
+    /// Bumped on each pause/play toggle; drives a `.selection` haptic.
+    @State private var pauseToggleTick = 0
     @State private var pressStart: Date?
     /// Direction of the last page change, for the insertion edge.
     @State private var movingForward = true
@@ -120,6 +126,8 @@ public struct WeeklyRecapShareView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControlEnabled
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// - Parameters:
     ///   - recap: The week's `Recap`, typically the same instance a `@Query(sort: \Recap.weekStart,
@@ -156,7 +164,7 @@ public struct WeeklyRecapShareView: View {
                 StoryProgressSegments(
                     count: pages.count,
                     index: index,
-                    progress: autoAdvances && index < pages.count - 1 ? segmentProgress : 1
+                    progress: canAutoAdvance && index < pages.count - 1 ? segmentProgress : 1
                 )
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.top, Theme.Spacing.xs)
@@ -164,6 +172,14 @@ public struct WeeklyRecapShareView: View {
                 ShareMomentHeader(
                     title: nil,
                     dismissLabel: Copy.share.dismissButtonTitle,
+                    playback: canAutoAdvance && index < pages.count - 1
+                        ? ShareMomentHeader.Playback(
+                            isPaused: isPaused,
+                            pauseLabel: Copy.share.storyPauseLabel,
+                            playLabel: Copy.share.storyPlayLabel,
+                            onToggle: { isPaused.toggle(); pauseToggleTick += 1 }
+                        )
+                        : nil,
                     onDismiss: onDismiss
                 )
 
@@ -179,6 +195,7 @@ public struct WeeklyRecapShareView: View {
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityValue(Copy.share.storyPageAccessibilityValue(page: index + 1, total: pages.count))
+                .accessibilityHint(Copy.share.storyPageAccessibilityHint)
                 .accessibilityAdjustableAction { direction in
                     switch direction {
                     case .increment: go(to: index + 1, pageCount: pages.count)
@@ -199,6 +216,7 @@ public struct WeeklyRecapShareView: View {
         .task(id: index) {
             await runPageTimer(pageCount: pages.count)
         }
+        .sensoryFeedback(.selection, trigger: pauseToggleTick)
         .task(id: renderAttempt) {
             guard renderedImage == nil else { return }
             shareRenderFailed = false
@@ -221,10 +239,21 @@ public struct WeeklyRecapShareView: View {
 
     // MARK: - Story
 
-    /// Auto-advance is off for VoiceOver users (they page with swipe up/down on the adjustable
-    /// element) and for CI screenshot launches, which must capture a complete first page.
+    /// Whether the story may turn its own pages at all. Off for VoiceOver users (they page with
+    /// swipe up/down on the adjustable element), Switch Control users (a timed page fights a scan
+    /// cycle), Reduce Motion, accessibility text sizes (slower reading), and CI screenshot launches,
+    /// which must capture a complete first page.
+    private var canAutoAdvance: Bool {
+        !voiceOverEnabled
+            && !switchControlEnabled
+            && !reduceMotion
+            && !dynamicTypeSize.isAccessibilitySize
+            && ScreenshotMode.screen == nil
+    }
+
+    /// Auto-advance is running: allowed, and not paused with the pause control.
     private var autoAdvances: Bool {
-        !voiceOverEnabled && ScreenshotMode.screen == nil
+        canAutoAdvance && !isPaused
     }
 
     /// Pages with nothing honest to show are skipped (no best day and no goal to compare; no rings).
@@ -291,11 +320,12 @@ public struct WeeklyRecapShareView: View {
 
     private func runPageTimer(pageCount: Int) async {
         segmentProgress = 0
-        guard autoAdvances, pageIndex < pageCount - 1 else { return }
+        guard canAutoAdvance, pageIndex < pageCount - 1 else { return }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(Int(Self.tick * 1000)))
             guard !Task.isCancelled else { return }
-            if isHolding { continue }
+            // Paused keeps the segment where it stopped; play resumes from there.
+            if isHolding || isPaused { continue }
             segmentProgress = min(1, segmentProgress + Self.tick / Self.pageDuration)
             if segmentProgress >= 1 {
                 go(to: pageIndex + 1, pageCount: pageCount)
@@ -410,7 +440,7 @@ public struct WeeklyRecapShareView: View {
         )
         return RecapPoster(
             title: Copy.share.weeklyRecapTitle(weekNumber: weekNumber, rankTierLabel: rankTierLabel),
-            heroValue: hasReclaimedTime ? formatDuration(minutes: minutes) : goalsLabel,
+            heroValue: hasReclaimedTime ? Copy.progress.duration(minutes: minutes) : goalsLabel,
             heroCaption: hasReclaimedTime ? Copy.progress.timeReclaimedTitle : Copy.progress.recapSectionTitle,
             rings: goalRings,
             statLine: hasReclaimedTime ? goalsLabel : nil,
@@ -446,17 +476,6 @@ public struct WeeklyRecapShareView: View {
     /// ("Reconciling P7 vs. the frozen model") for why this is an assumption, not a stored field.
     private var weekNumber: Int {
         Calendar.current.component(.weekOfYear, from: recap.weekStart)
-    }
-
-    /// Same "Xh Ym" / "Ym" formatting `ProgressView.swift` uses for `RecapStats.timeReclaimedMinutes`
-    /// (spec §5.15) — duplicated rather than factored into a shared helper, since neither this file
-    /// nor that one is free to add a new shared Core utility file for a four-line formatter
-    /// (CLAUDE.md: "don't add abstractions... beyond what the current session's scope requires").
-    private func formatDuration(minutes: Int) -> String {
-        let hours = minutes / 60
-        let mins = minutes % 60
-        guard hours > 0 else { return "\(mins)m" }
-        return "\(hours)h \(mins)m"
     }
 }
 

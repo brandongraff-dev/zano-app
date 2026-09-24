@@ -92,8 +92,12 @@ struct ScreenshotHost: View {
             UnlockCelebrationView(goalName: "Gym session", verificationDetail: "42 min at the gym",
                                   timeBankRemainingMinutes: 130, timeBankTotalMinutes: 180)
         case "lockedout":
-            LockedOutMomentView(appName: "TikTok", attemptCount: 4, blockingGoalSummary: "hit the gym",
-                                goalsRemaining: 2, streak: 14)
+            LockedOutMomentView(
+                content: LockedOutMomentContent(appName: "TikTok", attemptCount: 4,
+                                                blockingGoalSummary: "hit the gym",
+                                                goalsRemaining: 2, streak: 14),
+                onDismiss: {}
+            )
         case "recap":
             WeeklyRecapShareView(recap: DemoData.recap, goalTitles: DemoData.recapGoalTitles,
                                  rankTierLabel: "Gold", onDismiss: {})

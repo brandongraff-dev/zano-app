@@ -136,6 +136,15 @@ public enum ShieldCopy {
     }
 
     /// Renders the Living Shield's title/subtitle for the given state (docs/spec.md §5.1).
+    ///
+    /// Shape (shield redesign): the **title is the fact** — what's left and what it opens
+    /// ("2 goals to unlock Instagram", "Earn Instagram back: 1 goal left") — worded the same in
+    /// every voice, because the shield is seen dozens of times a day and the fact has to be
+    /// readable in one glance. The **subtitle is the coach** — the voice-varied nudge, plus at
+    /// most one extra clause (Time Bank in Earn Mode, otherwise the streak) so it never runs past
+    /// two short sentences. The one exception is the after-a-slip moment, whose title stays a
+    /// voice-varied comeback line so the total goals left is never the headline for someone who
+    /// just slipped (docs/design/writing-findings.md §3.5 and §4).
     /// - Parameter now: injectable for deterministic variant-rotation tests; defaults to `.now`.
     public static func content(for context: ShieldContext, now: Date = .now) -> Content {
         let m = moment(for: context)
@@ -144,37 +153,31 @@ public enum ShieldCopy {
         if let shieldedName = context.shieldedName, !shieldedName.isEmpty {
             name = shieldedName
         } else {
-            name = "This app"
+            name = categoryFallbackName
         }
+        // One extra clause at most: in Earn Mode the banked minutes are the more useful fact;
+        // otherwise the streak.
+        let extra = timeBankClause(context)
+            ?? CoachVoiceTone.streakClause(context.voice, streak: context.currentStreak)
 
         switch m {
         case .verifying:
-            return Content(
-                title: verifyingTitles[context.voice] ?? "Checking…",
-                subtitle: verifyingSubtitles[context.voice] ?? "Hang on — verifying your last goal."
-            )
-
-        case .nearCompletion:
-            let titles = nearCompletionTitles[context.voice] ?? []
-            let title = personalize(
-                pick(titles, at: variantIndex, fallback: "\(name) unlocks after one more goal."),
-                name: name
-            )
-            let streak = CoachVoiceTone.streakClause(context.voice, streak: context.currentStreak)
-            var subtitle = nearCompletionSubtitles[context.voice] ?? "One goal left. Everything unlocks the second it verifies."
+            var subtitle = verifyingSubtitles[context.voice] ?? "Checking your last goal. Hang on."
             if let bank = timeBankClause(context) {
                 subtitle += " " + bank
-            } else if let streak {
-                subtitle += " " + streak
             }
-            return Content(title: title, subtitle: subtitle)
+            return Content(title: verifyingTitle, subtitle: subtitle)
+
+        case .nearCompletion:
+            var subtitle = nearCompletionSubtitles[context.voice] ?? "Last one."
+            if let extra {
+                subtitle += " " + extra
+            }
+            return Content(title: remainingTitle(context, name: name), subtitle: subtitle)
 
         case .afterMiss:
             let titles = afterMissTitles[context.voice] ?? []
-            let title = personalize(
-                pick(titles, at: variantIndex, fallback: "\(name) unlocks after today's goals."),
-                name: name
-            )
+            let title = pick(titles, at: variantIndex, fallback: "Comeback day.")
             // `missAcknowledgment` already ends on the next smallest step (docs/spec.md §8 rule 9),
             // so nothing is appended after it: never show the total goals left to someone who just
             // slipped (docs/design/writing-findings.md §3.5 and §4).
@@ -182,19 +185,24 @@ public enum ShieldCopy {
             return Content(title: title, subtitle: subtitle)
 
         case .midLock:
-            let titles = midLockTitles[context.voice] ?? []
-            let title = personalize(
-                pick(titles, at: variantIndex, fallback: "\(name) unlocks after your goals."),
-                name: name
-            )
-            var subtitle = CoachVoiceTone.goalsRemainingClause(context.voice, remaining: context.goalsRemaining)
-            if let streak = CoachVoiceTone.streakClause(context.voice, streak: context.currentStreak) {
-                subtitle += " " + streak
+            let nudges = midLockNudges[context.voice] ?? []
+            var subtitle = pick(nudges, at: variantIndex, fallback: "It'll be here when your goals are done.")
+            if let extra {
+                subtitle += " " + extra
             }
-            if let bank = timeBankClause(context) {
-                subtitle += " " + bank
-            }
-            return Content(title: title, subtitle: subtitle)
+            return Content(title: remainingTitle(context, name: name), subtitle: subtitle)
+        }
+    }
+
+    /// The fact line: how many goals stand between the user and the shielded app. Full Mode
+    /// unlocks the app outright; Earn Mode deposits minutes to spend on it (spec §5.2), so the
+    /// wording differs — Earn Mode never promises the app simply "unlocks".
+    private static func remainingTitle(_ context: ShieldContext, name: String) -> String {
+        let n = context.goalsRemaining
+        let goals = n == 1 ? "1 goal" : "\(n) goals"
+        switch context.mode {
+        case .earn: return "Earn \(name) back: \(goals) left"
+        case .full, nil: return "\(goals) to unlock \(name)"
         }
     }
 
@@ -218,15 +226,16 @@ public enum ShieldCopy {
 
     // MARK: - Buttons (docs/spec.md §5.1, §27 — labels are fixed, not voice-varied)
 
-    /// "Shield buttons: **'Show me my goals'** ... **'Emergency'**" (spec §5.1); the shipped label
-    /// is the shorter "Show my goals" (docs/design/writing-findings.md §5.1, LOW). Fixed across
+    /// "Shield buttons: **'Show me my goals'** ... **'Emergency'**" (spec §5.1); the shipped labels
+    /// are the shorter "Show my goals" (docs/design/writing-findings.md §5.1, LOW) and the more
+    /// explicit "Emergency unlock", so the escape hatch says what it does. Fixed across
     /// voices deliberately: the shield's two actions are wayfinding, not personality moments —
     /// varying them by voice would make the one predictable, always-tappable escape hatch
     /// (CLAUDE.md: "any lock/shield feature must always keep an emergency-unlock path") harder to
     /// recognize at a glance.
     public enum Buttons {
         public static let showGoals = "Show my goals"
-        public static let emergency = "Emergency"
+        public static let emergency = "Emergency unlock"
     }
 
     // MARK: - Deep links (docs/spec.md §27: shields can't open the app directly)
@@ -305,37 +314,29 @@ public enum ShieldCopy {
 
     // MARK: - Variant tables
 
-    /// Titles below may contain `{name}` (see `personalize(_:name:)`): the app being shielded, or
-    /// "This app" for a category shield. It is only ever placed at the START of a sentence, so the
-    /// "This app" fallback never lands mid-sentence with a capital T.
-    private static let nameToken = "{name}"
+    /// Used mid-sentence ("2 goals to unlock this app") for a category-level shield with no
+    /// single app/site name to show — hence lowercase.
+    private static let categoryFallbackName = "this app"
 
-    private static let verifyingTitles: [CoachVoice: String] = [
-        .hype: "Almost there…",
-        .toughLove: "Verifying your last goal. One moment.",
-        .chill: "Just a sec…",
-        .data: "Verifying last goal…"
-    ]
+    /// The fact line while the last verification lands. Deliberately never "Unlocked" — the
+    /// engine hasn't torn the shield down yet (see `Moment.verifying`).
+    private static let verifyingTitle = "Checking your last goal…"
 
+    /// Follows the fixed "Checking your last goal…" title, so none of these repeat it.
     private static let verifyingSubtitles: [CoachVoice: String] = [
-        .hype: "Checking your last goal. This opens any second.",
-        .toughLove: "Your last goal is being verified. Hold on.",
-        .chill: "Wrapping up verification, then it opens.",
+        .hype: "Almost there. This clears any second.",
+        .toughLove: "It's being verified. Hold on.",
+        .chill: "Just a sec, then you're through.",
         .data: "Final goal event pending verification."
     ]
 
-    private static let nearCompletionTitles: [CoachVoice: [String]] = [
-        .hype: ["ONE goal from everything unlocking.", "So close — one more and it's ALL open."],
-        .toughLove: ["One goal left. Finish it.", "{name} opens after this last goal."],
-        .chill: ["One goal left, whenever you're ready.", "Just one more to go."],
-        .data: ["1 goal remaining.", "Completion: 1 goal from 100%."]
-    ]
-
+    /// Mode-neutral on purpose: in Earn Mode the last goal deposits minutes rather than
+    /// "unlocking everything", so none of these promise a full unlock.
     private static let nearCompletionSubtitles: [CoachVoice: String] = [
-        .hype: "Everything unlocks the second it's verified.",
-        .toughLove: "Everything unlocks the moment it verifies. Go.",
-        .chill: "Everything opens up as soon as it's done.",
-        .data: "Unlock triggers on verification of the final goal."
+        .hype: "Last one. It lands the second it's verified.",
+        .toughLove: "Last one. Finish it.",
+        .chill: "Last one, whenever you're ready.",
+        .data: "Final goal. Applies on verification."
     ]
 
     /// "slip", never "miss" (docs/spec.md §8 rule 9). Titles here name the comeback; the subtitle
@@ -347,13 +348,15 @@ public enum ShieldCopy {
         .data: ["Recovery day. 1 slip logged.", "Streak protection active."]
     ]
 
-    /// The most-seen shield state. Every variant names the app on screen (docs/spec.md §5.1:
-    /// "TikTok unlocks after your workout"); a category shield reads "This app".
-    private static let midLockTitles: [CoachVoice: [String]] = [
-        .hype: ["{name} unlocks after your goals. Let's GO.", "{name} is waiting. Earn it back TODAY."],
-        .toughLove: ["{name} is locked until your goals are done.", "{name} stays locked until today's goals are done."],
-        .chill: ["{name} is locked for now.", "{name} opens up once today's goals are done."],
-        .data: ["{name}: locked.", "{name}: locked until goals complete."]
+    /// The most-seen shield state's coach line (the title already names the app and the goals
+    /// left). Built on the brand's one line — the star charges while you're off your phone — in
+    /// each voice's shape (docs/design/writing-findings.md §2.2): Hype on the stakes, Tough Love
+    /// states the fact and stops (no scolding), Chill gives permission, Data gives the rule.
+    private static let midLockNudges: [CoachVoice: [String]] = [
+        .hype: ["The star charges while you're off your phone. Go fill it.", "Every verified goal charges the star. Let's GO."],
+        .toughLove: ["It'll still be here after the work's done.", "The star only charges off your phone."],
+        .chill: ["It'll be here when you're done. No rush.", "The star charges while you're off your phone."],
+        .data: ["Unlock triggers on goal verification.", "Star charge accrues while you're off your phone."]
     ]
 
     private static let showGoalsNotificationTitles: [CoachVoice: String] = [
@@ -375,10 +378,5 @@ public enum ShieldCopy {
     private static func pick(_ variants: [String], at index: Int, fallback: @autoclosure () -> String) -> String {
         guard !variants.isEmpty else { return fallback() }
         return variants[index % variants.count]
-    }
-
-    /// Swaps the `{name}` token for the shielded app's name (or "This app").
-    private static func personalize(_ text: String, name: String) -> String {
-        text.replacingOccurrences(of: nameToken, with: name)
     }
 }

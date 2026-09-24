@@ -1,6 +1,7 @@
 import ManagedSettings
 import ManagedSettingsUI
 import UIKit
+import SwiftUI
 import Core
 
 // The Living Shield (docs/spec.md §5.1): "The block screen isn't static. It reflects state and
@@ -39,31 +40,52 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     // MARK: - Shared build
 
+    /// Look (shield redesign, brand tokens from `Core/Sources/Core/UI/Theme.swift`): near-black
+    /// base over a dark blur, the silver ZANO star as the icon, a pearl title that states what's
+    /// left, a softer pearl coach line, ONE ZANO Blue button with a white label, and the
+    /// always-present "Emergency unlock" as the quiet secondary button (CLAUDE.md: never ship a
+    /// lock with no way out — this label is never conditional on any state read below).
     private func configuration(shieldedName: String?) -> ShieldConfiguration {
+        // spec §23: count every rendered shield on device; the app flushes it later.
+        SharedDefaults.incrementShieldImpressionCount()
+
         let content = ShieldCopy.content(for: Self.makeContext(shieldedName: shieldedName))
 
         return ShieldConfiguration(
-            backgroundBlurStyle: .systemMaterialDark,
-            title: ShieldConfiguration.Label(text: content.title, color: .white),
-            subtitle: ShieldConfiguration.Label(
-                text: content.subtitle,
-                color: UIColor(white: 1, alpha: 0.72)
-            ),
-            primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.showGoals, color: .black),
-            primaryButtonBackgroundColor: Self.accentColor,
-            secondaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.emergency, color: .white)
+            backgroundBlurStyle: .systemUltraThinMaterialDark,
+            backgroundColor: Self.background,
+            icon: Self.starIcon,
+            title: ShieldConfiguration.Label(text: content.title, color: Self.pearl),
+            subtitle: ShieldConfiguration.Label(text: content.subtitle, color: Self.pearlSoft),
+            primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.showGoals, color: Self.onAccent),
+            primaryButtonBackgroundColor: Self.accent,
+            secondaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.emergency, color: Self.muted)
         )
     }
 
-    /// spec §15 Design System token: "Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent
-    /// only." Reused here rather than a plain white/system button so the shield's one visible
-    /// call-to-action matches the rest of the app instead of introducing a second accent color.
-    private static let accentColor = UIColor(
-        red: CGFloat(0xB8) / 255,
-        green: CGFloat(0xFF) / 255,
-        blue: CGFloat(0x3C) / 255,
-        alpha: 1
-    )
+    // MARK: - Brand tokens (UIKit bridges of `Theme.Colors`; ShieldConfiguration takes UIColor)
+
+    /// `Theme.Colors.background` (#050506) at 92% so the dark blur reads as depth, not grey.
+    private static let background = UIColor(Theme.Colors.background).withAlphaComponent(0.92)
+    /// `Theme.Colors.text`, pearl #F2F1ED.
+    private static let pearl = UIColor(Theme.Colors.text)
+    /// Pearl, softened for the coach line so the title stays the one thing read first.
+    private static let pearlSoft = UIColor(Theme.Colors.text).withAlphaComponent(0.74)
+    /// `Theme.Colors.muted`, #8E8E93: the emergency button is always there, never shouting.
+    private static let muted = UIColor(Theme.Colors.muted)
+    /// `Theme.Colors.accent`, ZANO Blue #3F7BFF — the one accent.
+    private static let accent = UIColor(Theme.Colors.accent)
+    /// `Theme.Colors.onAccent`: white labels on blue.
+    private static let onAccent = UIColor(Theme.Colors.onAccent)
+
+    /// The silver swoosh-star, pre-rendered from `docs/brand/zano-mark.svg` into this
+    /// extension's own `Assets.xcassets` (`ShieldMark`, 90pt square canvas @1x/2x/3x,
+    /// original rendering). A bundled PNG is the cheapest possible icon for an extension with a
+    /// tight memory/time budget (spec §27) — no drawing at render time. Computed rather than a
+    /// stored `static let` so Swift 6 never has to reason about `UIImage`'s Sendability;
+    /// `UIImage(named:)` keeps its own system cache, so repeat lookups are cheap. `nil` only if
+    /// the asset is missing from the build, in which case the shield shows no icon.
+    private static var starIcon: UIImage? { UIImage(named: "ShieldMark") }
 
     /// Builds a `ShieldCopy.ShieldContext` from `SharedDefaults` — the one place this extension
     /// touches the App Group.

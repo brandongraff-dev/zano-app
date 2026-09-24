@@ -7,7 +7,7 @@ import Core
 // standard workaround is ShieldActionDelegate → local notification → tap opens app." Both shield
 // buttons follow that path here:
 //   - "Show my goals" (primary) → posts a notification deep-linking to `zano://goals`.
-//   - "Emergency" (secondary)   → posts a notification deep-linking to `zano://emergency`, the
+//   - "Emergency unlock" (secondary) → posts a notification deep-linking to `zano://emergency`, the
 //     60-second emergency-unlock hold screen (spec §5.1, §24: "provide an in-app emergency
 //     unlock with a short hold. Never trap users.").
 // Copy for both notifications is composed by `ShieldCopy`
@@ -67,12 +67,17 @@ class ShieldActionExtension: ShieldActionDelegate {
                 voice: voice,
                 goalsRemaining: SharedDefaults.goalsRemainingForActiveLock
             ))
-            // `.close` dismisses the shield's action UI immediately — the shield itself stays up
-            // (this extension has no power to unlock anything), but the user is never stuck on a
-            // frozen button waiting for a response (CLAUDE.md: never trap the user).
+            // `.close` closes the shielded app and drops the user on the Home Screen, where the
+            // notification posted above arrives a second later — tap it and ZANO opens on the
+            // goals. Nothing is unlocked here (this extension has no power to), and the user is
+            // never left on a button that does nothing (CLAUDE.md: never trap the user).
+            // (`.defer` would keep them on the shield staring at a banner they can't act on
+            // until they leave anyway.)
             completionHandler(.close)
 
         case .secondaryButtonPressed:
+            // The emergency path: unconditional, never gated on any mirrored state. Same
+            // close-then-notification hand-off as above, landing on the 60-second hold screen.
             post(ShieldCopy.emergencyNotification(voice: voice))
             completionHandler(.close)
 

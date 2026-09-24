@@ -114,7 +114,8 @@ public struct GoalRing: View {
     ///     behavior. Pass one for a ring shown standalone with no adjacent text describing it; a
     ///     ring already followed by its own title/value text (e.g. inside `RingClusterCell`/
     ///     `GoalRow`, both of which combine their own child text into one announcement) can leave
-    ///     this `nil` to avoid a doubled-up VoiceOver read. See
+    ///     this `nil`: an unlabeled ring is hidden from VoiceOver entirely, so the caller must
+    ///     speak the ring's value itself. See
     ///     `docs/design/ui-stress-test-findings.md` §2.2.
     public init(
         progress: Double,
@@ -167,6 +168,9 @@ public struct GoalRing: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label ?? "")
         .accessibilityValue(Text(accessibilityValueText))
+        // No label means a caller that describes the ring itself (a row or cluster cell that
+        // speaks the goal and its value): an unlabeled ring would be a second, nameless stop.
+        .accessibilityHidden(label == nil)
         .onChange(of: clampedProgress) { oldValue, newValue in
             guard !reduceMotion, oldValue < 1, newValue >= 1 else { return }
             justCompleted = true
@@ -227,7 +231,7 @@ public struct GoalRing: View {
                         let radius = min(proxy.size.width, proxy.size.height) / 2
                         let angle = Angle.degrees(360 * clampedProgress)
                         Circle()
-                            .fill(Color.white.opacity(0.85))
+                            .fill(Theme.Colors.ringCap)
                             .frame(width: lineWidth * 0.36, height: lineWidth * 0.36)
                             .position(
                                 x: proxy.size.width / 2 + radius * cos(angle.radians),

@@ -43,11 +43,26 @@ extension Copy {
         /// this same rationale: a second screen with the same generic-failure need should reuse
         /// this rather than invent its own wording.
         ///
-        /// The key names are historical; the words are deliberately not "Something went wrong /
-        /// Please try again" (no cause, no fix). A last-resort catch-all should still name that the
-        /// action didn't complete and give one thing to try. Prefer a per-cause string whenever
-        /// the caller knows the cause.
+        /// A last-resort catch-all should still name that the action didn't complete and give one
+        /// thing to try. It does not blame the network: ZANO is local-first, so most failures are
+        /// not connection failures, and "check your connection" sends the user to fix the wrong
+        /// thing. Prefer a per-cause string whenever the caller knows the cause.
         public static let somethingWentWrongTitle = "Couldn't complete that"
-        public static let somethingWentWrongMessage = "Check your connection and try again."
+        public static let somethingWentWrongMessage = "Something went wrong on our side. Try again."
+
+        /// Accessibility label for a row's overflow ("...") menu button: "More options for Protein".
+        public static func moreOptions(for name: String) -> String { "More options for \(name)" }
+
+        /// VoiceOver hint on a hold-to-commit control (`PrimaryButton.Style.holdToCommit`).
+        /// VoiceOver can't perform a sustained hold, so the control fires on a double-tap; the hint
+        /// says so.
+        public static let holdControlHint = "Double-tap to confirm"
+
+        /// VoiceOver value for a streak pill: "12 days" / "12 days, frozen" (a streak freeze is
+        /// protecting it today).
+        public static func streakSpoken(days: Int, frozen: Bool) -> String {
+            let base = days == 1 ? "1 day" : "\(days) days"
+            return frozen ? "\(base), frozen" : base
+        }
     }
 }

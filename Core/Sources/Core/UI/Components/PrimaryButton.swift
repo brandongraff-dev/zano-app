@@ -17,8 +17,12 @@
 //     whole label while an accent fill swept under it: 1.11:1 where they overlap (1.35 at the old
 //     0.9-alpha fill). On the app's signature confirmation — Emergency Unlock, "begin lock", the
 //     onboarding commitment — the words vanished exactly as the user committed. The label is now
-//     drawn twice: `text` on the track, and `onFill` (16.4:1 on accent) masked to the fill's
-//     width, so each glyph flips colour at the exact pixel the fill reaches it.
+//     drawn twice: `text` on the track, and the tint's on-fill label (`onAccent` on `accentFill`,
+//     5.3:1; `onFill` on danger/warning, 5.5 / 9.2:1) masked to the fill's width, so each glyph
+//     flips colour at the exact pixel the fill reaches it.
+//   * Contrast (2026-09-24): white on ZANO Blue `#3F7BFF` is only 3.83:1, so the `.accent` *fill*
+//     is the deeper `accentFill` (#2A62E6, 5.27:1 under white). `accent` itself stays the colour
+//     of the outline and the pressed glow.
 //   * Controls are capsules (iOS 26 concentric shapes; the 12pt rounded rect read as the previous
 //     era beside the system tab bar) and at least 52pt tall.
 //   * Disabled no longer means "the accent at 50%" — a muddy olive slab (#618424, not in the
@@ -52,8 +56,8 @@ public struct PrimaryButton: View {
 
     /// The fill hue of `.standard` and the sweep/border hue of `.holdToCommit`.
     public enum Tint: Sendable, Equatable {
-        /// A white capsule, for quieter confirmations. Before 2026-09-24's blue accent this was the
-        /// default.
+        /// A pearl (`text`) capsule with an `onFill` label, for quieter confirmations. Before
+        /// 2026-09-24's blue accent this was the default.
         case neutral
         /// The earned/unlock accent. Earned moments only: claiming an unlock, closing the
         /// celebration, a completed goal's confirmation.
@@ -69,6 +73,26 @@ public struct PrimaryButton: View {
             case .accent: Theme.Colors.accent
             case .danger: Theme.Colors.danger
             case .warning: Theme.Colors.warning
+            }
+        }
+
+        /// The colour a *filled* surface of this tint is painted (the `.standard` capsule, the
+        /// hold-to-commit sweep). Same as `color` except `.accent`, which fills with the deeper
+        /// `accentFill` so its white label clears AA; `color` stays for outlines and glows.
+        var fillColor: Color {
+            switch self {
+            case .accent: Theme.Colors.accentFill
+            case .neutral, .danger, .warning: color
+            }
+        }
+
+        /// The label on a `fillColor` fill: `onAccent` (white, 5.27:1 on `accentFill`) for
+        /// `.accent`; `onFill` (near-black: 18.0:1 on pearl, 5.5:1 on danger, 9.2:1 on warning)
+        /// for the rest.
+        var labelColor: Color {
+            switch self {
+            case .accent: Theme.Colors.onAccent
+            case .neutral, .danger, .warning: Theme.Colors.onFill
             }
         }
     }
@@ -155,7 +179,7 @@ public struct PrimaryButton: View {
 
     // MARK: - Hold to commit
 
-    /// The label twice: `text` on the unfilled track, and `onFill` masked to the fill's width on
+    /// The label twice: `text` on the unfilled track, and the tint's label colour masked to the fill's width on
     /// top — so the colour flips at exactly the pixel the sweeping fill reaches. See the file
     /// header (the label used to be `text` throughout: 1.11:1 over the accent fill).
     private var holdLabel: some View {
@@ -164,7 +188,7 @@ public struct PrimaryButton: View {
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
                     label
-                        .foregroundStyle(tint == .accent ? Theme.Colors.onAccent : Theme.Colors.onFill)
+                        .foregroundStyle(tint.labelColor)
                         .frame(width: proxy.size.width, height: proxy.size.height)
                         .mask(alignment: .leading) {
                             Rectangle()
@@ -182,7 +206,7 @@ public struct PrimaryButton: View {
                         .fill(Theme.Colors.surface2)
                     GeometryReader { proxy in
                         Rectangle()
-                            .fill(tint.color)
+                            .fill(tint.fillColor)
                             .frame(width: proxy.size.width * holdProgress)
                     }
                     // Clipping a rectangle to the capsule gives the fill a straight trailing edge
@@ -198,7 +222,7 @@ public struct PrimaryButton: View {
                 Capsule()
                     .strokeBorder(
                         isEnabled ? tint.color.opacity(isHolding ? 0 : 0.5) : Theme.Colors.hairline,
-                        lineWidth: isEnabled ? 1.5 : 1
+                        lineWidth: isEnabled ? Theme.Metrics.selectedStroke : Theme.Metrics.edgeWidth
                     )
             )
             .compositingGroup()
@@ -218,6 +242,7 @@ public struct PrimaryButton: View {
             .disabled(!isEnabled)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
+            .accessibilityHint(Copy.common.holdControlHint)
             .accessibilityAddTraits(.isButton)
             // VoiceOver's double-tap activates the standard accessibility action below rather
             // than driving the `DragGesture` above — a sustained physical hold has no VoiceOver
@@ -368,17 +393,18 @@ private struct PrimaryButtonStyle: ButtonStyle {
 
     private var fillColor: Color {
         switch kind {
-        case .filled: isEnabled ? tint.color : Theme.Colors.surface2
+        case .filled: isEnabled ? tint.fillColor : Theme.Colors.surface2
         case .secondary: Theme.Colors.surface2
         }
     }
 
-    /// `onFill` (16.4:1 on accent, 5.8:1 on danger, 10.8:1 on warning) on a filled control; `text`
-    /// on the secondary; `muted` (5.2:1 on `surface2`) whenever disabled.
+    /// The tint's label colour on a filled control (`onAccent` on `accentFill` for `.accent`,
+    /// `onFill` for `.neutral`/`.danger`/`.warning`); `text` on the secondary; `muted` (5.2:1 on
+    /// `surface2`) whenever disabled.
     private var labelColor: Color {
         guard isEnabled else { return Theme.Colors.muted }
         switch kind {
-        case .filled: return tint == .accent ? Theme.Colors.onAccent : Theme.Colors.onFill
+        case .filled: return tint.labelColor
         case .secondary: return Theme.Colors.text
         }
     }

@@ -36,10 +36,40 @@ extension Copy {
             return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
         }
 
-        /// Hour-axis labels on the chart: `6 AM`, `2 PM`.
+        /// Hour-axis labels on the chart, in the user's locale: `6 AM` / `2 PM` in a 12-hour locale,
+        /// `06` / `14` (or the locale's own hour form) in a 24-hour one.
         public static func hourLabel(_ hour: Int) -> String {
-            let h = hour % 12 == 0 ? 12 : hour % 12
-            return "\(h) \(hour < 12 ? "AM" : "PM")"
+            let calendar = Calendar.current
+            let clamped = min(max(hour, 0), 23)
+            guard let date = calendar.date(bySettingHour: clamped, minute: 0, second: 0, of: Date()) else {
+                return "\(clamped)"
+            }
+            return date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+        }
+
+        /// VoiceOver value for the living star on Today.
+        public static func chargeSpoken(percent: Int) -> String {
+            "Star \(percent) percent charged from time off your phone"
+        }
+
+        /// A duration for VoiceOver, spelled out ("2 hours, 30 minutes") instead of `2h 30m`, which
+        /// is read as letters.
+        public static func spokenDuration(_ seconds: TimeInterval) -> String {
+            Duration.seconds(max(0, seconds)).formatted(.units(allowed: [.hours, .minutes], width: .wide))
+        }
+
+        /// VoiceOver summary of the hourly chart (the bars themselves are hidden from VoiceOver).
+        /// `peakHour` is nil when there is no usage yet.
+        public static func chartSummary(peakHour: Int?, peakMinutes: Int, lockedMinutes: Int) -> String {
+            let locked = lockedMinutes == 1 ? "1 minute in locked apps" : "\(lockedMinutes) minutes in locked apps"
+            guard let peakHour, peakMinutes > 0 else { return "Hourly usage chart. No usage yet. \(locked)." }
+            let minutes = peakMinutes == 1 ? "1 minute" : "\(peakMinutes) minutes"
+            return "Hourly usage chart. Busiest hour \(hourLabel(peakHour)), \(minutes). \(locked) today."
+        }
+
+        /// VoiceOver value for "Most used": the top app names, comma separated.
+        public static func mostUsedSpoken(_ names: [String]) -> String {
+            names.formatted(.list(type: .and))
         }
     }
 }

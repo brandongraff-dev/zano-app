@@ -20,6 +20,7 @@ import SwiftUI
 public struct ZanoLivingMark: View {
     private let charge: Double
     private let height: CGFloat
+    private let accessibilityValueText: String?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -27,9 +28,13 @@ public struct ZanoLivingMark: View {
     /// - Parameters:
     ///   - charge: 0...1, clamped.
     ///   - height: the star's height in points; width follows (1.56 × height).
-    public init(charge: Double, height: CGFloat = 120) {
+    ///   - accessibilityValue: What the star *means* here, spoken after the brand name (e.g.
+    ///     `Copy.screenTime.chargeSpoken(percent:)`). `nil` (the default) hides the star from
+    ///     VoiceOver: most screens use it as decoration beside copy that already says the thing.
+    public init(charge: Double, height: CGFloat = 120, accessibilityValue: String? = nil) {
         self.charge = min(1, max(0, charge))
         self.height = height
+        self.accessibilityValueText = accessibilityValue
     }
 
     private var width: CGFloat { height * ZanoMark.aspectRatio }
@@ -50,7 +55,8 @@ public struct ZanoLivingMark: View {
         .animation(.easeInOut(duration: 1.2), value: charge)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.brand.name)
-        .accessibilityValue(Copy.screenTime.chargeLine(percent: Int((charge * 100).rounded())))
+        .accessibilityValue(accessibilityValueText ?? "")
+        .accessibilityHidden(accessibilityValueText == nil)
     }
 
     private func star(time t: Double, animated: Bool) -> some View {
@@ -153,9 +159,17 @@ public struct ScreenTimeChargeView: View {
         self.height = height
     }
 
+    private var percent: Int { Int((charge * 100).rounded()) }
+
     public var body: some View {
         VStack(spacing: 0) {
-            ZanoLivingMark(charge: charge, height: height)
+            // Before access there is no charge to speak, so the star stays decorative and the
+            // hint below carries the meaning.
+            ZanoLivingMark(
+                charge: charge,
+                height: height,
+                accessibilityValue: total == nil ? nil : Copy.screenTime.chargeSpoken(percent: percent)
+            )
                 .padding(.bottom, height * 0.26)
             if let total {
                 Text(Copy.screenTime.duration(total))
@@ -163,16 +177,20 @@ public struct ScreenTimeChargeView: View {
                     .monospacedDigit()
                     .foregroundStyle(Theme.Colors.text)
                     .contentTransition(.numericText())
+                    // `2h 30m` is read as letters; speak it as words.
+                    .accessibilityLabel(Copy.screenTime.spokenDuration(total))
                 Text(Copy.screenTime.totalLabel)
                     .font(.system(size: 11, weight: .semibold))
                     .textCase(.uppercase)
                     .tracking(0.8)
                     .foregroundStyle(Theme.Colors.muted)
                     .padding(.top, 2)
-                Text(Copy.screenTime.chargeLine(percent: Int((charge * 100).rounded())))
+                Text(Copy.screenTime.chargeLine(percent: percent))
                     .font(Theme.Typography.caption)
                     .foregroundStyle(charge >= 0.35 ? Theme.Colors.accent : Theme.Colors.muted)
                     .padding(.top, Theme.Spacing.xs)
+                    // The star above already speaks the charge (`chargeSpoken`).
+                    .accessibilityHidden(true)
             } else {
                 Text(Copy.screenTime.chargeHint)
                     .font(Theme.Typography.captionEmphasized)

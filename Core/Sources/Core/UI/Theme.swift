@@ -29,10 +29,12 @@
 //   * Accent tints. `accent.opacity(0.16)` composites to a drab olive (#2E3A1C). `accentWash` and
 //     `accentDim` are precomputed, on-hue tints instead (`Color.mix` is iOS 18; the deployment
 //     target is 17).
-//   * On-fill labels. `text` on an accent fill is 1.11:1. `onFill` is the one label color for
-//     anything drawn on an accent/danger/warning fill (16.4 / 5.8 / 10.8:1).
+//   * On-fill labels. `onFill` (near-black) is the label for anything drawn on a pearl, danger or
+//     warning fill (18.0 / 5.5 / 9.2:1). White-on-blue buttons use `onAccent` on `accentFill`
+//     (5.3:1), not on `accent` itself (white on `#3F7BFF` is only 3.8:1).
 //   * Type. Text styles now map to system text styles, so they follow Dynamic Type and read
-//     identically to the old fixed sizes at the default setting (22/17/15/13). Numerals stay
+//     identically to the old fixed sizes at the default setting (22/17/15/13). `numeralSmall` and
+//     `numeralMedium` now follow Dynamic Type too (2026-09-24); larger numerals stay
 //     fixed-size `Font`s for source compatibility, gain a hero tier (72pt), and `NumeralText`
 //     (Components/NumeralText.swift) is the Dynamic-Type-aware way to render them.
 //   * Edge light. The card edge (`edgeTop`/`edgeBottom`, `edgeGradient(increasedContrast:)`) and the
@@ -73,8 +75,16 @@ public enum Theme {
         /// `#3F7BFF` — ZANO Blue, the primary accent (founder decision 2026-09-24: the all-silver app
         /// felt dull and lifeless). Primary buttons, selection, the tab bar's lit tab, the workout
         /// ring and earned moments. Silver (`metallic`) stays the logo's metal; blue is its light.
-        /// White labels on it (`onAccent`), 3.8:1: fine for the bold 17pt button labels.
+        /// Use it for text, strokes, glyphs and glows: accent on `background` is 5.32:1, on `surface`
+        /// 4.93:1. Do NOT put white labels on it (white on `#3F7BFF` is 3.83:1, below AA for a
+        /// 17pt semibold label): a *filled* blue control uses `accentFill` instead.
         public static let accent = Color(zanoHex: 0x3F_7B_FF)
+
+        /// `#2A62E6` — the fill of a filled blue control (`PrimaryButton`'s `.accent` tint and its
+        /// hold-to-commit sweep). A deeper step of ZANO Blue so the white `onAccent` label clears
+        /// AA: white on it is 5.27:1. Not for text on dark surfaces (3.87:1 on `background`): text,
+        /// strokes and glows stay `accent`.
+        public static let accentFill = Color(zanoHex: 0x2A_62_E6)
 
         /// The brushed-silver fill of the logo mark and of earned hero moments: pearl top-left to
         /// silver bottom-right.
@@ -84,12 +94,13 @@ public enum Theme {
             endPoint: .bottomTrailing
         ) }
 
-        // MARK: Interactive (achromatic chrome)
+        // MARK: Interactive
 
-        /// Chrome, neutral CTAs and selection (premium-ui-plan.md "light is earned"). The UI stays
-        /// achromatic so goal colors carry the screen and green keeps meaning "earned".
+        /// An alias of `accent`, kept because 40+ call sites use it: selection strokes, the lit
+        /// tab, chosen options. Same rules as `accent` (fine as text/stroke, never under a white
+        /// label: use `accentFill` for a filled control). New code may use either name.
         public static let interactive = accent
-        /// The fill behind a selected neutral control (a chosen option, an active segment).
+        /// The fill behind a selected control (a chosen option, an active segment): `accent` at 16%.
         public static let interactiveWash = Color(zanoHex: 0x3F_7B_FF).opacity(0.16)
 
         // MARK: Ambient light
@@ -147,9 +158,9 @@ public enum Theme {
         /// 30%, fading to nothing. Only ever on a filled control, never on a card.
         public static let specular = Color.white.opacity(0.30)
 
-        /// The label/icon color for anything drawn ON an `accent`, `danger` or `warning` fill.
-        /// Never `text`: `#F5F5F7` on accent is 1.11:1 (unreadable) and 3.13:1 on danger, while
-        /// `background` is 16.4:1 on accent, 5.8:1 on danger and 10.8:1 on warning.
+        /// The label/icon color for anything drawn ON a pearl (`text` / `metallic`), `danger` or
+        /// `warning` fill: `background` near-black is 18.0:1 on pearl, 5.5:1 on danger and 9.2:1 on
+        /// warning (and 5.3:1 on `accent`, though blue fills take `onAccent` on `accentFill`).
         public static let onFill = background
 
         /// Dark glass (tab bar, capsules, quick-add controls): a faint white fill.
@@ -159,9 +170,15 @@ public enum Theme {
             LinearGradient(colors: [Color.white.opacity(0.16), Color.white.opacity(0.05)], startPoint: .top, endPoint: .bottom)
         }
 
-        /// The label on an `accent` (blue) fill: white reads better and more premium on blue than
-        /// near-black does.
+        /// The label on a blue fill. White reads better and more premium on blue than near-black,
+        /// but only on `accentFill` (5.27:1); on `accent` itself it is 3.83:1 and fails AA.
         public static let onAccent = Color.white
+
+        /// Drop-shadow tone for a lifted surface (`ZanoSurface`'s elevated shadow). Black at 55%.
+        public static let shadow = Color.black.opacity(0.55)
+
+        /// The bright leading cap on a ring's progress arc (`GoalRing`): white at 85%.
+        public static let ringCap = Color.white.opacity(0.85)
 
         /// `#C7C7CC` — a middle text tier for paragraph copy that should be quieter than `text`
         /// (18.2:1) but easier to read than `muted` (6.1:1): 11.8:1 on `background`, 10.9:1 on
@@ -176,11 +193,11 @@ public enum Theme {
 
         // MARK: Accent tints (precomputed, on-hue)
 
-        /// `#26252A` — the accent at dark-surface strength: icon-badge discs, selected rows, the
+        /// `#0F1B36` — the accent at dark-surface strength: icon-badge discs, selected rows, the
         /// unlock chip. Accent on this wash is about 12:1.
         public static let accentWash = Color(zanoHex: 0x0F_1B_36)
 
-        /// `#4A4843` — the accent's dim core: a highlighted-but-unselected border, the track
+        /// `#1D356B` — the accent's dim core: a highlighted-but-unselected border, the track
         /// beneath an active accent bar.
         public static let accentDim = Color(zanoHex: 0x1D_35_6B)
 
@@ -356,11 +373,11 @@ public enum Theme {
     ///    this file previously hard-coded (title 22, headline 17, body 15, caption 13). Note
     ///    `body` is Apple's *Subheadline* (15pt), not Apple's `.body` (17pt): ZANO's "body" has
     ///    always been the 15pt tier, and renaming it would silently resize every screen.
-    ///  * **Numerals** are fixed-size, rounded, bold, `monospacedDigit()` fonts so big stat numbers
-    ///    don't jiggle in width as they tick. They stay `static func Font`s for source
-    ///    compatibility; a `Font` value cannot hold `@ScaledMetric`, so anything that should scale
-    ///    with Dynamic Type (a hero stat, the streak, a time bank) should render through
-    ///    `NumeralText` instead of `.font(numeral…())`.
+    ///  * **Numerals** are condensed, bold, `monospacedDigit()` fonts so big stat numbers don't
+    ///    jiggle in width as they tick. `numeralSmall`/`numeralMedium` are built on text styles
+    ///    (Headline / Title 1) and follow Dynamic Type; `numeralLarge`/`numeralHero` and
+    ///    `numeral(size:)` are fixed sizes (a `Font` cannot hold `@ScaledMetric`), so a big stat
+    ///    that should scale renders through `NumeralText` instead of `.font(numeral…())`.
     ///
     /// A `Font` cannot carry tracking or leading either, which is why no screen ever had any.
     /// `View.zanoText(_:)` applies a style's font *and* its tracking/leading.
@@ -385,12 +402,14 @@ public enum Theme {
             numeral(size: 48, weight: .heavy)
         }
         /// Medium numerals (e.g. `GoalRing` center value, `TimeBankBar`'s remaining-minutes label).
+        /// Built on the Title 1 text style (28pt at the default size), so it follows Dynamic Type.
         public static func numeralMedium() -> Font {
-            numeral(size: 28, weight: .bold)
+            .system(.title, weight: .bold).width(.condensed).monospacedDigit()
         }
-        /// Small numerals (e.g. `StreakPill`'s count, compact stat chips).
+        /// Small numerals (e.g. `StreakPill`'s count, compact stat chips). Built on the Headline
+        /// text style (17pt at the default size), so it follows Dynamic Type.
         public static func numeralSmall() -> Font {
-            numeral(size: 17, weight: .semibold)
+            .system(.headline, weight: .semibold).width(.condensed).monospacedDigit()
         }
         /// A numeral at an arbitrary point size, for layouts where the size is a function of a
         /// container (a ring's center scales with the ring's diameter). Same face as the named

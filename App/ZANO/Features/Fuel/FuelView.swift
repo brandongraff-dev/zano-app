@@ -770,7 +770,10 @@ struct FuelView: View {
             if kitchenStaples.isEmpty {
                 // An empty slot is just an "add" tile in the same grid (competitive-research 3.10):
                 // dashed outline + plus + the explanatory line, and the whole tile is the button.
-                FuelEmptyStapleTile(message: Copy.fuel.kitchenStaplesEmptyMessage) {
+                FuelEmptyStapleTile(
+                    title: Copy.fuel.kitchenStaplesEmptyTitle,
+                    message: Copy.fuel.kitchenStaplesEmptyMessage
+                ) {
                     openKitchenStapleAddSheet()
                 }
                 .disabled(currentUser == nil)
@@ -1376,45 +1379,72 @@ private struct FuelOptionRow: View {
     }
 }
 
-/// Empty-staples slot: a dashed outline (the "unconfigured, tap to set up" language) with a plus,
-/// instead of a bare muted caption under the header.
+/// Empty-staples slot: the whole tile is the "add" button. Empty-states pass (2026-09-24): it sits
+/// on the same dark glass as the Fuel chips (`FuelGlass`) instead of a dashed outline, with the plus
+/// in a glass disc tinted by the protein hue (staples are protein), a one-line headline, and the
+/// "why" under it.
 private struct FuelEmptyStapleTile: View {
+    let title: String
     let message: String
     let action: () -> Void
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
         Button(action: action) {
-            HStack(spacing: Theme.Spacing.sm) {
+            HStack(alignment: .center, spacing: Theme.Spacing.sm) {
                 Image(systemName: "plus")
-                    .font(Theme.Typography.icon(.medium))
-                    .foregroundStyle(Theme.Colors.muted)
+                    .font(Theme.Typography.icon(.medium, weight: .bold))
+                    .foregroundStyle(Theme.Colors.Ring.protein)
                     .frame(width: Theme.Metrics.iconBadgeMedium, height: Theme.Metrics.iconBadgeMedium)
-                    .overlay(
-                        Circle().strokeBorder(
-                            Theme.Colors.hairlineStrong,
-                            style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [3, 3])
-                        )
-                    )
+                    .background(FuelGlass(shape: Circle()))
                     .accessibilityHidden(true)
 
-                Text(message)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Text(message)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).strokeBorder(
-                    Theme.Colors.hairlineStrong,
-                    style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [6, 5])
-                )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+            .background(FuelGlass(shape: shape))
+            .contentShape(shape)
         }
         .buttonStyle(PressableStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// A non-interactive glass label in the no-goals preview ("Barcode scan"): glyph over a caption,
+/// same `FuelGlass` as the real chips, so the empty screen shows the controls' material.
+private struct FuelPreviewChip: View {
+    let systemImage: String
+    let title: String
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.xxs) {
+            Image(systemName: systemImage)
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.vertical, Theme.Spacing.sm)
+        .padding(.horizontal, Theme.Spacing.xxs)
+        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget + Theme.Spacing.md)
+        .background(FuelGlass(shape: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)))
     }
 }
 

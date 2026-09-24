@@ -150,3 +150,26 @@ states, chrome achromatic); references Spotify (content-first darkness) and Nike
 - **Today hero:** under the star, Opal-style: "2h 34m" / "SCREEN TIME TODAY" / "Star 72% charged".
   Drawn by the report extension (`ScreenTimeChargeView`). The Screen time section below no longer
   repeats the total.
+
+### 2026-09-24 — Features 1–6 (parallel agents)
+
+- **Unlock moment** (`Features/Celebration/UnlockCelebrationView.swift`, new `UnlockStarStage.swift`):
+  star charges 0.7→1, blue bloom + shockwave + burst, "Earned." in silver, Time Bank counts up; ≤1.2s;
+  Reduce Motion path.
+- **Shield** (`Extensions/ZANOShieldConfig/*` incl. new asset catalog `ShieldMark`, `ShieldCopy`):
+  silver star icon, "N goals to unlock {app}", coach-voice subtitle, blue "Show my goals", grey
+  "Emergency unlock" (always available). Also increments the shield impression count.
+- **Widgets** (`ZANOHomeWidget`, `ZANOLockScreenWidget`, `ZANOWidgetComponents`, `WidgetCopy`): static
+  charged star, charged by goals (widgets can't read Screen Time); new circular "Goals" metric
+  (default). Small widget no longer has "Start lock" (large does).
+- **Weekly recap** (`WeeklyRecapShareView`, new `RecapStoryPages.swift`, `ShareCopy`): six-page story
+  pager, auto-advance 4s (off in screenshots and VoiceOver), ends on the existing share poster.
+  No per-weekday data, so "toughest" is the lowest goal ring; rings alternate blue/silver (no goal
+  types in the recap model).
+- **Onboarding** (all screens except Paywall): header star charges with step/14, flow-wide backdrop
+  brightening with progress, star heroes on 1/9/10/14, spring entrances.
+- **Empty/first-day states** (Today checklist, Progress first week + bar scaling fix, Lock idle hero
+  with next lock + "Start a lock now", Fuel empty panels). Bars looked equal because demo data used
+  equal 4h locks; demo now varies lengths.
+- **Unverified:** everything above is syntax-checked only (no Mac; Codemagic results need the
+  GITHUB_TOKEN). Screenshot tour now also covers onboarding-10/14, celebration and recap.

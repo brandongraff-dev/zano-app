@@ -217,10 +217,12 @@ enum DemoData {
 
         // Fourteen days of completed mornings, each with a finished lock session: fills the streak
         // calendar and gives "Time Reclaimed" a real number.
+        // Varied lengths so the weekly bars show real scaling instead of seven equal columns.
+        let lockMinutes = [240, 150, 300, 90, 210, 45, 180]
         for offset in 1...14 {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today),
                   let started = calendar.date(byAdding: .hour, value: 7, to: day),
-                  let finished = calendar.date(byAdding: .hour, value: 11, to: day) else { continue }
+                  let finished = calendar.date(byAdding: .minute, value: lockMinutes[offset % lockMinutes.count], to: started) else { continue }
             context.insert(GoalEvent(ts: finished, kind: .complete, value: 45, source: .geofence,
                                      verified: true, user: user, goal: workout))
             context.insert(LockSession(userID: user.id, lockSetID: lockSet.id, startedAt: started,

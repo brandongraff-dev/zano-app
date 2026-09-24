@@ -20,7 +20,7 @@
 //     actually completes: one beat, on the payoff.
 //   - The headline is `Theme.Typography.display` (Dynamic Type aware, -0.4 tracking) instead of a
 //     file-local `@ScaledMetric` rounded font. Copy stays one string in `Copy.onboarding`; only the
-//     styling splits it at the sentence boundary (the problem in `text`, "Let's flip that." in accent).
+//     styling splits it at the sentence boundary (the problem quiet, "Let's flip that." in white).
 //   - The backdrop is the shared `zanoBackdrop(glow:)` plus a static halo behind the ring that
 //     brightens (opacity only, never an animated blur radius) when the padlock opens.
 //   - The padlock swap is gated on Reduce Motion (it was an ungated `.symbolEffect(.replace)`).
@@ -72,7 +72,7 @@ struct Screen1Hook: View {
             // Bottom-heavy padding lifts the group above true center, where the eye rests.
             .padding(.bottom, Theme.Spacing.xl * 2)
         }
-        .zanoBackdrop(glow: Theme.Colors.accent, intensity: 0.12)
+        .zanoAmbient(.neutral)
         .onboardingPinnedContinue(title: Copy.onboarding.hookCTA) {
             flowState.advance()
         }
@@ -90,16 +90,17 @@ struct Screen1Hook: View {
 
     // MARK: - Pieces
 
-    /// Two beats, same size: the problem in `text`, the flip in accent. Stacked (not one run of text)
-    /// so the second sentence always starts its own line instead of dangling after a wrap.
+    /// Two beats, same size: the problem quiet (`textSecondary`), the flip loud (`text`). White, not
+    /// accent: the ring's green is the promise of the unlock, the headline is not an earned state.
+    /// Stacked so the second sentence always starts its own line instead of dangling after a wrap.
     private var headline: some View {
         let parts = Self.headlineParts(from: Copy.onboarding.hookHeadline)
         return VStack(spacing: Theme.Spacing.xxs) {
             Text(parts.lead)
-                .foregroundStyle(Theme.Colors.text)
+                .foregroundStyle(parts.flip == nil ? Theme.Colors.text : Theme.Colors.textSecondary)
             if let flip = parts.flip {
                 Text(flip)
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.text)
             }
         }
         .zanoText(.display)
@@ -110,7 +111,7 @@ struct Screen1Hook: View {
     }
 
     /// Splits "Sentence one. Sentence two." at the first ". " so the second sentence can take the
-    /// accent. Falls back to one un-split line if the copy ever loses that shape.
+    /// emphasis. Falls back to one un-split line if the copy ever loses that shape.
     private static func headlineParts(from full: String) -> (lead: String, flip: String?) {
         guard let cut = full.range(of: ". ") else { return (full, nil) }
         let lead = String(full[..<cut.lowerBound]) + "."

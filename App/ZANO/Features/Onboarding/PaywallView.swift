@@ -14,43 +14,33 @@
 // voice, and mutates `OnboardingFlowState` only through `advance()`, per that file's navigation
 // contract.
 //
-// DESIGN PASS (docs/design/competitive-research.md §3.6, better-layout-findings 5.6/7.1/6.2,
-// composition-audit offender 5, better-ui BRK-01/HIT-02/MOT-02/MOT-08, typography-color C7,
-// writing-findings §5.1). This is the highest-revenue-impact screen in the app and it was a plan
-// picker: a 30pt headline, three accent-decorated rows, a to-do list of "your plan", two plan cards
-// that were the same object at the same size, and — inside the one ScrollView — the purchase button
-// and the free path, below the fold for anyone with more than one goal. Now, top to bottom:
+// Premium pass (2026-09-24, docs/design/premium-ui-plan.md: "light is earned", Spotify chrome, Nike
+// type; spec §16 P5). Buying is not an earned state, so the page is achromatic: the only color on it
+// is the user's own goal colors in the plan they built. Top to bottom:
 //
-//   headline    the display tier (`Theme.Typography.Style.display`), not an ad hoc 30pt.
-//   your plan   ONE compact card: the lock set the user named, and their goals as chips carrying the
-//               goal's own glyph and ring color (the object they built on screen 10, reused; the
-//               leaders repeat the user's context before pricing — Runna, Fitbod).
-//   benefits    three quiet rows, glyphs in `text` on a neutral disc — accent is for the CTA and the
-//               selection, not decoration (typography-color C7).
-//   plans       annual is a HERO card (28pt radius, price as a numeral, "Best value", the monthly
-//               equivalent and the trial in its detail line); monthly and anything else is a COMPACT
-//               card. Selection is an accent edge over the on-hue `accentWash`, drawn inside so it
-//               never shifts layout, with a haptic tick. The two were previously identical.
-//   timeline    only when the selected plan has a trial: Today / reminder / trial ends, with real
-//               calendar dates from `Date` (a date removes the ambiguity of "Day 7"), backing up the
-//               spec's "we'll remind you 2 days before" promise.
-//   pinned bar  the terms line, the CTA bound to the selection, the free path as a 44pt+ two-line
-//               control that says what "free" is, and Restore / Terms / Privacy at 44pt. Nothing
-//               that decides the purchase depends on scroll distance any more. Cap: Dynamic Type is
-//               held at xxxLarge inside the bar so it cannot swallow the screen.
+//   headline    "Earn your phone back" in the condensed display tier, one quiet line under it.
+//   your plan   the page's one hero surface (`zanoHero`): the lock set they named and their goals as
+//               chips in the goals' own glyphs and ring colors — the object they built on screen 10.
+//   benefits    three rows, each a real `IconBadge` with a one-line detail in the user's terms.
+//   plans       Core's `PaywallCard`: annual as the hero layout with "Best value" and a "7 days free"
+//               pill, monthly compact. Selection is the app-wide white selection with a haptic tick.
+//   timeline    Today / Day 5 reminder / Day 7 billing, each with its real calendar date.
+//   pinned bar  the terms line, the one CTA (a white `PrimaryButton`), Restore / Terms / Privacy at
+//               44pt. Dynamic Type is held at xxxLarge inside the bar so it cannot swallow the screen.
 //
-// Fixes carried in the same pass: `ProgressView()` here resolved to the app's Progress *tab* (the
-// `ZANO` module declares a `ProgressView` screen), so the loading state, the purchase spinner and
-// the restore spinner each mounted that whole screen — now `SwiftUI.ProgressView()`; the annual
-// detail line no longer doubles its "/mo" ("$3.33/mo/mo") because it uses
-// `Copy.paywallTimeline.perMonthAndTrialLine`; the auto-renew note and Terms/Privacy links that
-// App Review expects (spec §24) are wired in from `Copy.paywall`; every animation respects Reduce
-// Motion, including the plan-card selection that was ungated.
+// Every state is designed: loading shows skeletons at the real cards' sizes; a failed load (no
+// network, no StoreKit products — which is also what CI screenshots show) is a calm card with an
+// icon and one line of explanation, the pinned CTA becomes "Try again", and Restore stays. A
+// disabled "Subscribe" never sits under an error.
+//
+// Carried from earlier passes: `SwiftUI.ProgressView()` (bare `ProgressView` is this module's
+// Progress tab), `Copy.paywallTimeline.perMonthAndTrialLine` to avoid "$3.33/mo/mo", the auto-renew
+// note and Terms/Privacy links App Review expects (spec §24), and every animation gated on Reduce
+// Motion.
 //
 // Unverified without a device: layout at 375pt and at AX sizes, `Layout`-based chip wrapping, and
-// the exact fold position on a 393x852 phone (arithmetic says the annual card fits above the
-// pinned bar; measure). The Terms link is Apple's standard EULA and the Privacy link is the same
-// placeholder `SettingsView` uses — both need real URLs before submission.
+// the fold position on a 393x852 phone. The Terms link is Apple's standard EULA and the Privacy link
+// is the same placeholder `SettingsView` uses — both need real URLs before submission.
 
 import SwiftUI
 import Core
@@ -73,6 +63,11 @@ struct PaywallView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
 
+    /// Nominal plan-card heights, for the loading skeleton (so the page doesn't jump when the
+    /// offerings land): a hero card with its trial pill, and a compact row.
+    private static let heroCardHeight: CGFloat = 124
+    private static let compactCardHeight: CGFloat = 64
+
     init(flowState: OnboardingFlowState) {
         self.flowState = flowState
     }
@@ -80,6 +75,10 @@ struct PaywallView: View {
     /// Reduce Motion shows every block in place from the first frame.
     private var isRevealed: Bool {
         reduceMotion || hasRevealed
+    }
+
+    private var hasLoadFailed: Bool {
+        if case .failed = viewModel.loadState { true } else { false }
     }
 
     // `body` was one ~25-modifier chain, which the Swift type checker gave up on ("unable to
@@ -116,7 +115,7 @@ struct PaywallView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .zanoBackdrop(glow: Theme.Colors.accent, intensity: 0.10)
+        .zanoAmbient(.neutral)
         .zanoActionBar {
             pinnedBar
         }
@@ -182,30 +181,42 @@ struct PaywallView: View {
     // MARK: - Headline
 
     private var headline: some View {
-        Text(Copy.paywall.headline)
-            .zanoText(.display)
-            .foregroundStyle(Theme.Colors.text)
-            .fixedSize(horizontal: false, vertical: true)
-            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Copy.paywall.headline)
+                .zanoText(.display)
+                .foregroundStyle(Theme.Colors.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(Copy.paywall.subheadline)
+                .zanoText(.paragraph)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - "The plan they built" (spec §21 copy rule)
 
-    /// One compact card: the lock set's name, and each goal as a chip with its own glyph and ring
+    /// The page's hero: the lock set's name, and each goal as a chip with its own glyph and ring
     /// color. Hidden entirely when Plan Reveal never ran (`viewModel.builtPlan == nil`).
     private func planRecap(_ plan: BuiltPlanSummary) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                Text(Copy.paywall.yourPlanSectionTitle)
-                    .zanoText(.eyebrow)
-                    .foregroundStyle(Theme.Colors.muted)
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "lock.fill", tint: Theme.Colors.text, size: .medium)
 
-                if let lockSetName = plan.lockSetName {
-                    Text(Copy.paywall.lockSetSummary(name: lockSetName))
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(Copy.paywall.yourPlanSectionTitle)
+                        .zanoText(.eyebrow)
+                        .foregroundStyle(Theme.Colors.muted)
+                    if let lockSetName = plan.lockSetName {
+                        Text(Copy.paywall.lockSetSummary(name: lockSetName))
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                Spacer(minLength: 0)
             }
 
             PaywallChipFlow(spacing: Theme.Spacing.xs) {
@@ -216,7 +227,7 @@ struct PaywallView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.md)
-        .zanoCard()
+        .zanoHero()
         .accessibilityElement(children: .combine)
     }
 
@@ -225,7 +236,7 @@ struct PaywallView: View {
         let color = goalType.map { Theme.Colors.Ring.color(for: $0) } ?? Theme.Colors.muted
         let symbol = goalType.map { PaywallGoalGlyph.symbol(for: $0) } ?? "target"
 
-        return HStack(spacing: Theme.Spacing.xxs) {
+        return HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: symbol)
                 .font(Theme.Typography.icon(.xsmall))
                 .foregroundStyle(color)
@@ -243,21 +254,40 @@ struct PaywallView: View {
     // MARK: - Benefits (spec §16 P5: three benefit rows with icons)
 
     private var benefitsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            benefitRow(icon: "infinity", title: Copy.paywall.benefitUnlimitedGoalsTitle)
-            benefitRow(icon: "brain.head.profile", title: Copy.paywall.benefitAdaptivePlanTitle)
-            benefitRow(icon: "person.3.fill", title: Copy.paywall.benefitSquadsDuelsTitle)
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            benefitRow(
+                icon: "infinity",
+                title: Copy.paywall.benefitUnlimitedGoalsTitle,
+                detail: Copy.paywall.benefitUnlimitedGoalsDetail
+            )
+            benefitRow(
+                icon: "chart.line.uptrend.xyaxis",
+                title: Copy.paywall.benefitAdaptivePlanTitle,
+                detail: Copy.paywall.benefitAdaptivePlanDetail
+            )
+            benefitRow(
+                icon: "person.2.fill",
+                title: Copy.paywall.benefitSquadsDuelsTitle,
+                detail: Copy.paywall.benefitSquadsDuelsDetail
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.Spacing.xxs)
     }
 
-    private func benefitRow(icon: String, title: String) -> some View {
+    private func benefitRow(icon: String, title: String, detail: String) -> some View {
         HStack(spacing: Theme.Spacing.sm) {
-            IconBadge(systemName: icon, tint: Theme.Colors.text, size: .small)
+            IconBadge(systemName: icon, tint: Theme.Colors.text, size: .medium)
 
-            Text(title)
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.text)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs / 2) {
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Spacer(minLength: 0)
         }
@@ -273,8 +303,8 @@ struct PaywallView: View {
             plansPlaceholder
                 .transition(.opacity)
 
-        case .failed(let message):
-            plansFailure(message)
+        case .failed:
+            plansFailure
                 .transition(.opacity)
 
         case .loaded:
@@ -289,50 +319,56 @@ struct PaywallView: View {
     private var plansPlaceholder: some View {
         VStack(spacing: Theme.Spacing.sm) {
             Color.clear
-                .frame(height: PaywallPlanCard.heroHeight)
+                .frame(height: Self.heroCardHeight)
                 .zanoCard(radius: Theme.Radius.large)
             Color.clear
-                .frame(height: PaywallPlanCard.compactHeight)
+                .frame(height: Self.compactCardHeight)
                 .zanoCard(radius: Theme.Radius.medium)
         }
         .overlay {
             SwiftUI.ProgressView()
-                .tint(Theme.Colors.accent)
+                .tint(Theme.Colors.muted)
         }
         .accessibilityHidden(true)
     }
 
-    private func plansFailure(_ message: String) -> some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            Text(Copy.paywallTimeline.plansLoadFailedTitle)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
-                .multilineTextAlignment(.center)
+    /// A designed state, not a dead end: what happened in one line, and the way forward is the
+    /// pinned "Try again" (with Restore beside it). The raw StoreKit message is not shown — it is
+    /// developer text ("In-app purchases are not available right now") and says nothing about what
+    /// to do.
+    private var plansFailure: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            IconBadge(systemName: "wifi.exclamationmark", tint: Theme.Colors.textSecondary, size: .medium)
 
-            Text(message)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            PrimaryButton(title: Copy.paywall.retryButtonLabel, style: .secondary) {
-                Task { await viewModel.loadOfferings() }
+            VStack(spacing: Theme.Spacing.xxs) {
+                Text(Copy.paywallTimeline.plansLoadFailedTitle)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(Copy.paywallTimeline.plansLoadFailedDetail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(Theme.Spacing.md)
-        .zanoCard()
+        .padding(.vertical, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.md)
+        .zanoCard(radius: Theme.Radius.large)
+        .accessibilityElement(children: .combine)
     }
 
     private var planCards: some View {
         VStack(spacing: Theme.Spacing.sm) {
             ForEach(orderedPackages) { package in
-                PaywallPlanCard(
-                    emphasis: package.period == .annual ? .hero : .compact,
+                let isAnnual = package.period == .annual
+                PaywallCard(
                     title: planTitle(for: package),
                     priceLine: priceLine(for: package),
-                    detailLine: detailLine(for: package),
-                    badgeLabel: package.period == .annual ? Copy.paywall.annualBadgeLabel : nil,
+                    detailLine: detailLine(for: package, isHighlighted: isAnnual),
+                    badgeLabel: isAnnual ? Copy.paywall.annualBadgeLabel : nil,
+                    trialLabel: isAnnual ? package.introductoryTrialDays.map { Copy.paywall.trialBadgeLabel(trialDays: $0) } : nil,
+                    isHighlighted: isAnnual,
                     isSelected: viewModel.selectedPackageID == package.id,
                     action: { viewModel.selectPackage(id: package.id) }
                 )
@@ -369,15 +405,17 @@ struct PaywallView: View {
 
     /// `pricePerMonthString` already ends in "/mo" (`SubscriptionPackage`), so this uses
     /// `Copy.paywallTimeline.perMonthAndTrialLine` — `Copy.paywall.annualDetailLine` appends a
-    /// second "/mo" ("$3.33/mo/mo · 7 days free").
-    private func detailLine(for package: SubscriptionPackage) -> String? {
-        if let perMonth = package.pricePerMonthString, let trialDays = package.introductoryTrialDays {
+    /// second "/mo" ("$3.33/mo/mo · 7 days free"). The highlighted card shows its trial as its own
+    /// pill, so its detail line is the per-month price alone.
+    private func detailLine(for package: SubscriptionPackage, isHighlighted: Bool) -> String? {
+        let trialDays = isHighlighted ? nil : package.introductoryTrialDays
+        if let perMonth = package.pricePerMonthString, let trialDays {
             return Copy.paywallTimeline.perMonthAndTrialLine(perMonth: perMonth, trialDays: trialDays)
         }
         if let perMonth = package.pricePerMonthString {
             return perMonth
         }
-        if let trialDays = package.introductoryTrialDays {
+        if let trialDays {
             return Copy.paywall.trialDaysLabel(trialDays)
         }
         return nil
@@ -403,12 +441,20 @@ struct PaywallView: View {
         }
     }
 
-    // MARK: - Pinned bar: terms, CTA, free path, legal (spec §7.13, §21, §24)
+    // MARK: - Pinned bar: terms, CTA, legal (spec §7.12, §21, §24)
 
     private var pinnedBar: some View {
         VStack(spacing: Theme.Spacing.xs) {
-            termsLine
-            ctaButton
+            if hasLoadFailed {
+                // Plans didn't load: the one action that can help is retrying. No disabled
+                // "Subscribe" under an error.
+                PrimaryButton(title: Copy.paywall.retryButtonLabel, systemImage: "arrow.clockwise") {
+                    Task { await viewModel.loadOfferings() }
+                }
+            } else {
+                termsLine
+                ctaButton
+            }
             legalRow
         }
         // The pinned bar must never eat the screen at accessibility sizes.
@@ -445,8 +491,10 @@ struct PaywallView: View {
             .opacity(viewModel.isPurchasing ? 0 : 1)
 
             if viewModel.isPurchasing {
+                // The default (white) `PrimaryButton` capsule with a spinner in it, so the button
+                // doesn't change color mid-purchase.
                 Capsule()
-                    .fill(Theme.Colors.accent)
+                    .fill(Theme.Colors.interactive)
                     .frame(height: Theme.Metrics.primaryButtonHeight)
                     .overlay {
                         SwiftUI.ProgressView()
@@ -501,8 +549,8 @@ struct PaywallView: View {
                         .tint(Theme.Colors.muted)
                 } else {
                     Text(Copy.paywall.restorePurchasesButtonLabel)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
+                        .font(Theme.Typography.captionEmphasized)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                 }
             }
             .frame(minHeight: Theme.Metrics.minTapTarget)
@@ -570,113 +618,13 @@ private enum PaywallGoalGlyph {
     }
 }
 
-// MARK: - Plan card
-
-/// One selectable plan. Two emphases so the two plans are not the same object (they were): a HERO
-/// card for the plan being sold (28pt radius, price as a 28pt numeral, room for a badge and a
-/// two-line detail) and a COMPACT card for the alternatives (20pt radius, 17pt numeral).
-///
-/// Selected = the accent edge (2pt, drawn inside so selecting never shifts layout — it is always in
-/// the view tree, faded in) over the on-hue `accentWash`; unselected = `surface` with the shared
-/// top-lit edge. Padding is inside the `Button` so the whole card is the hit target and the whole
-/// card presses (`PressableStyle`).
-private struct PaywallPlanCard: View {
-    enum Emphasis {
-        case hero
-        case compact
-    }
-
-    /// Nominal heights (a hero card is ~24pt of vertical padding above and below a 44pt content
-    /// row; a compact one ~12pt above and below a 36pt row). Used by the loading skeleton so the
-    /// page doesn't jump when the offerings land.
-    static let heroHeight: CGFloat = 92
-    static let compactHeight: CGFloat = 64
-
-    let emphasis: Emphasis
-    let title: String
-    let priceLine: String
-    let detailLine: String?
-    let badgeLabel: String?
-    let isSelected: Bool
-    let action: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var radius: CGFloat {
-        emphasis == .hero ? Theme.Radius.large : Theme.Radius.medium
-    }
-
-    private var verticalPadding: CGFloat {
-        emphasis == .hero ? Theme.Spacing.lg : Theme.Spacing.sm
-    }
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-
-        Button(action: action) {
-            HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
-                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
-
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    HStack(spacing: Theme.Spacing.xs) {
-                        Text(title)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
-                        if let badgeLabel {
-                            Text(badgeLabel)
-                                .font(Theme.Typography.captionEmphasized)
-                                .foregroundStyle(Theme.Colors.onFill)
-                                .padding(.horizontal, Theme.Spacing.xs)
-                                .padding(.vertical, Theme.Spacing.xxs / 2)
-                                .background(Theme.Colors.accent, in: Capsule())
-                                .lineLimit(1)
-                                .fixedSize()
-                        }
-                    }
-                    if let detailLine {
-                        Text(detailLine)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                Spacer(minLength: Theme.Spacing.xs)
-
-                NumeralText(priceLine, size: emphasis == .hero ? .medium : .small)
-                    .layoutPriority(1)
-            }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, verticalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .zanoCard(
-                radius: radius,
-                fill: isSelected ? Theme.Colors.accentWash : Theme.Colors.surface
-            )
-            .overlay {
-                shape
-                    .strokeBorder(Theme.Colors.accent, lineWidth: 2)
-                    .opacity(isSelected ? 1 : 0)
-            }
-            .contentShape(shape)
-        }
-        .buttonStyle(.pressable)
-        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isSelected)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
 // MARK: - Trial timeline
 
-/// Today / reminder / trial ends, with real calendar dates. A date removes the ambiguity of "Day 7"
-/// and is what makes "we'll remind you 2 days before" a checkable promise (competitive-research
-/// §3.6: BoldVoice, Cal AI's "no payment due now"). Static — no motion at all — so it needs no
-/// Reduce Motion handling. The reminder node is skipped when the trial is too short to have one.
+/// Today / reminder / billing, each with its trial day and real calendar date ("Day 5 · Sep 29"):
+/// the day number is the structure, the date removes the ambiguity, and together they make "we'll
+/// remind you 2 days before" a checkable promise (competitive-research §3.6). Static — no motion
+/// at all — so it needs no Reduce Motion handling. The reminder node is skipped when the trial is
+/// too short to have one.
 private struct PaywallTrialTimeline: View {
     let startDate: Date
     let trialDays: Int
@@ -690,8 +638,8 @@ private struct PaywallTrialTimeline: View {
         let symbol: String
         let title: String
         let detail: String
-        /// `nil` for the first node, which reads "Today" instead of a date.
-        let date: Date?
+        /// Days after today; 0 is today, which reads "Today" instead of a day and date.
+        let day: Int
         let isNow: Bool
     }
 
@@ -703,10 +651,10 @@ private struct PaywallTrialTimeline: View {
         var result: [Node] = [
             Node(
                 id: 0,
-                symbol: "checkmark",
+                symbol: "lock.open.fill",
                 title: Copy.paywallTimeline.timelineStartTitle,
                 detail: Copy.paywallTimeline.timelineStartDetail,
-                date: nil,
+                day: 0,
                 isNow: true
             )
         ]
@@ -717,7 +665,7 @@ private struct PaywallTrialTimeline: View {
                     symbol: "bell.fill",
                     title: Copy.paywallTimeline.timelineReminderTitle,
                     detail: Copy.paywall.trialReminderNote(daysBefore: reminderDaysBefore),
-                    date: date(addingDays: trialDays - reminderDaysBefore),
+                    day: trialDays - reminderDaysBefore,
                     isNow: false
                 )
             )
@@ -728,7 +676,7 @@ private struct PaywallTrialTimeline: View {
                 symbol: "creditcard.fill",
                 title: Copy.paywallTimeline.timelineChargeTitle,
                 detail: Copy.paywallTimeline.timelineChargeDetail(priceLine: priceLine),
-                date: date(addingDays: trialDays),
+                day: trialDays,
                 isNow: false
             )
         )
@@ -739,8 +687,9 @@ private struct PaywallTrialTimeline: View {
         let all = nodes
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Text(Copy.paywallTimeline.timelineHeading)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(all.enumerated()), id: \.element.id) { index, node in
@@ -758,12 +707,20 @@ private struct PaywallTrialTimeline: View {
             nodeGlyph(node)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
-                    Text(node.title)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                    Spacer(minLength: Theme.Spacing.xs)
-                    dateLabel(node)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+                        Text(node.title)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                        Spacer(minLength: Theme.Spacing.xs)
+                        whenLabel(node)
+                    }
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                        Text(node.title)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                        whenLabel(node)
+                    }
                 }
                 Text(node.detail)
                     .font(Theme.Typography.caption)
@@ -793,9 +750,8 @@ private struct PaywallTrialTimeline: View {
             .font(Theme.Typography.icon(.xsmall))
             .foregroundStyle(node.isNow ? Theme.Colors.onFill : Theme.Colors.text)
             .frame(width: Self.nodeSize, height: Self.nodeSize)
-            // "Now" is a solid `text` disc, not accent: the accent on this screen belongs to the
-            // selected plan, the badge and the one CTA (accent budget, 2026-ios-trends A6).
-            .background(node.isNow ? Theme.Colors.text : Theme.Colors.surface2, in: Circle())
+            // "Now" is a solid white disc: the timeline is chrome, not an earned state.
+            .background(node.isNow ? Theme.Colors.interactive : Theme.Colors.surface2, in: Circle())
             .overlay {
                 if !node.isNow {
                     Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
@@ -804,16 +760,22 @@ private struct PaywallTrialTimeline: View {
             .accessibilityHidden(true)
     }
 
+    /// "Today", or "Day 5 · Sep 29": the trial day in `text`, the calendar date quieter.
     @ViewBuilder
-    private func dateLabel(_ node: Node) -> some View {
-        if let date = node.date {
-            Text(date, format: .dateTime.month(.abbreviated).day())
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(Theme.Colors.muted)
-        } else {
+    private func whenLabel(_ node: Node) -> some View {
+        if node.isNow {
             Text(Copy.paywallTimeline.timelineToday)
                 .font(Theme.Typography.captionEmphasized)
                 .foregroundStyle(Theme.Colors.text)
+        } else {
+            HStack(spacing: Theme.Spacing.xxs) {
+                Text(Copy.paywallTimeline.timelineDayLabel(node.day))
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(date(addingDays: node.day), format: .dateTime.month(.abbreviated).day())
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
         }
     }
 }

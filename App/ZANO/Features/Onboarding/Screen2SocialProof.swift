@@ -86,7 +86,7 @@ struct Screen2SocialProof: View {
         }
         .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .zanoBackdrop()
+        .zanoAmbient(.neutral)
         .onboardingPinnedContinue(title: Copy.common.continueButtonLabel) {
             flowState.advance()
         }
@@ -173,8 +173,9 @@ struct Screen2SocialProof: View {
                         .fill(Theme.Colors.track)
                         .overlay(alignment: .leading) {
                             GeometryReader { proxy in
+                                // Chrome, not an earned state: white (decision 2026-09-24).
                                 Capsule()
-                                    .fill(Theme.Colors.accent)
+                                    .fill(Theme.Colors.interactive)
                                     .frame(width: proxy.size.width * segmentFill(index, active: fraction))
                             }
                         }
@@ -298,8 +299,8 @@ private struct SocialProofItemContent: View {
                 // A 56pt opening quote mark carries ~40pt of empty line box below its glyph; the
                 // fixed-height, top-aligned frame keeps only the mark in layout.
                 Text("\u{201C}")
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .font(.system(size: 56, weight: .heavy).width(.condensed))
+                    .foregroundStyle(Theme.Colors.muted)
                     .frame(height: Theme.Spacing.lg, alignment: .top)
                     .accessibilityHidden(true)
             } else {

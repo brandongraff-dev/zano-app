@@ -21,8 +21,11 @@
 //   9  Wake-up moment                        <- onboarding-2
 //   10 Plan reveal                           <- onboarding-2
 //   11 Commitment (hold to commit)           <- onboarding-2
-//   12 Permission priming (notifications)    <- onboarding-2
-//   13 Paywall                               <- onboarding-2
+//   12 Paywall (hard; PaywallView.swift)     <- onboarding-2
+//   13 Permission priming (notifications;    <- onboarding-2
+//      Screen12PermissionPriming.swift keeps its old name)
+//   (Order per decision 2026-09-23: nothing sits between Commitment and the paywall. Wired in
+//   `OnboardingContainerView.screen(for:)`; numbers are the CI `-ZANOScreen onboarding-N` ids.)
 //   14 First win                             <- onboarding-2
 //
 // Scope note: only `currentScreen`, the six Q1-Q6 answer properties, and `committedAt` (screen 11

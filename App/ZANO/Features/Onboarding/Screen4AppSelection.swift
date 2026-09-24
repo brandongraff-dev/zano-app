@@ -19,7 +19,7 @@
 //     card reads as "your apps go here" before it is read. A dashed outline is the empty-slot idiom
 //     (competitive-research §3.10).
 //   - Filled: an overlapped row of the user's real app icons, then a check + the count summary, in a
-//     `zanoCard` with the static accent glow ("active element", spec §16) and a 2pt accent edge.
+//     `zanoCard` with a 2pt white selection edge (no glow: selection is not earned, 2026-09-24).
 //     Icons are FamilyControls' own `Label(token).labelStyle(.iconOnly)`: the system renders them,
 //     so the privacy rule holds (tokens are opaque; nothing here can read an app name or bundle id).
 //     API verified against Apple's Developer Forums / sample code, not compiled.
@@ -29,9 +29,9 @@
 //     icons carries the text. Icons can also intermittently render as three dots (thread 723651), so
 //     the icon row is additive and the summary never depends on it. Capped at 5 tiles + "+N" to keep
 //     the number of live token views small (thread 727437 reports freezes with many).
-//   - The card carries no accent *wash* (only the glow): the icon tiles are cut out of each other
+//   - The card carries no *wash*: the icon tiles are cut out of each other
 //     with a `surface`-colored ring, which only matches the card fill if nothing tints it.
-//   - Real tokens: `hairlineStrong` dash, `accentWash` add-slot, `PressableStyle` press state,
+//   - Real tokens: `hairlineStrong` dash, white add-slot, `PressableStyle` press state,
 //     `chevron.forward` (mirrors in RTL), selection haptic, Reduce-Motion-gated transitions.
 //
 // Handoff idea (needs a Copy key, not editable here): one privacy line under the subtitle, e.g.
@@ -173,12 +173,13 @@ struct Screen4AppSelection: View {
                         )
                         .frame(width: tileSize, height: tileSize)
                 }
-                // The one live slot: the action. Accent is right here (the affordance on the screen).
+                // The one live slot: the action. White, not accent: an affordance is chrome, not an
+                // earned state (decision 2026-09-24).
                 Image(systemName: "plus")
                     .font(Theme.Typography.icon(.large, weight: .bold))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.onFill)
                     .frame(width: tileSize, height: tileSize)
-                    .background(Theme.Colors.accentWash, in: slotShape)
+                    .background(Theme.Colors.interactive, in: slotShape)
             }
             .accessibilityHidden(true)
 
@@ -210,7 +211,7 @@ struct Screen4AppSelection: View {
 
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.interactive)
                 Text(selectionSummary)
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
@@ -219,9 +220,10 @@ struct Screen4AppSelection: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Static glow on the active (selected) card, no wash (see the file header).
-        .zanoCard(radius: Theme.Radius.medium, active: true)
-        .overlay { cardShape.strokeBorder(Theme.Colors.accent, lineWidth: 2) }
+        // Selected = the white selection edge (decision 2026-09-24). No glow: the glow is the
+        // reward, and picking apps is not one.
+        .zanoCard(radius: Theme.Radius.medium)
+        .overlay { cardShape.strokeBorder(Theme.Colors.interactive, lineWidth: 2) }
         .contentShape(cardShape)
     }
 

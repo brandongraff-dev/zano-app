@@ -44,6 +44,15 @@
 //   6. "Built for you in 2:14." is no longer shown: it was a constant, so every user was told they
 //      built their plan in exactly 2:14 (writing-findings, HIGH). The build beat replaces it.
 //
+// Premium pass (2026-09-24, spec §16 P4, "light is earned"): the plan is a proposal, not an earned
+// state, so it is achromatic apart from the goals' own ring colors. The reveal is now ONE bespoke
+// "Lock-In Plan" card (the screen's `zanoHero`), vertically centred instead of top-pinned over a
+// void: locked apps as dimmed icon tiles behind small padlocks, the goals with their ring colors,
+// the schedule, a neutral "Starting easy on purpose" tag, and a footer naming the coach the user
+// picked. Section labels are sentence case. The build beat's ring and checks are white.
+// The schedule line stays "Locks each morning until your goals are done": the app has no default
+// lock time yet, so a "Locks at 7:00 AM" line would state something untrue.
+//
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
 
@@ -87,8 +96,6 @@ struct Screen10PlanReveal: View {
 
     var body: some View {
         ZStack {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.08)
-
             switch visiblePhase {
             case .building:
                 buildingView
@@ -99,6 +106,7 @@ struct Screen10PlanReveal: View {
             }
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: visiblePhase)
+        .zanoAmbient(.neutral)
         .task {
             await persistPlanIfNeeded()
         }
@@ -156,7 +164,7 @@ struct Screen10PlanReveal: View {
 
             GoalRing(
                 progress: buildProgress,
-                color: Theme.Colors.accent,
+                color: Theme.Colors.interactive,
                 size: .medium,
                 center: .icon(systemName: "sparkles")
             )
@@ -202,8 +210,9 @@ struct Screen10PlanReveal: View {
 
             Image(systemName: "checkmark.circle.fill")
                 .font(Theme.Typography.icon(.large))
-                .foregroundStyle(Theme.Colors.accent)
+                .foregroundStyle(Theme.Colors.interactive)
                 .opacity(isBuilt ? 1 : 0)
+                .accessibilityHidden(true)
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isBuilt)
         .accessibilityElement(children: .combine)
@@ -211,17 +220,19 @@ struct Screen10PlanReveal: View {
 
     // MARK: - Beat 2: the plan
 
+    /// Header and card, centred in the space above the pinned CTA (they used to sit at the top over
+    /// an empty half-screen); scrolls instead when large type makes it taller than the screen.
     private var revealedView: some View {
-        ScrollView {
+        OnboardingKit.CenteredScroll {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                header
+                OnboardingKit.DisplayTitle(text: Copy.onboarding.planRevealHeadline, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
                 planCard
             }
             .padding(.horizontal, Theme.Spacing.md)
-            .padding(.top, Theme.Spacing.sm)
-            .padding(.bottom, Theme.Spacing.lg)
+            .padding(.vertical, Theme.Spacing.lg)
         }
-        .scrollBounceBehavior(.basedOnSize)
         .onboardingKitActionBar {
             PrimaryButton(title: Copy.onboarding.planContinueButton) {
                 flowState.advance()
@@ -229,18 +240,8 @@ struct Screen10PlanReveal: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            OnboardingKit.Eyebrow(text: Copy.onboarding.planRevealEyebrow)
-            OnboardingKit.DisplayTitle(text: Copy.onboarding.planRevealHeadline, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-    }
-
-    /// One composite card, three groups. A hero radius (28) with 16pt-inset children keeps the
-    /// nested corners concentric (28 - 16 = 12 = `Theme.Radius.small`).
+    /// The Lock-In Plan: one hero card, three sections and a footer. A hero radius (28) with
+    /// 16pt-inset children keeps nested corners concentric (28 - 16 = 12 = `Theme.Radius.small`).
     private var planCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             appsGroup
@@ -251,85 +252,139 @@ struct Screen10PlanReveal: View {
             groupDivider
             scheduleGroup
                 .planGroupReveal(isVisible: visibleGroups >= 3, reduceMotion: reduceMotion)
+            groupDivider
+            footer
+                .planGroupReveal(isVisible: visibleGroups >= 3, reduceMotion: reduceMotion)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(radius: Theme.Radius.large)
+        .zanoHero()
     }
 
+    /// A dashed rule between sections: the card reads as a ticket (a pass you are about to
+    /// commit to), not a settings list.
     private var groupDivider: some View {
-        Rectangle()
-            .fill(Theme.Colors.hairline)
+        PlanTicketRule()
+            .stroke(Theme.Colors.hairlineStrong, style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [4, 4]))
             .frame(height: Theme.Metrics.edgeWidth)
+            .padding(.horizontal, Theme.Spacing.md)
+            .accessibilityHidden(true)
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .zanoText(.eyebrow)
+            .foregroundStyle(Theme.Colors.muted)
     }
 
     // MARK: Group 1 — locked apps
 
     private var appsGroup: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                // Neutral, not danger-red: this is a proposed plan, nothing is locked yet
-                // (better-ui ICO-12, "locked is not an error").
-                IconBadge(systemName: "lock.fill", tint: Theme.Colors.text, size: .medium)
-
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(lockedAppsStatusLine)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                    Text(Copy.onboarding.planLockedAppsDetailLine)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-            }
-            .accessibilityElement(children: .combine)
+            sectionLabel(Copy.onboardingReveal.planTicketAppsLabel)
 
             appIconRow
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(lockedAppsStatusLine)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(Copy.onboarding.planLockedAppsDetailLine)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.md)
     }
 
+    private enum AppTile: Hashable, Identifiable {
+        case app(ApplicationToken)
+        case category(ActivityCategoryToken)
+
+        var id: Self { self }
+    }
+
+    private var appTiles: [AppTile] {
+        let selection = flowState.selectedApps
+        let apps = selection.applicationTokens.map(AppTile.app)
+        let categories = selection.categoryTokens.map(AppTile.category)
+        return Array((apps + categories).prefix(Self.maxAppIcons))
+    }
+
+    /// The picked apps as dimmed icon tiles, each behind a small padlock: "locked" as a picture,
+    /// in neutral (nothing is locked yet, and locked is not an error — better-ui ICO-12). With no
+    /// selection (only reachable in previews/CI: Q2 requires one) it shows dashed empty slots.
     @ViewBuilder
     private var appIconRow: some View {
-        let tokens = Array(flowState.selectedApps.applicationTokens.prefix(Self.maxAppIcons))
-        let overflow = lockedItemCount - tokens.count
-        if !tokens.isEmpty {
-            HStack(spacing: Theme.Spacing.xs) {
-                ForEach(tokens, id: \.self) { token in
-                    // FamilyControls' privacy-preserving label: the app's real icon, rendered by the
-                    // system, so the token never leaves the process (CLAUDE.md, spec §24).
-                    Label(token)
-                        .labelStyle(.iconOnly)
+        let tiles = appTiles
+        let overflow = lockedItemCount - tiles.count
+        HStack(spacing: Theme.Spacing.xs) {
+            if tiles.isEmpty {
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                        .strokeBorder(Theme.Colors.hairlineStrong, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                         .frame(width: Theme.Metrics.iconBadgeMedium, height: Theme.Metrics.iconBadgeMedium)
-                        .background(
-                            Theme.Colors.surface2,
-                            in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
-                        )
+                }
+            } else {
+                ForEach(tiles) { tile in
+                    lockedTile {
+                        // FamilyControls' privacy-preserving label: the app's real icon, rendered by
+                        // the system, so the token never leaves the process (CLAUDE.md, spec §24).
+                        switch tile {
+                        case .app(let token): Label(token).labelStyle(.iconOnly)
+                        case .category(let token): Label(token).labelStyle(.iconOnly)
+                        }
+                    }
                 }
                 if overflow > 0 {
-                    Text("+\(overflow)")
-                        .font(Theme.Typography.captionEmphasized)
-                        .foregroundStyle(Theme.Colors.muted)
+                    Text(Copy.onboardingReveal.planAppOverflow(overflow))
+                        .font(Theme.Typography.numeralSmall())
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .frame(width: Theme.Metrics.iconBadgeMedium, height: Theme.Metrics.iconBadgeMedium)
                         .background(
                             Theme.Colors.surface2,
                             in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
                         )
                 }
-                Spacer(minLength: 0)
             }
+            Spacer(minLength: 0)
         }
+        .accessibilityHidden(true)
+    }
+
+    private func lockedTile<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+        return content()
+            .frame(width: Theme.Metrics.iconBadgeMedium, height: Theme.Metrics.iconBadgeMedium)
+            .background(Theme.Colors.surface2, in: shape)
+            .clipShape(shape)
+            // Dimmed behind the shield: the app is still there, just not yours yet.
+            .saturation(0.2)
+            .opacity(0.55)
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "lock.fill")
+                    .font(Theme.Typography.icon(.xsmall, weight: .bold))
+                    .foregroundStyle(Theme.Colors.text)
+                    .frame(width: Theme.Spacing.lg, height: Theme.Spacing.lg)
+                    .background(Theme.Colors.surface2, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.Colors.surface, lineWidth: 2))
+                    .offset(x: Theme.Spacing.xxs, y: Theme.Spacing.xxs)
+            }
     }
 
     // MARK: Group 2 — goals
 
     private var goalsGroup: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            sectionLabel(Copy.onboardingReveal.planTicketGoalsLabel)
             ForEach(planGoals) { goal in
                 goalRow(goal)
             }
             easyStartTag
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.md)
     }
 
@@ -368,6 +423,7 @@ struct Screen10PlanReveal: View {
     }
 
     /// Spec §16 P4's "Starting easy on purpose" tag — the day-one targets really are ~70% of stated.
+    /// Neutral: it is a fact about the plan, not something earned.
     private var easyStartTag: some View {
         HStack(spacing: Theme.Spacing.xxs) {
             Image(systemName: "chart.line.uptrend.xyaxis")
@@ -375,40 +431,63 @@ struct Screen10PlanReveal: View {
             Text(Copy.onboardingReveal.planEasyStartTag)
                 .font(Theme.Typography.captionEmphasized)
         }
-        .foregroundStyle(Theme.Colors.accent)
+        .foregroundStyle(Theme.Colors.textSecondary)
         .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, Theme.Spacing.xxs)
-        .background(Theme.Colors.accentWash, in: Capsule())
+        .padding(.vertical, Theme.Spacing.xs)
+        .background(Theme.Colors.interactiveWash, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
         .accessibilityElement(children: .combine)
     }
 
     // MARK: Group 3 — schedule
 
     private var scheduleGroup: some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            IconBadge(systemName: "clock.fill", tint: Theme.Colors.text, size: .medium)
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            sectionLabel(Copy.onboardingReveal.planTicketScheduleLabel)
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                Text(Copy.onboarding.planScheduleLine)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let pattern = flowState.fallOffPattern {
-                    // `FallOffPattern` is an App-target-only type (`OnboardingFlowState.swift`) — Core
-                    // cannot declare a `Copy.onboarding.*` function parameterized on it. This resolves
-                    // the display label on the App side first (`FallOffPattern.displayLabel`, the same
-                    // narrow Copy-routing exception that file already establishes) and only passes the
-                    // resulting plain `String` across the module boundary.
-                    Text(Copy.onboarding.planScheduleFallOffNote(patternLabel: pattern.displayLabel))
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "sunrise.fill", tint: Theme.Colors.text, size: .medium)
+
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(Copy.onboarding.planScheduleLine)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let pattern = flowState.fallOffPattern {
+                        // `FallOffPattern` is an App-target-only type (`OnboardingFlowState.swift`) —
+                        // Core cannot declare a `Copy.onboarding.*` function parameterized on it, so
+                        // the display label is resolved here and only a plain `String` crosses into
+                        // Core (the same narrow Copy-routing exception that file establishes).
+                        Text(Copy.onboarding.planScheduleFallOffNote(patternLabel: pattern.displayLabel))
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                Spacer(minLength: 0)
             }
+            .accessibilityElement(children: .combine)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+    }
+
+    /// The ticket's stub: the coach the user picked, and where the plan came from.
+    private var footer: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: OnboardingKit.icon(for: flowState.coachVoice))
+                .font(Theme.Typography.icon(.xsmall))
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityHidden(true)
+            Text(Copy.onboardingReveal.planTicketCoachLine(voiceName: flowState.coachVoice.displayName))
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(Theme.Spacing.md)
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Locked-apps summary
@@ -557,6 +636,18 @@ struct Screen10PlanReveal: View {
             // Swallowed deliberately — see file header. `Screen14FirstWin.swift` re-derives
             // whatever's still missing when the first win actually needs it.
         }
+    }
+}
+
+// MARK: - Ticket rule
+
+/// A horizontal line through the middle of its frame, for the plan card's dashed section rules.
+private struct PlanTicketRule: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return path
     }
 }
 

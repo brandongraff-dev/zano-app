@@ -186,12 +186,11 @@ struct OnboardingScaffold<Content: View>: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Theme.Colors.track)
+                // Progress through setup is chrome, not an earned state, so it is white (decision
+                // 2026-09-24: the accent is for earned states only).
                 Capsule()
-                    .fill(Theme.Colors.accent)
+                    .fill(Theme.Colors.interactive)
                     .frame(width: max(0, proxy.size.width * flowState.progressFraction))
-                    // Static glow on the active fill (spec §16 "inner glow on active elements");
-                    // never animated in radius.
-                    .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 5)
                     .animation(
                         reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill,
                         value: flowState.progressFraction
@@ -229,7 +228,8 @@ enum OnboardingKit {
     /// called out. This is `HeroGlow` with an anchor (`HeroGlow` only washes down from the top;
     /// the wake-up reclaim wants one rising from the bottom and the commitment ring one behind its
     /// centre). Static on purpose (never animate blur or glow radius: Reduce Motion guidance).
-    /// `tint` is a semantic color (accent = earned/brand, danger = loss), never decoration.
+    /// `tint` is a semantic color (accent = earned only, danger = loss, white = a neutral moment such
+    /// as the commitment ring), never decoration.
     struct Glow: View {
         var tint: Color = Theme.Colors.accent
         var opacity: Double = 0.12
@@ -250,7 +250,8 @@ enum OnboardingKit {
 
     // MARK: Type
 
-    /// Small uppercase label with tracking (`Theme.Typography.Style.eyebrow`).
+    /// Small sentence-case label (`Theme.Typography.Style.eyebrow`; no caps or tracking since the
+    /// 2026-09-24 premium pass).
     struct Eyebrow: View {
         let text: String
         var color: Color = Theme.Colors.muted

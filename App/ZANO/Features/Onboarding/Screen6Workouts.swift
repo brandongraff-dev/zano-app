@@ -18,11 +18,11 @@
 //     from -> to story (spec: "current vs target"). The card is the shared `zanoCard`.
 //   - Each answer keeps its visible consequence (competitive-research §3.5): a 7-segment "week" bar
 //     under the value. "Right now" lights N segments in `muted`; "My goal" lights the same segments in
-//     `muted` and the growth beyond them in `accent`, so the gap between today and the goal is
+//     `muted` and the growth beyond them in white (not accent: a goal is not earned yet), so the gap between today and the goal is
 //     literally drawn. Where the goal is below the current pace the bar just shows the goal count (no
 //     shame framing, spec §8 rule 9). The segments are counts, not weekdays, and unlabeled on purpose:
 //     workouts/week is not "which days".
-//   - The labels are the shared `eyebrow` style (caps with tracking), the buttons the shared
+//   - The labels are the shared `eyebrow` style (sentence case), the buttons the shared
 //     `PressableStyle` (0.94: a small control shrinks more than a card), the empty segments the shared
 //     `track` token. One `.selection` haptic per change. Gated on Reduce Motion.
 //   - Accessibility: each counter is one adjustable element (label + value + increment/decrement), the
@@ -96,7 +96,7 @@ private struct WorkoutsCounterRow: View {
     @Binding var value: Int
     let range: ClosedRange<Int>
     /// When non-nil, segments up to `min(value, baseline)` are drawn as "already doing this" (muted)
-    /// and any segments beyond that up to `value` as growth (accent). When nil, every lit segment is
+    /// and any segments beyond that up to `value` as growth (white). When nil, every lit segment is
     /// muted (this row *is* the baseline).
     let baseline: Int?
 
@@ -128,7 +128,7 @@ private struct WorkoutsCounterRow: View {
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: value)
-        // The goal row's bar also changes when the "right now" row moves (its muted/accent split
+        // The goal row's bar also changes when the "right now" row moves (its muted/white split
         // depends on the baseline), so it animates on that too.
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: baseline)
         .sensoryFeedback(.selection, trigger: value)
@@ -162,7 +162,8 @@ private struct WorkoutsCounterRow: View {
 
     private func segmentColor(index: Int, shared: Int) -> Color {
         if index < shared { return Theme.Colors.muted }
-        if index < value { return Theme.Colors.accent }
+        // Growth is white, not accent: a target is a plan, not an earned state (2026-09-24).
+        if index < value { return Theme.Colors.interactive }
         return Theme.Colors.track
     }
 

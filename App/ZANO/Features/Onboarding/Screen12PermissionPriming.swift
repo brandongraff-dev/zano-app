@@ -19,6 +19,14 @@
 // Motion). "Not now" is a real 44pt target with room around it, the CTA sits in the shared pinned
 // action bar, and the decorative accent icon is gone (accent stays for the CTA and the app tile).
 // The preview is decorative, so VoiceOver skips it; the headline and subtitle carry the meaning.
+//
+// Premium pass (2026-09-24): the preview is now a small lock screen — today's real date and time in
+// the condensed numeral face, with the nudge arriving underneath it as an iOS banner looks (app icon,
+// bold app name, "now", message) and two older banners stacked behind it. That fills the top half
+// with the thing being asked about instead of a void, and puts the ask (headline, then the pinned
+// Allow / Not now) in the bottom half. The mock app icon mirrors the real one (a "Z" on near-black).
+// The redundant "Stay in the loop" eyebrow is gone: the headline already says it. This is screen 13
+// in the flow order (after the paywall, decision 2026-09-23); the file keeps its old name.
 
 import SwiftUI
 import UserNotifications
@@ -32,10 +40,13 @@ struct Screen12PermissionPriming: View {
 
     @State private var isRequesting = false
     @State private var bannerShown = false
+    /// Frozen when the screen opens so the mock clock doesn't tick under the user.
+    @State private var openedAt = Date.now
 
-    /// Roughly the height of the live banner (icon row plus a two-line coach quote), so the
-    /// ghosts behind it line up with its edges instead of peeking out at a different scale.
-    private static let ghostBannerHeight: CGFloat = 76
+    /// The mock app icon: a touch smaller than a list badge, as on a real banner.
+    private static let appIconSide: CGFloat = 38
+    /// The lock-screen clock: large and compressed, like the real one.
+    private static let clockSize: CGFloat = 72
 
     /// Reduce Motion shows the banner in place from the first frame.
     private var isBannerVisible: Bool {
@@ -45,26 +56,24 @@ struct Screen12PermissionPriming: View {
     var body: some View {
         OnboardingKit.CenteredScroll {
             VStack(spacing: Theme.Spacing.xl) {
-                notificationPreview
+                lockScreenPreview
 
                 VStack(spacing: Theme.Spacing.sm) {
-                    OnboardingKit.Eyebrow(text: Copy.onboarding.permissionEyebrow)
                     OnboardingKit.DisplayTitle(text: Copy.onboarding.permissionHeadline)
                     Text(Copy.onboarding.permissionSubtitle)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.muted)
+                        .zanoText(.paragraph)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
                 .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.08)
-        }
+        .zanoAmbient(.neutral)
         .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.permissionAllowButton,
@@ -86,7 +95,7 @@ struct Screen12PermissionPriming: View {
         }
         .task {
             guard !reduceMotion else { return }
-            try? await Task.sleep(for: .milliseconds(250))
+            try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             withAnimation(Theme.Motion.springCelebration) { bannerShown = true }
         }
@@ -98,69 +107,102 @@ struct Screen12PermissionPriming: View {
         }
     }
 
-    // MARK: - Mock notification
+    // MARK: - Mock lock screen
 
-    /// Two ghost banners behind the live one imply a stack of nudges without promising a number.
-    private var notificationPreview: some View {
+    /// Date, clock, and the notification stack: a lock screen in miniature. Decorative.
+    private var lockScreenPreview: some View {
+        VStack(spacing: Theme.Spacing.lg) {
+            VStack(spacing: 0) {
+                Text(openedAt, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                Text(openedAt, format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                    .font(Theme.Typography.numeral(size: Self.clockSize, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+
+            notificationStack
+        }
+        .padding(.top, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.bottom, Theme.Spacing.lg)
+        .frame(maxWidth: .infinity)
+        .zanoHero()
+        .accessibilityHidden(true)
+    }
+
+    /// The live banner with two older ones peeking out beneath it, as iOS stacks them.
+    private var notificationStack: some View {
         ZStack(alignment: .top) {
             ghostBanner
-                .scaleEffect(0.88)
-                .offset(y: Theme.Spacing.lg)
+                .scaleEffect(x: 0.86, y: 1, anchor: .bottom)
+                .offset(y: Theme.Spacing.md)
                 .opacity(0.35)
             ghostBanner
-                .scaleEffect(0.94)
-                .offset(y: Theme.Spacing.sm)
+                .scaleEffect(x: 0.93, y: 1, anchor: .bottom)
+                .offset(y: Theme.Spacing.xs)
                 .opacity(0.6)
             banner
                 .offset(y: isBannerVisible ? 0 : -Theme.Spacing.xl)
                 .opacity(isBannerVisible ? 1 : 0)
         }
-        .padding(.bottom, Theme.Spacing.lg)
-        .accessibilityHidden(true)
+        .padding(.bottom, Theme.Spacing.md)
     }
 
-    /// The edge of a notification banner peeking from behind the live one: an empty card, same
-    /// recipe (`zanoCard`), no content, so it cannot say anything the live banner doesn't.
+    /// A banner-shaped plate with no content, so it cannot say anything the live banner doesn't.
+    /// Matches the live banner's height by holding the same content invisibly.
     private var ghostBanner: some View {
-        Color.clear
-            .frame(height: Self.ghostBannerHeight)
-            .zanoCard()
+        bannerContent
+            .hidden()
+            .bannerPlate()
     }
 
     private var banner: some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            // Stand-in for the app icon (the real one lives in the asset catalog, which this
-            // screen doesn't own): an accent tile with a lock, `onFill` glyph on the accent (16:1).
-            // A rounded square, not an `IconBadge` circle: it is impersonating an app icon.
-            Image(systemName: "lock.fill")
-                .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(Theme.Colors.onFill)
-                .frame(width: Theme.Metrics.iconBadgeMedium, height: Theme.Metrics.iconBadgeMedium)
-                .background(
-                    Theme.Colors.accent,
-                    in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
-                )
+        bannerContent
+            .bannerPlate()
+    }
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                HStack(spacing: Theme.Spacing.xs) {
-                    Image(systemName: OnboardingKit.icon(for: flowState.coachVoice))
-                        .font(Theme.Typography.icon(.xsmall))
-                        .foregroundStyle(Theme.Colors.muted)
+    /// iOS's banner layout: app icon, then a bold title with the time on the trailing edge, then
+    /// the message. The message is the line the voice picker promised on screen 8, verbatim.
+    private var bannerContent: some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+            appIcon
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs / 2) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
                     Text(Copy.onboardingReveal.notificationPreviewAppName)
-                        .zanoText(.eyebrow)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Spacer(minLength: Theme.Spacing.xs)
+                    Text(Copy.onboardingReveal.notificationPreviewTime)
+                        .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
                 }
-                // The line the voice picker promised on screen 8, verbatim.
                 Text(flowState.coachVoice.sampleLine)
                     .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.text)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
-        .padding(Theme.Spacing.md)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.vertical, Theme.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(fill: Theme.Colors.surface2)
+    }
+
+    /// Stand-in for the real app icon (which lives in the asset catalog, not addressable as an
+    /// image): the same "Z" on near-black, with the edge iOS draws around a dark icon. The accent
+    /// here is the brand mark itself, not UI chrome.
+    private var appIcon: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.small * 0.75, style: .continuous)
+        return Text(Copy.onboardingReveal.notificationPreviewAppMonogram)
+            .font(.system(size: Self.appIconSide * 0.55, weight: .black).width(.expanded))
+            .foregroundStyle(Theme.Colors.accent)
+            .frame(width: Self.appIconSide, height: Self.appIconSide)
+            .background(Theme.Colors.background, in: shape)
+            .overlay(shape.strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
     }
 
     // MARK: - Authorization
@@ -179,6 +221,14 @@ struct Screen12PermissionPriming: View {
             isRequesting = false
             flowState.advance()
         }
+    }
+}
+
+private extension View {
+    /// The banner's plate: a lighter-than-card rounded rect with the shared top-lit edge, like the
+    /// translucent grey of a real notification over a dark wallpaper.
+    func bannerPlate() -> some View {
+        zanoCard(radius: Theme.Radius.medium, fill: Theme.Colors.surface2)
     }
 }
 

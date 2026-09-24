@@ -16,8 +16,9 @@
 //     before you read them. This is why the screen is not `SelectableCard`: that component sets
 //     every subtitle in one caption style, which would erase exactly the difference being sold;
 //   - the unselected edge is the shared `Theme.Colors.hairline` (12% white, 1.4:1 over `surface`;
-//     the old value was 1.06:1 and drew nothing), selection is a 2pt accent edge over the on-hue
-//     `accentWash` (not `accent` at 6%, which composites to olive), with a haptic tick on change;
+//     the old value was 1.06:1 and drew nothing), selection is the app-wide white selection
+//     (`SelectableCard`'s: `surface2` fill, white edge, white check — decision 2026-09-24, the accent
+//     is for earned states only), with a haptic tick on change;
 //   - press feedback on touch-down (`PressableStyle`), symbol-replace on the check, and every
 //     animation gated on Reduce Motion;
 //   - the sample line is a Dynamic Type text style with only weight and design varying per voice
@@ -45,9 +46,7 @@ struct Screen8CoachVoice: View {
                 }
             }
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.07)
-        }
+        .zanoAmbient(.neutral)
         .onboardingKitActionBar {
             PrimaryButton(title: Copy.common.continueButtonLabel) {
                 flowState.advance()
@@ -75,7 +74,7 @@ struct Screen8CoachVoice: View {
             HStack(alignment: .top, spacing: Theme.Spacing.sm) {
                 IconBadge(
                     systemName: OnboardingKit.icon(for: voice),
-                    tint: isSelected ? Theme.Colors.accent : Theme.Colors.text,
+                    tint: isSelected ? Theme.Colors.interactive : Theme.Colors.muted,
                     size: .medium
                 )
 
@@ -94,16 +93,17 @@ struct Screen8CoachVoice: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.muted)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                    .accessibilityHidden(true)
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface, in: shape)
+            .background(isSelected ? Theme.Colors.surface2 : Theme.Colors.surface, in: shape)
             .overlay(
                 shape.strokeBorder(
-                    isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
-                    lineWidth: isSelected ? 2 : Theme.Metrics.edgeWidth
+                    isSelected ? Theme.Colors.interactive : Theme.Colors.hairline,
+                    lineWidth: isSelected ? 1.5 : Theme.Metrics.edgeWidth
                 )
             )
             .contentShape(shape)

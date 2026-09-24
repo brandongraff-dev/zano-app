@@ -30,6 +30,11 @@
 // accidental touch). Reduce Motion: no scale, no springs; the fill still tracks the hold (it is
 // information), and the advance beat is shortened.
 //
+// Premium pass (2026-09-24, "light is earned"): committing is a decision, not an earned state, so the
+// ring, its glow and the glyph are white (`Theme.Colors.interactive`), matching the white hold
+// sweep of `PrimaryButton.holdToCommit`; the backdrop is the shared neutral ambient. The green
+// arrives later, at the first real unlock.
+//
 // The hold logic mirrors `PrimaryButton.holdToCommit` (`Core/UI/Components/PrimaryButton.swift`)
 // because that component's bar shape can't be a ring; the timing constant is shared.
 
@@ -86,11 +91,12 @@ struct Screen11Commitment: View {
         .padding(.bottom, Theme.Spacing.md)
         .background {
             OnboardingKit.Glow(
-                tint: Theme.Colors.accent,
-                opacity: isCommitted ? 0.20 : 0.08,
+                tint: Theme.Colors.interactive,
+                opacity: isCommitted ? 0.10 : 0.04,
                 anchor: .center
             )
         }
+        .zanoAmbient(.neutral)
         .alert(
             "",
             isPresented: Binding(
@@ -141,23 +147,22 @@ struct Screen11Commitment: View {
 
     private var holdRing: some View {
         ZStack {
-            // The empty ring is the accent at 30% (`Ring.track(for:)`), the same track every
-            // `GoalRing` draws, so it reads as "the ring you are about to close" and not as a
-            // grey arc that vanishes on near-black.
+            // The empty ring is the shared `track` (white at 16%), so it reads as "the ring you are
+            // about to close" and not as a grey arc that vanishes on near-black.
             Circle()
-                .stroke(Theme.Colors.Ring.track(for: Theme.Colors.accent), lineWidth: Self.ringLineWidth)
+                .stroke(Theme.Colors.track, lineWidth: Self.ringLineWidth)
 
             Circle()
                 .trim(from: 0, to: holdProgress)
                 .stroke(
-                    Theme.Colors.accent,
+                    Theme.Colors.interactive,
                     style: StrokeStyle(lineWidth: Self.ringLineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                // The static glow `GoalRing` gives an active arc, stronger once earned. A function
-                // of progress only — never an animated radius.
+                // A static glow on the active arc, stronger once committed. A function of progress
+                // only — never an animated radius.
                 .shadow(
-                    color: Theme.Colors.accent.opacity(isCommitted ? 0.5 : (holdProgress > 0 ? 0.28 : 0)),
+                    color: Theme.Colors.interactive.opacity(isCommitted ? 0.35 : (holdProgress > 0 ? 0.18 : 0)),
                     radius: Self.ringLineWidth * 0.7
                 )
 
@@ -166,8 +171,8 @@ struct Screen11Commitment: View {
         .padding(Self.ringLineWidth / 2)
         .frame(width: Self.ringDiameter, height: Self.ringDiameter)
         .scaleEffect(isHolding && !reduceMotion ? 1.03 : 1)
-        // A wider static glow on the earned state only.
-        .shadow(color: Theme.Colors.accent.opacity(isCommitted ? 0.30 : 0), radius: 24)
+        // A wider static glow once committed.
+        .shadow(color: Theme.Colors.interactive.opacity(isCommitted ? 0.18 : 0), radius: 24)
         .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -190,7 +195,7 @@ struct Screen11Commitment: View {
         VStack(spacing: Theme.Spacing.xs) {
             Image(systemName: isCommitted ? "checkmark" : "lock.fill")
                 .font(.system(size: Self.glyphSize, weight: .semibold))
-                .foregroundStyle(Theme.Colors.accent)
+                .foregroundStyle(Theme.Colors.interactive)
                 .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
 
             if !isCommitted {

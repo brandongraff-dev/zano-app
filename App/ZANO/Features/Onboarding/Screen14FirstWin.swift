@@ -57,7 +57,8 @@
 // and a CTA that floated up the page on the widget phase.
 //
 //   intro        the ring the user is about to fill, empty, "10 min" inside it — the same object they
-//                watch fill in the next phase — then eyebrow, display headline, subtitle.
+//                watch fill in the next phase — then a sentence-case eyebrow, display headline,
+//                subtitle.
 //   running      the same ring as a 200pt hero with the countdown in it. The exit is no longer a
 //                bar: it is a 52pt capsule (`EmergencyHoldControl`) pinned at the bottom on the
 //                shared action bar, danger-tinted, whose fill sweeps along the capsule as you hold
@@ -78,6 +79,12 @@
 //                focus ring is full and the streak is 1) and the three steps lighting up in turn once
 //                (the spec's "animated guide"), all lit under Reduce Motion — replacing a looping
 //                pulse. Step numbers are neutral discs, not accent decoration.
+//
+// Premium pass (2026-09-24, "light is earned"): the intro is a moment, not a form — a 248pt ring in
+// the focus color over its own focus-colored halo, "10" in the compressed hero numeral inside it,
+// and a neutral ambient backdrop (no green before anything is earned). Green appears only once the
+// session verifies (celebration, week dot, streak flame). The widget mock's "+" badge is white: it is
+// an affordance, not a reward.
 //
 // Every animation is gated on `accessibilityReduceMotion`. The header chrome is hidden on this
 // screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
@@ -177,13 +184,7 @@ struct Screen14FirstWin: View {
     private var introView: some View {
         OnboardingKit.CenteredScroll {
             VStack(spacing: Theme.Spacing.xl) {
-                GoalRing(
-                    progress: 0,
-                    color: Theme.Colors.Ring.focus,
-                    size: .hero,
-                    center: .value("\(Self.plannedMinutes)", unit: Copy.onboardingReveal.firstWinRingUnit)
-                )
-                .accessibilityHidden(true)
+                FirstWinIntroRing(minutes: Self.plannedMinutes)
 
                 VStack(spacing: Theme.Spacing.sm) {
                     OnboardingKit.Eyebrow(text: Copy.onboarding.firstWinEyebrow)
@@ -200,9 +201,7 @@ struct Screen14FirstWin: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.10)
-        }
+        .zanoAmbient(.neutral)
         .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.firstWinStartButton,
@@ -226,7 +225,7 @@ struct Screen14FirstWin: View {
                 GoalRing(
                     progress: progressFraction,
                     color: Theme.Colors.Ring.focus,
-                    size: .hero,
+                    size: .custom(FirstWinIntroRing.diameter),
                     center: .text(formattedCountdown)
                 )
 
@@ -464,6 +463,60 @@ struct Screen14FirstWin: View {
     private func finishOnboarding() {
         Analytics.shared.capture(event: "onboarding_completed")
         onFinished()
+    }
+}
+
+// MARK: - Intro ring
+
+/// The first win's promise: the ring the user is about to fill, empty, in the focus color over a
+/// static halo of the same color, with the session length as the hero numeral inside it. The
+/// running phase is this ring filling. Decorative for VoiceOver (the headline and subtitle say it).
+private struct FirstWinIntroRing: View {
+    let minutes: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    /// Shared with the running phase's ring, so the promise and the timer are one object.
+    static let diameter: CGFloat = 248
+    /// The halo is wider than the ring; a `background` never affects layout.
+    private static let haloDiameter: CGFloat = 420
+
+    private var isShown: Bool { reduceMotion || appeared }
+
+    var body: some View {
+        GoalRing(
+            progress: 0,
+            color: Theme.Colors.Ring.focus,
+            size: .custom(Self.diameter),
+            center: .none
+        )
+        .overlay {
+            VStack(spacing: 0) {
+                OnboardingKit.HeroNumeral(text: "\(minutes)", color: Theme.Colors.text)
+                Text(Copy.onboardingReveal.firstWinRingUnit)
+                    .zanoText(.unit)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+        }
+        .background {
+            // Static: only its opacity changes, once, as the ring arrives (never an animated blur).
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Theme.Colors.Ring.focus.opacity(0.32), Theme.Colors.Ring.focus.opacity(0)],
+                        center: .center,
+                        startRadius: Self.diameter * 0.3,
+                        endRadius: Self.haloDiameter / 2
+                    )
+                )
+                .frame(width: Self.haloDiameter, height: Self.haloDiameter)
+                .opacity(isShown ? 1 : 0)
+        }
+        .scaleEffect(isShown ? 1 : 0.94)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: appeared)
+        .onAppear { appeared = true }
+        .accessibilityHidden(true)
     }
 }
 
@@ -829,7 +882,7 @@ private struct FirstWinWidgetPrompt: View {
                 .font(Theme.Typography.icon(.small))
                 .foregroundStyle(Theme.Colors.onFill)
                 .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                .background(Theme.Colors.accent, in: Circle())
+                .background(Theme.Colors.interactive, in: Circle())
                 .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))
                 .offset(x: Theme.Spacing.xxs, y: Theme.Spacing.xxs)
         }

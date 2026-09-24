@@ -11,8 +11,8 @@
 // own stand-ins for it. Those are gone now and everything points at the real Core pieces:
 //   - `OnboardingDerivedColors`  -> `Theme.Colors.hairline / hairlineStrong / track / accentWash`
 //   - `OnboardingCardPressStyle` -> `PressableStyle`
-//   - the bespoke choice row     -> `SelectableCard` (one selected/unselected look app-wide: accent wash
-//                                   + 2pt accent edge + filled check; visible 12% hairline otherwise)
+//   - the bespoke choice row     -> `SelectableCard` (one selected/unselected look app-wide: white
+//                                   selection; visible 12% hairline otherwise)
 //   - the hand-rolled pinned bar -> `zanoActionBar` (`StickyActionBar`)
 // What is still hosted here for screens 1-7 to share: `OnboardingSingleChoiceList` (screens 3 and 7)
 // and `View.onboardingPinnedContinue` (all seven).
@@ -134,9 +134,12 @@ private struct OnboardingPlanPreview: View {
             HStack(spacing: Theme.Spacing.sm) {
                 ForEach(slots) { slot in
                     let isLit = selection?.previewGoalTypes.contains(slot.type) ?? false
+                    // White when lit: this reflects a *selection*, not progress or an earned state,
+                    // so it takes the selection color (decision 2026-09-24), never the accent that
+                    // the workout ring's own color happens to be.
                     GoalRing(
                         progress: isLit ? litProgress : 0,
-                        color: isLit ? Theme.Colors.Ring.color(for: slot.type) : Theme.Colors.muted,
+                        color: isLit ? Theme.Colors.interactive : Theme.Colors.muted,
                         size: .custom(48),
                         center: .icon(systemName: slot.icon)
                     )

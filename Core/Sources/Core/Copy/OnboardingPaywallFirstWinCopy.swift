@@ -23,6 +23,9 @@ extension Copy.paywallTimeline {
     /// Title of the plan-loading failure state. Names what failed, so the message under it (the
     /// cause) and the "Try again" button read as one thought. Replaces a bare error string.
     public static let plansLoadFailedTitle = "Couldn't load plans"
+
+    /// One line under `plansLoadFailedTitle`: what happened and what to do, not a raw StoreKit error.
+    public static let plansLoadFailedDetail = "The App Store didn't answer. Check your connection, then try again."
 }
 
 extension Copy.onboardingReveal {

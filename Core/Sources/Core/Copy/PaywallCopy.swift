@@ -16,11 +16,19 @@ extension Copy {
         /// Spec §16 P5 mockup headline, verbatim: "Earn your phone back".
         public static let headline = "Earn your phone back"
 
+        /// One line under the headline: the product's promise in the user's terms.
+        public static let subheadline = "Do what you said you'd do, and your apps open back up."
+
         // MARK: - Benefits (spec §16 P5: three benefit rows, verbatim phrases)
 
         public static let benefitUnlimitedGoalsTitle = "Unlimited goals & lock sets"
         public static let benefitAdaptivePlanTitle = "Adaptive plan that learns you"
         public static let benefitSquadsDuelsTitle = "Squads & duels"
+
+        // One supporting line per benefit, in the user's own terms (spec §21).
+        public static let benefitUnlimitedGoalsDetail = "Gym, protein, focus: put any app behind any goal."
+        public static let benefitAdaptivePlanDetail = "Starts easy, then grows as you show up."
+        public static let benefitSquadsDuelsDetail = "Friends who notice when you skip."
 
         // MARK: - "The plan you built" (spec §21 copy rule)
 
@@ -32,7 +40,7 @@ extension Copy {
 
         // MARK: - Plans
 
-        public static let annualBadgeLabel = "BEST VALUE"
+        public static let annualBadgeLabel = "Best value"
         public static let annualPlanTitle = "Annual"
         public static let monthlyPlanTitle = "Monthly"
         public static let weeklyPlanTitle = "Weekly"
@@ -55,7 +63,12 @@ extension Copy {
             "\(days)-day free trial"
         }
 
-        // MARK: - CTA / restore / free path
+        /// The pill on the highlighted plan card: "7 days free".
+        public static func trialBadgeLabel(trialDays: Int) -> String {
+            trialDays == 1 ? "1 day free" : "\(trialDays) days free"
+        }
+
+        // MARK: - CTA / restore (hard paywall: there is no free path, decision 2026-09-23)
 
         public static func startTrialButtonLabel(trialDays: Int) -> String {
             "Start my \(trialDays)-day free trial"

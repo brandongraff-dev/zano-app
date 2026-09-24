@@ -130,7 +130,7 @@ struct Screen5PhoneTime: View {
             Slider(value: $flowState.dailyPhoneTimeHours, in: 1...10, step: 0.5) {
                 Text(Copy.onboarding.q3Title)
             }
-            .tint(Theme.Colors.accent)
+            .tint(Theme.Colors.interactive)
             .accessibilityValue(Text(hoursText))
 
             HStack {

@@ -205,3 +205,4 @@ paywall would block entry), real privacy/terms URLs (placeholders `zano.app/priv
 email (placeholder `support@zano.app`), product calls (streak freeze in emergency unlock, meal-prep
 verification, pause-for-health mechanism).
 **Unverified:** all of it is syntax-checked only; Flow2 UI test still expects the old free path.
+- **CI green (2026-09-24):** after the repo went public, run 36053520709 (bc74bf4) built everything; only fix needed was a @MainActor on the widget quick-log helper. Screenshots reviewed.

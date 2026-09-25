@@ -53,6 +53,9 @@ struct NFCMapTagSheet: View {
     @State private var selectedGoalID: UUID?
     @State private var label = ""
     @State private var hasLoaded = false
+    /// Set when `loadInitialState` changes `kind`, so that programmatic change doesn't replace the
+    /// loaded action with the kind's suggestion.
+    @State private var skipNextKindSuggestion = false
     @State private var isSaving = false
     @State private var saveFailed = false
 
@@ -63,7 +66,7 @@ struct NFCMapTagSheet: View {
     /// Goals a tap may check off: honesty/one-tap tiers only (custom, reading, cold shower/sauna),
     /// never auto-verified ones — a tag must not stand in for a gym geofence.
     private var honorGoals: [Goal] {
-        allGoals.filter { $0.active && [.custom, .reading, .coldShowerSauna].contains($0.type) }
+        allGoals.filter { $0.active && [GoalType.custom, .reading, .coldShowerSauna].contains($0.type) }
     }
 
     private var hasConfirmedGym: Bool { gyms.contains { $0.confirmed } }
@@ -99,7 +102,10 @@ struct NFCMapTagSheet: View {
             }
             .onAppear(perform: loadInitialState)
             .onChange(of: kind) { _, newValue in
-                guard hasLoaded else { return }
+                if skipNextKindSuggestion {
+                    skipNextKindSuggestion = false
+                    return
+                }
                 if let suggested = newValue.suggestedAction { apply(suggested) }
             }
             .alert(Copy.nfc.mapSaveFailedTitle, isPresented: $saveFailed) {
@@ -352,13 +358,17 @@ struct NFCMapTagSheet: View {
 
     private func loadInitialState() {
         guard !hasLoaded else { return }
+        hasLoaded = true
+        let startKind = existing?.kind ?? initialKind
+        if startKind != kind {
+            skipNextKindSuggestion = true
+            kind = startKind
+        }
         if let existing {
-            kind = existing.kind
             label = existing.label
             apply(existing.action)
-        } else {
-            kind = initialKind
-            if let suggested = initialKind.suggestedAction { apply(suggested) }
+        } else if let suggested = startKind.suggestedAction {
+            apply(suggested)
         }
         if selectedLockSetID == nil {
             selectedLockSetID = lockSets.first(where: \.isDefault)?.id ?? lockSets.first?.id
@@ -366,8 +376,6 @@ struct NFCMapTagSheet: View {
         if selectedGoalID == nil {
             selectedGoalID = honorGoals.first?.id
         }
-        // Set after the kind write so `onChange(of: kind)` doesn't overwrite an existing action.
-        DispatchQueue.main.async { hasLoaded = true }
     }
 
     private func apply(_ action: NFCTagAction) {

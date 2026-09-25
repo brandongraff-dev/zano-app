@@ -91,7 +91,7 @@ targets:
         # Matches what Core actually reads: step count (StepsVerifier requests it), workouts
         # (HomeWorkoutVerifier) and heart rate (GymVerifier / GymAutoDetect / HomeWorkoutVerifier).
         # Nothing reads sleep, so it is not mentioned.
-        NSHealthShareUsageDescription: "ZANO reads your steps, workouts, and heart rate to verify goals automatically, without you having to log them."
+        NSHealthShareUsageDescription: "ZANO reads your steps, workouts, heart rate, and sleep to verify goals automatically, without you having to log them."
         # Nothing writes to Health yet (every requestAuthorization passes `toShare: []`). Kept so a
         # HealthKit-linked binary never trips a missing-purpose-string check; no prompt shows it today.
         NSHealthUpdateUsageDescription: "ZANO may save workouts you start from inside the app."

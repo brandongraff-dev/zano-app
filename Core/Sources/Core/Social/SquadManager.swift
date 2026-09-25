@@ -113,7 +113,7 @@ public enum SquadManagerError: Error, Sendable, LocalizedError {
         case .cannotNudgeSelf:
             "Cannot nudge yourself."
         case .dailyNudgeCapReached(let cap):
-            return "Already sent \(cap) squad nudges to this member today."
+            "Already sent \(cap) squad nudges to this member today."
         case .nudgeCooldownActive(let retryAfter):
             "Already nudged this person recently — try again in \(Int(retryAfter))s."
         }

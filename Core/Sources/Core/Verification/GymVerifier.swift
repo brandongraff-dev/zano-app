@@ -247,6 +247,7 @@ actor GymDwellState {
     /// Lazily re-opened with the same name on first use; `CLMonitor` reloads its saved conditions
     /// from disk (WWDC23 "Meet Core Location Monitor").
     private var monitor: CLMonitor?
+    private var monitorCreation: Task<CLMonitor, Never>?
     private var eventTask: Task<Void, Never>?
     private var presenceContinuation: AsyncStream<GymPresenceEvent>.Continuation?
 
@@ -255,7 +256,9 @@ actor GymDwellState {
 
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "GymVerifier")
 
-    private static let monitorName = "com.zano.app.gymMonitor"
+    /// Letters and digits only: `CLMonitor` throws "Monitor name is not valid" (and crashes the app)
+    /// for any other character — the old dotted name did exactly that on every launch.
+    private static let monitorName = "ZANOGymMonitor"
     private static let sessionsDefaultsKey = "zano.gym.dwellSessions.v1"
 
     init() {
@@ -417,8 +420,14 @@ actor GymDwellState {
 
     private func currentMonitor() async -> CLMonitor {
         if let monitor { return monitor }
-        let created = await CLMonitor(Self.monitorName)
+        // Shared across overlapping callers: the actor re-enters at the `await`, and opening a
+        // second monitor under the same name while the first is live is also rejected.
+        if let monitorCreation { return await monitorCreation.value }
+        let creation = Task { await CLMonitor(Self.monitorName) }
+        monitorCreation = creation
+        let created = await creation.value
         monitor = created
+        monitorCreation = nil
         return created
     }
 

@@ -431,6 +431,36 @@ public final class TravelMode {
         )
     }
 
+    /// The user said "I'm traveling" themselves (Today's travel card, Wave 2F) — no location
+    /// sample needed. Starts the same session `acceptTravelMode` does, with no city and no
+    /// distance, and clears any pending suggestion so it isn't offered on top. Returns the already
+    /// running session instead of throwing when one exists, since the user's intent is satisfied.
+    /// It ends the same ways: `endTravelMode`, or a location sample landing back near home.
+    @discardableResult
+    public func startManualTravelMode(on date: Date = .now) async throws -> TravelModeSession {
+        if let active = await activeSession(asOf: date) {
+            return active
+        }
+        let user = try fetchCurrentUser()
+        let emphasizedIDs = fetchActiveGoals(userID: user.id, types: Set(Self.suggestedGoalTypes)).map(\.id)
+        let optionalGymIDs = fetchActiveGoals(userID: user.id, types: [Self.optionalGoalType]).map(\.id)
+
+        clearPendingSuggestionDefaults()
+        travelDefaults.set(false, forKey: DefaultsKey.dismissedForCurrentTrip)
+        travelDefaults.set(date, forKey: DefaultsKey.activeStartDate)
+        travelDefaults.set(0.0, forKey: DefaultsKey.activeDistanceMeters)
+        travelDefaults.removeObject(forKey: DefaultsKey.activeCity)
+
+        logger.notice("Travel Mode started manually: \(optionalGymIDs.count, privacy: .public) gym goal(s) now optional.")
+        return TravelModeSession(
+            startDate: date,
+            detectedCity: nil,
+            distanceFromHomeMeters: 0,
+            emphasizedGoalIDs: emphasizedIDs,
+            optionalGymGoalIDs: optionalGymIDs
+        )
+    }
+
     /// The currently active session, if any. Re-resolves `emphasizedGoalIDs`/`optionalGymGoalIDs`
     /// live on every call rather than trusting a stale snapshot from `acceptTravelMode` — the same
     /// choice `ComebackMode.activeChallenge` makes (deriving `goalIDs` live each call) and for the

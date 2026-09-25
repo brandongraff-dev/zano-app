@@ -27,6 +27,11 @@
 //   opens a guided timer (`StretchTimerSheet`); undo corrects a rollup completion the undone log
 //   no longer supports (never re-locking); after the first lock a "Finish setup" card
 //   (`FinishSetupCard`) lists tags, gym, Health and widget until done or hidden.
+// - Wave 2F (2026-09-25): one suggestion card slot under the hero (`Suggestions/`): Never Miss
+//   Twice, comeback, Plan B, travel, calendar light day, locked-out moment; at most one at a time,
+//   in `TodaySuggestion.priority` order, none during a health pause, each dismissible for the day.
+//   Locks start in `LockPreferences.defaultMode`, and skip the gym goal while travel mode is on.
+//   The meal-prep row opens `MealPrepCaptureSheet`.
 //
 // Every animation is gated on Reduce Motion; the ambient light and washes drop under Reduce
 // Transparency. User-facing strings live in `Copy.today` (`Core/Sources/Core/Copy/TodayCopy.swift`);
@@ -115,6 +120,15 @@ struct TodayView: View {
     @State private var showHealthPrimer = false
     @State private var showWidgetHowTo = false
     @State private var stretchTarget: StretchTarget?
+    @State private var mealPrepTarget: MealPrepTarget?
+
+    /// Suggestion slot (Wave 2F): async signals, reloaded on foreground, goal changes and actions.
+    @State private var suggestionSignals = TodaySuggestionSignals()
+    @State private var suggestionTick = 0
+    @State private var isSuggestionBusy = false
+    /// Keys hidden this session ("Not today"), on top of the persisted dismiss memory.
+    @State private var dismissedSuggestionKeys: Set<String> = []
+    @State private var lockedOutMoment: LockedOutPresentation?
 
     /// Live Health progress for steps and home/outdoor workout rows, keyed by goal id.
     @State private var liveSteps: [UUID: Int] = [:]
@@ -152,6 +166,7 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     header
                     heroCard
+                    suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist
                     } else if showsFinishSetupCard {
@@ -208,6 +223,23 @@ struct TodayView: View {
             }
             .sheet(item: $stretchTarget) { target in
                 StretchTimerSheet(goalID: target.id)
+            }
+            .sheet(item: $mealPrepTarget) { target in
+                MealPrepCaptureSheet(goalID: target.id)
+            }
+            .fullScreenCover(item: $lockedOutMoment) { moment in
+                LockedOutMomentView(content: moment.content) {
+                    lockedOutMoment = nil
+                    dismissSuggestion(.lockedOut(attempts: moment.content.attemptCount))
+                }
+            }
+            .task(id: SuggestionRefreshKey(
+                tick: suggestionTick,
+                foreground: setupStatusTick,
+                completed: completedGoalCount,
+                isLocked: isLocked
+            )) {
+                await refreshSuggestionSignals()
             }
             .task(id: gymWatchKey) {
                 await watchGymDwell()
@@ -832,9 +864,11 @@ struct TodayView: View {
         case .stretchMobility:
             // A guided 5-minute timer (`StretchTimerSheet`), verified by `StretchVerifier`.
             return .start(label: Copy.today.actionStart)
-        case .creatine, .custom, .coldShowerSauna, .reading, .mealPrep:
-            // Meal prep stays honor-system here: `MealPrepVerifier` needs a vision backend that
-            // nothing configures yet, so a photo flow would have nothing to verify against.
+        case .mealPrep:
+            // A photo of the prepped containers (`MealPrepCaptureSheet`, Wave 2G): vision when
+            // configured, otherwise its own honor tier. Weekly cap lives in `MealPrepVerifier`.
+            return .start(label: Copy.today.actionAddPhoto)
+        case .creatine, .custom, .coldShowerSauna, .reading:
             return .start(label: Copy.today.actionLog)
         }
     }
@@ -864,7 +898,10 @@ struct TodayView: View {
         case .stretchMobility:
             Analytics.shared.capture(event: "today_start_stretch_tapped")
             stretchTarget = StretchTarget(id: goal.id)
-        case .custom, .coldShowerSauna, .reading, .mealPrep:
+        case .mealPrep:
+            Analytics.shared.capture(event: "today_meal_prep_photo_tapped")
+            mealPrepTarget = MealPrepTarget(id: goal.id)
+        case .custom, .coldShowerSauna, .reading:
             // Honor-system goals: one confirmation is the friction before the log.
             confirmingLogGoal = goal
         case .steps:
@@ -1161,7 +1198,7 @@ struct TodayView: View {
         guard !activeGoals.isEmpty else { return onFinishSetup == nil ? .none : .finishSetup }
         guard isLocked else {
             guard let lockSet = defaultLockSet else { return onFinishSetup == nil ? .none : .finishSetup }
-            return .beginLock(lockSetID: lockSet.id, requiredGoalIDs: activeGoals.map(\.id))
+            return .beginLock(lockSetID: lockSet.id, requiredGoalIDs: lockRequiredGoalIDs)
         }
         if let runningFocusGoalID, requiredGoals.contains(where: { $0.id == runningFocusGoalID && !isGoalDoneToday($0) }) {
             return .focusRunning
@@ -1236,7 +1273,7 @@ struct TodayView: View {
             do {
                 _ = try await LockEngineManager.shared.startLock(
                     lockSetID: lockSetID,
-                    mode: .earn,
+                    mode: LockPreferences.defaultMode,
                     requiredGoalIDs: requiredGoalIDs,
                     trigger: .manual
                 )
@@ -1417,6 +1454,476 @@ struct TodayView: View {
             return Copy.today.unlockCelebrationFallbackGoalName
         }
         return only.title
+    }
+
+    // MARK: - Suggestion slot (Wave 2F: one card at most, under the hero)
+
+    /// The one card to show: the highest-priority candidate not dismissed. None on the first day
+    /// (the checklist has the slot's job) and none during a health pause.
+    private var currentSuggestion: TodaySuggestion? {
+        guard suggestionSignals.loaded, !showsFirstDayChecklist, !HealthPause.isActive else { return nil }
+        return suggestionCandidates
+            .sorted { $0.priority < $1.priority }
+            .first { !dismissedSuggestionKeys.contains($0.dismissKey) && !TodaySuggestionDismissals.isDismissed($0) }
+    }
+
+    @ViewBuilder
+    private var suggestionSlot: some View {
+        if let suggestion = currentSuggestion {
+            suggestionCard(suggestion)
+                .id(suggestion.dismissKey)
+                .transition(.opacity)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: suggestion)
+        }
+    }
+
+    @ViewBuilder
+    private func suggestionCard(_ suggestion: TodaySuggestion) -> some View {
+        let busy = isSuggestionBusy || isPerformingAction
+        let dismiss = { dismissSuggestion(suggestion) }
+        switch suggestion {
+        case .neverMissTwice(let state):
+            NeverMissTwiceBanner(state: state, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                if let goalID = state.goalID { runRowAction(goalID: goalID) }
+            }, onDismiss: dismiss)
+        case .comeback(let state):
+            ComebackCard(state: state, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                if state.day == nil {
+                    startComeback()
+                } else if let goalID = state.goalID {
+                    runRowAction(goalID: goalID)
+                }
+            }, onDismiss: dismiss)
+        case .planB(let state):
+            PlanBCard(state: state, pendingActionTitle: planBPendingActionTitle(state), isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                planBAction(state)
+            }, onDismiss: dismiss)
+        case .travel(let variant):
+            TravelModeCard(variant: variant, city: suggestionSignals.travelCity, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                travelAction(variant)
+            }, onDismiss: {
+                if variant == .suggested {
+                    Task { await TravelMode.shared.dismissSuggestion() }
+                }
+                dismiss()
+            })
+        case .calendarLightDay(let variant):
+            CalendarLightDayCard(variant: variant, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                calendarAction(variant)
+            }, onDismiss: dismiss)
+        case .lockedOut(let attempts):
+            LockedOutMomentCard(attempts: attempts, onAction: {
+                suggestionTapped(suggestion)
+                lockedOutMoment = LockedOutPresentation(content: lockedOutContent(attempts: attempts))
+            }, onDismiss: dismiss)
+        }
+    }
+
+    /// Every card that applies right now, in no particular order (`priority` sorts them).
+    private var suggestionCandidates: [TodaySuggestion] {
+        let signals = suggestionSignals
+        var candidates: [TodaySuggestion] = []
+        let easiest = easiestOpenGoal
+
+        // Never Miss Twice (spec 5.6): the engine armed the flag for yesterday's miss, the streak
+        // is still alive, and today hasn't been earned yet.
+        if let streak, streak.current > 0, streak.neverMissTwiceArmed,
+           !(streak.lastEarnedDate.map { Calendar.current.isDateInToday($0) } ?? false),
+           let easiest {
+            candidates.append(.neverMissTwice(NeverMissTwiceState(
+                goalID: easiest.id,
+                goalTitle: easiest.title,
+                freezesLeft: streak.freezesLeft
+            )))
+        }
+
+        // Comeback (spec 5.18): running challenge, or eligible to start one.
+        if let day = signals.comebackDay {
+            candidates.append(.comeback(ComebackState(
+                day: day, totalDays: signals.comebackTotalDays, goalID: easiest?.id, goalTitle: easiest?.title
+            )))
+        } else if signals.comebackEligible {
+            candidates.append(.comeback(ComebackState(
+                day: nil, totalDays: signals.comebackTotalDays, goalID: nil, goalTitle: nil
+            )))
+        }
+
+        // Plan B (spec 5.5).
+        if let planB = planBCandidate {
+            candidates.append(.planB(planB))
+        }
+
+        // Travel (spec 5.18, 9.7).
+        if signals.travelActive {
+            candidates.append(.travel(.active))
+        } else if signals.travelPending {
+            candidates.append(.travel(.suggested))
+        } else if let gymGoal, !isGoalDoneToday(gymGoal), gymDwellMinutes == 0,
+                  Calendar.current.component(.hour, from: .now) >= Self.travelManualOfferHour {
+            candidates.append(.travel(.manual))
+        }
+
+        // Calendar light day (spec 9.7): the ask only once the user has run a lock.
+        switch signals.calendarAccess {
+        case .granted:
+            if signals.isPackedDay, !lighterPlanGoals.isEmpty {
+                candidates.append(.calendarLightDay(.packed))
+            }
+        case .notAsked:
+            if !lockSessions.isEmpty, !activeGoals.isEmpty {
+                candidates.append(.calendarLightDay(.ask))
+            }
+        case .declined:
+            break
+        }
+
+        // Locked-out moment (spec 5.16).
+        if signals.shieldAttemptsToday >= LockedOutAttemptTracker.threshold {
+            candidates.append(.lockedOut(attempts: signals.shieldAttemptsToday))
+        }
+        return candidates
+    }
+
+    /// Plan B's offer starts at 5 PM: late enough that a half-done goal is really at risk.
+    private static let planBOfferHour = 17
+    /// The manual "I'm traveling" ask waits until midday with the gym goal still open.
+    private static let travelManualOfferHour = 12
+
+    /// Goal types with a meaningful smaller version: an amount, minutes, or steps.
+    private static func supportsPlanB(_ type: GoalType) -> Bool {
+        switch type {
+        case .protein, .water, .steps, .focusSession, .workoutGym, .workoutHomeOutdoor: true
+        default: false
+        }
+    }
+
+    /// A goal already switched to Plan B (shown until done), else, from 5 PM, the first open goal
+    /// under half done (required goals first while locked).
+    private var planBCandidate: PlanBState? {
+        let accepted = suggestionSignals.planBAcceptedGoalIDs
+        if let goal = sortedByPriority(activeGoals).first(where: { accepted.contains($0.id) && !isGoalDoneToday($0) }) {
+            return planBState(for: goal, accepted: true)
+        }
+        guard Calendar.current.component(.hour, from: .now) >= Self.planBOfferHour else { return nil }
+        let pool = isLocked ? requiredGoals : activeGoals
+        let atRisk = openFirst(pool).first { goal in
+            Self.supportsPlanB(goal.type) && !isGoalDoneToday(goal) && planBProgressFraction(goal) < 0.5
+        }
+        return atRisk.flatMap { planBState(for: $0, accepted: false) }
+    }
+
+    /// Open goals a packed-day "go lighter" would switch to Plan B.
+    private var lighterPlanGoals: [Goal] {
+        let accepted = suggestionSignals.planBAcceptedGoalIDs
+        return activeGoals.filter { Self.supportsPlanB($0.type) && !isGoalDoneToday($0) && !accepted.contains($0.id) }
+    }
+
+    private func planBProgressFraction(_ goal: Goal) -> Double {
+        guard let state = planBState(for: goal, accepted: false), state.full > 0 else { return dayProgress(for: goal).fraction }
+        return Double(state.current) / Double(state.full)
+    }
+
+    /// Full target, Plan B target and verified progress, per goal type. A gym goal's Plan B is a
+    /// 20-minute workout anywhere (spec 5.5's "20-min walk instead of gym"), read from Health or
+    /// counted as gym dwell.
+    private func planBState(for goal: Goal, accepted: Bool) -> PlanBState? {
+        let p = dayProgress(for: goal)
+        let full: Int
+        let reduced: Int
+        let current: Int
+        let unit: String
+        switch goal.type {
+        case .workoutGym:
+            full = gymRequiredMinutes
+            reduced = min(HomeWorkoutVerificationDefaults.requiredMinutes, full)
+            current = max(suggestionSignals.healthWorkoutMinutes ?? 0, gymDwellMinutes)
+            unit = "min"
+        case .workoutHomeOutdoor:
+            full = homeWorkoutRequiredMinutes(for: goal)
+            reduced = Self.planBReduced(full)
+            current = liveWorkoutMinutes[goal.id] ?? 0
+            unit = "min"
+        case .steps:
+            guard let target = p.target else { return nil }
+            full = target
+            reduced = Self.planBReduced(full)
+            current = liveSteps[goal.id] ?? p.current ?? 0
+            unit = p.unit
+        case .protein, .water, .focusSession:
+            guard let target = p.target else { return nil }
+            full = target
+            reduced = Self.planBReduced(full)
+            current = Int(p.loggedAmount.rounded(.down))
+            unit = p.unit
+        default:
+            return nil
+        }
+        guard full > 0, reduced > 0 else { return nil }
+        return PlanBState(
+            goalID: goal.id,
+            goalTitle: goal.title,
+            goalType: goal.type,
+            full: full,
+            reduced: reduced,
+            unit: unit,
+            isAccepted: accepted,
+            current: current
+        )
+    }
+
+    private static func planBReduced(_ full: Int) -> Int {
+        Int((PlanB.reducedValue(fromFull: Double(full)) ?? Double(full)).rounded())
+    }
+
+    /// The Plan B card's button while switched but not yet met: the goal's own next step.
+    private func planBPendingActionTitle(_ state: PlanBState) -> String? {
+        switch state.goalType {
+        case .protein:
+            return Copy.today.quickAddAmount(Self.proteinQuickAddGrams, unit: "g")
+        case .water:
+            return Copy.today.quickAddAmount(Self.waterQuickAddMilliliters, unit: "ml")
+        case .focusSession:
+            return runningFocusGoalID == state.goalID ? nil : Copy.today.planBStartFocusAction(minutes: state.reduced)
+        case .steps:
+            return stepsNeedsHealth == true ? Copy.today.actionConnectHealth : nil
+        case .workoutHomeOutdoor:
+            return workoutNeedsHealth == true ? Copy.today.actionConnectHealth : nil
+        case .workoutGym:
+            return suggestionSignals.healthWorkoutMinutes == nil && gymDwellMinutes == 0 ? Copy.today.actionConnectHealth : nil
+        default:
+            return nil
+        }
+    }
+
+    private func planBAction(_ state: PlanBState) {
+        guard let goal = activeGoals.first(where: { $0.id == state.goalID }) else { return }
+        if !state.isAccepted {
+            acceptPlanB(goalIDs: [goal.id])
+            return
+        }
+        if state.isMet {
+            isSuggestionBusy = true
+            let goalID = state.goalID
+            let amount = Double(state.current)
+            Task {
+                defer { isSuggestionBusy = false }
+                do {
+                    _ = try await PlanB.recordCompletion(goalID: goalID, verifiedAmount: amount)
+                } catch {
+                    showError(Copy.today.planBCountFailed)
+                }
+            }
+            return
+        }
+        switch state.goalType {
+        case .protein, .water:
+            runRowAction(goalID: goal.id)
+        case .focusSession:
+            startFocus(goalID: goal.id, minutes: state.reduced)
+        case .steps, .workoutHomeOutdoor, .workoutGym:
+            openHealthPrimer()
+        default:
+            break
+        }
+    }
+
+    /// The easiest open goal with a one-tap action (required goals first while locked), for the
+    /// Never Miss Twice and comeback cards. Goals that only verify on their own are skipped.
+    private var easiestOpenGoal: Goal? {
+        let pool = isLocked && !requiredGoals.isEmpty ? requiredGoals : activeGoals
+        return pool
+            .filter { !isGoalDoneToday($0) && Self.effort(of: $0.type) != nil }
+            .min { (Self.effort(of: $0.type) ?? .max, $0.createdAt) < (Self.effort(of: $1.type) ?? .max, $1.createdAt) }
+    }
+
+    /// Rough effort order for a one-tap start. `nil`: no action to start from Today.
+    private static func effort(of type: GoalType) -> Int? {
+        switch type {
+        case .water: 0
+        case .creatine: 1
+        case .protein: 2
+        case .stretchMobility: 3
+        case .reading, .custom, .coldShowerSauna, .mealPrep: 4
+        case .focusSession: 5
+        case .workoutGym: 6
+        case .steps, .workoutHomeOutdoor, .sleepOnTime, .sunriseAlarm: nil
+        }
+    }
+
+    /// Runs a goal's row action, the same as tapping it in the list.
+    private func runRowAction(goalID: UUID) {
+        guard let goal = activeGoals.first(where: { $0.id == goalID }) else { return }
+        perform(rowAction: actionItem(for: goal, required: false))
+    }
+
+    private func startComeback() {
+        isSuggestionBusy = true
+        Task {
+            defer { isSuggestionBusy = false }
+            do {
+                _ = try await ComebackMode.shared.startChallengeIfEligible()
+            } catch {
+                showError(Copy.today.comebackStartFailed)
+            }
+            suggestionTick += 1
+        }
+    }
+
+    private func travelAction(_ variant: TravelCardVariant) {
+        isSuggestionBusy = true
+        Task {
+            defer { isSuggestionBusy = false }
+            do {
+                switch variant {
+                case .suggested: _ = try await TravelMode.shared.acceptTravelMode()
+                case .manual: _ = try await TravelMode.shared.startManualTravelMode()
+                case .active: await TravelMode.shared.endTravelMode()
+                }
+            } catch {
+                showError(Copy.today.travelFailed)
+            }
+            suggestionTick += 1
+        }
+    }
+
+    private func calendarAction(_ variant: CalendarCardVariant) {
+        isSuggestionBusy = true
+        switch variant {
+        case .ask:
+            Task {
+                defer { isSuggestionBusy = false }
+                do {
+                    let granted = try await CalendarAwareness.shared.optIn()
+                    if !granted {
+                        // Declined: stop asking. Settings can turn it on later.
+                        await CalendarAwareness.shared.optOut()
+                        dismissSuggestion(.calendarLightDay(.ask))
+                    }
+                } catch {
+                    showError(Copy.today.calendarFailed)
+                }
+                suggestionTick += 1
+            }
+        case .packed:
+            isSuggestionBusy = false
+            acceptPlanB(goalIDs: lighterPlanGoals.map(\.id))
+        }
+    }
+
+    /// Switches goals to Plan B. Only ids cross into the task; each `Goal` is looked up again on
+    /// the main actor right before `PlanB.accept`, so no model object is sent anywhere.
+    private func acceptPlanB(goalIDs: [UUID]) {
+        isSuggestionBusy = true
+        Task {
+            defer { isSuggestionBusy = false }
+            for goalID in goalIDs {
+                guard let goal = activeGoals.first(where: { $0.id == goalID }) else { continue }
+                await PlanB.accept(goal)
+                suggestionSignals.planBAcceptedGoalIDs.insert(goalID)
+            }
+            suggestionTick += 1
+        }
+    }
+
+    /// The poster's content: today's tries, the one open goal as "until I hit the gym" when only
+    /// one is left, and the streak.
+    private func lockedOutContent(attempts: Int) -> LockedOutMomentContent {
+        let open = requiredGoals.filter { !isGoalDoneToday($0) }
+        let phrase = open.count == 1 ? open.first.flatMap { Copy.today.lockedOutGoalPhrase($0.type) } : nil
+        let lockStart = activeLockSession?.startedAt
+        let since = lockStart.flatMap { Calendar.current.isDateInToday($0) ? $0 : nil }
+            ?? Calendar.current.startOfDay(for: .now)
+        let minutes = max(60, Int(Date.now.timeIntervalSince(since) / 60))
+        return LockedOutMomentContent(
+            appName: nil,
+            attemptCount: attempts,
+            windowMinutes: minutes,
+            blockingGoalSummary: phrase,
+            goalsRemaining: isLocked ? remainingRequiredGoalCount : nil,
+            streak: streak?.current
+        )
+    }
+
+    private func suggestionTapped(_ suggestion: TodaySuggestion) {
+        Analytics.shared.capture(event: "today_suggestion_tapped", properties: ["card": suggestion.analyticsName])
+    }
+
+    private func dismissSuggestion(_ suggestion: TodaySuggestion) {
+        Analytics.shared.capture(event: "today_suggestion_dismissed", properties: ["card": suggestion.analyticsName])
+        TodaySuggestionDismissals.dismiss(suggestion)
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+            _ = dismissedSuggestionKeys.insert(suggestion.dismissKey)
+        }
+    }
+
+    /// Loads the engines' state for the slot. Also records yesterday's miss with `StreakEngine`
+    /// when nothing else did (see `recordYesterdaysMissIfNeeded`).
+    private func refreshSuggestionSignals() async {
+        var signals = TodaySuggestionSignals()
+        signals.shieldAttemptsToday = max(ShieldAttemptTally.absorbPending(), LockedOutAttemptTracker.currentAttemptCount())
+        signals.planBAcceptedGoalIDs = Set(activeGoals.map(\.id).filter { PlanB.isAccepted(goalID: $0) })
+        signals.comebackTotalDays = ComebackMode.totalDays
+
+        if !HealthPause.isActive {
+            await recordYesterdaysMissIfNeeded()
+
+            if let challenge = await ComebackMode.shared.activeChallenge() {
+                signals.comebackDay = challenge.dayIndex
+                signals.comebackTotalDays = challenge.totalDays
+            } else {
+                signals.comebackEligible = await ComebackMode.shared.isEligible()
+            }
+
+            if let session = await TravelMode.shared.activeSession() {
+                signals.travelActive = true
+                signals.travelCity = session.detectedCity
+            } else {
+                signals.travelPending = await TravelMode.shared.pendingSuggestion() != nil
+            }
+
+            signals.calendarAccess = await CalendarAwareness.shared.accessState()
+            if signals.calendarAccess == .granted {
+                signals.isPackedDay = await CalendarAwareness.shared.isPackedDay(.now)
+            }
+
+            if let gymGoal, signals.planBAcceptedGoalIDs.contains(gymGoal.id),
+               !(await HomeWorkoutVerifier.shared.needsAuthorizationRequest()) {
+                signals.healthWorkoutMinutes = await HomeWorkoutVerifier.shared.longestWorkoutMinutesToday()
+            }
+        }
+
+        signals.loaded = true
+        suggestionSignals = signals
+    }
+
+    /// Spec 5.6 needs yesterday's miss recorded for the streak to survive it: `StreakEngine` only
+    /// forgives a one-day gap after `recordMiss` armed Never Miss Twice, and nothing else records
+    /// a plain missed day yet. So when the last earned day was exactly two days ago (yesterday had
+    /// nothing, no freeze, no health pause) and the flag isn't armed, record it once. A second
+    /// consecutive miss is left alone: that one breaks the streak, and Today never does that.
+    private func recordYesterdaysMissIfNeeded() async {
+        guard let streak, streak.current > 0, !streak.neverMissTwiceArmed, let lastEarned = streak.lastEarnedDate else { return }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return }
+        let gap = calendar.dateComponents([.day], from: calendar.startOfDay(for: lastEarned), to: today).day ?? 0
+        guard gap == 2, !HealthPause.wasPaused(on: yesterday) else { return }
+        await StreakEngine.shared.recordMiss(on: yesterday)
+    }
+
+    /// The goals a lock started from Today requires: every active goal, minus the gym while travel
+    /// mode is on (spec 5.18, "gym optional"). A gym-only goal list keeps the gym, so the lock can
+    /// still be earned.
+    private var lockRequiredGoalIDs: [UUID] {
+        let all = activeGoals.map(\.id)
+        guard suggestionSignals.travelActive else { return all }
+        let withoutGym = activeGoals.filter { $0.type != .workoutGym }.map(\.id)
+        return withoutGym.isEmpty ? all : withoutGym
     }
 
     // MARK: - Derived state
@@ -1710,6 +2217,26 @@ private struct QuickLogUndo: Identifiable, Equatable {
 /// The stretch goal whose guided timer is open (`sheet(item:)` needs an `Identifiable`).
 private struct StretchTarget: Identifiable {
     let id: UUID
+}
+
+/// The meal-prep goal whose photo sheet is open.
+private struct MealPrepTarget: Identifiable {
+    let id: UUID
+}
+
+/// The locked-out moment being shown (`fullScreenCover(item:)` needs an `Identifiable`).
+private struct LockedOutPresentation: Identifiable {
+    let id = UUID()
+    let content: LockedOutMomentContent
+}
+
+/// Reloads the suggestion signals on an action, on foreground, when a goal completes, or when a
+/// lock starts or ends.
+private struct SuggestionRefreshKey: Equatable {
+    let tick: Int
+    let foreground: Int
+    let completed: Int
+    let isLocked: Bool
 }
 
 /// Restarts the Health refresh loop on foreground, after the primer, or when the goal set changes.

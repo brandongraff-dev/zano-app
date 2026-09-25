@@ -54,6 +54,11 @@
 // `SharedDefaults.shieldImpressionCount` — the on-device-only tally `ShieldConfigurationExtension`
 // increments locally since shield extensions cannot do networking (spec §11, §27) — into a single
 // aggregate `Analytics` event the next time this screen opens. See the "Analytics" MARK below.
+//
+// Wave 2F (2026-09-25): an Earn Mode lock gets a "Spend minutes" card under the hero (5/15/30/all,
+// `TimeBankEngine.spendToUnlock`), which shows "Apps open until 3:45 PM" with a live countdown while
+// a spend window runs. The emergency unlock bar below is unchanged and stays visible throughout.
+// The idle start uses `LockPreferences.defaultMode`.
 
 import Foundation
 import SwiftUI
@@ -92,6 +97,13 @@ struct LockStatusView: View {
     @State private var actionError: String?
     @State private var timeBankRemainingMinutes: Int?
 
+    /// Earn Mode spend control (Wave 2F).
+    @State private var spendChoice: SpendChoice = .fifteen
+    @State private var isSpending = false
+    @State private var spendMessage: String?
+    /// End of the running spend window for this lock, from `LockEngineSharedState.spendWindow`.
+    @State private var spendWindowEndsAt: Date?
+
     /// `TimeBankBar`'s own suggested "low" line ("e.g. `remainingMinutes <= 5`").
     private static let lowBankThreshold = 5
 
@@ -102,6 +114,10 @@ struct LockStatusView: View {
                     lockedMark
                 }
                 heroCard
+
+                if activeSession?.mode == .earn {
+                    spendSection
+                }
 
                 if !requiredGoals.isEmpty {
                     goalsSection
@@ -135,6 +151,16 @@ struct LockStatusView: View {
             logScreenView()
             flushShieldImpressions()
         }
+        .task(id: activeSession?.id) {
+            refreshSpendWindow()
+        }
+        .task(id: spendWindowEndsAt) {
+            // Re-read once the window should have closed: it may have been extended, or ended.
+            guard let end = spendWindowEndsAt else { return }
+            try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow) + 1))
+            guard !Task.isCancelled else { return }
+            refreshSpendWindow()
+        }
     }
 
     // MARK: - Analytics (spec §23: "Instrument from day one: every screen view, every intent,
@@ -159,13 +185,12 @@ struct LockStatusView: View {
         )
     }
 
-    /// Reads and resets ``SharedDefaults/shieldImpressionCount`` and reports the total as a
-    /// single aggregate event. No-op (and no event fired) when the count is already `0`, so
-    /// opening this screen with no shield impressions to report doesn't spam an empty event.
+    /// Reads and resets ``SharedDefaults/shieldImpressionCount``, reports the total as a single
+    /// aggregate event (none when it's `0`), and adds it to today's tally that Today's locked-out
+    /// card reads. `ShieldAttemptTally` (Today/Suggestions) does all three, so the flush from either
+    /// screen counts once.
     private func flushShieldImpressions() {
-        let count = SharedDefaults.flushShieldImpressionCount()
-        guard count > 0 else { return }
-        Analytics.shared.capture(event: "shield_impression", properties: ["count": count])
+        ShieldAttemptTally.absorbPending()
     }
 
     // MARK: - Hero
@@ -306,7 +331,7 @@ struct LockStatusView: View {
     }
 
     /// Same App Intent Siri, Shortcuts and the Control use (CLAUDE.md: every user action is an
-    /// intent), in Earn Mode like Today's begin-lock.
+    /// intent), in the user's default mode (`LockPreferences.defaultMode`) like Today's begin-lock.
     private func startLock() {
         actionError = nil
         isStartingLock = true
@@ -314,7 +339,8 @@ struct LockStatusView: View {
         Task {
             defer { isStartingLock = false }
             do {
-                _ = try await StartLockIntent(mode: .earn).perform()
+                let mode = LockModeOption(rawValue: LockPreferences.defaultMode.rawValue) ?? .earn
+                _ = try await StartLockIntent(mode: mode).perform()
             } catch {
                 showError(Copy.lockStatus.lockStartFailed)
             }
@@ -694,6 +720,167 @@ struct LockStatusView: View {
 
     private var timeBankTaskKey: String {
         "\(todaysTimeBank?.earnedMin ?? 0)-\(todaysTimeBank?.spentMin ?? 0)"
+    }
+
+    // MARK: - Spend minutes (Earn Mode only — spec §5.2 "a shielded app spends minutes out of it")
+
+    /// The amounts on offer. "All" is whatever is left.
+    private enum SpendChoice: CaseIterable, Hashable {
+        case five, fifteen, thirty, all
+
+        func minutes(remaining: Int) -> Int {
+            switch self {
+            case .five: 5
+            case .fifteen: 15
+            case .thirty: 30
+            case .all: remaining
+            }
+        }
+    }
+
+    /// The fixed amounts that fit the bank, then "All" (dropped when it equals a fixed amount).
+    private func spendChoices(remaining: Int) -> [SpendChoice] {
+        let fixed = [SpendChoice.five, .fifteen, .thirty].filter { $0.minutes(remaining: remaining) < remaining }
+        return fixed + [.all]
+    }
+
+    /// The selected choice, or "All" when the selection no longer fits the bank.
+    private func effectiveSpendChoice(remaining: Int) -> SpendChoice {
+        spendChoices(remaining: remaining).contains(spendChoice) ? spendChoice : .all
+    }
+
+    /// The running window's end, only while it's in the future.
+    private var activeSpendWindowEnd: Date? {
+        guard let end = spendWindowEndsAt, end > .now else { return nil }
+        return end
+    }
+
+    private var spendSection: some View {
+        let remaining = displayedRemainingMinutes
+        let choice = effectiveSpendChoice(remaining: remaining)
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.lockStatus.spendSectionTitle)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .accessibilityAddTraits(.isHeader)
+
+            if let end = activeSpendWindowEnd {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: "lock.open.fill")
+                        .font(Theme.Typography.icon(.small))
+                        .foregroundStyle(Theme.Colors.accent)
+                        .accessibilityHidden(true)
+                    Text(Copy.lockStatus.spendUnlockedUntil(end.formatted(date: .omitted, time: .shortened)))
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.xs)
+                    // `min` keeps the range valid if the window closes between the check and here.
+                    Text(timerInterval: min(Date.now, end)...end, countsDown: true)
+                        .font(Theme.Typography.numeralSmall())
+                        .foregroundStyle(Theme.Colors.accent)
+                        .monospacedDigit()
+                }
+                .accessibilityElement(children: .combine)
+                if remaining > 0 {
+                    Text(Copy.lockStatus.spendExtendHint)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                }
+            } else {
+                Text(remaining > 0 ? Copy.lockStatus.spendSectionDetail : Copy.lockStatus.spendNotEnough(remaining: 0))
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if remaining > 0 {
+                HStack(spacing: Theme.Spacing.xs) {
+                    ForEach(spendChoices(remaining: remaining), id: \.self) { option in
+                        spendChip(option, remaining: remaining, isSelected: option == choice)
+                    }
+                }
+                PrimaryButton(
+                    title: Copy.lockStatus.spendButtonLabel(minutes: choice.minutes(remaining: remaining)),
+                    systemImage: "hourglass",
+                    style: .secondary,
+                    isEnabled: !isSpending
+                ) {
+                    spend(minutes: choice.minutes(remaining: remaining))
+                }
+            }
+
+            if let spendMessage {
+                Text(spendMessage)
+                    .font(Theme.Typography.caption)
+                    // `warning`: red is reserved for the emergency control.
+                    .foregroundStyle(Theme.Colors.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .zanoCard()
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: spendWindowEndsAt)
+    }
+
+    private func spendChip(_ option: SpendChoice, remaining: Int, isSelected: Bool) -> some View {
+        let minutes = option.minutes(remaining: remaining)
+        return Button {
+            spendChoice = option
+        } label: {
+            Text(Copy.lockStatus.spendChoice(minutes: minutes, isAll: option == .all))
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
+                .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface2, in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(isSelected ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+                }
+        }
+        .buttonStyle(.pressable(scale: 0.96))
+        .accessibilityLabel(Copy.lockStatus.spendChoiceSpoken(minutes: minutes))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func spend(minutes: Int) {
+        guard minutes > 0 else { return }
+        spendMessage = nil
+        isSpending = true
+        Analytics.shared.capture(event: "lock_spend_minutes_tapped", properties: ["minutes": minutes])
+        Task {
+            defer { isSpending = false }
+            do {
+                switch try await TimeBankEngine.shared.spendToUnlock(minutes: minutes) {
+                case .unlocked(let until):
+                    spendWindowEndsAt = until
+                    AccessibilityNotification.Announcement(
+                        Copy.lockStatus.spendUnlockedUntil(until.formatted(date: .omitted, time: .shortened))
+                    ).post()
+                case .insufficientMinutes(let remaining):
+                    spendMessage = Copy.lockStatus.spendNotEnough(remaining: remaining)
+                case .noActiveEarnLock:
+                    spendMessage = Copy.lockStatus.spendNoEarnLock
+                }
+            } catch {
+                spendMessage = Copy.lockStatus.spendFailed
+            }
+            timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
+        }
+    }
+
+    /// Reads the shared spend window; only one for the running lock that hasn't ended counts.
+    private func refreshSpendWindow() {
+        guard let window = LockEngineSharedState.spendWindow,
+              window.sessionID == activeSession?.id,
+              window.endsAt > .now
+        else {
+            spendWindowEndsAt = nil
+            return
+        }
+        spendWindowEndsAt = window.endsAt
     }
 
     // MARK: - Emergency unlock (CLAUDE.md: every lock keeps a way out — no exceptions)

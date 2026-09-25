@@ -298,3 +298,106 @@ extension Copy {
         public static let widgetHowToDone = "Got it"
     }
 }
+
+// MARK: - Suggestion cards (buildout Wave 2F, 2026-09-25)
+//
+// One card at a time under Today's hero: Never Miss Twice, comeback, Plan B, travel, calendar light
+// day, locked-out moment. Each is one headline, one line, one action and "Not today".
+
+extension Copy.today {
+    public static let suggestionDismiss = "Not today"
+    public static func suggestionDismissSpoken(_ title: String) -> String { "Hide \(title) for today" }
+    public static func startWithGoal(_ goal: String) -> String { "Start with \(goal)" }
+
+    // Never Miss Twice
+    public static let neverMissTwiceTitle = "Don't miss twice"
+    public static func neverMissTwiceDetail(goal: String?) -> String {
+        guard let goal else { return "Yesterday slipped. One goal today keeps your streak alive." }
+        return "Yesterday slipped. \(goal) today keeps your streak alive."
+    }
+    public static func freezesLeft(_ count: Int) -> String {
+        switch count {
+        case 0: "No freezes left this week"
+        case 1: "1 freeze left"
+        default: "\(count) freezes left"
+        }
+    }
+
+    // Comeback (3-day ramp)
+    public static let comebackStartTitle = "Welcome back"
+    public static let comebackStartDetail = "Three easy days to get rolling again. Lighter goals, no catching up."
+    public static let comebackStartAction = "Start my comeback"
+    public static func comebackDayTitle(day: Int, total: Int) -> String { "Comeback · day \(day) of \(total)" }
+    public static let comebackDayDetail = "Goals are lighter for now. Just show up."
+    public static let comebackDoneToday = "Today's done. See you tomorrow."
+    public static let comebackStartFailed = "Couldn't start the comeback. Try again."
+
+    // Plan B
+    public static let planBTitle = "Rough day? Try Plan B"
+    /// `"60g instead of 150g. Keeps your streak, for half the Earn minutes."`
+    public static func planBDetail(reduced: Int, full: Int, unit: String) -> String {
+        "\(amount(reduced, unit: unit)) instead of \(amount(full, unit: unit)). Keeps your streak, for half the Earn minutes."
+    }
+    /// A gym goal's Plan B is a shorter workout anywhere, read from Apple Health.
+    public static func planBGymDetail(minutes: Int) -> String {
+        "Any \(minutes)-min workout in Apple Health counts, a walk too. Half the Earn minutes."
+    }
+    public static let planBAction = "Switch to Plan B"
+    public static func planBActiveTitle(goal: String) -> String { "Plan B: \(goal)" }
+    public static let planBCountAction = "Count Plan B"
+    public static func planBStartFocusAction(minutes: Int) -> String { "Start \(minutes)-min focus" }
+    public static let planBVerifiesAutomatically = "Counts once Apple Health or the gym has it."
+    public static let planBSwitchFailed = "Couldn't switch to Plan B. Try again."
+    public static let planBCountFailed = "Couldn't count Plan B. Try again."
+
+    // Travel
+    public static let travelSuggestTitle = "Looks like you're traveling"
+    public static let travelManualTitle = "Traveling?"
+    public static let travelDetail = "Make the gym optional for the trip. Walks, steps and home workouts keep your day going."
+    public static let travelSuggestAction = "Switch to travel mode"
+    public static let travelManualAction = "I'm traveling"
+    public static func travelActiveTitle(city: String?) -> String {
+        guard let city, !city.isEmpty else { return "Travel mode is on" }
+        return "Travel mode · \(city)"
+    }
+    public static let travelActiveDetail = "The gym is optional until you're back. New locks won't wait on it."
+    public static let travelActiveAction = "I'm home"
+    public static let travelFailed = "Couldn't change travel mode. Try again."
+
+    // Calendar light day
+    public static let calendarAskTitle = "Busy days, lighter goals"
+    public static let calendarAskDetail = "Let ZANO see how packed your calendar is. On full days it suggests a lighter plan."
+    public static let calendarAskAction = "Connect calendar"
+    public static let calendarPackedTitle = "Packed calendar today"
+    public static let calendarPackedDetail = "Want a lighter plan? Smaller targets keep your streak, for half the Earn minutes."
+    public static let calendarPackedAction = "Go lighter today"
+    public static let calendarFailed = "Couldn't read your calendar. Try again later."
+
+    // Locked-out moment
+    public static func lockedOutCardTitle(attempts: Int) -> String {
+        "\(attempts) tries on blocked apps today"
+    }
+    public static let lockedOutCardDetail = "Share the moment. It keeps you honest."
+    public static let lockedOutCardAction = "Share it"
+    /// The "until I ..." phrase for the locked-out poster when one goal is left. `nil` when there's
+    /// no natural phrase (the poster then says "right now").
+    public static func lockedOutGoalPhrase(_ type: GoalType) -> String? {
+        switch type {
+        case .workoutGym: "hit the gym"
+        case .workoutHomeOutdoor: "work out"
+        case .focusSession: "finish my focus session"
+        case .protein: "hit my protein"
+        case .water: "drink my water"
+        case .steps: "get my steps in"
+        case .reading: "read"
+        case .stretchMobility: "stretch"
+        case .mealPrep: "meal prep"
+        case .coldShowerSauna: "take my cold shower"
+        case .creatine: "take my creatine"
+        case .sleepOnTime, .sunriseAlarm, .custom: nil
+        }
+    }
+
+    // Meal prep row
+    public static let actionAddPhoto = "Add photo"
+}

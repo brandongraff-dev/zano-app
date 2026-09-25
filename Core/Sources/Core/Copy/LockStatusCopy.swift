@@ -140,3 +140,17 @@ extension Copy {
         public static let idleStartLockTitle = "Start a lock now"
     }
 }
+
+// MARK: - Spend control (buildout Wave 2F, 2026-09-25)
+
+extension Copy.lockStatus {
+    public static let spendSectionTitle = "Spend minutes"
+    public static let spendSectionDetail = "Open your apps now. Goals still unlock them for good."
+    /// A choice chip: `"15 min"`, or `"All 45 min"`.
+    public static func spendChoice(minutes: Int, isAll: Bool) -> String {
+        isAll ? "All \(minutes) min" : "\(minutes) min"
+    }
+    public static func spendChoiceSpoken(minutes: Int) -> String { "Spend \(minutes) minutes" }
+    public static let spendExtendHint = "Spending more adds to the time."
+    public static let spendNoEarnLock = "No Earn Mode lock is running."
+}

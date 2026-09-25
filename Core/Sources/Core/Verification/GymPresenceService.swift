@@ -52,6 +52,9 @@ public final class GymPresenceService {
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var lastHeartRateCheck: Date = .distantPast
+    /// Gyms whose check-in the user just started from the app: their `.entered` event must not
+    /// also post an "At <gym>" notification while they're looking at the screen.
+    @ObservationIgnored private var userStartedGymIDs: Set<UUID> = []
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "GymPresenceService")
 
     private static let tickInterval: Duration = .seconds(30)
@@ -96,7 +99,11 @@ public final class GymPresenceService {
     /// the clock actually started — the app is in the foreground here, so ActivityKit allows it.
     public func startCheckIn(gymID: UUID) async -> GymCheckInStartResult {
         start()
+        userStartedGymIDs.insert(gymID)
         let result = await verifier.startCheckIn(gymID: gymID)
+        if result != .started {
+            userStartedGymIDs.remove(gymID)
+        }
         await refresh()
         if result == .started || result == .alreadyRunning {
             await startLiveActivity(for: gymID)
@@ -140,8 +147,9 @@ public final class GymPresenceService {
         switch event {
         case .entered(let gymID):
             await refresh()
+            let startedByUser = userStartedGymIDs.remove(gymID) != nil
             let started = await startLiveActivity(for: gymID)
-            if !started {
+            if !started, !startedByUser {
                 await postArrivalNotification(gymID: gymID)
             }
             await scheduleTargetNotification(gymID: gymID)

@@ -62,7 +62,7 @@ public struct LogCustomGoalIntent: AppIntent {
         let event = GoalEvent(
             kind: .complete,
             value: nil,
-            source: logSource,
+            source: logSource.eventSource,
             verified: true,
             user: user,
             goal: matchedGoal

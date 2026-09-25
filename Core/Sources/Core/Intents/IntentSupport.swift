@@ -114,12 +114,13 @@ public enum IntentSupport {
     /// active session is unambiguous.
     @MainActor
     public static func activeLockSession(for userID: UUID, in context: ModelContext) throws -> LockSession? {
+        // `unlockKind` is checked in Swift: an optional-enum comparison in `#Predicate` throws in
+        // SwiftData's SQLite translation (see `LockEngineManager.fetchActiveSession`).
         var descriptor = FetchDescriptor<LockSession>(
-            predicate: #Predicate { $0.userID == userID && $0.endedAt == nil && $0.unlockKind == nil }
+            predicate: #Predicate { $0.userID == userID && $0.endedAt == nil }
         )
         descriptor.sortBy = [SortDescriptor(\.startedAt, order: .reverse)]
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        return try context.fetch(descriptor).first(where: { $0.unlockKind == nil })
     }
 
     /// The user's currently active `Goal` of a given type, if any. `active == true` mirrors
@@ -128,12 +129,12 @@ public enum IntentSupport {
     /// `StartFocusIntent`) that need to pick one without asking the user.
     @MainActor
     public static func activeGoal(ofType type: GoalType, for userID: UUID, in context: ModelContext) throws -> Goal? {
+        // `type` (an enum) is matched in Swift, not in the predicate — see `activeLockSession`.
         var descriptor = FetchDescriptor<Goal>(
-            predicate: #Predicate { $0.user?.id == userID && $0.active && $0.type == type }
+            predicate: #Predicate { $0.user?.id == userID && $0.active }
         )
         descriptor.sortBy = [SortDescriptor(\.createdAt, order: .reverse)]
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        return try context.fetch(descriptor).first(where: { $0.type == type })
     }
 
     /// All of the user's currently active goal ids, used as `StartLockIntent`'s default

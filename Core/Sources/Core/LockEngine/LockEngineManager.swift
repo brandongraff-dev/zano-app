@@ -542,11 +542,14 @@ public final class LockEngineManager {
     }
 
     private func fetchActiveSession() throws -> LockSession? {
+        // `unlockKind` (an optional enum) is checked in Swift, not in the predicate: SwiftData's
+        // SQLite translation throws an Objective-C exception for it, which aborts the app (seen in
+        // the CI screenshot tour; in-memory test stores don't hit it).
         let descriptor = FetchDescriptor<LockSession>(
-            predicate: #Predicate { $0.endedAt == nil && $0.unlockKind == nil },
+            predicate: #Predicate { $0.endedAt == nil },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
-        return try context.fetch(descriptor).first
+        return try context.fetch(descriptor).first(where: { $0.unlockKind == nil })
     }
 
     private func fetchSession(id: UUID) throws -> LockSession? {

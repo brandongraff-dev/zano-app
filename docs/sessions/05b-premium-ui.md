@@ -335,7 +335,7 @@ per wave.
   guide, Founder Series card. Comeback challenge now advances on each earned unlock.
 
 **Unverified / known issues:**
-- CI: Wave 1 build + 245+ Core tests green (run 36078947162); Waves 2–3 compile pending
+- CI: Wave 1 app build, Core tests and UI-test compile green (run 36078947162); Waves 2–3 compile pending
   (run 36081036480). Everything device-only (geofence, NFC, DeviceActivity schedules, Live
   Activities, Screen Time, camera) is unverified.
 - Backend not live: squads (joins, squadmate rings, nudge delivery, duels), leaderboard, referral

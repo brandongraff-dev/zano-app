@@ -103,6 +103,19 @@ struct ContentView: View {
     /// opted in (spec §5.10 frames both as opt-in). Once Core exposes a "has been configured"
     /// signal (or defaults `enabled` to `false`), add both calls right here.
     private func runForegroundChecks() async {
+        // Turn any lock the monitor started while the app was closed into a real session.
+        await LockScheduler.shared.reconcile()
+        // First foreground after onboarding: make the plan's "locks each morning until your goals
+        // are done" real by saving that schedule for the default lock set (once, never overwriting
+        // a schedule the user set).
+        if router.hasCompletedOnboarding,
+           !UserDefaults.standard.bool(forKey: "zano.morningScheduleCreated.v1"),
+           let lockSetID = LockEngineSharedState.defaultLockSetID {
+            if LockScheduler.shared.schedule(for: lockSetID) == nil {
+                try? LockScheduler.shared.save(.morningDefault(lockSetID: lockSetID))
+            }
+            UserDefaults.standard.set(true, forKey: "zano.morningScheduleCreated.v1")
+        }
         await entitlement.refresh()
         await router.beginAlarmIfDue()
         await router.reconcileAlarmIfNeeded()

@@ -48,8 +48,9 @@ public enum NFCTagSetupInstructions {
         Step(
             id: 2,
             title: "Choose what it does",
-            detail: "Pick an action — Log Water, Log Shake, Log Creatine, Sunrise Key, or Start a " +
-                "Lock — and, for Log Water/Shake, the amount this tag always logs."
+            detail: "Pick an action — log water, protein, creatine or a goal, start focus, check in " +
+                "at the gym, start a lock, Lock Card, or Sunrise Alarm — and, where it applies, the " +
+                "amount this tag always logs."
         ),
         Step(
             id: 3,
@@ -141,6 +142,9 @@ public enum NFCTagSetupInstructions {
         case .gymBag:
             "Inside the top pocket or on a zipper pull you touch every time you grab the bag — " +
             "not buried at the bottom."
+        case .lockCard:
+            "Keep it where your phone lands when you sit down: on the desk, by the bed, or on a " +
+            "keyring. Tap, fold out the stand, and set your phone on it across the room from you."
         case .custom:
             "Anywhere you'll tap consistently — the mapping only helps if it's somewhere you'll " +
             "actually touch it."
@@ -153,7 +157,10 @@ public enum NFCTagSetupInstructions {
         "Hold the tag to the top back of your iPhone, near the camera — that's where the NFC " +
             "antenna sits on every iPhone model, not the bottom or the screen.",
         "If a tap does nothing, confirm the tag is an NDEF-formatted URL tag (ZANO's Tag Pack " +
-            "ships pre-written NTAG215 tags) and not blank, damaged, or write-protected.",
+            "ships pre-written NTAG215 tags) and not damaged. Blank NTAG213/215/216 stickers work " +
+            "too: add them from the NFC tags screen and ZANO writes them for you.",
+        "If ZANO says a tag is locked or read-only, it was write-protected at the factory and " +
+            "can't be programmed. Use a different blank tag.",
         "Metal blocks NFC almost entirely. If a tag is stuck to or sitting near metal (a metal " +
             "bottle, a metal desk edge, a MagSafe mount, a metal phone case), move it clear of " +
             "the metal or a few centimeters away from it.",

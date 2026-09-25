@@ -49,6 +49,12 @@
 // already-written `GoalEvent` rows; nothing yet calls any verifier and writes the resulting event —
 // the same gap GymVerifier's header already flags for the gym row).
 //
+// Update (buildout Wave 1D, 2026-09-25): the GoalEvent-writing gap above is now closed for the
+// HealthKit-workout signal. `checkToday(goalID:)` writes one verified `.complete` (source
+// `.healthKit`) when a single HealthKit workout today meets the goal's minutes, then calls
+// `GoalCompletionCoordinator`. The Core Motion fallback still only answers `verify`; it never writes
+// a completion on its own (a day of walking around would otherwise count as a workout).
+//
 // SDK surface used below (`HKSampleQuery` over `HKObjectType.workoutType()`, sorting by
 // `HKSampleSortIdentifierEndDate`, `HKSourceRevision.productType` for Watch-vs-other-source
 // detection, `CMMotionActivityManager` historical activity queries) was written from training
@@ -60,6 +66,7 @@
 import CoreMotion
 import Foundation
 import HealthKit
+import SwiftData
 import os
 
 /// Tunable constants for home/outdoor workout verification, named so other modules (workout goal
@@ -76,6 +83,12 @@ public enum HomeWorkoutVerificationDefaults {
     /// .elevatedHeartRateBPM`) rather than a second, possibly-drifting magic number — both rows are
     /// answering the same underlying question ("does this look like real exertion?").
     public static let elevatedHeartRateBPM = GymVerificationDefaults.elevatedHeartRateBPM
+}
+
+/// Errors `HomeWorkoutVerifier.checkToday(goalID:)` throws itself.
+public enum HomeWorkoutVerifierError: Error, Sendable, Equatable {
+    case goalNotFound(UUID)
+    case wrongGoalType(GoalType)
 }
 
 /// Which signal a `HomeWorkoutVerificationResult` was actually verified from.
@@ -198,6 +211,47 @@ public final class HomeWorkoutVerifier: Sendable {
         )
     }
 
+    // MARK: - Goal completion (Today, foreground checks)
+
+    /// `true` while the app has never asked for HealthKit workout read access (HealthKit can't say
+    /// whether read access was *granted*, only whether the request sheet still needs showing).
+    /// Today shows "Connect Apple Health" while this is `true`.
+    public func needsAuthorizationRequest() async -> Bool {
+        await state.needsAuthorizationRequest()
+    }
+
+    /// The longest single HealthKit workout today, in whole minutes (`0` with no workouts or no
+    /// read access). For the row's live progress ring.
+    public func longestWorkoutMinutesToday() async -> Int {
+        await state.longestWorkoutMinutes(in: Self.defaultWindow())
+    }
+
+    /// The minutes one workout must reach for `goalID`: today's planned value (else the goal's
+    /// target), never below spec §3's 20-minute floor.
+    public func requiredMinutes(forGoalID goalID: UUID) async -> Int {
+        let target = await AdaptiveGoalEngine.shared.effectiveTarget(forGoalID: goalID, on: .now)
+        return Self.requiredMinutes(target: target)
+    }
+
+    static func requiredMinutes(target: Double?) -> Int {
+        max(HomeWorkoutVerificationDefaults.requiredMinutes, Int((target ?? 0).rounded()))
+    }
+
+    /// Checks today's HealthKit workouts for `goalID` (a `.workoutHomeOutdoor` goal). When one
+    /// workout reaches the required minutes and no verified completion exists yet today, writes a
+    /// verified `.complete` `GoalEvent` (`source: .healthKit`, the workout's minutes as `value`),
+    /// then calls `GoalCompletionCoordinator`. Idempotent: returns `true` without writing when
+    /// today is already complete.
+    @discardableResult
+    public func checkToday(goalID: UUID) async throws -> Bool {
+        let required = await requiredMinutes(forGoalID: goalID)
+        let wrote = try await state.checkToday(goalID: goalID, requiredMinutes: required, window: Self.defaultWindow())
+        if wrote == .wroteCompletion {
+            await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
+        }
+        return wrote != .notYet
+    }
+
     /// The local calendar day containing `now`, from midnight through `now` — today's "so far"
     /// window. A plain, non-actor-isolated helper (touches no SDK state), unlike everything else in
     /// this file.
@@ -216,6 +270,115 @@ actor HomeWorkoutQueryState {
     private let healthStore = HKHealthStore()
     private let motionActivityManager = CMMotionActivityManager()
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "HomeWorkoutVerifier")
+    private let modelContainer: ModelContainer
+    /// One context for the goal fetch and the event insert (same reason as `StepsObserverState`).
+    private lazy var context = ModelContext(modelContainer)
+
+    init(modelContainer: ModelContainer = .appGroup) {
+        self.modelContainer = modelContainer
+    }
+
+    enum CheckOutcome: Sendable, Equatable {
+        case notYet
+        case alreadyComplete
+        case wroteCompletion
+    }
+
+    // MARK: Goal completion
+
+    func checkToday(goalID: UUID, requiredMinutes: Int, window: DateInterval) async throws -> CheckOutcome {
+        guard let goal = fetchGoal(id: goalID) else { throw HomeWorkoutVerifierError.goalNotFound(goalID) }
+        guard goal.type == .workoutHomeOutdoor else { throw HomeWorkoutVerifierError.wrongGoalType(goal.type) }
+        if hasVerifiedCompletion(goalID: goalID, since: window.start) { return .alreadyComplete }
+
+        guard let result = await verifyViaHealthKitWorkout(window: window, requiredMinutes: requiredMinutes),
+              result.verified, result.source == .healthKitWorkout
+        else { return .notYet }
+
+        // Re-check after the HealthKit await: another call may have written it meanwhile.
+        if hasVerifiedCompletion(goalID: goalID, since: window.start) { return .alreadyComplete }
+
+        var meta: [String: JSONValue] = [
+            "workoutMinutes": .number(Double(result.minutes)),
+            "requiredMinutes": .number(Double(requiredMinutes)),
+        ]
+        if let hr = result.heartRateCorroboration { meta["heartRateCorroborated"] = .bool(hr) }
+        let event = GoalEvent(
+            kind: .complete,
+            value: Double(result.minutes),
+            source: .healthKit,
+            verified: true,
+            meta: .object(meta),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(event)
+        try context.save()
+        logger.notice("Home/outdoor workout goal \(goalID.uuidString, privacy: .public) completed: \(result.minutes, privacy: .public) min.")
+        return .wroteCompletion
+    }
+
+    private func fetchGoal(id: UUID) -> Goal? {
+        var descriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    /// Only `Bool`/`Date` inside `#Predicate`; the relationship and kind are filtered in Swift
+    /// (the split `StepsObserverState.hasCompletedToday` documents).
+    private func hasVerifiedCompletion(goalID: UUID, since start: Date) -> Bool {
+        let descriptor = FetchDescriptor<GoalEvent>(
+            predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= start }
+        )
+        guard let events = try? context.fetch(descriptor) else { return false }
+        return events.contains { $0.goal?.id == goalID && GoalDayProgress.isVerifiedCompletion($0) }
+    }
+
+    // MARK: Authorization status
+
+    /// Classic `getRequestStatusForAuthorization(toShare:read:completion:)` (iOS 12+), wrapped.
+    /// `.shouldRequest` means the sheet was never shown for workouts; anything else (including an
+    /// error) reads as "already asked", so the row never nags forever on an odd answer.
+    func needsAuthorizationRequest() async -> Bool {
+        guard HKHealthStore.isHealthDataAvailable() else { return false }
+        let workoutType = HKObjectType.workoutType()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            healthStore.getRequestStatusForAuthorization(toShare: [], read: [workoutType]) { status, _ in
+                continuation.resume(returning: status == .shouldRequest)
+            }
+        }
+    }
+
+    // MARK: Live progress
+
+    func longestWorkoutMinutes(in window: DateInterval) async -> Int {
+        let workouts = await fetchWorkouts(in: window)
+        let longest = workouts.map(\.duration).max() ?? 0
+        return Int(longest / 60)
+    }
+
+    private func fetchWorkouts(in window: DateInterval) async -> [HKWorkout] {
+        guard HKHealthStore.isHealthDataAvailable(), window.duration > 0 else { return [] }
+        let predicate = HKQuery.predicateForSamples(
+            withStart: window.start, end: window.end, options: .strictStartDate
+        )
+        let sortByEndDateDescending = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: HKObjectType.workoutType(),
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortByEndDateDescending]
+            ) { _, samples, error in
+                guard let workouts = samples as? [HKWorkout], error == nil else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                continuation.resume(returning: workouts)
+            }
+            healthStore.execute(query)
+        }
+    }
 
     // MARK: HealthKit workout signal
 
@@ -233,27 +396,7 @@ actor HomeWorkoutQueryState {
         window: DateInterval, requiredMinutes: Int
     ) async -> HomeWorkoutVerificationResult? {
         guard HKHealthStore.isHealthDataAvailable() else { return nil }
-
-        let predicate = HKQuery.predicateForSamples(
-            withStart: window.start, end: window.end, options: .strictStartDate
-        )
-        let sortByEndDateDescending = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
-
-        let workouts: [HKWorkout] = await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: HKObjectType.workoutType(),
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortByEndDateDescending]
-            ) { _, samples, error in
-                guard let workouts = samples as? [HKWorkout], error == nil else {
-                    continuation.resume(returning: [])
-                    return
-                }
-                continuation.resume(returning: workouts)
-            }
-            healthStore.execute(query)
-        }
+        let workouts = await fetchWorkouts(in: window)
 
         let requiredSeconds = TimeInterval(requiredMinutes * 60)
         guard let qualifying = workouts.first(where: { $0.duration >= requiredSeconds }) else {

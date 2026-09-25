@@ -23,6 +23,7 @@
 
 import AppIntents
 import Foundation
+import SwiftData
 
 // MARK: - Tag kind (Tag Pack, spec §25.1)
 
@@ -42,8 +43,11 @@ public enum NFCTagKind: String, Codable, CaseIterable, Sendable, Identifiable {
     case desk
     /// In/on a gym bag — starts (or contributes to) a workout-oriented lock.
     case gymBag = "gym_bag"
-    /// A tag the user is mapping outside the five stock placements (e.g. a Lock Card variant,
-    /// spec §25.2, or a spare Tag Pack tag put somewhere unplanned).
+    /// The Lock Card (spec §5.3, §25.2): tap to lock, tap again to check status. Also covers its
+    /// Lock Key / Desk / MagSafe variants — they all run `.lockCardToggle`.
+    case lockCard = "lock_card"
+    /// A tag the user is mapping outside the stock placements (e.g. a spare Tag Pack tag put
+    /// somewhere unplanned).
     case custom
 
     public var id: String { rawValue }
@@ -51,28 +55,28 @@ public enum NFCTagKind: String, Codable, CaseIterable, Sendable, Identifiable {
 
 public extension NFCTagKind {
     /// A reasonable starting suggestion for the one-screen mapping flow (spec §25.1) — always
-    /// shown as an editable default, never saved without the user confirming it. `nil` where the
-    /// kind has no single sensible default (a Desk or Gym Bag tag's lock set is a per-user
-    /// choice; a Custom tag has no default at all).
+    /// shown as an editable default, never saved without the user confirming it. `nil` only for a
+    /// Custom tag, which has no default at all.
     var suggestedAction: NFCTagAction? {
         switch self {
         case .sunrise: return .sunriseKey
         case .bottle: return .logWater(milliliters: 750)
         case .shaker: return .logProtein(grams: 25)
-        case .desk, .gymBag, .custom: return nil
+        // Spec §25.1 labels the Desk tag "(focus)"; 25 min is `StartFocusIntent`'s own default.
+        case .desk: return .startFocus(minutes: 25)
+        case .gymBag: return .gymCheckIn
+        case .lockCard: return .lockCardToggle
+        case .custom: return nil
         }
     }
 }
 
 // MARK: - Action
 
-/// What tapping a mapped tag does. One case per NFC-reachable entry in the docs/spec.md §14 App
-/// Intents Catalog — `EndLockIntent`, `EmergencyUnlockIntent`, `StartFocusIntent`/`EndFocusIntent`,
-/// `LogCustomGoalIntent`, `CheckStatusIntent`, `QuickRepeatMealIntent`, and `OpenTodayIntent` are
-/// intentionally not reachable by a tag tap — this session's task scopes NFC dispatch to exactly
-/// `LogWaterIntent` / `LogProteinIntent` / `LogCreatineIntent` / `StartLockIntent` /
-/// `SunriseKeyIntent`, matching spec §6's own list ("Lock, Log Water 750ml, Log Shake 25g, Sunrise
-/// Key, Creatine").
+/// What tapping a mapped tag does. Spec §6's list ("Lock, Log Water 750ml, Log Shake 25g, Sunrise
+/// Key, Creatine") plus the Tag Pack's Desk (focus) and Gym bag placements (§25.1), honesty-tier
+/// custom goals, and the Lock Card (§5.3). `EndLockIntent` and `EmergencyUnlockIntent` are
+/// deliberately never reachable by a tap: a tag can start or report on a lock, never end one.
 ///
 /// Not `Hashable`/`Equatable`: `.startLock`'s `LockMode` payload is declared (system contract,
 /// `LockEngine/LockEngineManager.swift`) as only `String, Codable` — not `Hashable` — and this
@@ -92,6 +96,20 @@ public enum NFCTagAction: Codable, Sendable {
     /// → `SunriseKeyIntent(tagId:)`, using the id of the tag that was actually scanned (spec
     /// §5.10: "Tapping the tag = alarm off + morning goal verified...").
     case sunriseKey
+    /// → `StartFocusIntent(minutes:)` against the user's active Focus goal (the Desk tag).
+    case startFocus(minutes: Int)
+    /// Starts gym dwell tracking for the user's confirmed gym via `GymVerifier.beginDwellTracking`
+    /// (the Gym Bag tag). The tap only *starts* the clock — the workout still verifies through
+    /// `GymVerifier`'s own dwell + anti-cheat rules (spec §3); a tap far from the gym is ended by
+    /// the geofence reporting "outside" once it is armed.
+    case gymCheckIn
+    /// → `LogCustomGoalIntent(goal:)`. The mapping UI only offers honesty-tier goals (custom,
+    /// reading, cold shower/sauna), never an auto-verified one like a gym workout.
+    case logCustomGoal(goalID: UUID)
+    /// The Lock Card (spec §5.3): no lock running → start the default lock (`StartLockIntent()`);
+    /// lock running → report what's left. **Never unlocks.** The emergency hold on the Lock tab
+    /// stays the only manual way out (CLAUDE.md: emergency unlock always exists).
+    case lockCardToggle
 }
 
 // MARK: - Mapping
@@ -108,19 +126,25 @@ public struct NFCTagMapping: Codable, Sendable, Identifiable {
     public var label: String
     public var action: NFCTagAction
     public var createdAt: Date
+    /// When this tag last ran its action (a successful dispatch through `handleTap`). `nil` until
+    /// the first tap after mapping. Optional so mappings saved before this field existed still
+    /// decode (synthesized `Decodable` treats a missing optional key as `nil`).
+    public var lastTappedAt: Date?
 
     public init(
         id: UUID,
         kind: NFCTagKind = .custom,
         label: String,
         action: NFCTagAction,
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        lastTappedAt: Date? = nil
     ) {
         self.id = id
         self.kind = kind
         self.label = label
         self.action = action
         self.createdAt = createdAt
+        self.lastTappedAt = lastTappedAt
     }
 }
 
@@ -132,6 +156,8 @@ public enum NFCTagMapperError: Error, Sendable, Equatable {
     /// when `tagID(from:)` succeeds), so in practice this only fires when `handleScannedURL` is
     /// called directly with an arbitrary URL (e.g. a deep link, not a live NFC scan).
     case invalidZanoURL(URL)
+    /// A `.gymCheckIn` tag was tapped but the user has no confirmed gym saved yet.
+    case noConfirmedGym
 }
 
 // MARK: - Dispatch outcome
@@ -143,6 +169,27 @@ public enum NFCTagDispatchOutcome: Sendable {
     /// The tag's id parsed fine, but no mapping is saved for it yet — the caller should route to
     /// the one-screen mapping flow (spec §25.1) rather than treat this as an error; tapping an
     /// unmapped tag for the first time is the expected setup path, not a failure.
+    case unmapped(tagID: UUID)
+}
+
+/// What a handled tap actually did, resolved to plain values so the app can confirm it on screen
+/// (`TagTapFeedback` in the app target turns this into "+25 g protein logged").
+public enum NFCTagTapEffect: Sendable, Equatable {
+    case loggedWater(milliliters: Int)
+    case loggedProtein(grams: Int)
+    case loggedCreatine
+    case sunriseKey
+    case lockStarted
+    /// A Lock Card tap while a lock was already running: nothing changed, here's what's left.
+    case lockStatus(goalsRemaining: Int)
+    case focusStarted(minutes: Int)
+    case gymCheckInStarted
+    case loggedCustomGoal(title: String)
+}
+
+/// `NFCTagDispatchOutcome` plus what the tap did — the richer result `handleTap(_:)` returns.
+public enum NFCTagTapResult: Sendable {
+    case handled(mapping: NFCTagMapping, effect: NFCTagTapEffect)
     case unmapped(tagID: UUID)
 }
 
@@ -270,14 +317,32 @@ public actor NFCTagMapper {
     ///   URL, or whatever the dispatched App Intent's `perform()` throws.
     @discardableResult
     public func handleScannedURL(_ url: URL) async throws -> NFCTagDispatchOutcome {
+        switch try await handleTap(url) {
+        case .handled(let mapping, _):
+            return .handled(action: mapping.action, tagID: mapping.id)
+        case .unmapped(let tagID):
+            return .unmapped(tagID: tagID)
+        }
+    }
+
+    /// Same as `handleScannedURL(_:)`, but also returns what the tap did (for an on-screen
+    /// confirmation) and stamps the mapping's `lastTappedAt`. Prefer this in new call sites.
+    public func handleTap(_ url: URL) async throws -> NFCTagTapResult {
         guard let tagID = Self.tagID(from: url) else {
             throw NFCTagMapperError.invalidZanoURL(url)
         }
         guard let mapping = mapping(for: tagID) else {
             return .unmapped(tagID: tagID)
         }
-        try await perform(mapping.action, scannedTagID: tagID)
-        return .handled(action: mapping.action, tagID: tagID)
+        let effect = try await perform(mapping.action, scannedTagID: tagID)
+        // Re-read after the `await`: actor reentrancy means the mapping may have been edited or
+        // removed while the intent ran. Stamp only what is still saved; never resurrect a removed tag.
+        guard var current = self.mapping(for: tagID) else {
+            return .handled(mapping: mapping, effect: effect)
+        }
+        current.lastTappedAt = .now
+        saveMapping(current)
+        return .handled(mapping: current, effect: effect)
     }
 
     /// Convenience that opens a foreground scan (`NFCReader.shared.scanOnce`) and immediately
@@ -314,7 +379,7 @@ public actor NFCTagMapper {
     /// is `LockEngineManager`'s job, not a settable intent param — see `SunriseKeyIntent`'s own
     /// `.nfc`-trigger call site for the equivalent pattern) since every call in this file
     /// genuinely did originate from a physical tag tap.
-    private func perform(_ action: NFCTagAction, scannedTagID: UUID) async throws {
+    private func perform(_ action: NFCTagAction, scannedTagID: UUID) async throws -> NFCTagTapEffect {
         switch action {
         case .startLock(let lockSetID, let mode, let requiredGoalIDs):
             let lockSetEntity = try await LockSetQuery().entities(for: [lockSetID]).first
@@ -324,22 +389,72 @@ public actor NFCTagMapper {
                 : try await GoalQuery().entities(for: requiredGoalIDs)
             let intent = StartLockIntent(lockSet: lockSetEntity, mode: modeOption, requiredGoals: goalEntities)
             _ = try await intent.perform()
+            return .lockStarted
 
         case .logWater(let milliliters):
             let intent = LogWaterIntent(milliliters: milliliters, source: .nfc)
             _ = try await intent.perform()
+            return .loggedWater(milliliters: milliliters)
 
         case .logProtein(let grams):
             let intent = LogProteinIntent(grams: Double(grams), source: .nfc)
             _ = try await intent.perform()
+            return .loggedProtein(grams: grams)
 
         case .logCreatine:
             let intent = LogCreatineIntent(source: .nfc)
             _ = try await intent.perform()
+            return .loggedCreatine
 
         case .sunriseKey:
             let intent = SunriseKeyIntent(tagId: scannedTagID.uuidString)
             _ = try await intent.perform()
+            return .sunriseKey
+
+        case .startFocus(let minutes):
+            let clamped = max(1, minutes)
+            let intent = StartFocusIntent(minutes: clamped)
+            _ = try await intent.perform()
+            return .focusStarted(minutes: clamped)
+
+        case .gymCheckIn:
+            guard let gymID = try await Self.confirmedGymID() else {
+                throw NFCTagMapperError.noConfirmedGym
+            }
+            await GymVerifier.shared.beginDwellTracking(gymID: gymID)
+            return .gymCheckInStarted
+
+        case .logCustomGoal(let goalID):
+            guard let goal = try await GoalQuery().entities(for: [goalID]).first else {
+                throw ZanoIntentError.goalNotFound
+            }
+            let intent = LogCustomGoalIntent(goal: goal)
+            _ = try await intent.perform()
+            return .loggedCustomGoal(title: goal.title)
+
+        case .lockCardToggle:
+            // Lock running → status only. This branch must never end or loosen a lock: the
+            // emergency hold is the only manual exit (CLAUDE.md).
+            if SharedDefaults.activeLockSessionID != nil {
+                return .lockStatus(goalsRemaining: SharedDefaults.goalsRemainingForActiveLock)
+            }
+            _ = try await StartLockIntent().perform()
+            return .lockStarted
         }
+    }
+
+    /// The current user's confirmed gym (`Gym.confirmed` — `GymVerifier` ignores unconfirmed
+    /// rows anyway). `Gym` has no timestamp, so with several confirmed gyms the first by name is
+    /// the stable, predictable pick.
+    @MainActor
+    private static func confirmedGymID() throws -> UUID? {
+        let context = IntentSupport.makeContext()
+        let user = try IntentSupport.currentUser(in: context)
+        let userID = user.id
+        let descriptor = FetchDescriptor<Gym>(
+            predicate: #Predicate { $0.userID == userID && $0.confirmed }
+        )
+        let gyms = try context.fetch(descriptor)
+        return gyms.min { ($0.name ?? "") < ($1.name ?? "") }?.id
     }
 }

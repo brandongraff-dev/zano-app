@@ -11,7 +11,7 @@
 //   required goals complete, accent only once everything is earned ("light is earned").
 // - Goals are rows with their one action in place (`GoalActionList`): "+25g" protein and "+250ml"
 //   water log with one tap (App Intents, same path as widgets/NFC), focus starts from its row, a gym
-//   workout starts dwell tracking from its row. The old layout made the day's most frequent action
+//   workout opens the check-in screen (`GymCheckInView`) from its row. The old layout made the day's most frequent action
 //   cost a tab switch ("Log the rest on Fuel") and showed only the goals gating the lock.
 // - Grouping answers "what do I still owe?": "To unlock" (required, open first) then "Also today".
 //   Nothing locked: one "Today's goals" group.
@@ -21,7 +21,12 @@
 // - Red means emergency only: a running lock is cool navy/grey, never `danger`.
 // - A quick-log shows a 5-second undo toast (longer under VoiceOver). Goals that verify on their own
 //   say so in their row; honor-system goals get a "Log" with one confirmation; a gym goal with no
-//   saved gym says "Set up your gym" and goes to Settings.
+//   saved gym says "Set up your gym" and pushes `GymSetupView`.
+// - Wave 1D (docs/design/buildout-plan.md, 2026-09-25): steps and home/outdoor workout rows show live
+//   Health progress (and "Connect Apple Health" until the permission sheet has been shown); stretch
+//   opens a guided timer (`StretchTimerSheet`); undo corrects a rollup completion the undone log
+//   no longer supports (never re-locking); after the first lock a "Finish setup" card
+//   (`FinishSetupCard`) lists tags, gym, Health and widget until done or hidden.
 //
 // Every animation is gated on Reduce Motion; the ambient light and washes drop under Reduce
 // Transparency. User-facing strings live in `Copy.today` (`Core/Sources/Core/Copy/TodayCopy.swift`);
@@ -32,6 +37,7 @@ import SwiftUI
 import SwiftData
 import DeviceActivity
 import FamilyControls
+import WidgetKit
 import Core
 
 struct TodayView: View {
@@ -46,8 +52,8 @@ struct TodayView: View {
     /// shows no bottom action — the hero already says "Finish setup to start locking".
     private let onFinishSetup: (() -> Void)?
 
-    /// Opens gym setup (the shell switches to Settings, where the gym row lives). While `nil`, a gym
-    /// goal with no saved gym shows a read-only status instead of an action.
+    /// No longer used: Today pushes `GymSetupView` itself (Wave 1D). Kept so the shell's call site
+    /// still compiles; the shell can drop the argument.
     private let onOpenGymSetup: (() -> Void)?
 
     init(
@@ -98,9 +104,33 @@ struct TodayView: View {
     /// TODO(cross-module, Verification/LiveActivity sessions): only knows about sessions *this
     /// screen* started; a session started from a widget, Siri, or NFC shows once it completes.
     @State private var runningFocusGoalID: UUID?
-    @State private var trackingGymID: UUID?
-    /// Live dwell minutes for `trackingGymID`, polled from `GymVerifier`.
+    /// Live dwell minutes for the saved gym, read from `GymVerifier` (the check-in screen starts
+    /// tracking; Today only reads). `0` while not at the gym.
     @State private var gymDwellMinutes: Int = 0
+
+    // Destinations opened from rows and the finish-setup card.
+    @State private var showGymCheckIn = false
+    @State private var showGymSetup = false
+    @State private var showNFCTags = false
+    @State private var showHealthPrimer = false
+    @State private var showWidgetHowTo = false
+    @State private var stretchTarget: StretchTarget?
+
+    /// Live Health progress for steps and home/outdoor workout rows, keyed by goal id.
+    @State private var liveSteps: [UUID: Int] = [:]
+    @State private var liveWorkoutMinutes: [UUID: Int] = [:]
+    /// `true` while the Health permission sheet was never shown for that row's data (the rows then
+    /// say "Connect Apple Health"). `nil` until checked.
+    @State private var stepsNeedsHealth: Bool?
+    @State private var workoutNeedsHealth: Bool?
+    /// Bumped on foreground and after the Health primer, restarting the Health refresh loop.
+    @State private var healthRefreshTick = 0
+
+    /// Finish-setup card state. `nil` until checked, so the card doesn't flash in.
+    @State private var hasNFCTags: Bool?
+    @State private var hasWidget: Bool?
+    @State private var setupStatusTick = 0
+    @AppStorage("today.finishSetupCardDismissed") private var finishSetupCardDismissed = false
 
     @State private var isPerformingAction = false
     @State private var actionError: String?
@@ -124,6 +154,14 @@ struct TodayView: View {
                     heroCard
                     if showsFirstDayChecklist {
                         firstDayChecklist
+                    } else if showsFinishSetupCard {
+                        FinishSetupCard(items: finishSetupItems) {
+                            Analytics.shared.capture(event: "today_finish_setup_hidden")
+                            withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+                                finishSetupCardDismissed = true
+                            }
+                        }
+                        .transition(.opacity)
                     }
                     goalSections
                     screenTimeSection
@@ -150,8 +188,41 @@ struct TodayView: View {
             .navigationDestination(isPresented: $showLockSetup) {
                 LockSetupView()
             }
-            .task(id: trackingGymID) {
-                await pollGymDwell()
+            .navigationDestination(isPresented: $showGymCheckIn) {
+                GymCheckInView()
+            }
+            .navigationDestination(isPresented: $showGymSetup) {
+                GymSetupView()
+            }
+            .navigationDestination(isPresented: $showNFCTags) {
+                NFCTagsView()
+            }
+            .sheet(isPresented: $showHealthPrimer) {
+                HealthPermissionPrimer(onFinished: {
+                    showHealthPrimer = false
+                    healthRefreshTick += 1
+                })
+            }
+            .sheet(isPresented: $showWidgetHowTo) {
+                WidgetHowToSheet()
+            }
+            .sheet(item: $stretchTarget) { target in
+                StretchTimerSheet(goalID: target.id)
+            }
+            .task(id: gymWatchKey) {
+                await watchGymDwell()
+            }
+            .task(id: HealthRefreshKey(tick: healthRefreshTick, goalIDs: healthGoalIDs)) {
+                await refreshHealthRows()
+            }
+            .task(id: setupStatusTick) {
+                await refreshSetupStatus()
+            }
+            .onChange(of: showNFCTags) { _, isShown in
+                if !isShown { setupStatusTick += 1 }
+            }
+            .onChange(of: showHealthPrimer) { _, isShown in
+                if !isShown { healthRefreshTick += 1 }
             }
             .task(id: completedGoalCount) {
                 ghostComparison = await GhostMode.shared.ghostComparison(for: .now)
@@ -167,7 +238,11 @@ struct TodayView: View {
                 withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { refreshScreenTimeStatus() }
+                guard phase == .active else { return }
+                refreshScreenTimeStatus()
+                // Foreground: re-read Health (and check for a finished workout), tags and widgets.
+                healthRefreshTick += 1
+                setupStatusTick += 1
             }
             .confirmationDialog(
                 confirmingLogGoal.map { Copy.today.logGoalConfirmTitle(goal: $0.title) } ?? "",
@@ -647,9 +722,14 @@ struct TodayView: View {
     private func actionItem(for goal: Goal, required: Bool) -> GoalActionItem {
         let p = dayProgress(for: goal)
         let title = goal.title
+        var fraction = p.fraction
         let primary: String
         var secondary: String?
-        if let target = p.target {
+        if !p.isComplete, let live = liveLine(for: goal, progress: p) {
+            primary = live.primary
+            secondary = live.secondary
+            fraction = max(fraction, live.fraction)
+        } else if let target = p.target {
             primary = p.isComplete
                 ? Copy.today.statusDone
                 : Copy.today.goalProgressLine(current: p.current ?? 0, target: target, unit: p.unit)
@@ -665,12 +745,53 @@ struct TodayView: View {
             title: title,
             icon: goalIconName(for: goal.type),
             color: Theme.Colors.Ring.color(for: goal.type),
-            progress: p.fraction,
+            progress: fraction,
             primaryLine: primary,
             secondaryLine: secondary,
             isRequired: required,
             trailing: trailing(for: goal, progress: p)
         )
+    }
+
+    /// Live progress for rows whose progress isn't in `GoalEvent`s until they complete: steps and a
+    /// home/outdoor workout (Health), and a gym check-in in progress (dwell minutes).
+    private func liveLine(for goal: Goal, progress p: GoalDayProgress) -> (primary: String, secondary: String?, fraction: Double)? {
+        switch goal.type {
+        case .steps:
+            guard let target = p.target, target > 0 else { return nil }
+            let steps = liveSteps[goal.id] ?? p.current ?? 0
+            return (
+                Copy.today.stepsProgressLine(current: steps, target: target),
+                Copy.today.stepsRemainingLine(remaining: max(0, target - steps)),
+                min(1, Double(steps) / Double(target))
+            )
+        case .workoutHomeOutdoor:
+            guard workoutNeedsHealth == false else { return nil }
+            let target = homeWorkoutRequiredMinutes(for: goal)
+            let minutes = liveWorkoutMinutes[goal.id] ?? 0
+            return (
+                Copy.today.workoutProgressLine(minutes: minutes, target: target),
+                Copy.today.workoutFromHealth,
+                min(1, Double(minutes) / Double(max(1, target)))
+            )
+        case .workoutGym:
+            guard gymDwellMinutes > 0 else { return nil }
+            let target = gymRequiredMinutes
+            return (
+                Copy.today.workoutProgressLine(minutes: gymDwellMinutes, target: target),
+                nil,
+                min(1, Double(gymDwellMinutes) / Double(max(1, target)))
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// Same rule as `HomeWorkoutVerifier.requiredMinutes(forGoalID:)`: today's planned minutes (else
+    /// the goal's target), never under spec §3's 20-minute floor.
+    private func homeWorkoutRequiredMinutes(for goal: Goal) -> Int {
+        let target = todaysPlan(for: goal)?.plannedValue ?? goal.targetValue ?? 0
+        return max(HomeWorkoutVerificationDefaults.requiredMinutes, Int(target.rounded()))
     }
 
     private func trailing(for goal: Goal, progress p: GoalDayProgress) -> GoalActionItem.Trailing {
@@ -693,15 +814,27 @@ struct TodayView: View {
                 ? .status(Copy.today.statusRunning, isLive: true)
                 : .start(label: Copy.today.actionStart)
         case .workoutGym:
-            if trackingGymID != nil { return .status(Copy.today.statusDwell(minutes: gymDwellMinutes), isLive: true) }
-            if primaryGym != nil { return .start(label: Copy.today.actionGo) }
-            return onOpenGymSetup == nil
-                ? .status(Copy.today.statusVerifiesAtGym, isLive: false)
-                : .start(label: Copy.today.actionSetUpGym)
-        case .workoutHomeOutdoor, .steps, .sleepOnTime, .sunriseAlarm:
-            // HealthKit, the step counter, the bedtime gate and the alarm verify these on their own.
+            guard primaryGym != nil else { return .start(label: Copy.today.actionSetUpGym) }
+            return gymDwellMinutes > 0
+                ? .start(label: Copy.today.actionOpenCheckIn)
+                : .start(label: Copy.today.actionGo)
+        case .steps:
+            return stepsNeedsHealth == true
+                ? .start(label: Copy.today.actionConnectHealth)
+                : .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+        case .workoutHomeOutdoor:
+            return workoutNeedsHealth == true
+                ? .start(label: Copy.today.actionConnectHealth)
+                : .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+        case .sleepOnTime, .sunriseAlarm:
+            // The bedtime gate and the alarm verify these on their own.
             return .status(Copy.today.statusVerifiesAutomatically, isLive: false)
-        case .creatine, .custom, .coldShowerSauna, .reading, .stretchMobility, .mealPrep:
+        case .stretchMobility:
+            // A guided 5-minute timer (`StretchTimerSheet`), verified by `StretchVerifier`.
+            return .start(label: Copy.today.actionStart)
+        case .creatine, .custom, .coldShowerSauna, .reading, .mealPrep:
+            // Meal prep stays honor-system here: `MealPrepVerifier` needs a vision backend that
+            // nothing configures yet, so a photo flow would have nothing to verify against.
             return .start(label: Copy.today.actionLog)
         }
     }
@@ -718,21 +851,27 @@ struct TodayView: View {
             let minutes = Int(todaysPlan(for: goal)?.plannedValue ?? goal.targetValue ?? 25)
             startFocus(goalID: goal.id, minutes: max(1, minutes))
         case .workoutGym:
-            guard let gym = primaryGym else {
+            if primaryGym == nil {
                 Analytics.shared.capture(event: "today_set_up_gym_tapped")
-                onOpenGymSetup?()
-                return
+                showGymSetup = true
+            } else {
+                Analytics.shared.capture(event: "today_verify_at_gym_tapped")
+                showGymCheckIn = true
             }
-            Analytics.shared.capture(event: "today_verify_at_gym_tapped")
-            trackingGymID = gym.id
-            Task { await GymVerifier.shared.beginDwellTracking(gymID: gym.id) }
         case .creatine:
             // One tap, like the Control Center control that calls the same intent.
             logCreatine()
-        case .custom, .coldShowerSauna, .reading, .stretchMobility, .mealPrep:
+        case .stretchMobility:
+            Analytics.shared.capture(event: "today_start_stretch_tapped")
+            stretchTarget = StretchTarget(id: goal.id)
+        case .custom, .coldShowerSauna, .reading, .mealPrep:
             // Honor-system goals: one confirmation is the friction before the log.
             confirmingLogGoal = goal
-        case .workoutHomeOutdoor, .steps, .sleepOnTime, .sunriseAlarm:
+        case .steps:
+            if stepsNeedsHealth == true { openHealthPrimer() }
+        case .workoutHomeOutdoor:
+            if workoutNeedsHealth == true { openHealthPrimer() }
+        case .sleepOnTime, .sunriseAlarm:
             break
         }
     }
@@ -821,13 +960,19 @@ struct TodayView: View {
         let unit = goalType == .water ? "ml" : "g"
         let message = Copy.today.quickLogConfirmation(Int(amount), unit: unit, goal: goal.title)
         withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
-            pendingUndo = QuickLogUndo(eventID: event.id, message: message)
+            pendingUndo = QuickLogUndo(eventID: event.id, goalID: goalID, message: message)
         }
         AccessibilityNotification.Announcement(message).post()
     }
 
+    /// Deletes the quick-logged event, then corrects progress: if the day's rollup `.complete`
+    /// (written by `GoalCompletionCoordinator` once the logged amount reached the target) is no
+    /// longer backed by what's logged, it goes too. Never touches a lock: an unlock that already
+    /// happened stays earned, and nothing here re-locks. The coordinator re-runs afterwards so the
+    /// shield's "goals left" mirror and any still-valid completion stay consistent.
     private func undo(_ undo: QuickLogUndo) {
         let eventID = undo.eventID
+        let goalID = undo.goalID
         withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
         Analytics.shared.capture(event: "today_quick_log_undone")
         do {
@@ -835,10 +980,45 @@ struct TodayView: View {
             for event in try modelContext.fetch(descriptor) {
                 modelContext.delete(event)
             }
+            try removeUnsupportedRollup(goalID: goalID, excluding: eventID)
             try modelContext.save()
             AccessibilityNotification.Announcement(Copy.today.undoDone).post()
         } catch {
             showError(Copy.today.undoFailed)
+            return
+        }
+        Task { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID) }
+    }
+
+    /// `GoalCompletionCoordinator.rollupMetaKey` (internal to Core, so spelled out here). A rollup
+    /// `.complete` carries `value: nil` and this marker in `meta`.
+    private static let rollupMetaKey = "rollup"
+
+    private static func isRollupCompletion(_ event: GoalEvent) -> Bool {
+        guard event.kind == .complete, case .object(let fields) = event.meta else { return false }
+        return fields[rollupMetaKey] == .bool(true)
+    }
+
+    /// Deletes today's rollup `.complete` for `goalID` when the remaining events no longer reach the
+    /// target. Only rollups: a completion a verifier or intent wrote directly is never touched.
+    private func removeUnsupportedRollup(goalID: UUID, excluding deletedID: UUID) throws {
+        guard let goal = goals.first(where: { $0.id == goalID }) else { return }
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.ts >= startOfDay })
+        let todays = try modelContext.fetch(descriptor)
+            .filter { $0.goal?.id == goalID && $0.id != deletedID }
+        let rollups = todays.filter(Self.isRollupCompletion)
+        guard !rollups.isEmpty else { return }
+        let rollupIDs = Set(rollups.map(\.id))
+        let backing = todays.filter { !rollupIDs.contains($0.id) }
+        let progress = GoalDayProgress(
+            goal: goal,
+            todaysEvents: backing,
+            plannedValue: todaysPlan(for: goal)?.plannedValue
+        )
+        guard !progress.isComplete else { return }
+        for rollup in rollups {
+            modelContext.delete(rollup)
         }
     }
 
@@ -986,7 +1166,9 @@ struct TodayView: View {
         if let runningFocusGoalID, requiredGoals.contains(where: { $0.id == runningFocusGoalID && !isGoalDoneToday($0) }) {
             return .focusRunning
         }
-        if trackingGymID != nil { return .verifyingAtGym }
+        if gymDwellMinutes > 0, requiredGoals.contains(where: { $0.type == .workoutGym && !isGoalDoneToday($0) }) {
+            return .verifyingAtGym
+        }
         return .none
     }
 
@@ -1064,19 +1246,162 @@ struct TodayView: View {
         }
     }
 
-    /// Polls `GymVerifier` for live dwell progress while `trackingGymID` is set, stopping once
-    /// `isVerified` (the required minutes — `workoutGoal.targetValue`, falling back to spec §3's
-    /// "default 35 min") or once `.task(id:)` restarts with a new/nil id.
-    private func pollGymDwell() async {
-        guard let gymID = trackingGymID else { return }
-        let requiredMinutes = Int(workoutGoal?.targetValue ?? 35)
-        while !Task.isCancelled, trackingGymID == gymID {
-            gymDwellMinutes = await GymVerifier.shared.currentDwellMinutes(gymID: gymID)
-            if await GymVerifier.shared.isVerified(gymID: gymID, requiredMinutes: requiredMinutes) {
-                trackingGymID = nil
+    // MARK: - Live refreshes (gym dwell, Health rows, finish-setup status)
+
+    /// Restarts the gym watch when the saved gym or the gym goal's state changes.
+    private var gymWatchKey: String {
+        guard let gym = primaryGym, let goal = gymGoal, !isGoalDoneToday(goal) else { return "" }
+        return gym.id.uuidString
+    }
+
+    /// Reads the saved gym's dwell minutes from `GymVerifier` every 15 seconds while a gym goal is
+    /// open. Read-only: the check-in screen (and the geofence) start tracking. Once the dwell
+    /// reaches the goal's minutes it asks `isVerified`, which writes the completion and calls the
+    /// coordinator itself (idempotent), so a finished dwell counts even if nobody opens check-in.
+    private func watchGymDwell() async {
+        guard let gym = primaryGym, let goal = gymGoal, !isGoalDoneToday(goal) else {
+            gymDwellMinutes = 0
+            return
+        }
+        let gymID = gym.id
+        let required = gymRequiredMinutes
+        while !Task.isCancelled {
+            let minutes = await GymVerifier.shared.currentDwellMinutes(gymID: gymID)
+            gymDwellMinutes = minutes
+            if minutes >= required, await GymVerifier.shared.isVerified(gymID: gymID, requiredMinutes: required) {
                 return
             }
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: .seconds(15))
+        }
+    }
+
+    /// Steps and home/outdoor workout goals that still need Health checks today.
+    private var healthGoalIDs: [UUID] {
+        activeGoals
+            .filter { ($0.type == .steps || $0.type == .workoutHomeOutdoor) && !isGoalDoneToday($0) }
+            .map(\.id)
+    }
+
+    /// Whether Health was ever connected for each row type, then (if so) live numbers and a
+    /// completion check: `StepsVerifier` observes step count in the background and writes its own
+    /// completion; `HomeWorkoutVerifier.checkToday` writes a workout completion when one HealthKit
+    /// workout today reaches the goal's minutes. Repeats every 60 seconds while Today is on screen;
+    /// restarts on foreground and after the Health primer.
+    private func refreshHealthRows() async {
+        let ids = Set(healthGoalIDs)
+        let stepGoalIDs = activeGoals.filter { $0.type == .steps && ids.contains($0.id) }.map(\.id)
+        let workoutGoalIDs = activeGoals.filter { $0.type == .workoutHomeOutdoor && ids.contains($0.id) }.map(\.id)
+        guard !stepGoalIDs.isEmpty || !workoutGoalIDs.isEmpty else { return }
+
+        while !Task.isCancelled {
+            if !stepGoalIDs.isEmpty {
+                let needs = await StepsVerifier.shared.needsAuthorizationRequest()
+                stepsNeedsHealth = needs
+                if !needs {
+                    for goalID in stepGoalIDs {
+                        try? await StepsVerifier.shared.startObserving(goalID: goalID)
+                        _ = try? await StepsVerifier.shared.checkToday(goalID: goalID)
+                        if let count = try? await StepsVerifier.shared.currentStepCount(goalID: goalID) {
+                            liveSteps[goalID] = Int(count)
+                        }
+                    }
+                }
+            }
+            if !workoutGoalIDs.isEmpty {
+                let needs = await HomeWorkoutVerifier.shared.needsAuthorizationRequest()
+                workoutNeedsHealth = needs
+                if !needs {
+                    let minutes = await HomeWorkoutVerifier.shared.longestWorkoutMinutesToday()
+                    for goalID in workoutGoalIDs {
+                        liveWorkoutMinutes[goalID] = minutes
+                        _ = try? await HomeWorkoutVerifier.shared.checkToday(goalID: goalID)
+                    }
+                }
+            }
+            try? await Task.sleep(for: .seconds(60))
+        }
+    }
+
+    private func openHealthPrimer() {
+        Analytics.shared.capture(event: "today_connect_health_tapped")
+        showHealthPrimer = true
+    }
+
+    // MARK: - Finish setup (after the first lock)
+
+    private var showsFinishSetupCard: Bool {
+        guard !finishSetupCardDismissed, !lockSessions.isEmpty, hasNFCTags != nil, hasWidget != nil else { return false }
+        let items = finishSetupItems
+        return !items.isEmpty && items.contains { !$0.isDone }
+    }
+
+    private var finishSetupItems: [FinishSetupItem] {
+        var items: [FinishSetupItem] = [
+            FinishSetupItem(
+                id: "tags",
+                icon: "wave.3.right",
+                title: Copy.today.setupTagsTitle,
+                detail: Copy.today.setupTagsDetail,
+                isDone: hasNFCTags == true,
+                action: { finishSetupTapped("tags") { showNFCTags = true } }
+            )
+        ]
+        if gymGoal != nil {
+            items.append(FinishSetupItem(
+                id: "gym",
+                icon: "mappin.and.ellipse",
+                title: Copy.today.setupGymTitle,
+                detail: Copy.today.setupGymDetail,
+                isDone: primaryGym != nil,
+                action: { finishSetupTapped("gym") { showGymSetup = true } }
+            ))
+        }
+        if activeGoals.contains(where: { $0.type == .steps || $0.type == .workoutHomeOutdoor }) {
+            items.append(FinishSetupItem(
+                id: "health",
+                icon: "heart.fill",
+                title: Copy.today.setupHealthTitle,
+                detail: Copy.today.setupHealthDetail,
+                isDone: stepsNeedsHealth != true && workoutNeedsHealth != true,
+                action: { finishSetupTapped("health") { showHealthPrimer = true } }
+            ))
+        }
+        items.append(FinishSetupItem(
+            id: "widget",
+            icon: "square.grid.2x2.fill",
+            title: Copy.today.setupWidgetTitle,
+            detail: Copy.today.setupWidgetDetail,
+            isDone: hasWidget == true,
+            action: { finishSetupTapped("widget") { showWidgetHowTo = true } }
+        ))
+        return items
+    }
+
+    private func finishSetupTapped(_ item: String, open: () -> Void) {
+        Analytics.shared.capture(event: "today_finish_setup_item_tapped", properties: ["item": item])
+        open()
+    }
+
+    /// NFC mappings (`NFCTagMapper`, App Group) and installed widgets (WidgetKit).
+    private func refreshSetupStatus() async {
+        hasNFCTags = !(await NFCTagMapper.shared.allMappings()).isEmpty
+        hasWidget = await Self.hasInstalledWidget()
+    }
+
+    /// Whether a ZANO home or lock-screen widget is installed. The `kind` strings are the ones
+    /// `Extensions/ZANOWidgets` declares (identifiers, not copy; same pair `OnboardingDripScheduler`
+    /// matches). `nonisolated` so WidgetKit's completion (called off the main thread) isn't main-actor bound.
+    nonisolated private static func hasInstalledWidget() async -> Bool {
+        let kinds: Set<String> = ["com.zano.app.widget.home", "com.zano.app.widget.lockscreen"]
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            WidgetCenter.shared.getCurrentConfigurations { result in
+                switch result {
+                case .success(let widgets):
+                    continuation.resume(returning: widgets.contains { kinds.contains($0.kind) })
+                case .failure:
+                    continuation.resume(returning: false)
+                }
+            }
         }
     }
 
@@ -1102,8 +1427,15 @@ struct TodayView: View {
     private var defaultLockSet: LockSet? { lockSets.first(where: \.isDefault) ?? lockSets.first }
     private var primaryGym: Gym? { gyms.first(where: \.confirmed) }
 
-    private var workoutGoal: Goal? {
-        activeGoals.first { $0.type == .workoutGym || $0.type == .workoutHomeOutdoor }
+    private var gymGoal: Goal? {
+        activeGoals.first { $0.type == .workoutGym }
+    }
+
+    /// The gym goal's dwell minutes (planned value, else target), else spec §3's default 35.
+    private var gymRequiredMinutes: Int {
+        guard let goal = gymGoal else { return GymVerificationDefaults.requiredDwellMinutes }
+        let target = todaysPlan(for: goal)?.plannedValue ?? goal.targetValue
+        return target.map { Int($0.rounded()) } ?? GymVerificationDefaults.requiredDwellMinutes
     }
 
     private var activeLockSession: LockSession? { lockSessions.first(where: \.isActive) }
@@ -1371,7 +1703,19 @@ private struct TodayStatusRow: View {
 private struct QuickLogUndo: Identifiable, Equatable {
     let id = UUID()
     let eventID: UUID
+    let goalID: UUID
     let message: String
+}
+
+/// The stretch goal whose guided timer is open (`sheet(item:)` needs an `Identifiable`).
+private struct StretchTarget: Identifiable {
+    let id: UUID
+}
+
+/// Restarts the Health refresh loop on foreground, after the primer, or when the goal set changes.
+private struct HealthRefreshKey: Equatable {
+    let tick: Int
+    let goalIDs: [UUID]
 }
 
 #Preview {

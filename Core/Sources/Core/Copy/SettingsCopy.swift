@@ -146,6 +146,8 @@ extension Copy {
                 "\(value) g a day"
             case .steps:
                 "\(value.formatted()) steps a day"
+            case .water where unit == "ml" || unit == "oz":
+                "\(value.formatted()) \(unit ?? "") a day"
             default:
                 if let unit, !unit.isEmpty { "\(value) \(unit)" } else { "\(value)" }
             }

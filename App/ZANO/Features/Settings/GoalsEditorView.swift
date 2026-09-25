@@ -6,21 +6,20 @@
 // sets a title but owns no `NavigationStack`, and adds no close button — a modal presenter adds
 // its own toolbar or relies on the sheet's swipe-down).
 //
-// docs/spec.md §3 (goal catalog), §8 rule 1 (start small), §24 (ADDITIVE goals only — no calorie
-// ceilings, weight targets, or fasting). The "Add goal" list is exactly the goal types onboarding
-// offers (`Screen10PlanReveal.planGoals`: gym workout, focus session, protein) — every one of them
-// is "do more of something good". Targets can go down as well as up (a smaller bar is always
-// allowed), but never to zero: a zero target would read as "done" without doing anything.
+// docs/spec.md §3 (goal catalog + verification tiers), §8 rule 1 (start small), §24 (ADDITIVE goals
+// only — no calorie ceilings, weight targets, or fasting). Every `GoalType` can be added (all are
+// additive); a custom goal is a user-named daily habit whose name is checked for restrictive goals.
+// Adding happens in `GoalTypePickerSheet` (App/ZANO/Features/Goals), which also offers the goal's
+// setup step. Targets can go down as well as up (a smaller bar is always allowed), but never to
+// zero: a zero target would read as "done" without doing anything.
 //
-// Creation mirrors `Screen10PlanReveal.persistPlanIfNeeded()` field for field: title from
-// `Copy.onboarding.planGoalTitle(for:)`, the same `unit` strings ("workouts" / "min" / "g"),
-// `cadence: "daily"`, the same verification tiers, attached to the device's one `User`. Onboarding
-// stores the workout goal as a weekly count with `cadence: "daily"`; that is mirrored as-is, not
-// "fixed" here (flagged in this pass's report).
+// Each card shows how its goal is verified and, when its setup step isn't done (no gym saved, no
+// tag mapped, Health never asked), a "Set up" button that opens that step.
 //
 // Removing a goal sets `Goal.active = false` rather than deleting the row: `Goal` cascades its
 // `GoalEvent` history on delete, and a user taking a goal off their plan should not lose their
-// record. Re-adding a type reactivates the most recent inactive goal of that type.
+// record. Re-adding a type reactivates the most recent inactive goal of that type
+// (`GoalCreation.add`).
 
 import SwiftUI
 import SwiftData
@@ -29,6 +28,7 @@ import Core
 struct GoalsEditorView: View {
     @Query(sort: \Goal.createdAt) private var goals: [Goal]
     @Query private var users: [User]
+    @Query private var gyms: [Gym]
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -37,6 +37,10 @@ struct GoalsEditorView: View {
     @State private var isChoosingNewGoal = false
     @State private var saveFailed = false
     @State private var stepTick = 0
+    @State private var activeSetup: GoalSetupStep?
+    /// `nil` until first loaded, so no "Needs setup" flashes before the status is known.
+    @State private var setupStatus: GoalSetupStatus?
+    @State private var setupRefreshTick = 0
 
     /// `true` when shown as a sheet (from Today or Fuel): adds a Done button. Pushed from Settings,
     /// the back button already closes it.
@@ -47,18 +51,18 @@ struct GoalsEditorView: View {
         self.showsDoneButton = showsDoneButton
     }
 
-    /// The additive goal types onboarding offers, in onboarding's order.
-    private static let addableTypes: [GoalType] = [.workoutGym, .focusSession, .protein]
-
     private var currentUser: User? { users.first }
 
     private var activeGoals: [Goal] {
         goals.filter(\.active)
     }
 
-    private var availableTypes: [GoalType] {
-        Self.addableTypes.filter { type in !activeGoals.contains { $0.type == type } }
+    /// Re-runs the setup-status load when the goal list, gyms, or a setup sheet change.
+    private var setupStatusKey: [String] {
+        activeGoals.map(\.type.rawValue) + ["gym:\(hasConfirmedGym)", "tick:\(setupRefreshTick)"]
     }
+
+    private var hasConfirmedGym: Bool { gyms.contains(where: \.confirmed) }
 
     var body: some View {
         ScrollView {
@@ -104,15 +108,17 @@ struct GoalsEditorView: View {
         } message: { _ in
             Text(Copy.settings.goalRemoveConfirmMessage)
         }
-        .confirmationDialog(
-            Copy.settings.goalsAddDialogTitle,
-            isPresented: $isChoosingNewGoal,
-            titleVisibility: .visible
-        ) {
-            ForEach(availableTypes, id: \.self) { type in
-                Button(Copy.onboarding.planGoalTitle(for: type)) { add(type) }
-            }
-            Button(Copy.common.cancel, role: .cancel) {}
+        .sheet(isPresented: $isChoosingNewGoal, onDismiss: { setupRefreshTick += 1 }) {
+            GoalTypePickerSheet()
+        }
+        .sheet(item: $activeSetup, onDismiss: { setupRefreshTick += 1 }) { step in
+            GoalSetupDestination(step: step)
+        }
+        .task(id: setupStatusKey) {
+            setupStatus = await GoalSetupStatus.load(
+                for: activeGoals.map(\.type),
+                hasConfirmedGym: hasConfirmedGym
+            )
         }
         .alert(Copy.settings.saveErrorTitle, isPresented: $saveFailed) {
             Button(Copy.common.ok, role: .cancel) {}
@@ -150,7 +156,7 @@ struct GoalsEditorView: View {
         let rule = GoalTargetRule(type: goal.type, unit: goal.unit)
         return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(spacing: Theme.Spacing.sm) {
-                GoalRingGlyph(type: goal.type)
+                GoalTypeGlyph(type: goal.type)
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(goal.title)
@@ -183,6 +189,8 @@ struct GoalsEditorView: View {
                 .accessibilityLabel(Copy.common.moreOptions(for: goal.title))
             }
 
+            verificationRow(goal)
+
             if let target = goal.targetValue {
                 targetStepper(goal: goal, value: Int(target), rule: rule)
             }
@@ -190,6 +198,54 @@ struct GoalsEditorView: View {
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zanoGlass(in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+    }
+
+    /// How the goal is verified, plus a "Set up" button when its setup step isn't done. A required
+    /// step (gym, Health, Sunrise Tag) is flagged "Needs setup"; an optional tag is just offered.
+    private func verificationRow(_ goal: Goal) -> some View {
+        let step = GoalCatalog.setupStep(for: goal.type)
+        let missing = step != nil && (setupStatus?.isMissing(for: goal.type) ?? false)
+        let required = GoalCatalog.setupIsRequired(for: goal.type)
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.xs) {
+                GoalVerificationChip(type: goal.type)
+                Spacer(minLength: 0)
+                if missing, let step { setupButton(step, required: required) }
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                GoalVerificationChip(type: goal.type)
+                if missing, let step { setupButton(step, required: required) }
+            }
+        }
+    }
+
+    private func setupButton(_ step: GoalSetupStep, required: Bool) -> some View {
+        Button {
+            Analytics.shared.capture(event: "goal_setup_started", properties: ["step": step.rawValue, "from": "goals_editor"])
+            activeSetup = step
+        } label: {
+            HStack(spacing: Theme.Spacing.xxs) {
+                if required {
+                    Circle()
+                        .fill(Theme.Colors.warning)
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                }
+                Text(required ? Copy.goals.setupNeededLabel : step.shortTitle)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(required ? Theme.Colors.text : Theme.Colors.accent)
+                Image(systemName: "chevron.right")
+                    .font(Theme.Typography.icon(.xsmall))
+                    .foregroundStyle(Theme.Colors.muted)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, Theme.Spacing.sm)
+            .frame(minHeight: Theme.Metrics.minTapTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable(scale: 0.96))
+        .accessibilityLabel(step.shortTitle)
+        .accessibilityHint(required ? Copy.goals.setupNeededLabel : "")
     }
 
     /// Minus / value / plus on glass. One VoiceOver element with an adjustable action, so the
@@ -268,12 +324,6 @@ struct GoalsEditorView: View {
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.muted)
                 .frame(maxWidth: .infinity)
-        } else if availableTypes.isEmpty {
-            Text(Copy.settings.goalsAllAddedMessage)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
         } else {
             PrimaryButton(title: Copy.settings.goalsAddButtonLabel, systemImage: "plus") {
                 isChoosingNewGoal = true
@@ -297,30 +347,10 @@ struct GoalsEditorView: View {
         goal.active = false
         if save() {
             Analytics.shared.capture(event: "goal_removed", properties: ["type": goal.type.rawValue])
-        }
-    }
-
-    /// Reactivates the newest inactive goal of `type` (keeps its history and target) or creates a
-    /// new one exactly the way onboarding does.
-    private func add(_ type: GoalType) {
-        guard let user = currentUser, Self.addableTypes.contains(type) else { return }
-
-        if let previous = goals.last(where: { $0.type == type && !$0.active && $0.user?.id == user.id }) {
-            previous.active = true
-        } else {
-            let rule = GoalTargetRule(type: type, unit: nil)
-            modelContext.insert(Goal(
-                type: type,
-                title: Copy.onboarding.planGoalTitle(for: type),
-                targetValue: Double(rule.defaultValue),
-                unit: rule.unit,
-                cadence: "daily",
-                verificationTier: rule.tier,
-                user: user
-            ))
-        }
-        if save() {
-            Analytics.shared.capture(event: "goal_added", properties: ["type": type.rawValue])
+            if goal.type == .steps {
+                let id = goal.id
+                Task { await StepsVerifier.shared.stopObserving(goalID: id) }
+            }
         }
     }
 
@@ -336,78 +366,9 @@ struct GoalsEditorView: View {
     }
 }
 
-// MARK: - Ring glyph
-
-/// The goal's icon inside a thin ring in the goal's ring color — the same hue its ring uses on
-/// Today, so a goal looks the same everywhere.
-private struct GoalRingGlyph: View {
-    let type: GoalType
-
-    @ScaledMetric(relativeTo: .body) private var diameter: CGFloat = 44
-
-    var body: some View {
-        let color = Theme.Colors.Ring.color(for: type)
-        ZStack {
-            Circle()
-                .stroke(Theme.Colors.Ring.track(for: color), lineWidth: 3)
-            Circle()
-                .trim(from: 0, to: 0.72)
-                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Image(systemName: goalIconName(for: type))
-                .font(.system(size: diameter * 0.36, weight: .semibold))
-                .foregroundStyle(color)
-        }
-        .frame(width: diameter, height: diameter)
-        .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Target rules
-
-/// Sensible target bounds and step per goal type, in the units onboarding stores. Values are
-/// identifiers and numbers, not copy.
-private struct GoalTargetRule {
-    let range: ClosedRange<Int>
-    let step: Int
-    let defaultValue: Int
-    let unit: String?
-    let tier: VerificationTier
-
-    init(type: GoalType, unit: String?) {
-        switch type {
-        case .workoutGym, .workoutHomeOutdoor:
-            // Workouts per week (onboarding's Q4 target).
-            self.init(range: 1...7, step: 1, defaultValue: 3, unit: "workouts", tier: .a)
-        case .focusSession:
-            // Minutes; 25 matches onboarding's `FocusSessionPreset.twentyFiveMinutes`.
-            self.init(range: 5...180, step: 5, defaultValue: 25, unit: "min", tier: .a)
-        case .protein:
-            // Grams a day; 120 matches onboarding's placeholder baseline.
-            self.init(range: 20...300, step: 5, defaultValue: 120, unit: "g", tier: .b)
-        case .steps:
-            self.init(range: 1_000...30_000, step: 500, defaultValue: 8_000, unit: "steps", tier: .a)
-        case .water where unit == "oz":
-            self.init(range: 8...200, step: 8, defaultValue: 64, unit: "oz", tier: .b)
-        case .water:
-            self.init(range: 250...5_000, step: 250, defaultValue: 2_000, unit: unit ?? "ml", tier: .b)
-        default:
-            self.init(range: 1...999, step: 1, defaultValue: 1, unit: unit, tier: .c)
-        }
-    }
-
-    private init(range: ClosedRange<Int>, step: Int, defaultValue: Int, unit: String?, tier: VerificationTier) {
-        self.range = range
-        self.step = step
-        self.defaultValue = defaultValue
-        self.unit = unit
-        self.tier = tier
-    }
-}
-
 #Preview {
     NavigationStack {
         GoalsEditorView()
     }
-    .modelContainer(for: [User.self, Goal.self], inMemory: true)
+    .modelContainer(for: [User.self, Goal.self, Gym.self], inMemory: true)
 }

@@ -13,6 +13,9 @@
 // does not synthesize a public memberwise init for a public type — see e.g. `Gym.swift`,
 // `GoalEvent.swift` in Core/Sources/Core/Models for the same pattern already used in this repo).
 //
+// Wave 1A: `GymDwellActivityManager` (same folder) now owns request/update/end, driven by
+// `GymPresenceService`. The paragraph below predates that and is kept for history.
+//
 // This file only defines the attributes/content-state contract. The Live Activity's actual
 // start/update call sites (`Activity<GymDwellActivityAttributes>.request(attributes:content:
 // pushType:)` and `.update(...)`) belong wherever the dwell loop lives that decides *when* to
@@ -53,10 +56,18 @@ public struct GymDwellActivityAttributes: ActivityAttributes {
         /// would).
         public var isVerified: Bool
 
-        public init(elapsedMinutes: Int, verifiedAtMinutes: Int, isVerified: Bool) {
+        /// When the running dwell started (`nil` once it ended or when unknown). Added in Wave 1A
+        /// so the widget can render a self-updating `Text(enteredAt, style: .timer)`: the app
+        /// can't push `elapsedMinutes` every minute while it's suspended in the background, so a
+        /// minute count alone goes stale on the Lock Screen. Optional + defaulted, so older
+        /// encoded states and existing call sites keep working.
+        public var enteredAt: Date?
+
+        public init(elapsedMinutes: Int, verifiedAtMinutes: Int, isVerified: Bool, enteredAt: Date? = nil) {
             self.elapsedMinutes = elapsedMinutes
             self.verifiedAtMinutes = verifiedAtMinutes
             self.isVerified = isVerified
+            self.enteredAt = enteredAt
         }
     }
 
@@ -66,7 +77,12 @@ public struct GymDwellActivityAttributes: ActivityAttributes {
     /// per CLAUDE.md's "no hardcoded user-facing strings" rule, not in this attributes file.
     public var gymName: String
 
-    public init(gymName: String) {
+    /// The `Gym.id` this Activity tracks, so a relaunched app can re-adopt the right running
+    /// Activity (`GymDwellActivityManager`). Optional + defaulted for source compatibility.
+    public var gymID: UUID?
+
+    public init(gymName: String, gymID: UUID? = nil) {
         self.gymName = gymName
+        self.gymID = gymID
     }
 }

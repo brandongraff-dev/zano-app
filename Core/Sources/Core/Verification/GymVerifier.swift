@@ -5,31 +5,36 @@
 //   HealthKit workout OR elevated HR during dwell"
 //   Anti-cheat: "Dwell time; HR/motion check; can't be in car (Core Motion automotive);
 //   parking-lot detection via GPS accuracy radius"
-// docs/spec.md §9.4 "Gym Auto-Detection" describes the companion clustering pipeline
-// (GymAutoDetect.swift, same session/folder) that proposes the `Gym` row this verifier later
-// tracks dwell against; its anti-cheat line ("dwell inside radius, Core Motion not automotive,
-// optional HR") is the same signal set implemented here, just applied live instead of
-// historically.
+// docs/spec.md §24 "Location": When In Use first, Always only at gym setup with a clear
+// explanation, and a manual check-in fallback — `recordManualCheckIn(gymID:)` below is that
+// fallback's single write path (Tier C, `source: .manual`, flagged `tier: "C"` in `meta`).
 //
-// SYSTEM CONTRACTS (orchestrator-fixed public shape):
+// SYSTEM CONTRACTS (orchestrator-fixed public shape, unchanged):
 //   final class GymVerifier {
 //       static let shared = GymVerifier()
 //       func beginDwellTracking(gymID: UUID) async
 //       func currentDwellMinutes(gymID: UUID) async -> Int
 //       func isVerified(gymID: UUID, requiredMinutes: Int) async -> Bool
 //   }
-// Implemented below with that exact outer shape (see "decisions" in this session's structured
-// report for the one intentional addition, `currentContentState`, and why `requiredMinutes` grew
-// a default value instead of losing its explicit-call compatibility).
 //
-// Concurrency: `GymVerifier` itself is a `final class` (per contract) with no mutable stored
-// state — every mutable field (per-gym dwell sessions, the CLMonitor instance, its event-reading
-// Task) lives on a private `actor`, `GymDwellState`, that this class forwards to. That makes
-// `GymVerifier` trivially, non-`@unchecked` `Sendable` (its only stored property is a `let`
-// reference to an actor, and actors are implicitly `Sendable`), while still giving the mutable
-// dwell-tracking state a real transaction boundary. See the write-swift skill §3–4: "isolate it
-// to an actor" is the standard fix for state shared across the app's various callers of
-// `GymVerifier.shared`, and an actor's synchronous methods are where invariants must hold.
+// Wave 1A additions (all additive):
+//   * `syncMonitoredGyms()` — one `CLMonitor` condition per *confirmed* gym, re-created at every
+//     launch by `GymPresenceService.start()`. A `CLMonitor` must be re-opened (same name) and its
+//     `events` consumed right after launch, or a background relaunch for a region event delivers
+//     nothing.
+//   * Region entry now starts dwell on its own (it always did inside `handleRegionEntered`, but
+//     nothing armed the monitor until someone tapped "verify at gym").
+//   * `startCheckIn(gymID:)` — the honest version of "start": it only starts the clock when the
+//     geofence says the phone is inside. `beginDwellTracking` now forwards to it, so a tap at home
+//     no longer counts home time as gym time.
+//   * `presenceEvents()` — entered / exited / verified, for the presence service (Live Activity,
+//     notifications, the check-in screen).
+//   * Sessions persist to the App Group defaults, so a process that iOS killed mid-workout and
+//     relaunched for the exit event still knows when the user arrived.
+//   * The silent `requestAlwaysAuthorization()` is gone: the Gym Setup UI asks, after a primer.
+//
+// Concurrency: `GymVerifier` is a `final class` with one `let` (an actor), so it is `Sendable`
+// without `@unchecked`; every mutable field lives on `GymDwellState`.
 
 import Foundation
 import CoreLocation
@@ -38,91 +43,116 @@ import HealthKit
 import SwiftData
 import os
 
-/// Tunable constants for gym verification, named so other modules (Gym Setup UI, the Live
-/// Activity, `AdaptiveGoalEngine`) can reference the same values the spec table documents
-/// instead of repeating a magic number.
+/// Tunable constants for gym verification, shared by Gym Setup, the Live Activity and
+/// `AdaptiveGoalEngine` so the spec's numbers live in one place.
 public enum GymVerificationDefaults {
     /// docs/spec.md §3: "minimum dwell (default 35 min)".
     public static let requiredDwellMinutes = 35
-    /// Heart-rate threshold (BPM) used as the "elevated" HealthKit corroboration signal (spec
-    /// §3: "elevated HR during dwell"; §9.4: "If HealthKit HR was elevated ... confidence up").
-    /// Not sourced from the spec verbatim (it gives no number) — a reasonable resting-exceeding
-    /// threshold for "this looks like exercise, not standing around", picked conservatively low
-    /// so it under- rather than over-claims. Worth tuning once `goal_events` has real data
-    /// (spec §9.9).
+    /// Heart-rate threshold (BPM) for the "elevated HR during dwell" corroboration signal. The
+    /// spec gives no number; conservatively low so it under- rather than over-claims.
     public static let elevatedHeartRateBPM = 100.0
+    /// Geofence radius bounds the setup UI offers (the old Settings slider's range).
+    public static let minimumRadiusMeters = 50
+    public static let maximumRadiusMeters = 500
+    public static let defaultRadiusMeters = 150
 }
 
-/// Verifies the Workout (gym) goal (docs/spec.md §3, Tier A) by combining three signals, in
-/// order of how load-bearing each one is to `isVerified`'s result:
+// MARK: - Public value types
+
+/// What the geofence currently says about one gym.
+public enum GymRegionState: Sendable, Equatable {
+    case inside
+    case outside
+    /// Not monitored yet, or Core Location has no answer (no fix, no permission).
+    case unknown
+}
+
+/// A change the presence layer reacts to.
+public enum GymPresenceEvent: Sendable, Equatable {
+    /// A dwell clock started (region entry, or a check-in started while inside).
+    case entered(gymID: UUID)
+    /// The phone left the geofence. `dwellMinutes` is the finished session's length.
+    case exited(gymID: UUID, dwellMinutes: Int)
+    /// The dwell passed its target and anti-cheat, and the day's workout completion was written.
+    case verified(gymID: UUID, dwellMinutes: Int)
+}
+
+/// A read-only copy of one dwell session.
+public struct GymDwellSnapshot: Sendable, Equatable {
+    public let gymID: UUID
+    public let enteredAt: Date
+    public let exitedAt: Date?
+    public let dwellMinutes: Int
+    public let heartRateCorroborated: Bool?
+    /// `true` once this session verified and logged the workout.
+    public let isVerified: Bool
+
+    public var isActive: Bool { exitedAt == nil }
+}
+
+/// Result of `startCheckIn(gymID:)`.
+public enum GymCheckInStartResult: Sendable, Equatable {
+    /// Inside the geofence: the dwell clock is running now.
+    case started
+    /// A dwell for this gym was already running.
+    case alreadyRunning
+    /// The geofence says the phone isn't at the gym (or can't tell yet). The monitor is armed, so
+    /// the clock starts on its own the moment the phone arrives.
+    case notAtGym
+    /// No saved, confirmed gym with that id.
+    case unavailable
+}
+
+/// Result of `recordManualCheckIn(gymID:)` (spec §24's manual fallback, Tier C).
+public enum GymManualCheckInResult: Sendable, Equatable {
+    case recorded
+    /// The one manual check-in allowed per day was already used.
+    case alreadyUsedToday
+    /// Today's gym workout is already complete (verified or manual) — nothing to add.
+    case alreadyCompletedToday
+    /// No active gym goal to log against.
+    case noGymGoal
+    case failed
+}
+
+// MARK: - GymVerifier
+
+/// Verifies the Workout (gym) goal (docs/spec.md §3, Tier A):
 ///
-/// 1. **Geofence + dwell** (hard requirement) — a `CLMonitor` condition on the saved `Gym`'s
-///    circular region, with a running dwell clock while the device stays inside it.
-/// 2. **Anti-cheat** (hard requirement) — Core Motion's historical activity classification must
-///    not show automotive travel during the dwell window (spec: "can't be in car").
-/// 3. **HealthKit corroboration** (soft signal, never blocking) — elevated heart rate during the
-///    dwell window raises confidence (mirrored onto `GymDwellActivityAttributes.ContentState`
-///    and available to callers via `lastHealthKitCorroboration(gymID:)` for `GoalEvent.meta`),
-///    but a user who has not granted HealthKit read access — or whose HealthKit data has none —
-///    is never blocked by it. See `elevatedHeartRateDuringDwell`'s doc comment for exactly why
-///    HealthKit read authorization makes "blocking on it" impossible to do honestly anyway.
-///
-/// `beginDwellTracking`/`currentDwellMinutes`/`isVerified` are the orchestrator's fixed public
-/// shape; do not rename or retype them without updating every other module calling
-/// `GymVerifier.shared` by name (LockEngine's goal-completion check, the Live Activity update
-/// loop, `AdaptiveGoalEngine`'s `GoalEvent` sourcing, etc.).
+/// 1. **Geofence + dwell** (hard requirement) — a `CLMonitor` condition per confirmed `Gym`, with
+///    a running dwell clock while the phone stays inside it.
+/// 2. **Anti-cheat** (hard requirement) — no medium-or-higher-confidence automotive activity
+///    during the dwell window (spec: "can't be in car").
+/// 3. **HealthKit corroboration** (soft signal, never blocking) — elevated heart rate raises
+///    confidence and is recorded in `GoalEvent.meta`; missing HealthKit access never blocks.
 public final class GymVerifier: Sendable {
     public static let shared = GymVerifier()
 
     private let state: GymDwellState
 
-    /// Internal for tests — production code always uses `.shared`. Not part of the fixed
-    /// contract shape; the no-argument path (`GymVerifier()` behind `.shared`) is.
+    /// Internal for tests — production code always uses `.shared`.
     init(state: GymDwellState = GymDwellState()) {
         self.state = state
     }
 
-    /// Arms dwell tracking for `gymID`: looks the gym up in the App Group SwiftData store,
-    /// starts (or reuses) a `CLMonitor` condition on its saved geofence, and starts the dwell
-    /// clock immediately. `GymVerifier` does not itself decide *when* someone is near their gym
-    /// — the realistic caller is "a region-entry event just fired" or "the user opened the app
-    /// and CLMonitor's cached state already shows the condition satisfied" — it only starts
-    /// measuring once told to. Idempotent: calling this again while a session for `gymID` is
-    /// already active (not yet exited) is a no-op, so a caller can call it eagerly without
-    /// worrying about double-counting dwell time.
-    ///
-    /// A logged no-op (CONTRACTS gives this method no error channel) if `gymID` has no saved
-    /// `Gym` row, or if that row's `confirmed` is `false` — `Gym.confirmed`'s own doc comment
-    /// (`Core/Sources/Core/Models/Gym.swift`) states the invariant explicitly: "GymVerifier must
-    /// only use confirmed gyms for real unlocks; an unconfirmed autoDetected row is a suggestion
-    /// only." Enforced here rather than just assumed of callers, so an unconfirmed
-    /// `GymAutoDetect` candidate id passed in by mistake can never start real dwell tracking.
+    // MARK: Contract surface
+
+    /// Arms the geofence for `gymID` and starts the dwell clock if the phone is inside it. Kept
+    /// for existing callers; identical to `startCheckIn(gymID:)` minus the result. Idempotent.
+    /// Only confirmed gyms are ever tracked (`Gym.confirmed`'s contract).
     public func beginDwellTracking(gymID: UUID) async {
-        await state.beginDwellTracking(gymID: gymID)
+        _ = await state.startCheckIn(gymID: gymID)
     }
 
-    /// Minutes elapsed in the current (or most recently ended, if the device already stepped
-    /// outside the geofence) dwell session for `gymID`. `0` if `beginDwellTracking` was never
-    /// called for this gym, or if a prior session was superseded by a fresh region entry after
-    /// fully exiting (see `GymDwellState.handleRegionEntered`).
+    /// Minutes in the current (or most recently ended) dwell session for `gymID`; `0` if none.
     public func currentDwellMinutes(gymID: UUID) async -> Int {
         await state.currentDwellMinutes(gymID: gymID)
     }
 
-    /// `true` once dwell time ≥ `requiredMinutes` (spec default 35,
-    /// `GymVerificationDefaults.requiredDwellMinutes`) **and** Core Motion shows no
-    /// medium-or-higher-confidence automotive activity during the dwell window. HealthKit
-    /// elevated-HR corroboration is checked opportunistically (see the type doc comment) but
-    /// never gates this result — dwell + anti-cheat alone satisfy Tier A's "auto-verify if
-    /// possible... never a form" (spec §3).
-    ///
-    /// The first `true` for a dwell also writes the day's workout `.complete` `GoalEvent`
-    /// (`source: .geofence`, HR corroboration in `meta`) and calls `GoalCompletionCoordinator`.
-    /// The same check runs on its own when the geofence reports the user leaving the gym.
-    ///
-    /// `requiredMinutes` has no default in the orchestrator's CONTRACTS block; the default added
-    /// here is purely additive (every explicit-argument call site still compiles and behaves
-    /// identically) and just saves callers from repeating the spec's default at every call site.
+    /// `true` once dwell ≥ `requiredMinutes` **and** Core Motion shows no automotive travel during
+    /// the window. The first `true` for a dwell writes the day's `.complete` `GoalEvent`
+    /// (`source: .geofence`) and calls `GoalCompletionCoordinator`. The same check runs on its own
+    /// when the geofence reports the user leaving.
     public func isVerified(
         gymID: UUID,
         requiredMinutes: Int = GymVerificationDefaults.requiredDwellMinutes
@@ -130,100 +160,150 @@ public final class GymVerifier: Sendable {
         await state.isVerified(gymID: gymID, requiredMinutes: requiredMinutes)
     }
 
-    /// Last HealthKit elevated-HR corroboration result recorded by `isVerified` for `gymID`:
-    /// `nil` if `isVerified` hasn't run yet (or HealthKit had nothing to say — see
-    /// `elevatedHeartRateDuringDwell`), `true`/`false` once it has. Exposed so a caller writing
-    /// the resulting `GoalEvent` (LockEngine/Verification integration point — this file does not
-    /// write `GoalEvent` rows itself, following `FocusSessionVerifier`'s equivalent boundary) can
-    /// attach it to `GoalEvent.meta` without re-querying HealthKit.
+    /// Last HealthKit elevated-HR result for `gymID`'s session: `nil` until HealthKit had samples
+    /// to judge (or if it never will — denied read access looks like "no data").
     public func lastHealthKitCorroboration(gymID: UUID) async -> Bool? {
         await state.lastHealthKitCorroboration(gymID: gymID)
     }
 
-    /// Convenience bundling `currentDwellMinutes`/`isVerified` into the exact `ContentState`
-    /// shape `GymDwellActivityAttributes` (same Verification/LiveActivity ownership, this
-    /// session) needs, so whichever module starts/updates the gym-dwell Live Activity
-    /// (docs/spec.md §6: "Gym dwell: 'At the gym · 22 min · verified at 35'") doesn't have to
-    /// duplicate the verified-comparison logic. Not part of the fixed CONTRACTS shape — an
-    /// intentional, additive convenience since both files it bridges are owned by this session.
+    /// `currentDwellMinutes`/`isVerified` bundled into the Live Activity's `ContentState`.
     public func currentContentState(
         gymID: UUID,
         requiredMinutes: Int = GymVerificationDefaults.requiredDwellMinutes
     ) async -> GymDwellActivityAttributes.ContentState {
-        let elapsed = await currentDwellMinutes(gymID: gymID)
         let verified = await isVerified(gymID: gymID, requiredMinutes: requiredMinutes)
+        let snapshot = await dwellSnapshot(gymID: gymID)
         return GymDwellActivityAttributes.ContentState(
-            elapsedMinutes: elapsed,
+            elapsedMinutes: snapshot?.dwellMinutes ?? 0,
             verifiedAtMinutes: requiredMinutes,
-            isVerified: verified
+            isVerified: verified,
+            enteredAt: snapshot?.isActive == true ? snapshot?.enteredAt : nil
         )
+    }
+
+    // MARK: Presence (Wave 1A)
+
+    /// Re-opens the gym `CLMonitor` and makes its conditions match the saved, confirmed gyms
+    /// (adds new ones, re-adds moved/resized ones, removes deleted/unconfirmed ones), then starts
+    /// consuming its events. Call at launch and after any gym is saved, edited or deleted.
+    /// Never asks for location permission — the Gym Setup UI does that after its primer.
+    public func syncMonitoredGyms() async {
+        await state.syncMonitoredGyms()
+    }
+
+    /// Starts the dwell clock if the geofence says the phone is at `gymID`; otherwise arms the
+    /// monitor so arrival starts it. See `GymCheckInStartResult`.
+    @discardableResult
+    public func startCheckIn(gymID: UUID) async -> GymCheckInStartResult {
+        await state.startCheckIn(gymID: gymID)
+    }
+
+    /// The geofence's current answer for `gymID`.
+    public func regionState(gymID: UUID) async -> GymRegionState {
+        await state.regionState(gymID: gymID)
+    }
+
+    /// The current (or most recent, today) dwell session for `gymID`, if any.
+    public func dwellSnapshot(gymID: UUID) async -> GymDwellSnapshot? {
+        await state.snapshot(gymID: gymID)
+    }
+
+    /// A fresh stream of presence events. Single consumer: calling this again finishes the
+    /// previous stream. `GymPresenceService` is the consumer in the app.
+    public func presenceEvents() async -> AsyncStream<GymPresenceEvent> {
+        await state.makePresenceStream()
+    }
+
+    /// Re-checks HealthKit for elevated heart rate during `gymID`'s running session (for the
+    /// check-in screen's HR chip). Returns the stored result; `nil` when HealthKit can't say.
+    @discardableResult
+    public func refreshHeartRateCorroboration(gymID: UUID) async -> Bool? {
+        await state.refreshHeartRateCorroboration(gymID: gymID)
+    }
+
+    /// The gym goal's dwell target in minutes (its `targetValue`), else spec §3's 35.
+    public func requiredDwellMinutes() async -> Int {
+        await state.requiredDwellMinutes()
+    }
+
+    // MARK: Manual fallback (spec §24)
+
+    /// Writes an honest Tier C gym completion: a verified `.complete` `GoalEvent` with
+    /// `source: .manual` and `meta: {"tier": "C"}`, then calls `GoalCompletionCoordinator`.
+    /// Limited to one per day, and refused when today's gym goal is already complete.
+    public func recordManualCheckIn(gymID: UUID?) async -> GymManualCheckInResult {
+        await state.recordManualCheckIn(gymID: gymID)
     }
 }
 
-// MARK: - GymDwellState (private actor: the real mutable state and I/O)
+// MARK: - GymDwellState
 
-/// Owns every mutable, shared piece of gym-verification state: per-gym dwell sessions, the
-/// lazily-created `CLMonitor` and its event-consuming background `Task`, and the Core
-/// Location/Motion/HealthKit calls needed to evaluate them. Dictionary mutations happen in
-/// synchronous methods (the actor's transaction boundary — write-swift skill §3: "mutate actor
-/// state in synchronous methods"); only the calls out to Apple frameworks are `async`, and each
-/// one's result is written back in one more synchronous hop rather than left half-applied across
-/// a suspension point.
+/// Owns every mutable piece of gym-verification state: dwell sessions (persisted), the
+/// `CLMonitor` and its event task, the presence stream, and the Motion/HealthKit calls. State is
+/// mutated in synchronous methods; only framework calls are `async`.
 actor GymDwellState {
-    private var sessions: [UUID: DwellSession] = [:]
+    private var sessions: [UUID: DwellSession]
 
-    /// Lazily created on first `beginDwellTracking` call. `CLMonitor` (iOS 17+) is Apple's
-    /// async/await-native replacement for delegate-based `CLLocationManager` region monitoring
-    /// (WWDC23 "Meet Core Location Monitor") — a natural fit for an actor-owned event loop, since
-    /// its `events` sequence can be iterated with `for try await` directly against `self`.
+    /// Lazily re-opened with the same name on first use; `CLMonitor` reloads its saved conditions
+    /// from disk (WWDC23 "Meet Core Location Monitor").
     private var monitor: CLMonitor?
-
-    /// One geofence-event-consuming `Task` for the process's lifetime of this actor (not one per
-    /// gym — a single `CLMonitor` instance holds every condition; spec §27 notes region
-    /// monitoring supports ~20 regions per app and "one gym per user is fine", but the loop below
-    /// keys off `event.identifier` so a second saved gym needs no changes here).
     private var eventTask: Task<Void, Never>?
+    private var presenceContinuation: AsyncStream<GymPresenceEvent>.Continuation?
 
-    private let locationManager = CLLocationManager()
     private let motionActivityManager = CMMotionActivityManager()
     private let healthStore = HKHealthStore()
 
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "GymVerifier")
 
-    /// Stable name CLMonitor persists its condition state under across launches (WWDC23: a
-    /// `CLMonitor` reloads its saved conditions from disk when re-created with the same name).
     private static let monitorName = "com.zano.app.gymMonitor"
+    private static let sessionsDefaultsKey = "zano.gym.dwellSessions.v1"
 
-    // MARK: Public-facing operations (called by GymVerifier)
+    init() {
+        sessions = Self.loadPersistedSessions()
+    }
 
-    func beginDwellTracking(gymID: UUID) async {
+    // MARK: Check-in
+
+    func startCheckIn(gymID: UUID) async -> GymCheckInStartResult {
         if let existing = sessions[gymID], existing.isActive {
-            return
+            return .alreadyRunning
         }
-        guard let gym = fetchGym(id: gymID) else {
-            logger.error(
-                "beginDwellTracking(gymID:) called for a gym id with no saved Gym row: \(gymID.uuidString, privacy: .public)."
-            )
-            return
+        guard let gym = fetchGym(id: gymID), gym.confirmed else {
+            logger.notice("startCheckIn called for a missing or unconfirmed gym \(gymID.uuidString, privacy: .public).")
+            return .unavailable
         }
-        // Gym.confirmed's contract (Core/Sources/Core/Models/Gym.swift): only confirmed gyms may
-        // be dwell-tracked/verified — an unconfirmed, autoDetected row is a suggestion only.
-        guard gym.confirmed else {
-            logger.notice(
-                "beginDwellTracking(gymID:) called for an unconfirmed Gym (\(gymID.uuidString, privacy: .public)); ignoring per Gym.confirmed's contract."
-            )
-            return
+        let geometry = GymGeometry(gym)
+        await arm(geometry)
+        guard await regionState(gymID: gymID) == .inside else {
+            return .notAtGym
         }
-        sessions[gymID] = DwellSession(gymID: gymID, enteredAt: .now)
-        await armGeofence(for: gym)
+        // Re-check after the suspension: the event loop may have started it meanwhile.
+        if let existing = sessions[gymID], existing.isActive {
+            return .alreadyRunning
+        }
+        startSession(gymID: gymID)
+        return .started
     }
 
     func currentDwellMinutes(gymID: UUID) -> Int {
         sessions[gymID]?.dwellMinutes(asOf: .now) ?? 0
     }
 
+    func snapshot(gymID: UUID) -> GymDwellSnapshot? {
+        guard let session = sessions[gymID] else { return nil }
+        return GymDwellSnapshot(
+            gymID: gymID,
+            enteredAt: session.enteredAt,
+            exitedAt: session.exitedAt,
+            dwellMinutes: session.dwellMinutes(asOf: .now),
+            heartRateCorroborated: session.healthKitCorroborated,
+            isVerified: session.completionLogged
+        )
+    }
+
     func isVerified(gymID: UUID, requiredMinutes: Int) async -> Bool {
         guard let session = sessions[gymID] else { return false }
+        if session.completionLogged { return true }
 
         let dwellMinutes = session.dwellMinutes(asOf: .now)
         guard dwellMinutes >= requiredMinutes else { return false }
@@ -238,10 +318,10 @@ actor GymDwellState {
             return false
         }
 
-        // Opportunistic corroboration only — never gates the result above. See
-        // `elevatedHeartRateDuringDwell`'s doc comment for why `nil` must not count as "false".
+        // Opportunistic corroboration only — never gates the result above.
         if let elevated = await elevatedHeartRateDuringDwell(window) {
             sessions[gymID]?.healthKitCorroborated = elevated
+            persistSessions()
         }
 
         await recordCompletionIfNeeded(gymID: gymID, dwellMinutes: dwellMinutes)
@@ -252,24 +332,87 @@ actor GymDwellState {
         sessions[gymID]?.healthKitCorroborated
     }
 
+    func refreshHeartRateCorroboration(gymID: UUID) async -> Bool? {
+        guard let session = sessions[gymID] else { return nil }
+        let window = DateInterval(start: session.enteredAt, end: session.exitedAt ?? .now)
+        guard window.duration > 0 else { return session.healthKitCorroborated }
+        if let elevated = await elevatedHeartRateDuringDwell(window) {
+            // Only ever upgrade: once HR was elevated this session, a later quiet sample doesn't
+            // un-corroborate it.
+            let merged = (sessions[gymID]?.healthKitCorroborated == true) || elevated
+            sessions[gymID]?.healthKitCorroborated = merged
+            persistSessions()
+        }
+        return sessions[gymID]?.healthKitCorroborated
+    }
+
+    // MARK: Presence stream
+
+    func makePresenceStream() -> AsyncStream<GymPresenceEvent> {
+        presenceContinuation?.finish()
+        let (stream, continuation) = AsyncStream<GymPresenceEvent>.makeStream(bufferingPolicy: .bufferingNewest(16))
+        presenceContinuation = continuation
+        return stream
+    }
+
+    private func emit(_ event: GymPresenceEvent) {
+        presenceContinuation?.yield(event)
+    }
+
     // MARK: Geofencing (CLMonitor)
 
-    /// `CLMonitor`'s exact surface below (`CLMonitor.CircularGeographicCondition`, the
-    /// `.satisfied`/`.unsatisfied`/`.unknown`/`.unmonitored` `CLMonitor.State` cases, and
-    /// `add(_:identifier:assuming:)`) was confirmed against third-party write-ups of Apple's
-    /// WWDC23 "Meet Core Location Monitor" session while writing this file (no Mac/Xcode in this
-    /// environment to check the live SDK directly — CLAUDE.md working rule 5). Believed correct;
-    /// flagged in this session's `knownIssues` for a real-SDK check on first build regardless.
-    private func armGeofence(for gym: Gym) async {
-        requestLocationAuthorizationIfNeeded()
-
+    /// `CLMonitor` surface used here — `init(_:)`, `add(_:identifier:assuming:)`,
+    /// `remove(_:)`, `identifiers`, `record(for:)`, `events`, `CircularGeographicCondition` and
+    /// the `CLMonitor.Event.State` cases — is iOS 17.0+. Unverified against a device.
+    func syncMonitoredGyms() async {
+        let wanted = fetchConfirmedGymGeometries()
         let clMonitor = await currentMonitor()
-        let condition = CLMonitor.CircularGeographicCondition(
-            center: CLLocationCoordinate2D(latitude: gym.lat, longitude: gym.lng),
-            radius: CLLocationDistance(gym.radiusMeters)
-        )
-        await clMonitor.add(condition, identifier: gym.id.uuidString, assuming: .unsatisfied)
+        let wantedIDs = Set(wanted.map(\.identifier))
+
+        for identifier in await clMonitor.identifiers where !wantedIDs.contains(identifier) {
+            await clMonitor.remove(identifier)
+            if let gymID = UUID(uuidString: identifier) {
+                sessions[gymID] = nil
+            }
+        }
+        persistSessions()
+
+        for geometry in wanted {
+            await arm(geometry, using: clMonitor)
+        }
         ensureEventLoopRunning()
+    }
+
+    func regionState(gymID: UUID) async -> GymRegionState {
+        guard let monitor else { return .unknown }
+        guard let record = await monitor.record(for: gymID.uuidString) else { return .unknown }
+        switch record.lastEvent.state {
+        case .satisfied: return .inside
+        case .unsatisfied: return .outside
+        default: return .unknown
+        }
+    }
+
+    private func arm(_ geometry: GymGeometry) async {
+        let clMonitor = await currentMonitor()
+        await arm(geometry, using: clMonitor)
+        ensureEventLoopRunning()
+    }
+
+    /// Adds the condition unless an identical one is already monitored. Re-adding an unchanged
+    /// condition would reset its state to the assumed `.unsatisfied`, which could briefly read as
+    /// "left the gym" mid-workout — so unchanged conditions are left alone.
+    private func arm(_ geometry: GymGeometry, using clMonitor: CLMonitor) async {
+        if let record = await clMonitor.record(for: geometry.identifier),
+           let existing = record.condition as? CLMonitor.CircularGeographicCondition,
+           geometry.matches(existing) {
+            return
+        }
+        let condition = CLMonitor.CircularGeographicCondition(
+            center: CLLocationCoordinate2D(latitude: geometry.latitude, longitude: geometry.longitude),
+            radius: CLLocationDistance(geometry.radiusMeters)
+        )
+        await clMonitor.add(condition, identifier: geometry.identifier, assuming: .unsatisfied)
     }
 
     private func currentMonitor() async -> CLMonitor {
@@ -295,15 +438,17 @@ actor GymDwellState {
                 case .satisfied:
                     handleRegionEntered(gymID: gymID)
                 case .unsatisfied:
+                    // Verify before emitting the exit, so a dwell that met its target reports
+                    // `.verified` first and the presence layer never shows "left early" for it.
+                    let wasActive = sessions[gymID]?.isActive == true
                     handleRegionExited(gymID: gymID)
-                    // Completion must not depend on a screen polling `isVerified`: leaving the gym
-                    // after the required dwell verifies (and logs) the workout on its own.
                     _ = await isVerified(gymID: gymID, requiredMinutes: requiredDwellMinutes())
+                    if wasActive {
+                        emit(.exited(gymID: gymID, dwellMinutes: currentDwellMinutes(gymID: gymID)))
+                    }
                 case .unknown, .unmonitored:
-                    // Transient/undetermined states (e.g. right after `add`, before Core
-                    // Location has a fix, or the 20-region cap was hit). Deliberately not
-                    // treated as an exit — doing so could truncate a real dwell session on a
-                    // momentary state flap.
+                    // Transient states (right after `add`, no fix, region cap). Not an exit — a
+                    // state flap must not truncate a real dwell.
                     logger.debug(
                         "Gym \(gymID.uuidString, privacy: .public) geofence condition state: \(String(describing: event.state), privacy: .public)"
                     )
@@ -314,46 +459,29 @@ actor GymDwellState {
         } catch {
             logger.error("CLMonitor event stream ended with an error: \(String(describing: error), privacy: .public)")
         }
+        eventTask = nil
     }
 
     private func handleRegionEntered(gymID: UUID) {
-        guard let existing = sessions[gymID], existing.isActive else {
-            // Either never tracked, or a previous session had already exited — start a fresh
-            // dwell window rather than resuming the old one, so "drive past, leave, come back"
-            // can't be stitched into one long dwell.
-            sessions[gymID] = DwellSession(gymID: gymID, enteredAt: .now)
-            return
-        }
-        // Already actively dwelling; nothing to do.
+        if let existing = sessions[gymID], existing.isActive { return }
+        // Never tracked, or the previous session already exited: a fresh window, so "drive past,
+        // leave, come back" can't be stitched into one long dwell.
+        startSession(gymID: gymID)
     }
 
     private func handleRegionExited(gymID: UUID) {
-        guard sessions[gymID]?.exitedAt == nil else { return }
+        guard sessions[gymID]?.isActive == true else { return }
         sessions[gymID]?.exitedAt = .now
+        persistSessions()
     }
 
-    /// Gym Setup (App/Features/GymSetup, another session) is expected to have already prompted
-    /// for `.authorizedAlways` when the user first saves a gym — background region monitoring
-    /// across app restarts needs Always, not When-In-Use, to reliably wake the app. This is a
-    /// safety-net request (a no-op once authorization is already determined) so a `CLMonitor`
-    /// condition added here isn't silently useless with zero record of why.
-    ///
-    /// A newer alternative worth evaluating once a device is available: `CLServiceSession` /
-    /// `CLBackgroundActivitySession` (iOS 17+) can grant background location work under
-    /// `.whenInUse` for some scenarios without the full Always prompt. Left unimplemented here —
-    /// the exact interaction between those session types and `CLMonitor`'s background wake
-    /// reliability for a fully-backgrounded region entry is not something this session could
-    /// verify without a device; see knownIssues.
-    private func requestLocationAuthorizationIfNeeded() {
-        let status = locationManager.authorizationStatus
-        if status == .notDetermined {
-            locationManager.requestAlwaysAuthorization()
-        } else if status != .authorizedAlways {
-            logger.notice(
-                "Gym geofencing armed without .authorizedAlways (status: \(String(describing: status), privacy: .public)); background dwell detection will be unreliable until Gym Setup obtains Always authorization."
-            )
-        }
+    private func startSession(gymID: UUID) {
+        sessions[gymID] = DwellSession(gymID: gymID, enteredAt: .now)
+        persistSessions()
+        emit(.entered(gymID: gymID))
     }
+
+    // MARK: SwiftData reads
 
     private func fetchGym(id: UUID) -> Gym? {
         let context = ModelContext(ModelContainer.appGroup)
@@ -361,19 +489,27 @@ actor GymDwellState {
         return try? context.fetch(descriptor).first
     }
 
+    private func fetchConfirmedGymGeometries() -> [GymGeometry] {
+        let context = ModelContext(ModelContainer.appGroup)
+        let gyms = (try? context.fetch(FetchDescriptor<Gym>(predicate: #Predicate { $0.confirmed }))) ?? []
+        return gyms.map(GymGeometry.init)
+    }
+
     // MARK: Completion (spec §3 gym row → GoalEvent, then GoalCompletionCoordinator)
 
-    /// Writes the day's workout `.complete` (`source: .geofence`) the first time this dwell
-    /// verifies, then hands off to `GoalCompletionCoordinator` (unlock, streak, Time Bank). The
-    /// flag is set before any `await` so a second concurrent `isVerified` can't log twice.
+    /// Writes the day's `.complete` (`source: .geofence`) the first time this dwell verifies, then
+    /// hands off to `GoalCompletionCoordinator`. The flag is set before any `await` so a second
+    /// concurrent `isVerified` can't log twice.
     private func recordCompletionIfNeeded(gymID: UUID, dwellMinutes: Int) async {
         guard let session = sessions[gymID], !session.completionLogged else { return }
         sessions[gymID]?.completionLogged = true
+        persistSessions()
         guard let goalID = writeCompletion(
             gymID: gymID,
             dwellMinutes: dwellMinutes,
             heartRateCorroborated: session.healthKitCorroborated
         ) else { return }
+        emit(.verified(gymID: gymID, dwellMinutes: dwellMinutes))
         await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
     }
 
@@ -386,17 +522,14 @@ actor GymDwellState {
             return nil
         }
         let goalID = goal.id
-        let startOfDay = Calendar.current.startOfDay(for: .now)
-        let todays = (try? context.fetch(FetchDescriptor<GoalEvent>(
-            predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= startOfDay }
-        ))) ?? []
-        if todays.contains(where: { $0.goal?.id == goalID && $0.kind == .complete }) {
+        if todaysEvents(for: goalID, in: context).contains(where: { $0.verified && $0.kind == .complete }) {
             return goalID
         }
 
         var meta: [String: JSONValue] = [
             "gymID": .string(gymID.uuidString),
             "dwellMinutes": .number(Double(dwellMinutes)),
+            "tier": .string(VerificationTier.a.rawValue),
         ]
         if let heartRateCorroborated {
             meta["heartRateCorroborated"] = .bool(heartRateCorroborated)
@@ -420,9 +553,60 @@ actor GymDwellState {
         return goalID
     }
 
-    /// The gym goal's dwell target (`targetValue`, minutes), else spec §3's default 35 — the same
-    /// fallback Today uses when it polls `isVerified`.
-    private func requiredDwellMinutes() -> Int {
+    func recordManualCheckIn(gymID: UUID?) async -> GymManualCheckInResult {
+        let (result, goalID) = writeManualCheckIn(gymID: gymID)
+        if result == .recorded, let goalID {
+            await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
+        }
+        return result
+    }
+
+    private func writeManualCheckIn(gymID: UUID?) -> (GymManualCheckInResult, UUID?) {
+        let context = ModelContext(ModelContainer.appGroup)
+        guard let goal = activeGymGoal(in: context) else { return (.noGymGoal, nil) }
+        let goalID = goal.id
+        let todays = todaysEvents(for: goalID, in: context)
+        if todays.contains(where: { $0.source == .manual && $0.kind == .complete }) {
+            return (.alreadyUsedToday, goalID)
+        }
+        if todays.contains(where: { $0.verified && $0.kind == .complete }) {
+            return (.alreadyCompletedToday, goalID)
+        }
+
+        var meta: [String: JSONValue] = ["tier": .string(VerificationTier.c.rawValue)]
+        if let gymID {
+            meta["gymID"] = .string(gymID.uuidString)
+        }
+        let event = GoalEvent(
+            kind: .complete,
+            source: .manual,
+            verified: true,
+            meta: .object(meta),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(event)
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to save manual gym check-in: \(String(describing: error), privacy: .public)")
+            return (.failed, goalID)
+        }
+        return (.recorded, goalID)
+    }
+
+    /// Today's events for `goalID`. Goal matching is done in Swift, not `#Predicate` (this
+    /// codebase's usual SwiftData conservatism about relationship key paths).
+    private func todaysEvents(for goalID: UUID, in context: ModelContext) -> [GoalEvent] {
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        let events = (try? context.fetch(FetchDescriptor<GoalEvent>(
+            predicate: #Predicate<GoalEvent> { $0.ts >= startOfDay }
+        ))) ?? []
+        return events.filter { $0.goal?.id == goalID }
+    }
+
+    /// The gym goal's dwell target (`targetValue`, minutes), else spec §3's default 35.
+    func requiredDwellMinutes() -> Int {
         let context = ModelContext(ModelContainer.appGroup)
         guard let minutes = activeGymGoal(in: context)?.targetValue, minutes > 0 else {
             return GymVerificationDefaults.requiredDwellMinutes
@@ -430,13 +614,36 @@ actor GymDwellState {
         return Int(minutes)
     }
 
-    /// The newest active `.workoutGym` goal. The enum comparison is done in Swift, not
-    /// `#Predicate` (this codebase's usual SwiftData conservatism).
+    /// The newest active `.workoutGym` goal. Enum comparison in Swift, not `#Predicate`.
     private func activeGymGoal(in context: ModelContext) -> Goal? {
         let goals = (try? context.fetch(FetchDescriptor<Goal>(predicate: #Predicate { $0.active }))) ?? []
         return goals
             .filter { $0.type == .workoutGym }
             .max { $0.createdAt < $1.createdAt }
+    }
+
+    // MARK: Persistence (App Group defaults)
+
+    private func persistSessions() {
+        guard let defaults = UserDefaults(suiteName: AppGroup.identifier) else { return }
+        let stored = Array(sessions.values)
+        if let data = try? JSONEncoder().encode(stored) {
+            defaults.set(data, forKey: Self.sessionsDefaultsKey)
+        }
+    }
+
+    /// Today's sessions only — yesterday's dwell never carries into today.
+    private static func loadPersistedSessions() -> [UUID: DwellSession] {
+        guard let defaults = UserDefaults(suiteName: AppGroup.identifier),
+              let data = defaults.data(forKey: sessionsDefaultsKey),
+              let stored = try? JSONDecoder().decode([DwellSession].self, from: data)
+        else { return [:] }
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        var result: [UUID: DwellSession] = [:]
+        for session in stored where session.enteredAt >= startOfDay {
+            result[session.gymID] = session
+        }
+        return result
     }
 
     // MARK: Anti-cheat — Core Motion automotive check
@@ -500,20 +707,44 @@ actor GymDwellState {
     }
 }
 
-// MARK: - DwellSession
 
-/// One in-progress or just-finished dwell window for a gym. Plain value type held inside
-/// `GymDwellState`'s dictionary — never shared outside the actor.
-private struct DwellSession {
+// MARK: - Value types
+
+/// A gym's geofence as plain `Sendable` values, read out of SwiftData inside the actor.
+private struct GymGeometry: Sendable {
+    let identifier: String
+    let latitude: Double
+    let longitude: Double
+    let radiusMeters: Int
+
+    init(_ gym: Gym) {
+        identifier = gym.id.uuidString
+        latitude = gym.lat
+        longitude = gym.lng
+        radiusMeters = gym.radiusMeters
+    }
+
+    /// Same place and size, within float noise (a ~1 m tolerance).
+    func matches(_ condition: CLMonitor.CircularGeographicCondition) -> Bool {
+        abs(condition.center.latitude - latitude) < 0.00001
+            && abs(condition.center.longitude - longitude) < 0.00001
+            && abs(condition.radius - CLLocationDistance(radiusMeters)) < 1
+    }
+}
+
+/// One in-progress or just-finished dwell window for a gym. Codable so it survives a relaunch.
+private struct DwellSession: Codable {
     let gymID: UUID
     let enteredAt: Date
     var exitedAt: Date?
-    /// Last opportunistic HealthKit corroboration result for this session, read back via
-    /// `GymVerifier.lastHealthKitCorroboration(gymID:)`.
     var healthKitCorroborated: Bool?
-
     /// Set once this dwell's workout `.complete` was written, so it's logged at most once.
     var completionLogged = false
+
+    init(gymID: UUID, enteredAt: Date) {
+        self.gymID = gymID
+        self.enteredAt = enteredAt
+    }
 
     var isActive: Bool { exitedAt == nil }
 

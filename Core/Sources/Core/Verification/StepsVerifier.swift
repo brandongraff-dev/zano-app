@@ -118,6 +118,14 @@ public final class StepsVerifier: Sendable {
         try await state.requestAuthorization()
     }
 
+    /// `true` while the app has never shown the HealthKit sheet for step count. HealthKit can't
+    /// report whether *read* access was granted (see `requestAuthorization`), only whether the
+    /// request still needs showing, so this is the best "is Health connected" signal there is.
+    /// Today shows "Connect Apple Health" on a steps row while this is `true`.
+    public func needsAuthorizationRequest() async -> Bool {
+        await state.needsAuthorizationRequest()
+    }
+
     /// Runs one check: today's HealthKit step count vs. the goal's effective target. If met and
     /// not already logged complete today, writes a `.complete` `GoalEvent` and returns `true`.
     /// If already logged complete today, returns `true` without writing a duplicate row
@@ -224,6 +232,21 @@ actor StepsObserverState {
                 } else {
                     continuation.resume(returning: ())
                 }
+            }
+        }
+    }
+
+    /// Classic `getRequestStatusForAuthorization(toShare:read:completion:)` (iOS 12+), wrapped in
+    /// a continuation like every other HealthKit call here. Only `.shouldRequest` means "never
+    /// asked"; `.unnecessary`, `.unknown` or an error read as "already asked" so the row can't nag
+    /// forever on an odd answer.
+    func needsAuthorizationRequest() async -> Bool {
+        guard HKHealthStore.isHealthDataAvailable(),
+              let stepCountType = HKQuantityType.quantityType(forIdentifier: .stepCount)
+        else { return false }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            healthStore.getRequestStatusForAuthorization(toShare: [], read: [stepCountType]) { status, _ in
+                continuation.resume(returning: status == .shouldRequest)
             }
         }
     }

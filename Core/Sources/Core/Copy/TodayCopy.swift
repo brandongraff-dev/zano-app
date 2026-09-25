@@ -230,5 +230,71 @@ extension Copy {
         public static func firstDayStepAccessibility(index: Int, total: Int, title: String, isDone: Bool) -> String {
             "Step \(index) of \(total), \(title)" + (isDone ? ", done" : "")
         }
+
+        // MARK: - Live rows + finish-setup card (buildout Wave 1D, 2026-09-25)
+
+        /// A steps or home-workout row before Apple Health was ever connected: opens the primer.
+        public static let actionConnectHealth = "Connect Apple Health"
+        /// A gym row while a check-in is running: opens the check-in screen.
+        public static let actionOpenCheckIn = "View"
+
+        /// A steps row: `"4,200 of 10,000 steps"`.
+        public static func stepsProgressLine(current: Int, target: Int) -> String {
+            "\(current.formatted()) of \(target.formatted()) steps"
+        }
+        /// `"5,800 to go"`.
+        public static func stepsRemainingLine(remaining: Int) -> String {
+            "\(remaining.formatted()) to go"
+        }
+        /// A home/outdoor workout row: `"12 of 30 min"` (the longest single workout today).
+        public static func workoutProgressLine(minutes: Int, target: Int) -> String {
+            "\(minutes) of \(target) min"
+        }
+        /// Under the workout line: where the minutes come from.
+        public static let workoutFromHealth = "from Apple Health"
+
+        // Stretch (guided 5-minute timer, phone flat on the floor)
+        public static let stretchTitle = "Stretch"
+        public static let stretchInstruction = "Lay your phone flat on the floor and stretch until the timer ends."
+        public static let stretchFlat = "Phone is flat"
+        public static let stretchNotFlat = "Lay your phone flat"
+        public static let stretchStop = "Stop"
+        public static let stretchClose = "Done"
+        public static let stretchDoneTitle = "Stretch counted"
+        public static let stretchMissedTitle = "That one didn't count"
+        public static let stretchMissedDetail = "The phone has to stay flat for most of the 5 minutes. Try again when you're ready."
+        public static let stretchTryAgain = "Try again"
+        public static let stretchStartFailed = "Couldn't start the timer. Try again."
+        /// VoiceOver for the countdown: `"4 minutes 12 seconds left"`.
+        public static func stretchRemainingSpoken(seconds: Int) -> String {
+            let minutes = seconds / 60
+            let rest = seconds % 60
+            let minutePart = minutes == 1 ? "1 minute" : "\(minutes) minutes"
+            let secondPart = rest == 1 ? "1 second" : "\(rest) seconds"
+            return "\(minutePart) \(secondPart) left"
+        }
+
+        // Finish-setup card (after the first lock; items that make verification automatic)
+        public static let setupCardTitle = "Finish setup"
+        public static func setupCardProgress(done: Int, total: Int) -> String { "\(done) of \(total) done" }
+        public static let setupCardDismiss = "Hide"
+        public static let setupCardDismissSpoken = "Hide the finish setup checklist"
+        public static let setupTagsTitle = "Set up NFC tags"
+        public static let setupTagsDetail = "Tap a tag to log protein, water or a check-in."
+        public static let setupGymTitle = "Save your gym"
+        public static let setupGymDetail = "So gym workouts verify on their own."
+        public static let setupHealthTitle = "Connect Apple Health"
+        public static let setupHealthDetail = "Steps and workouts count automatically."
+        public static let setupWidgetTitle = "Add the ZANO widget"
+        public static let setupWidgetDetail = "Log protein and water from your Home Screen."
+
+        // Widget how-to sheet
+        public static let widgetHowToTitle = "Add the widget"
+        public static let widgetHowToSteps = [
+            "Touch and hold an empty spot on your Home Screen until the apps jiggle.",
+            "Tap Edit, then Add Widget.",
+            "Search for ZANO, pick a size, and tap Add Widget.",
+        ]
+        public static let widgetHowToDone = "Got it"
     }
 }

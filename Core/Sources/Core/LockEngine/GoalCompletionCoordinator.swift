@@ -75,7 +75,7 @@ public final class GoalCompletionCoordinator {
     /// already paid out. Local bookkeeping only.
     static let processedMetaKey = "completionProcessed"
     /// `meta` key marking a `.complete` this coordinator inserted from the day's logged amount.
-    static let rollupMetaKey = "rollup"
+    public static let rollupMetaKey = "rollup"
 
     private let modelContainer: ModelContainer
     private let effects: Effects
@@ -139,6 +139,7 @@ public final class GoalCompletionCoordinator {
     // MARK: - Per-goal reconcile
 
     private struct NewCompletion {
+        let goalID: UUID
         let goalType: GoalType
         let userID: UUID?
         let isPlanB: Bool
@@ -182,6 +183,7 @@ public final class GoalCompletionCoordinator {
         guard let completion, !Self.isProcessed(completion) else { return nil }
         Self.markProcessed(completion)
         return NewCompletion(
+            goalID: goal.id,
             goalType: goal.type,
             userID: goal.user?.id ?? completion.user?.id,
             isPlanB: completion.kind == .planB
@@ -189,6 +191,10 @@ public final class GoalCompletionCoordinator {
     }
 
     private func payRewards(for completion: NewCompletion, earnMode: Bool, at now: Date) async {
+        // A durable per-goal-per-day ledger, outside the event row: Today's undo can delete a
+        // rollup `.complete` (and its processed marker), and a later log would otherwise pay the
+        // duel point and Time Bank minutes a second time.
+        guard RewardLedger.claim(goalID: completion.goalID, on: now) else { return }
         if let userID = completion.userID {
             await effects.applyDuelPoint(userID, now)
         }
@@ -270,5 +276,31 @@ public final class GoalCompletionCoordinator {
         let start = Calendar.current.startOfDay(for: date)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
         return (start, end)
+    }
+}
+
+
+/// Remembers which goal-days have already paid rewards, in the App Group defaults so the app,
+/// widgets and intents share it. Keys older than a week are pruned on each claim.
+enum RewardLedger {
+    nonisolated(unsafe) private static let defaults: UserDefaults =
+        UserDefaults(suiteName: AppGroup.identifier) ?? .standard
+    private static let key = "zano.rewardLedger.v1"
+
+    /// `true` the first time for this goal and calendar day, `false` after.
+    @MainActor
+    static func claim(goalID: UUID, on date: Date) -> Bool {
+        let day = Calendar.current.startOfDay(for: date)
+        let entry = "\(goalID.uuidString)|\(Int(day.timeIntervalSince1970))"
+        var ledger = defaults.stringArray(forKey: key) ?? []
+        guard !ledger.contains(entry) else { return false }
+        let cutoff = day.addingTimeInterval(-7 * 86_400).timeIntervalSince1970
+        ledger = ledger.filter { item in
+            guard let stamp = item.split(separator: "|").last, let t = Double(stamp) else { return false }
+            return t >= cutoff
+        }
+        ledger.append(entry)
+        defaults.set(ledger, forKey: key)
+        return true
     }
 }

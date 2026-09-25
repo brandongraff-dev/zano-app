@@ -274,7 +274,7 @@ public final class GymPresenceService {
         // Same key/value `ZANONotificationDelegate` routes for shield notifications.
         content.userInfo = ["deepLink": "zano://today"]
         let trigger = interval.map { UNTimeIntervalNotificationTrigger(timeInterval: $0, repeats: false) }
-        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        nonisolated(unsafe) let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         do {
             try await center.add(request)
         } catch {

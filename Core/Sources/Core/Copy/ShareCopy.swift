@@ -152,3 +152,44 @@ extension Copy {
         }
     }
 }
+
+// MARK: - Referrals (spec §4 v2: "invite a friend → both get a streak freeze")
+//
+// Wave 3K, `App/ZANO/Features/Share/ReferralView.swift`. Redeeming needs the backend
+// (`ReferralManager.isBackendConfigured`); the offline copy says so plainly instead of failing.
+
+extension Copy.share {
+    public static let referralScreenTitle = "Invite friends"
+    public static let referralHeadline = "Bring a friend. You both get a streak freeze."
+    public static let referralBody =
+        "When a friend joins with your code, you each get one streak freeze: a missed day that doesn't break your streak."
+    public static let referralYourCodeLabel = "Your code"
+    public static let referralCopyCodeLabel = "Copy code"
+    public static let referralCodeCopied = "Copied"
+    public static let referralShareButton = "Share invite"
+    /// The text a friend receives. No link yet: there's no App Store listing or invite URL.
+    public static func referralShareMessage(code: String) -> String {
+        "I lock my apps until I hit my goals with ZANO. Join with my code \(code) and we both get a streak freeze."
+    }
+    public static let referralShareSubject = "Join me on ZANO"
+    public static let referralCodeUnavailable = "Your code appears once setup is finished."
+
+    public static let referralWhatYouGetTitle = "What you both get"
+    public static let referralPerkYou = "You: 1 streak freeze when they join"
+    public static let referralPerkFriend = "Your friend: 1 streak freeze to start"
+
+    public static let referralRedeemTitle = "Got a friend's code?"
+    public static let referralRedeemPlaceholder = "Enter code"
+    public static let referralRedeemButton = "Redeem"
+    public static let referralRedeemSuccess = "Code redeemed. A streak freeze is waiting for you."
+    public static let referralAlreadyRedeemed = "You've already used a friend's code. One per account."
+    public static let referralRedeemOfflineTitle = "Redeeming needs the network"
+    public static let referralRedeemOfflineMessage =
+        "Codes are checked on ZANO's servers so both freezes land. That isn't live yet. Your own code already works: share it now and it counts once redeeming opens."
+    public static let referralRedeemInvalidFormat = "That code doesn't look right. Codes are 7 letters and numbers."
+    public static let referralRedeemOwnCode = "That's your own code. Share it with a friend instead."
+    public static let referralRedeemFailed = "Couldn't redeem that code. Check it and try again."
+
+    /// The quiet post-unlock link on the celebration.
+    public static let referralPostUnlockPrompt = "Invite a friend. You both get a freeze."
+}

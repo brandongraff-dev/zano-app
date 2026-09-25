@@ -34,6 +34,7 @@ extension Copy {
         /// fallback so an unrecognized key never renders blank.
         public static func title(forKey key: String) -> String {
             if let exact = fixedTitles[key] { return exact }
+            if let season = Copy.progress.seasonBadgeTitle(forKey: key) { return season }
             if key.hasPrefix("comeback_challenge_") { return "Comeback Challenge" }
             if key.hasPrefix("comeback_") { return "Comeback" }
             if key.hasPrefix("monthly_challenge_") { return "Monthly Challenge" }

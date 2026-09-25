@@ -92,3 +92,50 @@ extension Copy {
         public static let dismissButtonLabel = "Done"
     }
 }
+
+// MARK: - Variable reward reveal (spec §8 rule 4, `Retention/VariableReward.swift`)
+
+extension Copy.celebration {
+    /// The reveal's eyebrow.
+    public static let surpriseEyebrow = "Surprise!"
+    /// "+50 coins".
+    public static func surpriseCoinsTitle(_ coins: Int) -> String { "+\(coins) coins" }
+    public static let surpriseCoinsDetail = "For the Cosmetics Shop."
+    /// The one-time badge. Matches `Copy.badges.title(forKey: "lucky_unlock")`'s fallback.
+    public static let surpriseBadgeTitle = "Lucky Unlock badge"
+    public static let surpriseBadgeDetail = "It's in your Trophy Case."
+    public static func surpriseAccessibilityLabel(_ text: String) -> String { "Surprise. \(text)" }
+
+    /// A bonus coach line, `VariableReward.coachLineCount` per voice.
+    public static func surpriseCoachLine(voice: CoachVoice, index: Int) -> String {
+        let lines: [String]
+        switch voice {
+        case .hype:
+            lines = [
+                "THAT'S how it's done. Enjoy every minute.",
+                "Earned, not given. You're on a roll.",
+                "Another one in the books. Let's keep it moving.",
+            ]
+        case .toughLove:
+            lines = [
+                "You said you'd do it. You did. Good.",
+                "No shortcuts today. That's the point.",
+                "Earned the hard way. Keep that standard.",
+            ]
+        case .chill:
+            lines = [
+                "Nice work. Take it easy for a bit.",
+                "Done and dusted. Enjoy the break.",
+                "Steady wins it. Go enjoy your apps.",
+            ]
+        case .data:
+            lines = [
+                "Goals verified. Unlock logged. Consistency up.",
+                "Another earned day on the chart.",
+                "Plan met. That's a data point you made.",
+            ]
+        }
+        return lines[((index % lines.count) + lines.count) % lines.count]
+    }
+    public static let surpriseCoachDetail = "A bonus word from your coach."
+}

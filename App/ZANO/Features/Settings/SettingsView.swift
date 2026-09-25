@@ -145,6 +145,10 @@ struct SettingsView: View {
     @State private var isRestoringPurchases = false
     @State private var isConfirmingDeleteAll = false
     @State private var isDeletingData = false
+    /// Founder Series card dismissed (spec §5.22: optional, never annoying). Per-device.
+    @AppStorage("zano.founderSeriesCard.dismissed") private var founderCardDismissed = false
+    /// Mirrors `AutoFocusIntegration.isSetUp` for the row's trailing value; refreshed on appear.
+    @State private var autoFocusIsSetUp = AutoFocusIntegration.isSetUp
 
     /// The sign-off at the bottom of Settings: the wordmark, the tagline and the build, the way
     /// premium apps close their settings (docs/brand/brand-kit.md). The version line is plain
@@ -187,6 +191,7 @@ struct SettingsView: View {
                 subscriptionSection
                 aboutSection
                 dataSection
+                founderSeriesCard
                 brandFooter
             }
             .padding(.horizontal, Theme.Spacing.md)
@@ -207,6 +212,7 @@ struct SettingsView: View {
         .navigationTitle(Copy.settings.screenTitle)
         .onAppear {
             Analytics.shared.capture(event: "settings_viewed")
+            autoFocusIsSetUp = AutoFocusIntegration.isSetUp
         }
         .settingsErrorAlert($errorAlert)
         .confirmationDialog(
@@ -436,6 +442,17 @@ struct SettingsView: View {
                 ) {
                     BedtimeGateSetupView()
                 }
+
+                SettingsRowDivider()
+
+                // Spec §5.12 one-tap setup guide (Wave 3L).
+                SettingsNavRow(
+                    Copy.settings.autoFocusRowLabel,
+                    systemImage: "moon.circle",
+                    value: autoFocusIsSetUp ? Copy.settings.autoFocusRowValueOn : nil
+                ) {
+                    AutoFocusGuideView()
+                }
             }
         }
     }
@@ -465,6 +482,18 @@ struct SettingsView: View {
                 ) {
                     CosmeticsShopView()
                 }
+
+                SettingsRowDivider()
+
+                // Spec §4 v2 referrals (Wave 3K): the code works offline; redeeming says it needs
+                // the network until the backend is live.
+                SettingsNavRow(
+                    Copy.settings.inviteFriendsRowLabel,
+                    systemImage: "person.2"
+                ) {
+                    ReferralView()
+                }
+                .disabled(currentUser == nil)
 
                 if let gearStoreURL = SettingsReferenceData.gearStoreURL {
                     SettingsRowDivider()
@@ -508,6 +537,29 @@ struct SettingsView: View {
             return Copy.settings.gearOfferEarnedCard(streakDays: streak.current)
         }
         return nil
+    }
+
+    // MARK: - Founder Series (spec §5.22)
+    //
+    // "A 'Building ZANO' feed card (optional)... visible without being annoying." Settings is the
+    // quiet place for it (not Today, which is the lock's screen). No founder content URL exists
+    // yet, so the card has no button and makes no promise; dismissing it hides it for good. It
+    // never links to gear (the Gear row stays hidden until `SettingsReferenceData.gearStoreURL`).
+
+    @ViewBuilder
+    private var founderSeriesCard: some View {
+        if !founderCardDismissed {
+            FounderSeriesCard(
+                headline: Copy.founderSeries.defaultHeadline,
+                bodyText: Copy.settings.founderCardBody,
+                dismissAccessibilityLabel: Copy.founderSeries.dismissAccessibilityLabel,
+                onDismiss: {
+                    founderCardDismissed = true
+                    Analytics.shared.capture(event: "founder_card_dismissed")
+                }
+            )
+            .transition(.opacity)
+        }
     }
 
     // MARK: - Notifications

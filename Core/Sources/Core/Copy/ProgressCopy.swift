@@ -122,3 +122,119 @@ extension Copy {
         }()
     }
 }
+
+// MARK: - Ranks, seasons, monthly challenges (spec §5.9) and Gym Home Turf (spec §5.8)
+//
+// Wave 3J. Rank/season/challenge keys come from `Retention/SeasonsAndRanks.swift`; leaderboard
+// states from `Social/GymLeaderboard.swift`. No shame (spec §8 rule 9): Bronze is a starting
+// tier, never "below" anything, and a quiet board never says anyone is losing.
+
+extension Copy.progress {
+    public static let rankSectionTitle = "Rank"
+
+    public static func rankName(_ rank: SeasonsAndRanks.Rank) -> String {
+        switch rank {
+        case .bronze: "Bronze"
+        case .silver: "Silver"
+        case .gold: "Gold"
+        case .platinum: "Platinum"
+        case .diamond: "Diamond"
+        }
+    }
+
+    /// "Season 3 · 2026" — calendar quarters.
+    public static func seasonLabel(quarter: Int, year: Int) -> String { "Season \(quarter) · \(year)" }
+    /// "Ends Sep 30".
+    public static func seasonEndsLabel(lastDay: Date) -> String {
+        "Ends \(weekLabelFormatter.string(from: lastDay))"
+    }
+    /// Under the rank during the first week of a season.
+    public static func rankPlacementLabel(daysLeft: Int) -> String {
+        daysLeft <= 1 ? "Placement week. Ranked tomorrow." : "Placement week. Ranked in \(daysLeft) days."
+    }
+    /// "62% to Gold".
+    public static func rankProgressLabel(percent: Int, next: SeasonsAndRanks.Rank) -> String {
+        "\(percent)% to \(rankName(next))"
+    }
+    public static let rankTopLabel = "Top rank. Hold it through the season."
+    /// "Based on your last 4 weeks against your own plan, not volume."
+    public static let rankExplainer = "Based on the last 4 weeks against your own plan, not volume."
+    public static func rankConsistencyAccessibility(rank: SeasonsAndRanks.Rank, percent: Int) -> String {
+        "\(rankName(rank)) rank, \(percent)% consistency over 4 weeks"
+    }
+
+    public static let seasonBadgesTitle = "Season badges"
+    public static let seasonBadgesEmpty = "Finish a season to keep its badge forever."
+    public static let seasonBadgeInProgressTitle = "This season"
+    /// Title for a `season_<yyyy>Q<q>_<rank>` badge key, e.g. "Gold · Q3 2026". `nil` for any other key.
+    public static func seasonBadgeTitle(forKey key: String) -> String? {
+        let parts = key.split(separator: "_")
+        guard parts.count == 3, parts[0] == "season",
+              let rank = SeasonsAndRanks.Rank(rawValue: String(parts[2])) else { return nil }
+        let season = parts[1].split(separator: "Q")
+        guard season.count == 2 else { return "\(rankName(rank)) season" }
+        return "\(rankName(rank)) · Q\(season[1]) \(season[0])"
+    }
+
+    public static let monthlyChallengeSectionTitle = "Monthly challenge"
+    /// Spec §5.9's named themes; the other nine months read "<Month> Lock-In".
+    public static func monthlyChallengeTitle(themeKey: String, month: Int) -> String {
+        switch themeKey {
+        case "january_lock_in": return "January Lock-In"
+        case "summer_shred_consistency": return "Summer Shred Consistency"
+        case "no_skip_november": return "No-Skip November"
+        default:
+            let names = Calendar(identifier: .gregorian).monthSymbols
+            let name = (1...12).contains(month) ? names[month - 1] : "Monthly"
+            return "\(name) Lock-In"
+        }
+    }
+    /// "9 of 12 days so far".
+    public static func monthlyChallengeProgressLabel(active: Int, expected: Int) -> String {
+        "\(active) of \(expected) \(expected == 1 ? "day" : "days") so far"
+    }
+    public static let monthlyChallengeComplete = "Challenge cleared. The badge is in your Trophy Case."
+    public static let monthlyChallengeExplainer = "Show up on your planned days this month. Any verified goal counts."
+    /// "Ends in 6 days".
+    public static func monthlyChallengeEndsLabel(daysLeft: Int) -> String {
+        daysLeft <= 1 ? "Last day" : "Ends in \(daysLeft) days"
+    }
+
+    // Gym Home Turf (spec §5.8)
+    public static let gymBoardRowTitle = "Gym Home Turf"
+    public static let gymBoardRowSubtitle = "Most consistent at your gym this month"
+    public static let gymBoardScreenTitle = "Gym Home Turf"
+    public static let gymBoardYourConsistencyTitle = "Your last 30 days"
+    /// "18 of 30 days at the gym".
+    public static func gymBoardConsistencyLabel(days: Int, total: Int) -> String {
+        "\(days) of \(total) days at the gym"
+    }
+    /// Spec §5.8 verbatim shape: "You're #4 most consistent at this gym this month."
+    public static func gymBoardYourRankLabel(rank: Int) -> String {
+        "You're #\(rank) most consistent at this gym this month."
+    }
+    public static let gymBoardOfflineTitle = "The board needs the network"
+    public static let gymBoardOfflineMessage =
+        "Gym rankings compare you with other people at your gym, so they load from ZANO's servers. That isn't live yet. Your own consistency above is counted on this iPhone and is always up to date."
+    public static let gymBoardErrorMessage = "Couldn't load the board. Your own numbers above are still current."
+    public static let gymBoardNoGymTitle = "Save your gym first"
+    public static let gymBoardNoGymMessage = "The board is for people who train at the same place. Save and confirm your gym to see it."
+    public static let gymBoardEmptyMessage = "Nobody else at this gym has joined yet. You're first on the board."
+    public static let gymBoardPrivacyTitle = "Show me on the board"
+    public static let gymBoardPrivacyFooter =
+        "Off by default. When on, people at your gym see a rank and your handle, or \"Anonymous\" if you leave it blank. Never your name, location, or workouts."
+    public static let gymBoardHandlePlaceholder = "Handle (optional)"
+    public static let gymBoardHandleSave = "Save handle"
+    public static let gymBoardHandleInvalid = "Use 2 to 20 letters, numbers, - or _."
+    public static let gymBoardAnonymous = "Anonymous"
+    public static let gymBoardYouSuffix = "(you)"
+    public static func gymBoardPercent(_ percent: Int) -> String { "\(percent)%" }
+    /// "#4".
+    public static func gymBoardRankLabel(_ rank: Int) -> String { "#\(rank)" }
+    public static func gymBoardRowAccessibility(rank: Int, name: String, percent: Int) -> String {
+        "Number \(rank), \(name), \(percent)% consistent"
+    }
+    public static let gymBoardPickerLabel = "Gym"
+    public static let gymBoardUnnamedGym = "Your gym"
+
+}

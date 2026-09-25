@@ -48,6 +48,9 @@ public final class GoalCompletionCoordinator {
         var depositMinutes: @MainActor (Int, Date) async throws -> Void
         var recordEarnedUnlock: @MainActor (Date) async -> Void
         var applyDuelPoint: @MainActor (UUID, Date) async -> Void
+        /// `VariableReward.roll` — the 1-in-~6 surprise on an earned unlock (spec §8 rule 4).
+        /// Defaulted to a no-op so existing test harnesses keep compiling; `.live` wires it.
+        var rollVariableReward: @MainActor (UUID, Date) async -> Void = { _, _ in }
 
         static var live: Effects {
             Effects(
@@ -66,6 +69,10 @@ public final class GoalCompletionCoordinator {
                 applyDuelPoint: { userID, date in
                     // Local-only: updates duel rows and queues an outbox sync. Swallows its own errors.
                     await DuelManager.shared.applyVerifiedGoalEvent(userID: userID, verifiedAt: date)
+                },
+                rollVariableReward: { sessionID, date in
+                    // Deterministic per session and idempotent (ledger-backed); never throws.
+                    _ = VariableReward.shared.roll(sessionID: sessionID, at: date)
                 }
             )
         }
@@ -133,6 +140,8 @@ public final class GoalCompletionCoordinator {
             return
         }
         await effects.recordEarnedUnlock(now)
+        // Only reached once per lock: `endLockAsEarned` throws for a lock that already ended.
+        await effects.rollVariableReward(sessionID, now)
         logger.notice("Lock \(sessionID.uuidString, privacy: .public) ended as earned.")
     }
 

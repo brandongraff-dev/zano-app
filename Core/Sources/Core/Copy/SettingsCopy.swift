@@ -271,3 +271,34 @@ extension Copy {
         public static let cosmeticsShopRowLabel = "Cosmetics Shop"
     }
 }
+
+// MARK: - Wave 3L: invite, Auto-Focus guide, Founder Series
+
+extension Copy.settings {
+    public static let inviteFriendsRowLabel = "Invite friends"
+    public static let autoFocusRowLabel = "Auto-Focus"
+    public static let autoFocusRowValueOn = "On"
+
+    // Auto-Focus guide (spec §5.12). The steps and limits themselves live in
+    // `AutoFocusSetupInstructions` (same directory).
+    public static let autoFocusScreenTitle = "Auto-Focus"
+    public static let autoFocusHeadline = "Quiet notifications during a lock"
+    public static let autoFocusStepsTitle = "Set it up"
+    /// "Step 3 of 7".
+    public static func autoFocusStepLabel(_ step: Int, of total: Int) -> String { "Step \(step) of \(total)" }
+    public static let autoFocusOpenShortcuts = "Open Shortcuts"
+    public static let autoFocusTestTitle = "Test it"
+    public static let autoFocusTestBody =
+        "Swipe ZANO away in the App Switcher, then open it again. Your Focus should turn on within a second."
+    public static let autoFocusMarkDone = "I've set it up"
+    public static let autoFocusMarkedDone = "Auto-Focus is set up"
+    public static let autoFocusRemove = "I removed the automation"
+    public static let autoFocusNFCTitle = "Using NFC tags?"
+    public static let autoFocusTurnOffTitle = "Turning Focus off"
+    public static let autoFocusLimitsTitle = "Limits"
+    public static let autoFocusTroubleshootingTitle = "Not working?"
+
+    // Founder Series (spec §5.22). No content link yet, so the card has no button.
+    public static let founderCardBody =
+        "ZANO is built by one founder, in public. Build updates will show up here once they're posted."
+}

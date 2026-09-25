@@ -65,7 +65,13 @@ public struct UnlockCelebrationBadge: Equatable, Sendable {
 }
 
 
-/// The full unlock-celebration moment (docs/spec.md 16 P3). See the file header for the design,
+/// The full unlock-celebration moment (docs/spec.md 16 P3).
+///
+/// Variable reward (spec §8 rule 4, Wave 3K): on ~1 in 6 earned unlocks `GoalCompletionCoordinator`
+/// rolls a surprise through `VariableReward`. Callers don't pass it: when `surprise` is `nil` this
+/// view claims the newest unrevealed grant (`VariableReward.consumePendingReveal`) at the moment the
+/// details land, so the reveal never races the roll, and exactly one celebration shows it. The
+/// reveal (a "Surprise!" eyebrow over a silver disc and one line) lands last, with its own haptic. See the file header for the design,
 /// the timeline and the presentation contract.
 public struct UnlockCelebrationView: View {
     /// Caller-resolved display name for the goal that verified, e.g. `"Workout"`.
@@ -79,6 +85,8 @@ public struct UnlockCelebrationView: View {
     private let timeBankTotalMinutes: Int
     /// The occasional bonus surprise (spec 8 rule 4). `nil` most of the time.
     private let badge: UnlockCelebrationBadge?
+    /// An explicit variable-reward grant (previews, screenshots). `nil` = claim the pending one.
+    private let surprise: VariableRewardGrant?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -101,6 +109,12 @@ public struct UnlockCelebrationView: View {
     @State private var badgeHapticTick = 0
     @State private var hasPlayed = false
     @State private var playTask: Task<Void, Never>?
+    /// The surprise being revealed, once claimed.
+    @State private var revealedSurprise: VariableRewardGrant?
+    @State private var showSurprise = false
+    /// The quiet "Invite a friend" link (at most every `ReferralPrompt.minimumInterval`).
+    @State private var showsReferralLink = false
+    @State private var isReferralPresented = false
 
     /// - Parameters:
     ///   - goalName: Caller-resolved goal display name.
@@ -114,13 +128,15 @@ public struct UnlockCelebrationView: View {
         verificationDetail: String? = nil,
         timeBankRemainingMinutes: Int,
         timeBankTotalMinutes: Int,
-        badge: UnlockCelebrationBadge? = nil
+        badge: UnlockCelebrationBadge? = nil,
+        surprise: VariableRewardGrant? = nil
     ) {
         self.goalName = goalName
         self.verificationDetail = verificationDetail
         self.timeBankRemainingMinutes = timeBankRemainingMinutes
         self.timeBankTotalMinutes = timeBankTotalMinutes
         self.badge = badge
+        self.surprise = surprise
     }
 
     /// Full Mode has no Time Bank (spec 5.2), and callers pass `0`/`0` then. The figure and the
@@ -155,6 +171,14 @@ public struct UnlockCelebrationView: View {
                     .scaleEffect(showBadge || reduceMotion ? 1 : 0.85)
             }
 
+            if let revealedSurprise {
+                SurpriseReveal(grant: revealedSurprise)
+                    .padding(.top, Theme.Spacing.md)
+                    .padding(.horizontal, Theme.Spacing.lg)
+                    .opacity(showSurprise ? 1 : 0)
+                    .scaleEffect(showSurprise || reduceMotion ? 1 : 0.85)
+            }
+
             Spacer(minLength: Theme.Spacing.lg)
 
             // Tappable from the first frame; never gated on the choreography.
@@ -162,13 +186,36 @@ public struct UnlockCelebrationView: View {
                 dismiss()
             }
             .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
+            .padding(.bottom, showsReferralLink ? Theme.Spacing.xs : Theme.Spacing.lg)
+
+            if showsReferralLink {
+                Button(Copy.share.referralPostUnlockPrompt) {
+                    Analytics.shared.capture(event: "referral_prompt_tapped", properties: ["screen": "unlock_celebration"])
+                    isReferralPresented = true
+                }
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .frame(minHeight: Theme.Metrics.minTapTarget)
+                .padding(.bottom, Theme.Spacing.sm)
+                .opacity(showDetails ? 1 : 0)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .zanoAmbient(.earned)
         .sensoryFeedback(.success, trigger: unlockHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: badgeHapticTick)
-        .onAppear { play() }
+        .sheet(isPresented: $isReferralPresented) {
+            NavigationStack { ReferralView(showsDoneButton: true) }
+                .preferredColorScheme(.dark)
+        }
+        .onAppear {
+            // Decided once per appearance; a surprise gets the spotlight on its own.
+            if !hasPlayed, surprise == nil, ReferralPrompt.shouldOffer() {
+                showsReferralLink = true
+                ReferralPrompt.recordOffered()
+            }
+            play()
+        }
         .onDisappear { playTask?.cancel() }
         .preferredColorScheme(.dark)
     }
@@ -329,12 +376,28 @@ public struct UnlockCelebrationView: View {
                 showBadge = badge != nil
             }
             if badge != nil { badgeHapticTick += 1 }
+            revealSurpriseIfAny()
 
             // Stop the stage's timeline once the flash has finished; the resting frame is static.
             try? await Task.sleep(for: .milliseconds(CelebrationTiming.settleAfterDetailsMs))
             guard !Task.isCancelled else { return }
             stageSettled = true
         }
+    }
+
+    /// Claims the surprise (explicit, or the pending one from `VariableReward`) and lands it.
+    /// Called once the details are up, so an unlock whose roll finished a beat after the cover
+    /// appeared is still revealed.
+    private func revealSurpriseIfAny() {
+        guard revealedSurprise == nil else { return }
+        guard let grant = surprise ?? VariableReward.shared.consumePendingReveal() else { return }
+        revealedSurprise = grant
+        showsReferralLink = false
+        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springCelebration) {
+            showSurprise = true
+        }
+        badgeHapticTick += 1
+        Analytics.shared.capture(event: "variable_reward_revealed", properties: ["kind": grant.kind.rawValue])
     }
 
     /// Reduce Motion: the resting frame, faded in. No burst, no shockwave, no scale.
@@ -346,6 +409,16 @@ public struct UnlockCelebrationView: View {
             showDetails = true
             showBadge = badge != nil
             animatedRemainingMinutes = timeBankRemainingMinutes
+        }
+        revealSurpriseIfAny()
+        if revealedSurprise == nil {
+            // The roll can finish a moment after the cover appears; look once more.
+            playTask?.cancel()
+            playTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(CelebrationTiming.reducedMotionSurpriseRetryMs))
+                guard !Task.isCancelled else { return }
+                revealSurpriseIfAny()
+            }
         }
     }
 }
@@ -364,6 +437,8 @@ private enum CelebrationTiming {
     static let countUpDuration: TimeInterval = 0.5
     /// 0.40 + 0.12 + 0.14 + 0.55 = 1.21s: just after the flash ends (1.15s).
     static let settleAfterDetailsMs = 550
+    /// Reduce Motion lands everything at once, so it re-checks for a late surprise once.
+    static let reducedMotionSurpriseRetryMs = 600
 
     /// The star's charge `elapsed` seconds in: `startCharge` -> 1 on an ease-in, so it accelerates
     /// into the flash.
@@ -377,6 +452,63 @@ private enum CelebrationTiming {
     static func flash(at elapsed: TimeInterval) -> Double {
         let start = Double(flashAtMs) / 1000
         return min(1, max(0, (elapsed - start) / flashDuration))
+    }
+}
+
+/// The variable-reward reveal: a "Surprise!" eyebrow in blue over a silver (earned-metal) disc and
+/// one line. Tasteful by construction (spec §8 rule 4): one line, no second burst.
+private struct SurpriseReveal: View {
+    let grant: VariableRewardGrant
+
+    private var title: String {
+        switch grant.kind {
+        case .bonusCoins: Copy.celebration.surpriseCoinsTitle(grant.coins)
+        case .badge: Copy.celebration.surpriseBadgeTitle
+        case .coachLine:
+            Copy.celebration.surpriseCoachLine(
+                voice: CoachVoice.from(sharedDefaultsRaw: SharedDefaults.coachVoice),
+                index: grant.coachLineIndex ?? 0
+            )
+        }
+    }
+
+    private var detail: String {
+        switch grant.kind {
+        case .bonusCoins: Copy.celebration.surpriseCoinsDetail
+        case .badge: Copy.celebration.surpriseBadgeDetail
+        case .coachLine: Copy.celebration.surpriseCoachDetail
+        }
+    }
+
+    private var glyph: String {
+        switch grant.kind {
+        case .bonusCoins: "sparkles"
+        case .badge: "rosette"
+        case .coachLine: "quote.bubble.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            TrophyBadgeDisc(isEarned: true, systemImage: glyph, diameter: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Copy.celebration.surpriseEyebrow)
+                    .zanoText(.eyebrow)
+                    .foregroundStyle(Theme.Colors.accent)
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Theme.Spacing.sm)
+        .zanoCard(radius: Theme.Radius.medium, active: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.celebration.surpriseAccessibilityLabel("\(title). \(detail)"))
     }
 }
 
@@ -394,6 +526,16 @@ private enum CelebrationLayout {
         timeBankRemainingMinutes: 130,
         timeBankTotalMinutes: 180,
         badge: UnlockCelebrationBadge(title: "Comeback", systemImage: "arrow.uturn.forward")
+    )
+}
+
+#Preview("UnlockCelebrationView — surprise coins") {
+    UnlockCelebrationView(
+        goalName: "Workout",
+        verificationDetail: "42 min at the gym",
+        timeBankRemainingMinutes: 130,
+        timeBankTotalMinutes: 180,
+        surprise: VariableRewardGrant(id: UUID(), kind: .bonusCoins, coins: 50, grantedAt: .now)
     )
 }
 

@@ -183,6 +183,11 @@ struct ProgressView: View {
     /// The recap currently being turned into a share card (`WeeklyRecapShareView`), or `nil`.
     @State private var sharingRecap: Recap?
 
+    // Ranks, seasons, monthly challenge (spec §5.9), all computed locally by `SeasonsAndRanks`.
+    @State private var rankStatus: SeasonsAndRanks.RankStatus?
+    @State private var placementDaysLeft = 0
+    @State private var challengeProgress: SeasonsAndRanks.MonthlyChallengeProgress?
+
     var body: some View {
         ScrollView {
             // 24pt between sections; inside a section the label row (44pt, text centred) leaves ~14pt
@@ -191,6 +196,7 @@ struct ProgressView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 timeReclaimedHero
                 streakSection
+                rankSection
                 badgesSection
                 if let recap = recaps.first {
                     recapSection(recap)
@@ -209,6 +215,8 @@ struct ProgressView: View {
         .onAppear {
             Analytics.shared.capture(event: "progress_viewed")
         }
+        // Re-runs when a badge lands (e.g. the season badge this very call banks).
+        .task(id: badges.count) { await refreshRank() }
         .sheet(item: $sharingRecap) { recap in
             WeeklyRecapShareView(
                 recap: recap,
@@ -443,6 +451,68 @@ struct ProgressView: View {
             return calendar.startOfDay(for: endedAt)
         }
         return Set(earnedEndDates)
+    }
+
+    // MARK: - Rank, season, monthly challenge, Gym Home Turf (spec §5.8, §5.9)
+
+    /// Everything here is local (no network): rank and challenge from `SeasonsAndRanks`, the gym
+    /// board's own offline state inside `GymLeaderboardView`.
+    @ViewBuilder
+    private var rankSection: some View {
+        if let rankStatus {
+            VStack(alignment: .leading, spacing: 0) {
+                ProgressSectionLabel(text: Copy.progress.rankSectionTitle)
+
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    RankCard(status: rankStatus, placementDaysLeft: placementDaysLeft)
+                    if let challengeProgress {
+                        MonthlyChallengeCard(progress: challengeProgress)
+                    }
+                    SeasonBadgeRow(badges: badges, season: rankStatus.season, currentRank: rankStatus.rank)
+                    gymBoardLink
+                }
+            }
+        }
+    }
+
+    private var gymBoardLink: some View {
+        NavigationLink {
+            GymLeaderboardView()
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                IconBadge(systemName: "dumbbell.fill", tint: Theme.Colors.textSecondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Copy.progress.gymBoardRowTitle)
+                        .zanoText(.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Text(Copy.progress.gymBoardRowSubtitle)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(Theme.Colors.muted)
+                    .accessibilityHidden(true)
+            }
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard(radius: Theme.Radius.medium)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    /// Banks any finished season's / cleared month's badge (idempotent), then reads the live
+    /// rank and challenge. Nothing else in the app calls the two award methods yet, so Progress
+    /// opening is their call site.
+    private func refreshRank() async {
+        let engine = SeasonsAndRanks.shared
+        await engine.awardPastSeasonBadgeIfNeeded()
+        await engine.awardMonthlyChallengeBadgeIfComplete()
+        rankStatus = await engine.currentRank()
+        placementDaysLeft = engine.placementDaysRemaining()
+        challengeProgress = await engine.monthlyChallengeProgress()
     }
 
     // MARK: - Badges / Trophy Case (spec §5.17)

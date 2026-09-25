@@ -31,6 +31,7 @@ struct LockScheduleEditor: View {
                     Toggle(Copy.lockSetup.scheduleEnabledToggle, isOn: $isEnabled)
                         .font(Theme.Typography.headline)
                         .foregroundStyle(Theme.Colors.text)
+                        .tint(Theme.Colors.accentFill)
                 }
 
                 if isEnabled {

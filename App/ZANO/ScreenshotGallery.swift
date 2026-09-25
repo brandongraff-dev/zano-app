@@ -52,6 +52,7 @@ enum ScreenshotMode {
             switch name {
             case "tab-lock": AppRouter.shared.selectedTab = .lock
             case "tab-fuel": AppRouter.shared.selectedTab = .fuel
+            case "tab-squad": AppRouter.shared.selectedTab = .squad
             case "tab-progress": AppRouter.shared.selectedTab = .progress
             case "tab-settings": AppRouter.shared.selectedTab = .settings
             default: AppRouter.shared.selectedTab = .today
@@ -117,6 +118,37 @@ struct ScreenshotHost: View {
         case "recap":
             WeeklyRecapShareView(recap: DemoData.recap, goalTitles: DemoData.recapGoalTitles,
                                  rankTierLabel: "Gold", onDismiss: {})
+        // Build-out Waves 1–3.
+        case "gym-setup":
+            NavigationStack { GymSetupView() }
+        case "gym-checkin":
+            NavigationStack { GymCheckInView() }
+        case "nfc-tags":
+            NavigationStack { NFCTagsView() }
+        case "lock-card":
+            NavigationStack { LockCardSetupView() }
+        case "goals-editor":
+            NavigationStack { GoalsEditorView(showsDoneButton: true) }
+        case "lock-schedule":
+            NavigationStack { LockScheduleEditor(lockSetID: LockEngineSharedState.defaultLockSetID ?? UUID()) }
+        case "earn-settings":
+            NavigationStack { EarnModeSettingsView() }
+        case "tier-editor":
+            NavigationStack { TierEditorView(lockSetID: LockEngineSharedState.defaultLockSetID ?? UUID()) }
+        case "nudge-settings":
+            NavigationStack { NudgeSettingsView() }
+        case "health-pause":
+            NavigationStack { PauseForHealthView() }
+        case "solo-duel":
+            NavigationStack { SoloDuelView() }
+        case "squad-create":
+            CreateJoinSquadSheet(model: SquadHomeModel(), initialMode: .create)
+        case "referral":
+            NavigationStack { ReferralView() }
+        case "gym-leaderboard":
+            NavigationStack { GymLeaderboardView() }
+        case "autofocus":
+            NavigationStack { AutoFocusGuideView() }
         default:
             ContentUnavailableView("Unknown screen", systemImage: "questionmark.square.dashed",
                                    description: Text(name))

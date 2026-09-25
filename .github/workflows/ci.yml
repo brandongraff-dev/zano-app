@@ -125,9 +125,12 @@ jobs:
           SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7
                    onboarding-8 onboarding-9 onboarding-10 onboarding-11 onboarding-12 onboarding-13 onboarding-14
                    onboarding-15
-                   paywall tab-today tab-lock tab-fuel tab-progress tab-settings
+                   paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
                    locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing
-                   celebration lockedout recap"
+                   celebration lockedout recap
+                   gym-setup gym-checkin nfc-tags lock-card goals-editor lock-schedule earn-settings
+                   tier-editor nudge-settings health-pause solo-duel squad-create referral
+                   gym-leaderboard autofocus"
           for SCREEN in $SCREENS; do
             xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
             xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"

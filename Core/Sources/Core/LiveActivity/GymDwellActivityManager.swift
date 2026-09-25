@@ -79,7 +79,8 @@ public final class GymDwellActivityManager {
     public func update(_ state: GymDwellActivityAttributes.ContentState) async {
         guard let activity else { return }
         nonisolated(unsafe) let unsafeActivity = activity
-        await unsafeActivity.update(ActivityContent(state: state, staleDate: Self.staleDate(for: state)))
+        nonisolated(unsafe) let content = ActivityContent(state: state, staleDate: Self.staleDate(for: state))
+        await unsafeActivity.update(content)
     }
 
     /// Ends the running Activity. With a `finalState`, the ended Activity stays on the Lock Screen
@@ -90,7 +91,7 @@ public final class GymDwellActivityManager {
         let policy: ActivityUIDismissalPolicy = lingerMinutes > 0
             ? .after(.now.addingTimeInterval(TimeInterval(lingerMinutes * 60)))
             : .immediate
-        let content = finalState.map { ActivityContent(state: $0, staleDate: nil) }
+        nonisolated(unsafe) let content = finalState.map { ActivityContent(state: $0, staleDate: nil) }
         nonisolated(unsafe) let unsafeActivity = activity
         await unsafeActivity.end(content, dismissalPolicy: policy)
     }

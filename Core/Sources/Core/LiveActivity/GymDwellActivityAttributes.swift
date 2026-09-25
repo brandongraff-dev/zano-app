@@ -38,7 +38,7 @@ import Foundation
 /// Live Activity shown while a gym dwell session (`GymVerifier`, Verification/GymVerifier.swift)
 /// is in progress — docs/spec.md §6's "At the gym · 22 min · verified at 35".
 public struct GymDwellActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    public struct ContentState: Codable, Hashable, Sendable {
         /// Minutes dwelt so far in the current geofence session. Mirrors
         /// `GymVerifier.currentDwellMinutes(gymID:)`.
         public var elapsedMinutes: Int

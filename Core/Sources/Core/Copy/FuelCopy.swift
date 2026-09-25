@@ -127,3 +127,88 @@ extension Copy {
         public static func kitchenStapleMoreOptionsLabel(name: String) -> String { "More options for \(name)" }
     }
 }
+
+// MARK: - Meal photo (spec 9.5 meal photo -> protein; spec 3 meal prep row)
+//
+// Added 2026-09-25 for `App/ZANO/Features/Fuel/MealPhoto/`. Additive framing only (spec 24):
+// every line is about what to add or confirm — nothing about eating less or a meal being "too
+// much". Duplicate-photo copy follows spec 9.8's "never accuse — just don't count".
+
+extension Copy.fuel {
+    public enum mealPhoto {
+        // Entry point (Fuel's protein card)
+        public static let entryButtonLabel = "Log a meal photo"
+
+        // Capture
+        public static let captureTitle = "Meal photo"
+        public static let captureHeadline = "Snap your plate"
+        public static let captureHint = "Fit the whole plate in the frame"
+        public static let shutterAccessibilityLabel = "Take photo"
+        public static let takePhotoButton = "Take photo"
+        public static let chooseFromLibraryButton = "Choose from library"
+        public static let enterManuallyButton = "Enter protein by hand"
+        public static let cameraUnavailableMessage =
+            "The camera isn't available here. Pick a photo from your library or enter the protein by hand."
+        public static let cameraDeniedMessage =
+            "Camera access is off. Turn it on in Settings, or pick a photo from your library."
+        public static let openSettingsButton = "Open Settings"
+        public static let framingAccessibilityLabel = "Camera viewfinder"
+        public static let photoLoadFailedMessage = "Couldn't open that photo. Try another one."
+
+        // Checking / analyzing
+        public static let checkingPhoto = "Checking photo…"
+        public static let analyzing = "Estimating protein…"
+
+        // Duplicate photo (spec 9.8: transparent, never accusing)
+        public static let duplicateTitle = "This photo's already counted"
+        public static let duplicateMessage =
+            "It was logged a little while ago. Snap a fresh photo of this meal, or enter it by hand."
+        public static let retakeButton = "Take a new photo"
+
+        // Confirm
+        public static let confirmTitle = "Confirm protein"
+        public static let photoAccessibilityLabel = "Your meal photo"
+        public static let detectedItemsHeader = "What we spotted"
+        public static func itemAccessibilityLabel(name: String, grams: Int) -> String {
+            "\(name), about \(Copy.fuel.grams(grams)) of protein"
+        }
+        public static let estimateCaption = "Estimated protein"
+        public static let manualCaption = "Protein in this meal"
+        public static let lowConfidenceNudge = "Rough estimate — adjust it if it looks off."
+        public static let noFoodFoundNote = "Couldn't make out the food clearly. Add the protein yourself."
+        public static let notConfiguredNote = "Photo estimates are coming soon. Add the protein yourself for now."
+        public static let offlineNote = "You're offline, so no estimate this time. Add the protein yourself."
+        public static let estimateFailedNote = "Couldn't get an estimate right now. Add the protein yourself."
+        public static let stepperAccessibilityLabel = "Protein"
+        public static let decreaseAccessibilityLabel = "Less protein"
+        public static let increaseAccessibilityLabel = "More protein"
+        public static func quickSetAccessibilityLabel(grams: Int) -> String { "Set to \(Copy.fuel.grams(grams))" }
+        public static func logButton(grams: Int) -> String { "Log \(Copy.fuel.grams(grams))" }
+        public static let logButtonEmpty = "Add protein to log"
+        public static func loggedAnnouncement(grams: Int) -> String { "Logged \(Copy.fuel.grams(grams)) of protein" }
+        public static let logFailedMessage = "Couldn't log that. Nothing changed — try again."
+
+        // Meal prep (weekly)
+        public static let mealPrepTitle = "Meal prep"
+        public static let mealPrepHeadline = "Show off the prep"
+        public static let mealPrepHint = "Get all your containers in one shot"
+        public static let mealPrepChecking = "Checking your containers…"
+        public static let mealPrepHonorExplainer =
+            "Photo checks for meal prep aren't live yet, so this one counts on your honor."
+        public static let mealPrepLogButton = "Log meal prep"
+        public static let mealPrepConfirmedTitle = "Meal prep logged"
+        public static let mealPrepConfirmedMessage = "This week's prep is done. Future you says thanks."
+        public static let mealPrepHonorTitle = "Logged on your honor"
+        public static let mealPrepHonorMessage = "This week's prep is in. Photo checks are coming soon."
+        public static let mealPrepRejectedTitle = "Couldn't count that one yet"
+        public static let mealPrepRejectedMessage =
+            "We need to see a few containers in one shot. Try another angle."
+        public static let mealPrepAlreadyDoneTitle = "Already logged this week"
+        public static func mealPrepAlreadyDoneMessage(nextDay: String) -> String {
+            "Your next meal prep counts from \(nextDay)."
+        }
+        public static let mealPrepFailedMessage = "Couldn't log meal prep. Try again."
+        public static let mealPrepNotFoundMessage = "This meal prep goal isn't set up anymore."
+        public static let doneButton = "Done"
+    }
+}

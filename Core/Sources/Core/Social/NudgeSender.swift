@@ -44,6 +44,107 @@ public enum NudgeSenderError: Error, Sendable, Equatable, LocalizedError {
     }
 }
 
+// MARK: - Kinds and preferences (Settings → Nudges)
+
+/// What a nudge is *about* — the user-facing categories Settings lets them switch off. Orthogonal
+/// to `NudgeArm` (tone × timing × format), which is how it's said, not what it's for.
+public enum NudgeKind: String, CaseIterable, Identifiable, Sendable {
+    /// The morning "here's today's plan" nudge.
+    case morningPlan = "morning_plan"
+    /// The 8 PM protein "last mile" nudge when within 20 g (spec, Wave 2 list).
+    case proteinLastMile = "protein_last_mile"
+    /// Streak at risk tonight (spec §5.6, §9.2 slip prediction).
+    case streakAtRisk = "streak_at_risk"
+    /// The weekly recap (spec §5.12).
+    case weeklyRecap = "weekly_recap"
+
+    public var id: String { rawValue }
+}
+
+/// Why a nudge didn't go out. The 2/day cap is one reason among several now; all are normal
+/// outcomes, not errors.
+public enum NudgeSuppressionReason: String, Sendable, Equatable {
+    /// spec §8 rule 7: already 2 delivered today.
+    case dailyCap
+    /// A health pause is active (spec §24) — no proactive nudges at all.
+    case healthPause
+    /// The user switched nudges off.
+    case nudgesOff
+    /// The user switched this `NudgeKind` off.
+    case kindOff
+    /// Inside the user's quiet hours.
+    case quietHours
+}
+
+/// A snapshot of the user's nudge settings, read from `SharedDefaults`.
+public struct NudgePreferences: Sendable, Equatable {
+    public var enabled: Bool
+    public var quietHoursEnabled: Bool
+    /// Minutes after local midnight.
+    public var quietStartMinutes: Int
+    /// Minutes after local midnight.
+    public var quietEndMinutes: Int
+    public var disabledKinds: Set<NudgeKind>
+
+    public init(
+        enabled: Bool = true,
+        quietHoursEnabled: Bool = false,
+        quietStartMinutes: Int = 22 * 60,
+        quietEndMinutes: Int = 7 * 60,
+        disabledKinds: Set<NudgeKind> = []
+    ) {
+        self.enabled = enabled
+        self.quietHoursEnabled = quietHoursEnabled
+        self.quietStartMinutes = quietStartMinutes
+        self.quietEndMinutes = quietEndMinutes
+        self.disabledKinds = disabledKinds
+    }
+
+    /// The saved preferences.
+    public static var current: NudgePreferences {
+        get {
+            NudgePreferences(
+                enabled: SharedDefaults.nudgesEnabled,
+                quietHoursEnabled: SharedDefaults.nudgeQuietHoursEnabled,
+                quietStartMinutes: SharedDefaults.nudgeQuietStartMinutes,
+                quietEndMinutes: SharedDefaults.nudgeQuietEndMinutes,
+                disabledKinds: Set(SharedDefaults.nudgeDisabledKinds.compactMap(NudgeKind.init(rawValue:)))
+            )
+        }
+        set {
+            SharedDefaults.nudgesEnabled = newValue.enabled
+            SharedDefaults.nudgeQuietHoursEnabled = newValue.quietHoursEnabled
+            SharedDefaults.nudgeQuietStartMinutes = newValue.quietStartMinutes
+            SharedDefaults.nudgeQuietEndMinutes = newValue.quietEndMinutes
+            SharedDefaults.nudgeDisabledKinds = Set(newValue.disabledKinds.map(\.rawValue))
+        }
+    }
+
+    public func isEnabled(_ kind: NudgeKind) -> Bool { !disabledKinds.contains(kind) }
+
+    /// Whether `date` falls in quiet hours. Handles windows that wrap past midnight (22:00–07:00).
+    /// Start is inclusive, end exclusive; equal start and end means no quiet window.
+    public func isQuiet(at date: Date, calendar: Calendar = .current) -> Bool {
+        guard quietHoursEnabled, quietStartMinutes != quietEndMinutes else { return false }
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        let minutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        if quietStartMinutes < quietEndMinutes {
+            return minutes >= quietStartMinutes && minutes < quietEndMinutes
+        }
+        return minutes >= quietStartMinutes || minutes < quietEndMinutes
+    }
+
+    /// The first reason (other than the daily cap) a nudge of `kind` can't go out at `date`, or
+    /// `nil` if it may. A health pause beats everything.
+    public func suppressionReason(for kind: NudgeKind?, at date: Date, calendar: Calendar = .current) -> NudgeSuppressionReason? {
+        if HealthPause.isActive(at: date) { return .healthPause }
+        if !enabled { return .nudgesOff }
+        if let kind, !isEnabled(kind) { return .kindOff }
+        if isQuiet(at: date, calendar: calendar) { return .quietHours }
+        return nil
+    }
+}
+
 // MARK: - Result
 
 /// What actually happened when `send(arm:on:deliver:)` was called. Suppression by the daily cap
@@ -57,8 +158,16 @@ public struct NudgeSendOutcome: Sendable, Equatable {
     /// The `Nudge.id` of the row this call wrote — always written, delivered or not.
     public let nudgeID: UUID
     /// `true` if this call's `deliver` closure ran (i.e. the nudge actually reached the user);
-    /// `false` if it was suppressed by the 2/day cap.
+    /// `false` if it was suppressed (see ``suppressedBy``).
     public let delivered: Bool
+    /// Why it was suppressed; `nil` when delivered.
+    public let suppressedBy: NudgeSuppressionReason?
+
+    init(nudgeID: UUID, delivered: Bool, suppressedBy: NudgeSuppressionReason? = nil) {
+        self.nudgeID = nudgeID
+        self.delivered = delivered
+        self.suppressedBy = suppressedBy
+    }
 }
 
 // MARK: - NudgeSender
@@ -86,9 +195,17 @@ public final class NudgeSender {
 
     /// `internal`, not `private`, only so `CoreTests` can construct an isolated instance against
     /// an in-memory container; every real call site uses `.shared`.
-    init(modelContainer: ModelContainer = .appGroup) {
+    init(
+        modelContainer: ModelContainer = .appGroup,
+        preferences: @escaping @Sendable () -> NudgePreferences = { NudgePreferences.current }
+    ) {
         self.modelContainer = modelContainer
+        self.preferences = preferences
     }
+
+    /// Where the user's nudge settings come from — `SharedDefaults` in the app, a fixed value in
+    /// tests.
+    private let preferences: @Sendable () -> NudgePreferences
 
     // MARK: - Send (cap enforcement + delivery record)
 
@@ -115,9 +232,25 @@ public final class NudgeSender {
         on date: Date = .now,
         deliver: (NudgeArm) async -> Void = { _ in }
     ) async throws -> NudgeSendOutcome {
+        try await send(kind: nil, arm: arm, on: date, deliver: deliver)
+    }
+
+    /// Same as ``send(arm:on:deliver:)``, and also honours the user's per-kind switch in Settings
+    /// → Nudges. Every product nudge should come through here with its ``NudgeKind``. Order of
+    /// checks: health pause (spec §24), nudges off, this kind off, quiet hours, then the 2/day cap
+    /// (spec §8 rule 7). A row is written whichever way it goes.
+    @discardableResult
+    public func send(
+        kind: NudgeKind?,
+        arm: NudgeArm,
+        on date: Date = .now,
+        deliver: (NudgeArm) async -> Void = { _ in }
+    ) async throws -> NudgeSendOutcome {
         let user = try fetchCurrentUser()
         let deliveredToday = try deliveredCount(for: user.id, on: date)
-        let willDeliver = deliveredToday < Self.dailyCap
+        let reason: NudgeSuppressionReason? = preferences().suppressionReason(for: kind, at: date, calendar: calendar)
+            ?? (deliveredToday < Self.dailyCap ? nil : .dailyCap)
+        let willDeliver = reason == nil
 
         let nudge = Nudge(userID: user.id, ts: date, arm: arm, delivered: willDeliver)
         context.insert(nudge)
@@ -130,11 +263,11 @@ public final class NudgeSender {
             )
         } else {
             logger.notice(
-                "Suppressed nudge \(nudge.id.uuidString, privacy: .public) — daily cap reached (\(deliveredToday, privacy: .public)/\(Self.dailyCap, privacy: .public) already delivered today)."
+                "Suppressed nudge \(nudge.id.uuidString, privacy: .public) — \(reason?.rawValue ?? "unknown", privacy: .public) (\(deliveredToday, privacy: .public)/\(Self.dailyCap, privacy: .public) already delivered today)."
             )
         }
 
-        return NudgeSendOutcome(nudgeID: nudge.id, delivered: willDeliver)
+        return NudgeSendOutcome(nudgeID: nudge.id, delivered: willDeliver, suppressedBy: reason)
     }
 
     /// How many more nudges can be delivered to the local user today before ``dailyCap`` is hit.
@@ -142,6 +275,7 @@ public final class NudgeSender {
     /// asking the bandit for an arm) that doesn't need `send`'s full error handling — returns `0`
     /// rather than throwing if there's no signed-in user or the fetch fails.
     public func remainingToday(on date: Date = .now) async -> Int {
+        guard preferences().suppressionReason(for: nil, at: date, calendar: calendar) == nil else { return 0 }
         guard let user = try? fetchCurrentUser(),
               let deliveredToday = try? deliveredCount(for: user.id, on: date)
         else { return 0 }

@@ -153,7 +153,8 @@ extension Copy {
 
         public static let notificationsSectionTitle = "Notifications"
         public static let notificationsRowLabel = "Notifications"
-        public static let notificationsFooter = "Reminders, lock alerts, and your weekly recap. Choose which ones you get in the iPhone Settings app."
+        public static let notificationsFooter = "Choose your nudges here. Sounds, banners, and turning everything off live in the iPhone Settings app."
+        public static let systemNotificationsRowLabel = "iPhone notification settings"
 
         // MARK: - Gear (spec §25.6)
 
@@ -186,21 +187,63 @@ extension Copy {
         /// Apple's documented subscription-management page.
         public static let manageSubscriptionsURLString = "https://apps.apple.com/account/subscriptions"
 
-        // MARK: - Pause for health reasons (spec §24)
+        // MARK: - Pause for health reasons (spec §24) — calm, no guilt, nothing about food/body goals
 
         public static let pauseRowLabel = "Pause for health reasons"
         public static let pauseTitle = "Pause for health reasons"
         public static let pauseHeadline = "Your health comes first."
         public static let pauseMessage = "If you're sick, injured, or need a break from anything around food or your body, take it. Nothing here is worth pushing through that."
-        public static let pauseStopLockTitle = "Stop a lock now"
-        public static let pauseStopLockMessage = "Emergency unlock on the Lock tab always works."
-        public static let pauseStopLockButtonLabel = "Go to Lock"
+        public static let pauseToggleLabel = "Pause ZANO"
+        public static let pauseWhatHappensTitle = "While you're paused"
+        public static let pauseWhatHappensLocks = "No scheduled locks. A lock that's on now ends right away."
+        public static let pauseWhatHappensStreak = "Your streak waits for you. Paused days never count as missed."
+        public static let pauseWhatHappensNudges = "No nudges."
+        public static let pauseLengthTitle = "How long"
+        public static let pauseLengthThreeDays = "3 days"
+        public static let pauseLengthOneWeek = "1 week"
+        public static let pauseLengthTwoWeeks = "2 weeks"
+        public static let pauseLengthUntilOff = "Until I turn it off"
+        public static let pauseStartButtonLabel = "Start pause"
+        public static let pauseResumeButtonLabel = "Resume now"
+        public static let pauseActiveTitle = "You're paused"
+        public static func pauseActiveUntil(_ date: String) -> String { "Paused until \(date). Take the time you need." }
+        public static let pauseActiveOpenEnded = "Paused until you turn it off. Take the time you need."
+        public static let pauseActiveExtendHint = "Picking a new length starts the pause again from now."
+        public static let pauseResumeFooter = "Come back whenever you're ready. Your goals and streak will be right where you left them."
+        /// Settings status capsule.
+        public static let pauseStatusCapsule = "Health pause on"
+        public static func pauseStatusCapsuleUntil(_ date: String) -> String { "Health pause on · until \(date)" }
+        public static let pauseStatusCapsuleHint = "Opens health pause settings"
         public static let pauseEditGoalsButtonLabel = "Edit goals"
         public static let pauseEditGoalsTitle = "Change or remove goals"
         public static let pauseEditGoalsMessage = "Lower a target or remove a goal for as long as you need."
         public static let pauseContactTitle = "Talk to us"
         public static let pauseContactMessage = "Write to us and we'll help you take a break."
         public static let pauseContactButtonLabel = "Contact support"
+
+        // MARK: - Nudges (spec §8 rule 7, §9.3)
+
+        public static let nudgesRowLabel = "Nudges"
+        public static let nudgesTitle = "Nudges"
+        public static let nudgesToggleLabel = "Nudges"
+        public static let nudgesIntro = "A nudge is a short reminder when it could change your day. Choose which ones you get and when."
+        public static let nudgesCapNote = "ZANO sends at most 2 nudges a day, never more. That limit is built in."
+        public static let nudgesTypesSectionTitle = "Which nudges"
+        public static let nudgeKindMorningPlanTitle = "Morning plan"
+        public static let nudgeKindMorningPlanDetail = "Today's goals, first thing."
+        public static let nudgeKindProteinTitle = "Protein last mile"
+        public static let nudgeKindProteinDetail = "An evening heads-up when you're close to your protein goal."
+        public static let nudgeKindStreakTitle = "Streak at risk"
+        public static let nudgeKindStreakDetail = "When today's goals are still open late in the day."
+        public static let nudgeKindRecapTitle = "Weekly recap"
+        public static let nudgeKindRecapDetail = "Your week in one card."
+        public static let nudgesQuietSectionTitle = "Quiet hours"
+        public static let nudgesQuietToggleLabel = "Quiet hours"
+        public static let nudgesQuietStartLabel = "From"
+        public static let nudgesQuietEndLabel = "Until"
+        public static let nudgesQuietFooter = "No nudges during these hours. Alarms you set yourself, like Sunrise Alarm, still ring."
+        public static let nudgesPausedNote = "Nudges are off while your health pause is on."
+        public static let nudgesSystemFooter = "To turn off all notifications from ZANO, use the iPhone Settings app."
 
         // MARK: - Delete all data (spec §24 privacy)
 

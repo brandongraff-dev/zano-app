@@ -219,6 +219,58 @@ public final class MealPrepVerifier {
         self.backend = backend
     }
 
+    /// `true` once `setBackend(_:)` has been called. The meal-prep photo sheet
+    /// (`App/ZANO/Features/Fuel/MealPhoto/MealPrepCaptureSheet.swift`) reads this to choose
+    /// between the vision-checked path (``verifyMealPrep(goalID:photoPath:at:)``) and the honor
+    /// tier (``logHonorTier(goalID:at:)``) *before* uploading anything.
+    public var hasVisionBackend: Bool { backend != nil }
+
+    // MARK: - Honor tier (no vision backend yet)
+
+    /// Logs this week's meal prep on the user's honor, for when no `MealPrepVisionBackend` is
+    /// configured (true today: `meal-vision` has no container-count mode yet, so nothing calls
+    /// `setBackend(_:)`). Added 2026-09-25 for the meal-prep photo sheet, so a user who took the
+    /// photo is never left with no way to log.
+    ///
+    /// Same weekly cap as the vision path (spec 3's only anti-cheat for this row: "weekly only"),
+    /// same `GoalEvent` shape (`kind: .verify`, `source: .photo`, `verified: true` — so the lock
+    /// engine counts it like any other honor-system goal), plus `meta.tier = "honor"` and
+    /// `meta.visionChecked = false` so analytics/recaps can tell an honor log from a
+    /// vision-confirmed one, and a later backend session can decide whether to treat them
+    /// differently. No photo path is stored: nothing was uploaded.
+    ///
+    /// - Throws: `MealPrepVerifierError.goalNotFound` / `.wrongGoalType` /
+    ///   `.alreadyVerifiedThisWeek`, or a SwiftData save error.
+    public func logHonorTier(goalID: UUID, at now: Date = .now) async throws {
+        guard let goal = try fetchGoal(id: goalID) else {
+            throw MealPrepVerifierError.goalNotFound(goalID)
+        }
+        guard goal.type == .mealPrep else {
+            throw MealPrepVerifierError.wrongGoalType(goalID, goal.type)
+        }
+        if let nextEligible = try nextEligibleDate(for: goal, at: now) {
+            throw MealPrepVerifierError.alreadyVerifiedThisWeek(nextEligible: nextEligible)
+        }
+
+        let event = GoalEvent(
+            ts: now,
+            kind: .verify,
+            value: nil,
+            source: .photo,
+            verified: true,
+            meta: .object([
+                "tier": .string("honor"),
+                "visionChecked": .bool(false),
+            ]),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(event)
+        try context.save()
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
+        logger.notice("Meal prep logged on honor tier for goal \(goalID.uuidString, privacy: .public) (no vision backend).")
+    }
+
     // MARK: - Verify
 
     /// Runs the weekly meal-prep photo check for `goalID` and, on confirmation, logs it.

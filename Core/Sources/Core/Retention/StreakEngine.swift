@@ -156,8 +156,11 @@ public final class StreakEngine {
             return
         }
 
-        let isForgivenComeback = streak.neverMissTwiceArmed && gap <= 2
-        if gap == 1 || isForgivenComeback {
+        // Health pause (spec §24): paused days never widen the gap, so a pause can't break a
+        // streak. `HealthPause.swift` owns the pause history.
+        let effectiveGap = max(1, gap - HealthPause.pausedDayCount(strictlyBetween: previousEarned, and: day, calendar: calendar))
+        let isForgivenComeback = streak.neverMissTwiceArmed && effectiveGap <= 2
+        if effectiveGap == 1 || isForgivenComeback {
             streak.current += 1
         } else {
             streak.current = 1
@@ -197,6 +200,9 @@ public final class StreakEngine {
             return
         }
         let day = calendar.startOfDay(for: date)
+        // Health pause (spec §24): a paused day is never a miss — no Never Miss Twice arming, no
+        // reset, no `.miss` row.
+        guard !HealthPause.wasPaused(on: day, calendar: calendar) else { return }
         guard !hasStreakMissEvent(userID: user.id, on: day) else { return }
 
         let streak = fetchOrCreateStreak(userID: user.id)

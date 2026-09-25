@@ -51,6 +51,102 @@ public enum SharedDefaults {
         static let nextScheduledLockAt = "shared.nextScheduledLockAt"
         static let shieldImpressionCount = "shared.shieldImpressionCount"
         static let lockedSelectionData = "shared.lockedSelectionData"
+        static let healthPauseActive = "shared.healthPause.active"
+        static let healthPauseStartedAt = "shared.healthPause.startedAt"
+        static let healthPauseEndsAt = "shared.healthPause.endsAt"
+        static let healthPauseHistory = "shared.healthPause.history"
+        static let healthPauseRevision = "shared.healthPause.revision"
+        static let nudgesEnabled = "shared.nudges.enabled"
+        static let nudgeQuietHoursEnabled = "shared.nudges.quietHoursEnabled"
+        static let nudgeQuietStartMinutes = "shared.nudges.quietStartMinutes"
+        static let nudgeQuietEndMinutes = "shared.nudges.quietEndMinutes"
+        static let nudgeDisabledKinds = "shared.nudges.disabledKinds"
+    }
+
+    /// The underlying App Group suite, for SwiftUI `@AppStorage(_:store:)` observers only (e.g.
+    /// the Settings health-pause capsule watching ``healthPauseRevisionKey``). Everything else
+    /// should go through the typed properties below.
+    public static var store: UserDefaults { defaults }
+
+    // MARK: - Health pause (spec §24) — written only by `HealthPause`
+
+    /// Bumped on every health-pause write so a view can observe one key with `@AppStorage`.
+    public static let healthPauseRevisionKey = Keys.healthPauseRevision
+
+    /// Raw "a pause was started and not ended" flag. Readers want `HealthPause.isActive`, which
+    /// also honours the end date.
+    public static var healthPauseActive: Bool {
+        get { defaults.bool(forKey: Keys.healthPauseActive) }
+        set {
+            defaults.set(newValue, forKey: Keys.healthPauseActive)
+            bumpHealthPauseRevision()
+        }
+    }
+
+    public static var healthPauseStartedAt: Date? {
+        get { defaults.object(forKey: Keys.healthPauseStartedAt) as? Date }
+        set {
+            defaults.set(newValue, forKey: Keys.healthPauseStartedAt)
+            bumpHealthPauseRevision()
+        }
+    }
+
+    /// `nil` = "until I turn it off".
+    public static var healthPauseEndsAt: Date? {
+        get { defaults.object(forKey: Keys.healthPauseEndsAt) as? Date }
+        set {
+            defaults.set(newValue, forKey: Keys.healthPauseEndsAt)
+            bumpHealthPauseRevision()
+        }
+    }
+
+    /// Closed past pauses, JSON-encoded. Kept short by `HealthPause`.
+    public static var healthPauseHistory: [HealthPause.Interval] {
+        get {
+            guard let data = defaults.data(forKey: Keys.healthPauseHistory) else { return [] }
+            return (try? JSONDecoder().decode([HealthPause.Interval].self, from: data)) ?? []
+        }
+        set {
+            defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.healthPauseHistory)
+            bumpHealthPauseRevision()
+        }
+    }
+
+    private static func bumpHealthPauseRevision() {
+        defaults.set(defaults.integer(forKey: Keys.healthPauseRevision) &+ 1, forKey: Keys.healthPauseRevision)
+    }
+
+    // MARK: - Nudge preferences (spec §8 rule 7, §9.3) — written by Settings, read by `NudgeSender`
+
+    /// Master switch for proactive nudges. Defaults to `true`.
+    public static var nudgesEnabled: Bool {
+        get { defaults.object(forKey: Keys.nudgesEnabled) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Keys.nudgesEnabled) }
+    }
+
+    /// Quiet hours on/off. Defaults to `false` (the times below are pre-filled for when it's on).
+    public static var nudgeQuietHoursEnabled: Bool {
+        get { defaults.bool(forKey: Keys.nudgeQuietHoursEnabled) }
+        set { defaults.set(newValue, forKey: Keys.nudgeQuietHoursEnabled) }
+    }
+
+    /// Quiet-hours start, minutes after local midnight. Defaults to 22:00.
+    public static var nudgeQuietStartMinutes: Int {
+        get { defaults.object(forKey: Keys.nudgeQuietStartMinutes) as? Int ?? 22 * 60 }
+        set { defaults.set(newValue, forKey: Keys.nudgeQuietStartMinutes) }
+    }
+
+    /// Quiet-hours end, minutes after local midnight. Defaults to 07:00.
+    public static var nudgeQuietEndMinutes: Int {
+        get { defaults.object(forKey: Keys.nudgeQuietEndMinutes) as? Int ?? 7 * 60 }
+        set { defaults.set(newValue, forKey: Keys.nudgeQuietEndMinutes) }
+    }
+
+    /// Raw values of the `NudgeKind`s the user switched off. Stored as the *disabled* set so a
+    /// kind added later defaults to on.
+    public static var nudgeDisabledKinds: Set<String> {
+        get { Set(defaults.stringArray(forKey: Keys.nudgeDisabledKinds) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: Keys.nudgeDisabledKinds) }
     }
 
     // MARK: - Locked apps (screen-time report)

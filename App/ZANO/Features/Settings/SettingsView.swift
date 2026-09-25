@@ -18,9 +18,10 @@
 //   * Hard paywall (spec §21): the Free/"Go Pro"/Upgrade upsell and the RevenueCatUI sheet are gone.
 //     The hero is a plan *status* card (ZANO Pro, Active/Free trial, renew/trial-end date, "Manage
 //     subscription"). Restore goes through `RevenueCatManager` and refreshes `EntitlementGate`.
-//   * New rows: Goals (`GoalsEditorView`), Notifications (iOS notification settings), Help &
-//     feedback, Pause for health reasons (spec §24; explanation + next steps, no pause mechanism
-//     exists in Core yet), Terms of use, Privacy policy, Delete all my data.
+//   * New rows: Goals (`GoalsEditorView`), Notifications (Nudges → `NudgeSettingsView`, plus iOS
+//     notification settings), Help & feedback, Pause for health reasons (spec §24; real pause via
+//     `Core/Retention/HealthPause.swift`, with a status capsule at the top while it's on), Terms of
+//     use, Privacy policy, Delete all my data.
 //   * Monochrome rows: `SettingsIconBadge` is always `textSecondary` on `surface2`, outline
 //     symbols; no per-row ring tints. Disabled = `muted` text, never stacked opacity.
 //   * Coach-voice tiles: no border unselected, accent stroke at `Metrics.selectedStroke` selected;
@@ -174,6 +175,8 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // Only renders while a health pause is on (spec §24; SettingsSupportViews.swift).
+                HealthPauseStatusCapsule()
                 alwaysAllowedSection
                 planCard
                 verificationSetupSection
@@ -509,14 +512,24 @@ struct SettingsView: View {
 
     // MARK: - Notifications
     //
-    // ZANO has no in-app notification switches; iOS owns them. The row deep-links to this app's
-    // page in the iPhone Settings app (`openNotificationSettingsURLString`, iOS 16+).
+    // "Nudges" pushes ZANO's own nudge settings (`NudgeSettingsView`: on/off, kinds, quiet hours,
+    // the 2/day cap). The second row deep-links to this app's page in the iPhone Settings app
+    // (`openNotificationSettingsURLString`, iOS 16+), which still owns sounds/banners/all-off.
 
     private var notificationsSection: some View {
-        SettingsSection(footer: Copy.settings.notificationsFooter) {
+        SettingsSection(title: Copy.settings.notificationsSectionTitle, footer: Copy.settings.notificationsFooter) {
             SettingsGroupCard {
+                SettingsNavRow(
+                    Copy.settings.nudgesRowLabel,
+                    systemImage: "bell.badge"
+                ) {
+                    NudgeSettingsView()
+                }
+
+                SettingsRowDivider()
+
                 SettingsActionRow(
-                    title: Copy.settings.notificationsRowLabel,
+                    title: Copy.settings.systemNotificationsRowLabel,
                     systemImage: "bell",
                     accessory: .external
                 ) {

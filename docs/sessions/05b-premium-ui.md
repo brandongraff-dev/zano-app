@@ -293,3 +293,55 @@ Spec §2 (core loop), §3, §5.2 (Earn Mode), §5.5 (Plan B half credit), §5.7 
   before `Screen14FirstWin` tries to (its `try?` endLock then no-ops; streak is same-day idempotent;
   the root celebration is skipped before onboarding completes).
 
+
+### 2026-09-25 — Waves 1–3: every build-out plan item (`docs/design/buildout-plan.md`)
+
+Founder: "do all the things that we need to complete from the audit. Don't skip anything. Build the
+UI for it all too." Built with parallel agents (strict file ownership), integrated and committed
+per wave.
+
+- **Wave 1A (gym):** `Features/GymSetup/` — gym setup (Apple Maps search, pin drop, radius),
+  location primer, check-in screen with live dwell, manual check-in; `GymVerifier` rewrite
+  (`startCheckIn`, manual check-in), `GymPresenceService` (geofence start at launch), gym dwell Live
+  Activity with a live clock; `zano://gym`.
+- **Wave 1B (NFC):** `Features/NFC/` — tag list, write-a-tag flow, map-a-tag sheet, tag-tap toast,
+  unmapped-tag prompt (over any tab), Lock Card setup; `NFCWriter`; new tag actions (start focus,
+  gym check-in, log custom goal, lock-card toggle).
+- **Wave 1C (goals):** goals editor for every additive goal type, type picker, Health primer.
+- **Wave 1D (Today):** gym row → check-in/setup, live steps and home workout, stretch timer, undo
+  corrects rollups, finish-setup card.
+- **Wave 2E (locks):** `LockScheduler` (DeviceActivity schedules, default morning schedule created
+  once after onboarding), the real `ZANOMonitor`, Earn Mode spend-to-unlock + settings, partial
+  unlock tier editor, Earn Meter Live Activity updates, tests.
+- **Wave 2F (Today cards):** one suggestion slot under the hero — Never Miss Twice, Comeback, Plan
+  B (offer → smaller target → counts at half credit), Travel (suggested/manual/active), Calendar
+  light day (asks once; Settings toggle added), Locked-out moment (share poster). Default lock mode
+  used on Today and Lock; meal prep row opens the photo sheet; Lock tab "Spend minutes" card.
+- **Wave 2G (meal photos):** capture → estimate (offline manual fallback) → confirm, `.photo` source,
+  photo dedupe, meal prep photo.
+- **Wave 2H (health pause + nudges):** real health pause (pauses schedules, protects streak,
+  suppresses nudges, releases a running lock without penalty); nudge settings (quiet hours, types,
+  2/day cap).
+- **Wave 3I (Squad tab):** sixth tab — ring board, nudges (2/day per member), create/join by invite
+  code (`zano://squad/join/CODE`), head-to-head and "beat last week" duels, shared freeze card. Works
+  offline: squadmate data says "syncs when squads are live" rather than showing fake zeros.
+- **Six tabs:** `TabView` would fold tabs 5+ into UIKit's "More" controller, so `MainTabView` is now
+  a kept-alive `ZStack` container driven by `ZanoTabBar` (only the selected tab is visible,
+  hit-testable and accessible). Today holds back its own unlock celebration while hidden
+  (`zanoTabIsSelected`), the router's covers other tabs.
+- **Wave 3J/K/L:** rank card (placement week), season badges, monthly challenge card, gym Home Turf
+  leaderboard (opt-in), referrals (+ once-per-14-days invite link on the celebration), variable
+  reward on earned unlocks (coins / one-time badge / coach line, idempotent ledger, tests), Auto-Focus
+  guide, Founder Series card. Comeback challenge now advances on each earned unlock.
+
+**Unverified / known issues:**
+- CI: Wave 1 build + 245+ Core tests green (run 36078947162); Waves 2–3 compile pending
+  (run 36081036480). Everything device-only (geofence, NFC, DeviceActivity schedules, Live
+  Activities, Screen Time, camera) is unverified.
+- Backend not live: squads (joins, squadmate rings, nudge delivery, duels), leaderboard, referral
+  redeem and meal vision all run in clearly labelled offline states until Supabase is configured.
+- Open hooks: focus Plan B session still credits full Earn minutes; `GoalDayProgress` ignores Plan B
+  targets; travel mode doesn't drop the gym goal for scheduled/intent locks and nothing feeds
+  location samples; Never Miss Twice is armed from Today (no nightly job); locked-out tally is per
+  day, not per hour (shield extension can't record attempts yet); no invite deep link;
+  NudgeSender callers (morning plan, protein last-mile, streak-at-risk) not scheduled yet.

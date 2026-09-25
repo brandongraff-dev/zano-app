@@ -96,7 +96,7 @@ targets:
         # HealthKit-linked binary never trips a missing-purpose-string check; no prompt shows it today.
         NSHealthUpdateUsageDescription: "ZANO may save workouts you start from inside the app."
         NFCReaderUsageDescription: "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock."
-        NSCameraUsageDescription: "ZANO uses the camera to scan food barcodes and log protein."
+        NSCameraUsageDescription: "ZANO uses the camera to scan food barcodes and photograph meals to log protein."
         NSMotionUsageDescription: "ZANO uses motion data to verify workouts and prevent goal spoofing."
         # CalendarAwareness (Core/Sources/Core/Retention) can call EKEventStore.requestFullAccessToEvents()
         # from its opt-in; nothing in the app calls that opt-in yet, but EventKit is linked and
@@ -245,6 +245,11 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOMonitor
+    # Core for `ScheduledLockMonitor` (scheduled locks, spend windows) and the App Group mirrors it
+    # reads. Same dependency ZANOShieldConfig/ZANOShieldAction already carry; the monitor only
+    # touches UserDefaults + ManagedSettings at runtime (spec §27 memory limits).
+    dependencies:
+      - package: Core
     info:
       path: Extensions/ZANOMonitor/Info.plist
       properties:

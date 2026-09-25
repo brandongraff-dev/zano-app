@@ -63,6 +63,18 @@ public enum TimeBankEarnRates {
     }
 }
 
+// MARK: - Spend result
+
+/// Outcome of `TimeBankEngine.spendToUnlock(minutes:)`.
+public enum SpendToUnlockResult: Sendable, Equatable {
+    /// Minutes debited; the shield is lifted until this time.
+    case unlocked(until: Date)
+    /// Not enough minutes in today's bank; nothing was debited.
+    case insufficientMinutes(remaining: Int)
+    /// No Earn Mode lock is running (none at all, or a full-mode lock).
+    case noActiveEarnLock
+}
+
 // MARK: - Errors
 
 /// Errors `TimeBankEngine` throws itself, as opposed to errors bubbled up from SwiftData.
@@ -122,7 +134,7 @@ public final class TimeBankEngine {
         let bank = try fetchOrCreateTimeBank(userID: user.id, date: date)
         bank.earnedMin += minutes
         try context.save()
-        mirrorIfToday(bank, for: date)
+        await mirrorIfToday(bank, for: date)
         logger.notice("TimeBank deposit: +\(minutes, privacy: .public) min, remaining=\(bank.remainingMin, privacy: .public).")
     }
 
@@ -142,7 +154,7 @@ public final class TimeBankEngine {
         guard bank.remainingMin >= minutes else { return false }
         bank.spentMin += minutes
         try context.save()
-        mirrorIfToday(bank, for: date)
+        await mirrorIfToday(bank, for: date)
         logger.notice("TimeBank spend: -\(minutes, privacy: .public) min, remaining=\(bank.remainingMin, privacy: .public).")
         return true
     }
@@ -158,6 +170,29 @@ public final class TimeBankEngine {
         guard let user = try? fetchCurrentUser() else { return 0 }
         guard let bank = try? fetchTimeBank(userID: user.id, date: date) else { return 0 }
         return bank.remainingMin
+    }
+
+    // MARK: - Spending to unlock (spec §5.2 "a shielded app spends minutes out of it")
+
+    /// Spends `minutes` from today's bank and lifts the active Earn Mode lock's shield for that
+    /// long (`LockEngineManager.beginSpendWindow`; see its doc for the re-shield mechanism and
+    /// DeviceActivity limits). Spending during an open window extends it. Only Earn Mode locks can
+    /// be bought out — a full lock is a hard block until goals are done (emergency unlock is
+    /// separate and always available). Minutes still expire at midnight: a window only covers the
+    /// minutes paid for.
+    public func spendToUnlock(minutes: Int, now: Date = .now) async throws -> SpendToUnlockResult {
+        guard minutes > 0 else { throw TimeBankEngineError.invalidMinutes(minutes) }
+        guard LockEngineManager.shared.activeEarnSessionID() != nil else { return .noActiveEarnLock }
+        guard try await spend(minutes: minutes, for: now) else {
+            return .insufficientMinutes(remaining: await remainingMinutes(for: now))
+        }
+        do {
+            let until = try LockEngineManager.shared.beginSpendWindow(minutes: minutes, now: now)
+            return .unlocked(until: until)
+        } catch {
+            await refund(minutes: minutes, for: now)
+            throw error
+        }
     }
 
     // MARK: - Goal-type convenience (spec §5.2 exact values)
@@ -230,8 +265,19 @@ public final class TimeBankEngine {
     /// `date` is today (local calendar day) — that key is specifically "today's" balance for
     /// widgets/Dynamic Island (spec §5.11 Dynamic Island Earn Meter) to render without a SwiftData
     /// fetch; mirroring a backfilled past/future date's balance there would show the wrong number.
-    private func mirrorIfToday(_ bank: TimeBank, for date: Date) {
+    private func mirrorIfToday(_ bank: TimeBank, for date: Date) async {
         guard Calendar.current.isDateInToday(date) else { return }
         SharedDefaults.earnedMinutesRemainingToday = bank.remainingMin
+        // Spec §5.11: the Dynamic Island's draining bar follows every bank change.
+        await EarnMeterActivityManager.shared.refreshFromTimeBank(earnedMinutesRemaining: bank.remainingMin)
+    }
+
+    /// Gives back minutes a spend took when the unlock it paid for couldn't start.
+    private func refund(minutes: Int, for date: Date) async {
+        guard let user = try? fetchCurrentUser(),
+              let bank = try? fetchTimeBank(userID: user.id, date: date) else { return }
+        bank.spentMin = max(0, bank.spentMin - minutes)
+        try? context.save()
+        await mirrorIfToday(bank, for: date)
     }
 }

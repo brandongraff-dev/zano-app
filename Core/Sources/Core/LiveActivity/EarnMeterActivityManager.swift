@@ -69,7 +69,17 @@ public final class EarnMeterActivityManager {
     init() {}
 
     /// `true` while this process has a running Earn Meter Activity.
-    public var isActive: Bool { activity != nil }
+    public var isActive: Bool {
+        adoptRunningActivityIfNeeded()
+        return activity?.activityState == .active
+    }
+
+    /// After an app relaunch the in-memory handle is gone but the system may still be showing the
+    /// Activity; pick it back up instead of stacking a second one.
+    private func adoptRunningActivityIfNeeded() {
+        guard activity == nil else { return }
+        activity = Activity<EarnMeterActivityAttributes>.activities.first { $0.activityState == .active }
+    }
 
     // MARK: - Start
 
@@ -112,6 +122,7 @@ public final class EarnMeterActivityManager {
             return nil
         }
 
+        adoptRunningActivityIfNeeded()
         if activity != nil {
             logger.notice("startActivity called with an Earn Meter Activity already running; ending the stale one first.")
             await endActivity()
@@ -161,13 +172,20 @@ public final class EarnMeterActivityManager {
     ///     `SharedDefaults` value instead.
     ///   - date: Which day's Time Bank ledger to read the current balance from. Defaults to `.now`.
     public func refreshFromTimeBank(
+        earnedMinutesRemaining: Int? = nil,
         goalsRemaining: Int? = nil,
         nextLockTime: Date?? = nil,
         on date: Date = .now
     ) async {
+        adoptRunningActivityIfNeeded()
         guard activity != nil else { return }
 
-        let remaining = await TimeBankEngine.shared.remainingMinutes(for: date)
+        let remaining: Int
+        if let earnedMinutesRemaining {
+            remaining = earnedMinutesRemaining
+        } else {
+            remaining = await TimeBankEngine.shared.remainingMinutes(for: date)
+        }
         let resolvedNextLockTime = nextLockTime ?? SharedDefaults.nextScheduledLockAt
         let state = EarnMeterActivityAttributes.ContentState(
             earnedMinutesRemaining: remaining,
@@ -191,8 +209,8 @@ public final class EarnMeterActivityManager {
     ///   successful deposit is best-effort (see `refreshFromTimeBank`'s no-Activity no-op) and
     ///   never itself throws.
     public func deposit(minutes: Int, for date: Date = .now) async throws {
+        // `TimeBankEngine` refreshes the meter itself on every deposit/spend (Wave 2E).
         try await TimeBankEngine.shared.deposit(minutes: minutes, for: date)
-        await refreshFromTimeBank(on: date)
     }
 
     /// Spends minutes via `TimeBankEngine.shared.spend(minutes:for:)` (spec §5.2: unlocking a
@@ -206,9 +224,7 @@ public final class EarnMeterActivityManager {
     /// - Throws: whatever `TimeBankEngine.spend(minutes:for:)` throws.
     @discardableResult
     public func spend(minutes: Int, for date: Date = .now) async throws -> Bool {
-        let succeeded = try await TimeBankEngine.shared.spend(minutes: minutes, for: date)
-        await refreshFromTimeBank(on: date)
-        return succeeded
+        try await TimeBankEngine.shared.spend(minutes: minutes, for: date)
     }
 
     // MARK: - End
@@ -229,6 +245,7 @@ public final class EarnMeterActivityManager {
     ///   purpose). A caller with a product reason to show the final state briefly can pass
     ///   `.after(_:)` instead.
     public func endActivity(dismissalPolicy: ActivityUIDismissalPolicy = .immediate, on date: Date = .now) async {
+        adoptRunningActivityIfNeeded()
         guard let activity else { return }
         self.activity = nil
 

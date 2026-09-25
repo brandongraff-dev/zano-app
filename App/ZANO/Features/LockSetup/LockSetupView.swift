@@ -91,6 +91,7 @@ struct LockSetupView: View {
     @State private var editorTarget: EditorTarget?
     @State private var pendingDeletion: LockSet?
     @State private var errorAlert: LockSetupErrorAlert?
+    @State private var showEarnModeSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Cards sit 8pt apart (4pt above + 4pt below each), inside the standard 16pt screen gutter.
@@ -139,6 +140,11 @@ struct LockSetupView: View {
                     .listRowInsets(rowInsets)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+
+                earnModeRow
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
         .listStyle(.plain)
@@ -166,6 +172,9 @@ struct LockSetupView: View {
         }
         .sheet(item: $editorTarget) { target in
             LockSetEditorSheet(target: target)
+        }
+        .navigationDestination(isPresented: $showEarnModeSettings) {
+            EarnModeSettingsView()
         }
         .confirmationDialog(
             Copy.lockSetup.deleteConfirmTitle,
@@ -247,6 +256,23 @@ struct LockSetupView: View {
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         }
         .buttonStyle(.pressable)
+    }
+
+    /// Earn Mode / Time Bank settings (Wave 2E, spec §5.2).
+    /// A `Button` + `navigationDestination` rather than a `NavigationLink`, so `List` doesn't add
+    /// its own disclosure chevron outside the card.
+    private var earnModeRow: some View {
+        Button {
+            showEarnModeSettings = true
+        } label: {
+            LockRuleRowLabel(
+                systemImage: "hourglass",
+                title: Copy.lockSetup.earnModeRowTitle,
+                detail: Copy.lockSetup.earnModeRowDetail
+            )
+        }
+        .buttonStyle(.pressable)
+        .padding(.top, Theme.Spacing.sm)
     }
 
     /// What the star means. The star alone left "default" to guesswork.
@@ -464,6 +490,41 @@ private struct LockSetIconStack: View {
     }
 }
 
+/// A card row that links to a lock rule screen (schedule, tiers, Earn Mode).
+private struct LockRuleRowLabel: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            Image(systemName: systemImage)
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.accent)
+                .frame(width: Theme.Metrics.iconBadgeSmall)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(Theme.Typography.icon(.xsmall))
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityHidden(true)
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget, alignment: .leading)
+        .zanoCard(radius: Theme.Radius.medium)
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+    }
+}
+
 /// Which lock set the editor sheet is working on: a brand-new one, or an existing one being
 /// renamed / having its app selection changed. `Identifiable` so it can drive `.sheet(item:)`
 /// directly — file-scoped, not a shared model.
@@ -541,6 +602,8 @@ private struct LockSetEditorSheet: View {
                     nameSection
 
                     AppPickerView(selection: $selection)
+
+                    rulesSection
 
                     if shouldShowAlwaysAllowedWarning {
                         AlwaysAllowedWarningView(selection: selection) {
@@ -634,6 +697,51 @@ private struct LockSetEditorSheet: View {
                     guard newValue.count > Self.maxNameLength else { return }
                     name = String(newValue.prefix(Self.maxNameLength))
                 }
+        }
+    }
+
+    /// Schedule + partial-unlock tiers (Wave 2E). Both key off the lock set's id, so a set that
+    /// hasn't been saved yet shows a hint instead.
+    private var rulesSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Copy.lockSetup.rulesSectionLabel)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+                .padding(.horizontal, Theme.Spacing.xs)
+
+            if let existingLockSet {
+                let lockSetID = existingLockSet.id
+                NavigationLink {
+                    LockScheduleEditor(lockSetID: lockSetID)
+                } label: {
+                    LockRuleRowLabel(
+                        systemImage: "calendar.badge.clock",
+                        title: Copy.lockSetup.scheduleRowTitle,
+                        detail: LockScheduleSummary.text(for: LockScheduler.shared.schedule(for: lockSetID))
+                    )
+                }
+                .buttonStyle(.pressable)
+
+                NavigationLink {
+                    TierEditorView(lockSetID: lockSetID)
+                } label: {
+                    let tierCount = PartialUnlockTierStore.tiers(for: lockSetID).count
+                    LockRuleRowLabel(
+                        systemImage: "square.stack.3d.up",
+                        title: Copy.lockSetup.tiersRowTitle,
+                        detail: tierCount == 0
+                            ? Copy.lockSetup.tiersRowOff
+                            : Copy.lockSetup.tiersRowSummary(count: tierCount)
+                    )
+                }
+                .buttonStyle(.pressable)
+            } else {
+                Text(Copy.lockSetup.rulesSaveFirstHint)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Spacing.xs)
+            }
         }
     }
 

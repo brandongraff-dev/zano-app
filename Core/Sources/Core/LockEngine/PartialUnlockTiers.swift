@@ -11,20 +11,14 @@
 // `Models/LockSet.swift`, owned by another agent, already declares it) and the set of goal ids
 // completed so far, compute which tier(s) of that lock's apps are unlocked.
 //
-// Cross-module integration point (TODO, out of this session's scope): docs/spec.md §13's data
-// model has no `lock_set_tiers`-style table, and `LockSet` (§13's `lock_sets`) has only one
-// `appTokensBlob` — there is nowhere yet to *persist* a `[PartialUnlockTier]` ladder per
-// `LockSet`. Adding that storage (and its Supabase mirror) is a Models/Sync-owning session's call,
-// not this file's — see `Models/LockSet.swift`'s and `backend/supabase/migrations/0001_init.sql`'s
-// headers for why `appTokensBlob`-shaped device-local blobs are handled the way they are. Until
-// then, a caller (Lock Setup UI, or `LockEngineManager`'s unlock-eligibility path) is expected to
-// construct `[PartialUnlockTier]` itself — e.g. from in-memory state a settings screen just built
-// — and pass it into `evaluate(...)` each time, rather than this file loading a saved ladder by
-// `lockSet.id` on its own.
+// Persistence (Wave 2E): `PartialUnlockTierStore` below keeps each lock set's ladder as a Codable
+// blob in the App Group, keyed by `LockSet.id`. Device-local on purpose: tiers carry FamilyControls
+// tokens, which never leave the device (spec §13, §24), and spec §13 has no tiers table, so no
+// SwiftData/Supabase migration. `TierEditorView` (App/ZANO/Features/LockSetup) writes it;
+// `LockEngineManager.evaluateUnlockEligibility` reads it and lifts reached tiers' apps.
 //
-// Pure computation only: no SwiftData, no ManagedSettings/FamilyControls side effects. This file
-// hands back a `FamilyActivitySelection` a caller (e.g. `LockEngineManager`, which owns the
-// actual `ManagedSettingsStore`) can apply; it never calls `store.shield...` itself.
+// The evaluation itself stays pure: no SwiftData, no ManagedSettings side effects. It hands back a
+// `FamilyActivitySelection` `LockEngineManager` (which owns the `ManagedSettingsStore`) applies.
 
 import Foundation
 import FamilyControls
@@ -189,6 +183,12 @@ public enum PartialUnlockTiers {
         )
     }
 
+    /// The required goals that are no longer remaining — the `completedGoalIDs` input to
+    /// `evaluate` from what `LockEngineManager` computes (required ids, still-unverified ids).
+    public static func completedGoalIDs(required: [UUID], remaining: Set<UUID>) -> Set<UUID> {
+        Set(required).subtracting(remaining)
+    }
+
     /// Convenience for spec §2's literal example ladder — "2 of 3 goals unlocks messaging apps,
     /// all 3 unlocks TikTok" — as a general two-tier shape: one partial tier reached one goal
     /// short of the total, and a full tier reached at the total. For whichever screen offers this
@@ -218,5 +218,45 @@ public enum PartialUnlockTiers {
                 selection: fullSelection
             ),
         ]
+    }
+}
+
+// MARK: - PartialUnlockTierStore
+
+/// Each lock set's tier ladder, in the App Group (see file header). Cheap `UserDefaults` reads.
+public enum PartialUnlockTierStore {
+    nonisolated(unsafe) private static let defaults: UserDefaults =
+        UserDefaults(suiteName: AppGroup.identifier) ?? .standard
+    private static let key = "lockEngine.partialUnlockTiers.v1"
+
+    /// The ladder for `lockSetID`, loosest first. Empty = no partial unlocks (all-or-nothing).
+    public static func tiers(for lockSetID: UUID) -> [PartialUnlockTier] {
+        (all()[lockSetID.uuidString] ?? []).sorted { $0.requiredCompletedGoalCount < $1.requiredCompletedGoalCount }
+    }
+
+    /// Replaces the ladder. Tiers needing 0 goals are dropped — they'd unlock at lock start.
+    public static func setTiers(_ tiers: [PartialUnlockTier], for lockSetID: UUID) {
+        var everything = all()
+        let kept = tiers.filter { $0.requiredCompletedGoalCount >= 1 }
+        everything[lockSetID.uuidString] = kept.isEmpty ? nil : kept
+        save(everything)
+    }
+
+    public static func removeTiers(for lockSetID: UUID) {
+        var everything = all()
+        everything[lockSetID.uuidString] = nil
+        save(everything)
+    }
+
+    private static func all() -> [String: [PartialUnlockTier]] {
+        guard let data = defaults.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([String: [PartialUnlockTier]].self, from: data)
+        else { return [:] }
+        return decoded
+    }
+
+    private static func save(_ value: [String: [PartialUnlockTier]]) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        defaults.set(data, forKey: key)
     }
 }

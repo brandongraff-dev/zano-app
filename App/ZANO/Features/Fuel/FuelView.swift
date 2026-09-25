@@ -297,6 +297,8 @@ struct FuelView: View {
     @State private var gapOptions: [ProteinGapOption] = []
     @State private var kitchenStaples: [KitchenStaple] = []
     @State private var isBarcodeSheetPresented = false
+    /// Meal photo -> protein estimate (`MealPhoto/MealCaptureSheet.swift`, spec 9.5).
+    @State private var isMealPhotoSheetPresented = false
     @State private var isKitchenStapleAddSheetPresented = false
     @State private var pendingStapleDeletion: KitchenStaple?
     @State private var isGoalsEditorPresented = false
@@ -413,6 +415,16 @@ struct FuelView: View {
                     Task { await log(goalType: .protein, amount: grams, source: .barcode) }
                 },
                 onDismiss: { isBarcodeSheetPresented = false }
+            )
+        }
+        .sheet(isPresented: $isMealPhotoSheetPresented) {
+            MealCaptureSheet(
+                onLogged: { _ in
+                    isMealPhotoSheetPresented = false
+                    logTick += 1
+                    Task { await refreshFuelState() }
+                },
+                onCancel: { isMealPhotoSheetPresented = false }
             )
         }
         .sheet(isPresented: $isKitchenStapleAddSheetPresented) {
@@ -541,6 +553,11 @@ struct FuelView: View {
                             }
                         },
                         onCustom: { activeSheet = FuelSheet(goalType: .protein) },
+                        photoLabel: Copy.fuel.mealPhoto.entryButtonLabel,
+                        onPhoto: {
+                            Analytics.shared.capture(event: "fuel_meal_photo_entry_tapped")
+                            isMealPhotoSheetPresented = true
+                        },
                         trailingSystemImage: "barcode.viewfinder",
                         trailingLabel: Copy.fuel.barcodeScanButtonLabel,
                         onTrailing: {
@@ -1312,6 +1329,9 @@ private struct FuelQuickAddRow: View {
     let presetAccessibilityLabel: (Int) -> String
     let onPreset: (Int) -> Void
     let onCustom: () -> Void
+    /// Protein only: the meal-photo camera button, placed just before the barcode button.
+    var photoLabel: String? = nil
+    var onPhoto: (() -> Void)? = nil
     var trailingSystemImage: String? = nil
     var trailingLabel: String? = nil
     var onTrailing: (() -> Void)? = nil
@@ -1362,6 +1382,10 @@ private struct FuelQuickAddRow: View {
     @ViewBuilder
     private var iconButtons: some View {
         FuelIconButton(systemImage: "plus", accessibilityLabel: customLabel, action: onCustom)
+
+        if let photoLabel, let onPhoto {
+            FuelIconButton(systemImage: "camera", accessibilityLabel: photoLabel, action: onPhoto)
+        }
 
         if let trailingSystemImage, let trailingLabel, let onTrailing {
             FuelIconButton(systemImage: trailingSystemImage, accessibilityLabel: trailingLabel, action: onTrailing)

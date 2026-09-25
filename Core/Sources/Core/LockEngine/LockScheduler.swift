@@ -419,6 +419,8 @@ public enum ScheduledLockMonitor {
     public static func intervalDidStart(for activity: DeviceActivityName, now: Date = .now) {
         let raw = activity.rawValue
         defer { LockEngineSharedState.refreshNextScheduledLockAt(now: now) }
+        // Spec §24: no scheduled or bedtime lock starts during a health pause.
+        guard !HealthPause.isActive else { return }
 
         if raw == DeviceActivityName.zanoBedtimeGate.rawValue {
             // The Bedtime Gate arms the user's default set now; the app's reconcile hands off to
@@ -643,6 +645,9 @@ public final class LockScheduler {
 
     private func convert(_ pending: PendingScheduledLock, now: Date) async {
         let engine = LockEngineManager.shared
+        // A pause started after the monitor shielded: drop the hand-off; the orphan check that
+        // follows in `reconcile` lifts the shield.
+        guard !HealthPause.isActive else { return }
         switch pending.source {
         case .bedtime:
             do {

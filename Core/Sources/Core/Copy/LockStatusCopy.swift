@@ -107,6 +107,15 @@ extension Copy {
 
         public static let timeBankExpiryNote = "Unused minutes expire at midnight."
 
+        // Time Bank spending (spec §5.2) — for the Lock tab's spend control.
+        public static func spendButtonLabel(minutes: Int) -> String { "Spend \(minutes) min" }
+        public static func spendUnlockedUntil(_ time: String) -> String { "Apps open until \(time)" }
+        public static func spendNotEnough(remaining: Int) -> String {
+            remaining == 0 ? "Your bank is empty. Do a goal to earn minutes." : "Only \(remaining) min in your bank."
+        }
+        public static let spendFullLockNote = "This is a full lock. Minutes can't open it."
+        public static let spendFailed = "Couldn't open your apps. Try again."
+
         /// `"72/150g"`, `"25/50 min"`. Same shape as Today's ring value.
         public static func goalValue(current: Int, target: Int, unit: String) -> String {
             Copy.today.progressValue(current: current, target: target, unit: unit)

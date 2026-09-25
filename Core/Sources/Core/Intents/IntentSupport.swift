@@ -199,6 +199,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
     case manual
     case siri
     case barcode
+    case photo
 
     public static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(name: "Log Source")
@@ -210,6 +211,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
         .manual: DisplayRepresentation(title: "Manual"),
         .siri: DisplayRepresentation(title: "Siri"),
         .barcode: DisplayRepresentation(title: "Barcode"),
+        .photo: DisplayRepresentation(title: "Meal photo"),
     ]
 
     /// Converts to the `Models/GoalEvent.swift` enum actually stored on `GoalEvent.source`.
@@ -220,6 +222,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
         case .manual: .manual
         case .siri: .siri
         case .barcode: .barcode
+        case .photo: .photo
         }
     }
 }

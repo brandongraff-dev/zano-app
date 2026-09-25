@@ -208,6 +208,7 @@ extension Copy.fuel {
             "Your next meal prep counts from \(nextDay)."
         }
         public static let mealPrepFailedMessage = "Couldn't log meal prep. Try again."
+        public static let mealPrepOfflineMessage = "You're offline. Try again once you're back online."
         public static let mealPrepNotFoundMessage = "This meal prep goal isn't set up anymore."
         public static let doneButton = "Done"
     }

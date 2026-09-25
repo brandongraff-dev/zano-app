@@ -59,6 +59,9 @@ enum AppDeepLink: Equatable, Sendable {
     /// `handleNotificationTap(deepLink:isSunriseAlarm:onboardingDrip:)` builds it, for the
     /// post-onboarding drip pushes whose setup step is on that tab.
     case settings
+    /// `zano://gym` — the Settings tab with Gym setup pushed (Wave 1A). For links from gym
+    /// notifications, onboarding drips, Today's "set up your gym", etc.
+    case gymSetup
     /// `zano://tag/<uuid>` — dispatched to `NFCTagMapper`. `url` is kept so the mapper re-parses
     /// the exact URL it was given rather than one rebuilt from `id`.
     case tag(id: UUID, url: URL)
@@ -81,6 +84,7 @@ enum AppDeepLink: Equatable, Sendable {
         case "today", "focus": self = .today
         case "goals": self = .goals
         case "emergency": self = .emergency
+        case "gym": self = .gymSetup
         default: return nil
         }
     }
@@ -147,12 +151,14 @@ final class AppRouter {
     /// `nil` otherwise — a deep link that can be applied immediately is never parked here.
     private(set) var pendingDeepLink: AppDeepLink?
 
-    /// Set when `zano://tag/<uuid>` named a tag that has no saved mapping yet. The one-screen tag
-    /// mapping flow lives in Settings (`SettingsView`'s `MapTagSheet`), so the router selects the
-    /// Settings tab and parks the id here for that screen to pick up via `consumeUnmappedTagID()`.
-    /// Nothing reads it yet — `SettingsView.swift` isn't this task's file (see this task's
-    /// `knownIssues`).
+    /// Set when `zano://tag/<uuid>` named a tag that has no saved mapping yet. `ContentView`'s
+    /// `MainTabView` presents `UnmappedTagView` over whatever tab is on screen while this is set,
+    /// and clears it with `consumeUnmappedTagID()` when that sheet closes.
     private(set) var pendingUnmappedTagID: UUID?
+
+    /// Drives `SettingsView`'s `.navigationDestination(isPresented:)` for `GymSetupView`. Set by
+    /// `openGymSetup()`; SwiftUI sets it back to `false` when the pushed screen is popped.
+    var isGymSetupPresented = false
 
     /// The celebration currently queued/presented at the root. `ContentView` binds a
     /// `.fullScreenCover(item:)` to this and holds it back while the alarm is ringing.
@@ -230,7 +236,7 @@ final class AppRouter {
                 // No tag can be mapped before onboarding finishes, and replaying a tap's action
                 // minutes later would surprise the person — drop it.
                 logger.notice("Dropping a tag link received before onboarding finished.")
-            case .today, .goals, .emergency, .settings:
+            case .today, .goals, .emergency, .settings, .gymSetup:
                 pendingDeepLink = link
             }
             return
@@ -249,8 +255,10 @@ final class AppRouter {
         }
         if let onboardingDrip, let condition = OnboardingDripCondition(rawValue: onboardingDrip) {
             switch condition {
-            case .gymSaved, .nfcTagCreated:
-                // Gym confirmation and NFC tag mapping are both Settings flows.
+            case .gymSaved:
+                // Straight to Gym setup (Wave 1A), not just the tab it lives on.
+                handle(.gymSetup)
+            case .nfcTagCreated:
                 handle(.settings)
             case .widgetAdded, .firstSquadInvite:
                 // Widgets are added from the Home Screen and there is no Squad screen yet (spec §15
@@ -271,6 +279,8 @@ final class AppRouter {
             selectedTab = .lock
         case .settings:
             selectedTab = .settings
+        case .gymSetup:
+            openGymSetup()
         case .tag(let id, let url):
             Task { await performTagDispatch(id: id, url: url) }
         }
@@ -280,23 +290,21 @@ final class AppRouter {
     /// `SettingsView` do for an in-app scan.
     private func performTagDispatch(id: UUID, url: URL) async {
         do {
-            let outcome = try await NFCTagMapper.shared.handleScannedURL(url)
-            switch outcome {
-            case .handled(let action, let tagID):
+            switch try await NFCTagMapper.shared.handleTap(url) {
+            case .handled(let mapping, let effect):
                 Analytics.shared.capture(event: "nfc_tag_url_handled", properties: ["outcome": "handled"])
-                // `NFCTagAction` is deliberately not `Equatable`, so pattern-match.
-                if case .sunriseKey = action {
-                    await finishSunriseAlarmIfRinging(tagID: tagID)
-                }
+                TagTapFeedback.shared.show(effect: effect)
+                if case .sunriseKey = effect { await finishSunriseAlarmIfRinging(tagID: mapping.id) }
+                if case .lockStatus = effect { selectedTab = .lock }
             case .unmapped(let tagID):
-                // First tap of an unmapped tag is the expected setup path, not a failure
-                // (`NFCTagDispatchOutcome.unmapped`'s own doc comment): send them to Settings.
+                // First tap of an unmapped tag is the expected setup path, not a failure:
+                // `ContentView` presents `UnmappedTagView` for it (Wave 1B).
                 Analytics.shared.capture(event: "nfc_tag_url_handled", properties: ["outcome": "unmapped"])
                 pendingUnmappedTagID = tagID
-                selectedTab = .settings
             }
         } catch {
             logger.error("Tag dispatch failed for \(id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)")
+            TagTapFeedback.shared.showFailure(error)
         }
     }
 
@@ -316,7 +324,14 @@ final class AppRouter {
         }
     }
 
-    /// Returns and clears `pendingUnmappedTagID`. For the (future) Settings hook noted above.
+    /// Selects Settings and pushes Gym setup (`zano://gym`, the `gymSaved` drip, or any screen that
+    /// wants to send someone to set up their gym without owning a navigation stack).
+    func openGymSetup() {
+        selectedTab = .settings
+        isGymSetupPresented = true
+    }
+
+    /// Returns and clears `pendingUnmappedTagID` (the unmapped-tag sheet's dismissal).
     func consumeUnmappedTagID() -> UUID? {
         defer { pendingUnmappedTagID = nil }
         return pendingUnmappedTagID

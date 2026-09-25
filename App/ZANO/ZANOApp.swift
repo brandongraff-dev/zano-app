@@ -80,6 +80,11 @@ struct ZANOApp: App {
         // no watch support; returns immediately (the work runs on the main actor afterwards).
         WatchSyncManager.shared.activate()
 
+        // Re-open the gym geofence monitor at launch (Wave 1A). Must run before the first frame:
+        // when iOS relaunches the app in the background for a gym arrival/exit, CLMonitor only
+        // delivers that event to a monitor re-created (same name) early in launch.
+        GymPresenceService.shared.start()
+
         // CI screenshot gallery (ScreenshotGallery.swift). DEBUG builds only, and inert unless
         // `-ZANOScreen <name>` is passed, which no user launch ever does.
         #if DEBUG

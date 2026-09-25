@@ -363,7 +363,8 @@ struct AddGymSheet: View {
         let activeFetcher = fetcher ?? GymOneShotLocationFetcher()
         fetcher = activeFetcher
         do {
-            place(try await activeFetcher.fetch())
+            let located = try await activeFetcher.fetch()
+            place(located)
         } catch {
             locationErrorMessage = Copy.gym.locationFailedMessage
         }

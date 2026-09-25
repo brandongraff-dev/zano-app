@@ -27,7 +27,7 @@ struct ZANOGymDwellLiveActivity: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.state.elapsedMinutes)m")
+                    GymDwellClock(state: context.state)
                         .font(.title3.weight(.bold))
                         .foregroundStyle(ZANOWidgetColor.ringWorkout)
                 }
@@ -53,7 +53,7 @@ struct ZANOGymDwellLiveActivity: Widget {
                 // A long gym visit can run past 2 digits, and this compact region is only
                 // comfortably wide enough for ~3 characters. See
                 // `docs/design/ui-stress-test-findings.md` §3.7.
-                Text("\(context.state.elapsedMinutes)m")
+                GymDwellClock(state: context.state)
                     .foregroundStyle(ZANOWidgetColor.ringWorkout)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
@@ -97,5 +97,21 @@ private struct ZANOGymDwellLockScreenView: View {
             .tint(ZANOWidgetColor.ringWorkout)
         }
         .padding()
+    }
+}
+
+
+/// The dwell minutes. When the arrival time is known it's a live system timer, so it keeps
+/// counting on the Lock Screen while the app is suspended and can't push new minute counts.
+private struct GymDwellClock: View {
+    let state: GymDwellActivityAttributes.ContentState
+
+    var body: some View {
+        if let enteredAt = state.enteredAt {
+            Text(enteredAt, style: .timer)
+                .monospacedDigit()
+        } else {
+            Text("\(state.elapsedMinutes)m")
+        }
     }
 }

@@ -30,22 +30,7 @@ extension Copy {
         // MARK: - Gym Setup (spec §3, §9.4)
 
         public static let gymSetupRowLabel = "Gym setup"
-        public static let gymSetupTitle = "Gym setup"
-        public static let gymEmptyTitle = "No gyms saved yet"
-        public static let gymEmptyMessage = "Add your gym so workouts can verify automatically."
-        public static let gymAddButtonLabel = "Add a gym"
-        public static let gymAddSheetTitle = "Add a gym"
-        public static let gymNameFieldLabel = "Name"
-        public static let gymNameFieldPlaceholder = "e.g. Downtown Fitness"
-        public static func gymRadiusFieldLabel(meters: Int) -> String { "Radius: \(meters)m" }
-        public static let gymLocateButtonLabel = "Use current location"
-        public static let gymLocatingLabel = "Locating…"
-        public static let gymLocationFailedMessage = "Couldn't get your location. Check Location Services in the iPhone Settings app."
-        public static let gymUnnamedLabel = "Unnamed gym"
-        public static let gymConfirmedLabel = "Confirmed"
-        public static let gymUnconfirmedLabel = "Not confirmed yet"
-        public static let gymConfirmButtonLabel = "Confirm"
-        public static let gymAutoDetectedLabel = "Auto-detected"
+        // The rest of the gym strings moved to `Copy.gym` (GymCopy.swift) with the screens.
 
         // MARK: - NFC Tag Setup (spec §6, §25.1)
 
@@ -159,8 +144,6 @@ extension Copy {
 
         // MARK: - Confirmations
 
-        public static func gymDeleteConfirmTitle(name: String) -> String { "Delete \(name)?" }
-        public static let gymDeleteConfirmMessage = "Workouts here won't verify automatically anymore."
         public static func nfcRemoveConfirmTitle(label: String) -> String { "Remove \(label)?" }
         public static let nfcRemoveConfirmMessage = "Tapping this tag won't do anything until you add it again."
         public static let nfcScanFailedMessage = "Hold the top of your iPhone near the tag and try again."

@@ -112,6 +112,7 @@ extension Copy {
         }
         public static func toastFocusStarted(minutes: Int) -> String { "\(minutes)-min focus started" }
         public static let toastGymCheckIn = "Checked in. Gym clock running."
+        public static let toastGymCheckInArmed = "Got it. Your gym clock starts when you arrive."
         public static func toastCustomGoal(title: String) -> String { "\(title) logged" }
         public static let toastTapFailed = "That tag didn't go through. Open ZANO and try again."
         public static let toastNoConfirmedGym = "No confirmed gym yet. Add one in Settings."

@@ -62,9 +62,9 @@ public final class GymPresenceService {
     private static let arrivalNotificationPrefix = "zano.gym.arrival."
     private static let targetNotificationPrefix = "zano.gym.target."
 
-    init(verifier: GymVerifier = .shared, activities: GymDwellActivityManager = .shared) {
-        self.verifier = verifier
-        self.activities = activities
+    init() {
+        verifier = .shared
+        activities = .shared
     }
 
     // MARK: Lifecycle
@@ -147,6 +147,11 @@ public final class GymPresenceService {
         switch event {
         case .entered(let gymID):
             await refresh()
+            // A second visit after today's workout already counted: no Live Activity or nudges.
+            if isGymGoalCompleteToday() {
+                userStartedGymIDs.remove(gymID)
+                return
+            }
             let startedByUser = userStartedGymIDs.remove(gymID) != nil
             let started = await startLiveActivity(for: gymID)
             if !started, !startedByUser {
@@ -298,6 +303,19 @@ public final class GymPresenceService {
         let context = ModelContext(ModelContainer.appGroup)
         let gyms = (try? context.fetch(FetchDescriptor<Gym>(predicate: #Predicate { $0.confirmed }))) ?? []
         return gyms.map { GymSummary(id: $0.id, name: $0.name) }
+    }
+
+    private func isGymGoalCompleteToday() -> Bool {
+        let context = ModelContext(ModelContainer.appGroup)
+        let goals = (try? context.fetch(FetchDescriptor<Goal>(predicate: #Predicate { $0.active }))) ?? []
+        guard let goalID = goals.filter({ $0.type == .workoutGym }).max(by: { $0.createdAt < $1.createdAt })?.id else {
+            return false
+        }
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        let events = (try? context.fetch(FetchDescriptor<GoalEvent>(
+            predicate: #Predicate<GoalEvent> { $0.ts >= startOfDay }
+        ))) ?? []
+        return events.contains { $0.goal?.id == goalID && $0.kind == .complete && $0.verified }
     }
 
     private func gymName(for gymID: UUID) -> String {

@@ -158,6 +158,7 @@ extension NFCTagTapEffect {
         case .lockStatus(let remaining): Copy.nfc.toastLockStatus(goalsRemaining: remaining)
         case .focusStarted(let minutes): Copy.nfc.toastFocusStarted(minutes: minutes)
         case .gymCheckInStarted: Copy.nfc.toastGymCheckIn
+        case .gymCheckInArmed: Copy.nfc.toastGymCheckInArmed
         case .loggedCustomGoal(let title): Copy.nfc.toastCustomGoal(title: title)
         }
     }
@@ -171,6 +172,7 @@ extension NFCTagTapEffect {
         case .lockStarted, .lockStatus: "lock.fill"
         case .focusStarted: "timer"
         case .gymCheckInStarted: "dumbbell.fill"
+        case .gymCheckInArmed: "location.fill"
         case .loggedCustomGoal: "checkmark.circle.fill"
         }
     }

@@ -184,6 +184,8 @@ public enum NFCTagTapEffect: Sendable, Equatable {
     case lockStatus(goalsRemaining: Int)
     case focusStarted(minutes: Int)
     case gymCheckInStarted
+    /// Not at the gym yet: the geofence is armed and the clock starts on arrival.
+    case gymCheckInArmed
     case loggedCustomGoal(title: String)
 }
 
@@ -421,14 +423,18 @@ public actor NFCTagMapper {
             guard let gymID = try await Self.confirmedGymID() else {
                 throw NFCTagMapperError.noConfirmedGym
             }
-            await GymVerifier.shared.beginDwellTracking(gymID: gymID)
-            return .gymCheckInStarted
+            // The clock only runs inside the geofence: a bag tag tapped at home arms the monitor
+            // and the timer starts on arrival, instead of counting home time as gym time.
+            switch await GymVerifier.shared.startCheckIn(gymID: gymID) {
+            case .started, .alreadyRunning: return .gymCheckInStarted
+            default: return .gymCheckInArmed
+            }
 
         case .logCustomGoal(let goalID):
             guard let goal = try await GoalQuery().entities(for: [goalID]).first else {
                 throw ZanoIntentError.goalNotFound
             }
-            let intent = LogCustomGoalIntent(goal: goal)
+            let intent = LogCustomGoalIntent(goal: goal, source: .nfc)
             _ = try await intent.perform()
             return .loggedCustomGoal(title: goal.title)
 

@@ -81,6 +81,8 @@ struct ContentView: View {
             guard let sessionID else { return }
             router.handleUnlock(sessionID: sessionID)
         }
+        // Tag-tap confirmations ("+25 g protein logged") over every screen (Wave 1B).
+        .zanoTagTapToast()
     }
 
     // MARK: - Foreground checks
@@ -147,7 +149,7 @@ private struct MainTabView: View {
             TodayView(
                 onOpenFuel: { appRouter.selectedTab = .fuel },
                 onFinishSetup: { showGoalsEditor = true },
-                onOpenGymSetup: { appRouter.selectedTab = .settings }
+                onOpenGymSetup: { appRouter.openGymSetup() }
             )
             .zanoTabContent()
             .tag(AppTab.today)
@@ -208,6 +210,14 @@ private struct MainTabView: View {
                 timeBankTotalMinutes: content.timeBankTotalMinutes
             )
             .preferredColorScheme(.dark)
+        }
+        // A tapped tag with no mapping yet: map it right here, over whatever tab is showing
+        // (Wave 1B). Held back while the alarm rings, like the celebration above.
+        .sheet(item: Binding(
+            get: { isAlarmRinging ? nil : appRouter.pendingUnmappedTagID.map { UnmappedTagPrompt(tagID: $0) } },
+            set: { if $0 == nil { _ = appRouter.consumeUnmappedTagID() } }
+        )) { prompt in
+            UnmappedTagView(tagID: prompt.tagID) { _ in _ = appRouter.consumeUnmappedTagID() }
         }
     }
 }

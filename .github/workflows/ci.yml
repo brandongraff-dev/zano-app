@@ -201,6 +201,18 @@ jobs:
             echo "--- total 'error:' lines: $(grep -cE 'error:' "$f")  unique: $(grep -E 'error:' "$f" | sort -u | wc -l)"
           done
 
+      # The screenshot tour can't see a crash (it just captures the home screen), so fail the run
+      # when the app left crash reports, and print the reason for each.
+      - name: Fail on app crashes during the screenshot tour
+        run: |
+          shopt -s nullglob
+          reports=(shots/ZANO*.ips)
+          if [ ${#reports[@]} -gt 0 ]; then
+            echo "::error::ZANO crashed ${#reports[@]} time(s) during the screenshot tour"
+            grep -h "Terminating app due to\|Fatal error" shots/app.log | sort -u | head -20 || true
+            exit 1
+          fi
+
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4

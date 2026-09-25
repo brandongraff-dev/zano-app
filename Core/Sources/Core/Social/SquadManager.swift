@@ -84,6 +84,9 @@ public enum SquadManagerError: Error, Sendable, LocalizedError {
     /// (that cap belongs to `NudgeSender`, which this file deliberately does not call — see
     /// `sendNudge`'s doc comment).
     case nudgeCooldownActive(retryAfter: TimeInterval)
+    /// This device already sent `cap` squad nudges to this recipient today (spec §8 rule 7's
+    /// "max 2/day", applied per recipient to squad nudges — see `dailyNudgeCapPerMember`).
+    case dailyNudgeCapReached(cap: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -109,6 +112,8 @@ public enum SquadManagerError: Error, Sendable, LocalizedError {
             "\(userID) is not a member of squad \(squadID) and cannot be nudged there."
         case .cannotNudgeSelf:
             "Cannot nudge yourself."
+        case .dailyNudgeCapReached(let cap):
+            return "Already sent \(cap) squad nudges to this member today."
         case .nudgeCooldownActive(let retryAfter):
             "Already nudged this person recently — try again in \(Int(retryAfter))s."
         }
@@ -293,6 +298,12 @@ public actor SquadManager {
     /// for a squad nudge — see `sendNudge`'s doc comment for why).
     public static let nudgeCooldown: TimeInterval = 15 * 60
 
+    /// docs/spec.md §8 rule 7 ("Max 2 proactive pushes/day") applied to squad nudges, per
+    /// recipient: one member can land at most this many nudges on another per local day. Same
+    /// value as `NudgeSender.dailyCap` (not read from it: that constant lives on a `@MainActor`
+    /// type and counts the signed-in user's *own* received pushes, which is a different ledger).
+    public static let dailyNudgeCapPerMember = 2
+
     private let modelContainer: ModelContainer
     private let context: ModelContext
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "SquadManager")
@@ -335,6 +346,43 @@ public actor SquadManager {
     /// Swaps in a real `SquadDirectory` once a backend/Sync session builds one.
     public func configureDirectory(_ directory: SquadDirectory) {
         self.directory = directory
+    }
+
+    // MARK: - Backend status (for the Squad UI's honest offline states)
+
+    /// `true` once a real `SquadDirectory` has been configured (anything other than
+    /// `LocalOnlySquadDirectory`), i.e. invite codes from other people's devices can resolve.
+    public var isBackendConnected: Bool {
+        !(directory is LocalOnlySquadDirectory)
+    }
+
+    /// `true` once a `SquadRingSource` is configured, i.e. squadmates' rings can be shown.
+    public var hasLiveSquadmateRings: Bool {
+        ringSource != nil
+    }
+
+    /// The signed-in user's id, or `nil` before onboarding has created the local `User` row.
+    public func currentUserID() -> UUID? {
+        try? fetchCurrentUser().id
+    }
+
+    /// How many more squad nudges this device may send `recipientID` on `date`'s local day
+    /// (`dailyNudgeCapPerMember` minus the `Nudge` rows already written for them that day). Squad
+    /// nudges are the only `Nudge` rows this device ever writes for someone else's user id (see
+    /// `sendNudge`), so counting by recipient is exact.
+    public func nudgesRemainingToday(to recipientID: UUID, on date: Date = .now) -> Int {
+        let sent = (try? squadNudgesSent(to: recipientID, on: date)) ?? 0
+        return max(0, Self.dailyNudgeCapPerMember - sent)
+    }
+
+    private func squadNudgesSent(to recipientID: UUID, on date: Date) throws -> Int {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return 0 }
+        let rows = try context.fetch(
+            FetchDescriptor<Nudge>(predicate: #Predicate<Nudge> { $0.ts >= dayStart && $0.ts < dayEnd })
+        )
+        return rows.filter { $0.userID == recipientID }.count
     }
 
     // MARK: - Create / Join / Leave
@@ -601,6 +649,10 @@ public actor SquadManager {
         }
         guard try fetchMembership(squadID: squadID, userID: recipientID) != nil else {
             throw SquadManagerError.recipientNotAMember(squadID: squadID, userID: recipientID)
+        }
+
+        if try squadNudgesSent(to: recipientID, on: date) >= Self.dailyNudgeCapPerMember {
+            throw SquadManagerError.dailyNudgeCapReached(cap: Self.dailyNudgeCapPerMember)
         }
 
         let key = NudgePairKey(squadID: squadID, senderID: senderID, recipientID: recipientID)

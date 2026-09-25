@@ -3,13 +3,18 @@ import Core
 
 // The floating glass tab bar (founder's reference, 2026-09-24): one dark glass capsule floating
 // above the content, thin outline icons with small labels, and the selected tab lit by a soft
-// circle of light that glides between tabs. It replaces the system tab bar (hidden in
-// `MainTabView`), which can't be restyled this far. `TabView` still owns tab state, so each tab
+// circle of light that glides between tabs. It is the only tab bar: `MainTabView` keeps its
+// own kept-alive tab container (a system `TabView` would fold six tabs into "More"), so each tab
 // keeps its navigation stack and scroll position.
 //
 // Accessibility: the bar is one container ("zano.tabBar") of buttons named by their tab titles,
 // the selected one carrying `.isSelected`, which is what the UI tests query. The labels are a fixed
-// 11pt (the bar can't grow), so each item offers the Large Content Viewer instead. Selection is
+// 10pt (the bar can't grow), so each item offers the Large Content Viewer instead.
+//
+// Six items (Squad added, Wave 3I) on the narrowest phone: iPhone SE is 320pt wide, minus the
+// 16pt gutters `MainTabView` pads the bar with and this bar's 4pt inner padding leaves 280pt, so
+// each item gets ~46.6pt. The 40pt glow disc fits; the longest labels ("Progress", "Settings") are
+// ~44pt at 10pt semibold and may shrink to 75% before truncating. Selection is
 // color and glow only, at one font weight, so the labels never change width.
 //
 // `.isTabBar` is not added to the container: its SwiftUI availability on the iOS 17 target is
@@ -41,6 +46,7 @@ struct ZanoTabBar: View {
         Item(tab: .today, title: Copy.today.screenTitle, symbol: "scope"),
         Item(tab: .lock, title: Copy.lockStatus.screenTitle, symbol: "lock"),
         Item(tab: .fuel, title: Copy.fuel.screenTitle, symbol: "fork.knife"),
+        Item(tab: .squad, title: Copy.squad.screenTitle, symbol: "person.2"),
         Item(tab: .progress, title: Copy.progress.screenTitle, symbol: "chart.line.uptrend.xyaxis"),
         Item(tab: .settings, title: Copy.settings.screenTitle, symbol: "gearshape"),
     ]
@@ -51,7 +57,7 @@ struct ZanoTabBar: View {
                 button(for: item)
             }
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 4)
         .frame(height: Self.height)
         .background(glass)
         .shadow(color: Theme.Colors.background.opacity(0.55), radius: 24, y: 12)
@@ -101,10 +107,10 @@ struct ZanoTabBar: View {
                 }
                 .frame(width: 40, height: 34)
                 Text(item.title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())

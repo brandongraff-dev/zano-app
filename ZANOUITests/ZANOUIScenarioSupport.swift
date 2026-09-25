@@ -46,9 +46,10 @@
 //  1. The app shell is wired: a fresh launch shows `OnboardingContainerView` (progress label
 //     "Step 1 of 15"), and a launch after onboarding shows a tab bar with a "Today" tab.
 //     `App/ZANO/ContentView.swift` now does this (gates on `AppRouter.hasCompletedOnboarding`,
-//     persisted in `UserDefaults.standard`, then hosts a five-tab `TabView`: Today / Lock / Fuel /
-//     Progress / Settings). NOT run yet -- if a first Mac run finds neither, `detectLaunchState`
-//     reports `.unknown` and the tests fail with an explicit message plus the view hierarchy.
+//     persisted in `UserDefaults.standard`, then hosts a six-tab `TabView`: Today / Lock / Fuel /
+//     Squad / Progress / Settings, driven by the custom `ZanoTabBar`). NOT run yet -- if a first
+//     Mac run finds neither, `detectLaunchState` reports `.unknown` and the tests fail with an
+//     explicit message plus the view hierarchy.
 //  2. Physical device with FamilyControls (spec §27, docs/setup/windows-workflow.md: none of it
 //     works in the Simulator), the Family Controls (Development) capability, and Screen Time
 //     access ALREADY APPROVED for ZANO (approve once by hand: the system authorization prompt
@@ -135,6 +136,8 @@ enum ZANOUILabel {
         static let lockTab = "Lock"
         /// Copy.settings.screenTitle.
         static let settingsTab = "Settings"
+        /// Copy.squad.screenTitle (Wave 3I).
+        static let squadTab = "Squad"
     }
 
     enum Today {

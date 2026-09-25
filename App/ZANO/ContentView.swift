@@ -8,7 +8,7 @@
 //      the five-tab UI. The container already exposes the completion signal
 //      (`OnboardingContainerView.onFinished`, fired once by `Screen14FirstWin`), so no hook had to
 //      be added to it.
-//   2. Tabs — Today / Lock / Fuel / Progress / Settings (docs/spec.md §15). Titles reuse each
+//   2. Tabs — Today / Lock / Fuel / Squad / Progress / Settings (docs/spec.md §15). Titles reuse each
 //      screen's existing `Copy.<area>.screenTitle`; no new copy. Today's `onOpenFuel` hook is wired
 //      to the Fuel tab here (see `MainTabView`).
 //   3. Alarm ringing — a full-screen cover for `AlarmRingingView`, presented whenever
@@ -130,7 +130,7 @@ struct ContentView: View {
 
 // MARK: - Tabs
 
-/// The five-tab shell. Split out of `ContentView` so the unlock-celebration cover lives on the tab
+/// The six-tab shell. Split out of `ContentView` so the unlock-celebration cover lives on the tab
 /// UI only — it can never present over onboarding, which runs its own first-win celebration.
 private struct MainTabView: View {
     @Environment(AppRouter.self) private var router
@@ -150,44 +150,31 @@ private struct MainTabView: View {
         let appRouter = router
         let celebration = appRouter.unlockCelebration
 
-        TabView(selection: $selection) {
-            // `TodayView` owns its `NavigationStack` (it pushes `LockStatusView` itself), so it is
-            // the one tab not wrapped here. `onOpenFuel` is the tab-switch hook its header asks the
-            // shell to inject: without it, the "log the rest on Fuel" state (protein/water goals
-            // left, nothing else Today can drive) degrades to a read-only status row with no way
-            // to get to Fuel from the very screen that says to go there.
-            //
-            // `onFinishSetup` opens the goals editor (a sheet, below); `onOpenGymSetup` lands on
-            // Settings, where the gym setup row lives (its detail view is private to Settings).
-            TodayView(
-                onOpenFuel: { appRouter.selectedTab = .fuel },
-                onFinishSetup: { showGoalsEditor = true },
-                onOpenGymSetup: { appRouter.openGymSetup() }
-            )
-            .zanoTabContent()
-            .tag(AppTab.today)
-
-            // The other four use `.navigationTitle` but carry no stack of their own
-            // (`LockStatusView`'s header says so explicitly; `FuelView`/`ProgressView`/
-            // `SettingsView` only set titles), so each tab supplies one.
-            NavigationStack { LockStatusView(onGoToToday: { appRouter.selectedTab = .today }) }
-                .zanoTabContent()
-                .tag(AppTab.lock)
-
-            NavigationStack { FuelView() }
-                .zanoTabContent()
-                .tag(AppTab.fuel)
-
-            NavigationStack { ProgressView() }
-                .zanoTabContent()
-                .tag(AppTab.progress)
-
-            NavigationStack { SettingsView() }
-                .zanoTabContent()
-                .tag(AppTab.settings)
+        // Six tabs: a system `TabView` would fold tabs 5+ under UIKit's "More" controller on iPhone
+        // (it does even with its bar hidden), so the shell keeps its own container instead. Every
+        // tab is built once and kept alive (navigation stacks and scroll positions survive a
+        // switch); only the selected one is visible, hit-testable and in the accessibility tree.
+        ZStack {
+            tab(.today) {
+                // `TodayView` owns its `NavigationStack` (it pushes `LockStatusView` itself), so it
+                // is the one tab not wrapped here. `onOpenFuel` is the tab-switch hook its header
+                // asks the shell to inject; `onFinishSetup` opens the goals editor (a sheet, below).
+                TodayView(
+                    onOpenFuel: { appRouter.selectedTab = .fuel },
+                    onFinishSetup: { showGoalsEditor = true },
+                    onOpenGymSetup: { appRouter.openGymSetup() }
+                )
+            }
+            // The others set `.navigationTitle` but carry no stack of their own, so each tab
+            // supplies one.
+            tab(.lock) { NavigationStack { LockStatusView(onGoToToday: { appRouter.selectedTab = .today }) } }
+            tab(.fuel) { NavigationStack { FuelView() } }
+            tab(.squad) { NavigationStack { SquadHomeView() } }
+            tab(.progress) { NavigationStack { ProgressView() } }
+            tab(.settings) { NavigationStack { SettingsView() } }
         }
         .tint(Theme.Colors.interactive)
-        // The floating glass bar replaces the system tab bar (hidden per tab by `zanoTabContent`).
+        // The floating glass bar is the only tab bar.
         // It stays put when the keyboard opens rather than riding up on it.
         .overlay(alignment: .bottom) {
             ZanoTabBar(selection: $selection, isLockActive: lockSessions.contains(where: \.isActive))
@@ -235,12 +222,34 @@ private struct MainTabView: View {
     }
 }
 
+
+extension MainTabView {
+    /// One kept-alive tab: visible and interactive only while selected. `zanoTabIsSelected` lets a
+    /// tab hold back its own full-screen presentations while hidden (the router presents those
+    /// over other tabs).
+    @ViewBuilder
+    fileprivate func tab<Content: View>(_ id: AppTab, @ViewBuilder content: () -> Content) -> some View {
+        let isSelected = selection == id
+        content()
+            .zanoTabContent()
+            .environment(\.zanoTabIsSelected, isSelected)
+            .opacity(isSelected ? 1 : 0)
+            .allowsHitTesting(isSelected)
+            .accessibilityHidden(!isSelected)
+            .zIndex(isSelected ? 1 : 0)
+    }
+}
+
+extension EnvironmentValues {
+    /// Whether the tab containing this view is the one on screen (`MainTabView`).
+    @Entry var zanoTabIsSelected: Bool = true
+}
+
 private extension View {
-    /// A tab's root: the system tab bar hidden, and room at the bottom for the floating one so the
+    /// A tab's root: room at the bottom for the floating one so the
     /// last row and any bottom action bar sit above it (content still scrolls under the glass).
     func zanoTabContent() -> some View {
-        toolbar(.hidden, for: .tabBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+        safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: ZanoTabBar.reservedHeight)
             }
     }

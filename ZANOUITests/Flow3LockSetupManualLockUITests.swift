@@ -216,9 +216,9 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
 
     /// Gets to `LockSetupView` through the Settings tab's "Lock sets" row (`SettingsView.
     /// verificationSetupSection`), falling back to the Lock tab, and fails loudly if neither has it.
-    /// `ContentView.MainTabView` is a five-tab `TabView` (Today / Lock / Fuel / Progress / Settings),
-    /// which iPhone shows without a "More" tab; a sixth tab would fold Settings into "More" and this
-    /// lookup would need updating.
+    /// `ContentView.MainTabView` is a six-tab `TabView` (Today / Lock / Fuel / Squad / Progress /
+    /// Settings). The system tab bar is hidden and every tab is reached through `ZanoTabBar`'s own
+    /// buttons (`app.zanoTab(_:)`), so the system "More" overflow never appears in this lookup.
     @MainActor
     private func openLockSets(_ app: XCUIApplication) {
         let title = ZANOUILabel.LockSetup.screenTitle

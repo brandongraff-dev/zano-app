@@ -33,11 +33,12 @@ import Core
 
 // MARK: - Destinations
 
-/// The five tabs (docs/spec.md §15 screen list minus Squad, which has no built screen yet).
+/// The six tabs (docs/spec.md §15 screen list; Squad added in Wave 3I, spec §5.7).
 enum AppTab: Hashable, Sendable {
     case today
     case lock
     case fuel
+    case squad
     case progress
     case settings
 }
@@ -62,6 +63,9 @@ enum AppDeepLink: Equatable, Sendable {
     /// `zano://gym` — the Settings tab with Gym setup pushed (Wave 1A). For links from gym
     /// notifications, onboarding drips, Today's "set up your gym", etc.
     case gymSetup
+    /// `zano://squad` — the Squad tab; `zano://squad/join/<CODE>` also opens the join sheet with
+    /// the invite code filled in (the link `CreateJoinSquadSheet` shares, spec §5.7).
+    case squad(joinCode: String?)
     /// `zano://tag/<uuid>` — dispatched to `NFCTagMapper`. `url` is kept so the mapper re-parses
     /// the exact URL it was given rather than one rebuilt from `id`.
     case tag(id: UUID, url: URL)
@@ -85,6 +89,17 @@ enum AppDeepLink: Equatable, Sendable {
         case "goals": self = .goals
         case "emergency": self = .emergency
         case "gym": self = .gymSetup
+        case "squad":
+            // `zano://squad/join/CODE` → host "squad", path ["join", "CODE"];
+            // `zano:squad/join/CODE` → no host, path ["squad", "join", "CODE"].
+            var parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == nil, parts.first?.lowercased() == "squad" { parts.removeFirst() }
+            if parts.count >= 2, parts[0].lowercased() == "join" {
+                let code = parts[1].trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                self = .squad(joinCode: code.isEmpty ? nil : code)
+            } else {
+                self = .squad(joinCode: nil)
+            }
         default: return nil
         }
     }
@@ -139,7 +154,7 @@ final class AppRouter {
 
     // MARK: State
 
-    /// The tab on screen. `TabView(selection:)` binds straight to this (`ContentView`).
+    /// The tab on screen. `MainTabView` (`ContentView`) shows the tab this names.
     var selectedTab: AppTab = .today
 
     /// `true` once the person has finished (or, per the launch guard below, been carried past)
@@ -159,6 +174,10 @@ final class AppRouter {
     /// Drives `SettingsView`'s `.navigationDestination(isPresented:)` for `GymSetupView`. Set by
     /// `openGymSetup()`; SwiftUI sets it back to `false` when the pushed screen is popped.
     var isGymSetupPresented = false
+
+    /// An invite code from `zano://squad/join/<CODE>`, waiting for `SquadHomeView` to open its join
+    /// sheet with it. Cleared by `consumeSquadJoinCode()`.
+    private(set) var pendingSquadJoinCode: String?
 
     /// The celebration currently queued/presented at the root. `ContentView` binds a
     /// `.fullScreenCover(item:)` to this and holds it back while the alarm is ringing.
@@ -236,7 +255,7 @@ final class AppRouter {
                 // No tag can be mapped before onboarding finishes, and replaying a tap's action
                 // minutes later would surprise the person — drop it.
                 logger.notice("Dropping a tag link received before onboarding finished.")
-            case .today, .goals, .emergency, .settings, .gymSetup:
+            case .today, .goals, .emergency, .settings, .gymSetup, .squad:
                 pendingDeepLink = link
             }
             return
@@ -260,9 +279,11 @@ final class AppRouter {
                 handle(.gymSetup)
             case .nfcTagCreated:
                 handle(.settings)
-            case .widgetAdded, .firstSquadInvite:
-                // Widgets are added from the Home Screen and there is no Squad screen yet (spec §15
-                // lists it; none is built), so there is no better place than where the app opens.
+            case .firstSquadInvite:
+                handle(.squad(joinCode: nil))
+            case .widgetAdded:
+                // Widgets are added from the Home Screen, so there is no better place than where
+                // the app opens.
                 break
             }
         }
@@ -281,6 +302,9 @@ final class AppRouter {
             selectedTab = .settings
         case .gymSetup:
             openGymSetup()
+        case .squad(let joinCode):
+            selectedTab = .squad
+            if let joinCode { pendingSquadJoinCode = joinCode }
         case .tag(let id, let url):
             Task { await performTagDispatch(id: id, url: url) }
         }
@@ -329,6 +353,12 @@ final class AppRouter {
     func openGymSetup() {
         selectedTab = .settings
         isGymSetupPresented = true
+    }
+
+    /// Returns and clears `pendingSquadJoinCode` (the Squad tab picked it up).
+    func consumeSquadJoinCode() -> String? {
+        defer { pendingSquadJoinCode = nil }
+        return pendingSquadJoinCode
     }
 
     /// Returns and clears `pendingUnmappedTagID` (the unmapped-tag sheet's dismissal).

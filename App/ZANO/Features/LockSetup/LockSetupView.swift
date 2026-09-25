@@ -570,6 +570,10 @@ private struct LockSetEditorSheet: View {
     /// Set when the user closes the Always-Allowed banner in this sheet; paired with
     /// `AlwaysAllowedCheck.hasAcknowledgedWarning` (the cross-session "don't nag forever" flag).
     @State private var hasDismissedAlwaysAllowedWarning = false
+    /// Bumped whenever the sheet's root reappears (back from a rules screen) so the schedule/tier
+    /// summaries, read from App Group storage, re-render.
+    @State private var rulesRefresh = 0
+    @State private var didPopulate = false
 
     private var existingLockSet: LockSet? {
         if case .edit(let lockSet) = target {
@@ -604,6 +608,7 @@ private struct LockSetEditorSheet: View {
                     AppPickerView(selection: $selection)
 
                     rulesSection
+                        .id(rulesRefresh)
 
                     if shouldShowAlwaysAllowedWarning {
                         AlwaysAllowedWarningView(selection: selection) {
@@ -640,7 +645,14 @@ private struct LockSetEditorSheet: View {
                     .disabled(!canSave || isSaving)
                 }
             }
-            .onAppear(perform: populateFromExistingLockSet)
+            .onAppear {
+                // Also runs when coming back from a rules screen: refresh the summaries, but never
+                // re-populate over the user's unsaved name/app edits.
+                rulesRefresh += 1
+                guard !didPopulate else { return }
+                didPopulate = true
+                populateFromExistingLockSet()
+            }
             .alert(
                 errorAlert?.title ?? "",
                 isPresented: Binding(

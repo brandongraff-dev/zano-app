@@ -593,7 +593,7 @@ public final class LockScheduler {
     /// Persists `schedule` and (re)registers its DeviceActivity windows. If "now" is already inside
     /// a window, iOS may start the interval right away, which locks immediately — by design.
     public func save(_ schedule: LockSchedule, now: Date = .now) throws {
-        if let problem = schedule.validate() { throw LockSchedulerError.invalidSchedule(problem) }
+        if schedule.isEnabled, let problem = schedule.validate() { throw LockSchedulerError.invalidSchedule(problem) }
         LockEngineSharedState.upsert(schedule)
         defer { LockEngineSharedState.refreshNextScheduledLockAt(now: now) }
         try register(schedule)

@@ -57,7 +57,7 @@ struct MealEstimateConfirmView: View {
     /// Called once, after the log succeeded, with the grams logged.
     let onLogged: (Int) -> Void
 
-    static let maxGrams = 300
+    nonisolated static let maxGrams = 300
     static let quickSetGrams = [20, 30, 40, 50]
     static var photoSource: GoalLogSource { .photo }
 

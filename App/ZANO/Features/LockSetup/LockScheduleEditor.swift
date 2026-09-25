@@ -158,11 +158,11 @@ struct LockScheduleEditor: View {
         }
     }
 
-    static func time(minuteOfDay: Int) -> Date {
+    nonisolated static func time(minuteOfDay: Int) -> Date {
         Calendar.current.date(bySettingHour: minuteOfDay / 60, minute: minuteOfDay % 60, second: 0, of: .now) ?? .now
     }
 
-    static func minuteOfDay(_ date: Date) -> Int {
+    nonisolated static func minuteOfDay(_ date: Date) -> Int {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
         return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
     }

@@ -66,6 +66,7 @@ public struct QuickRepeatMealIntent: AppIntent {
         )
         context.insert(repeatedMeal)
 
+        var loggedProteinGoalID: UUID?
         if let proteinGrams = remembered.proteinG,
            let proteinGoal = try IntentSupport.activeGoal(ofType: .protein, for: user.id, in: context) {
             let event = GoalEvent(
@@ -78,9 +79,11 @@ public struct QuickRepeatMealIntent: AppIntent {
                 goal: proteinGoal
             )
             context.insert(event)
+            loggedProteinGoalID = proteinGoal.id
         }
 
         try context.save()
+        if let loggedProteinGoalID { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: loggedProteinGoalID) }
 
         // Instrumentation (spec §23: "Instrument from day one: ... every intent").
         Analytics.shared.capture(

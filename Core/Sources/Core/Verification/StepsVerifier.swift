@@ -257,6 +257,7 @@ actor StepsObserverState {
         }
 
         logCompletion(goal: goal, stepCount: stepCount, target: target)
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
         return true
     }
 

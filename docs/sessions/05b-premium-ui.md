@@ -5,7 +5,7 @@
 - **Plan:** `docs/design/premium-ui-plan.md`
 - **Status:** Compiles + tested in CI (device verification open)
 - **Started:** 2026-09-24
-- **Last updated:** 2026-09-24
+- **Last updated:** 2026-09-25
 
 ## Scope
 
@@ -239,3 +239,57 @@ Spec §3 (protein/water/creatine verified by NFC tap), §5.10 (Sunrise Tag), §6
 **Unverified:** syntax-checked only (`swiftc -frontend -parse`); needs a CI compile and a look at the
 screenshots (illustration geometry, chip wrap on SE). Flow2 test2 still taps the removed free-path
 link (hard paywall), so it cannot pass as written — flagged in the test.
+
+### 2026-09-25 — Wave 0: goal completion → earned unlock (`docs/design/buildout-plan.md` P0-0)
+
+Spec §2 (core loop), §3, §5.2 (Earn Mode), §5.5 (Plan B half credit), §5.7 (duel points), §8 rule 11.
+
+- **Problem:** goals were logged but nothing turned "verified" into "unlocked". Protein/water wrote
+  `.verify` + amount and the engine only accepts completions; the gym verifier wrote nothing;
+  streak, Time Bank and duels were never updated after onboarding.
+- **New `GoalCompletionCoordinator`** (`Core/Sources/Core/LockEngine/`, `@MainActor`,
+  `goalEventRecorded(goalID:at:)`, never throws). Called right after every `GoalEvent` save. It
+  (1) rolls the day's verified amount into exactly one `.complete` once the target is reached
+  (today's `DailyPlan.plannedValue`, else `goal.targetValue`; rollup has `value: nil` and
+  `meta.rollup`), (2) pays per-goal rewards once per goal per day (marker `meta.completionProcessed`
+  on the completion event): a duel point, and in an Earn Mode lock the §5.2 Time Bank minutes (Plan B
+  = half), (3) if a lock is active and every required goal is verified (its own check **and**
+  `LockEngineManager.evaluateUnlockEligibility`), ends it with `endLock(.earned)` and calls
+  `StreakEngine.recordEarnedUnlock`. Idempotent; re-reconciles the active lock's other required
+  goals so logs made earlier still count. Ends earn-mode locks too (the `LockSession` contract:
+  required goals end an `.earn` lock), so Earn Mode never traps without spend-to-unlock wired.
+- **Shared rule `GoalDayProgress`** moved from `TodayView.swift` into
+  `Core/Sources/Core/LockEngine/GoalDayProgress.swift` (public, same API); Today and Lock now use
+  Core's. Rule change: only *verified* events count (an unverified binary `.verify` no longer marks
+  done), misses never add minutes, and `.freeze` counts as done (as the engine already did).
+  `LockEngineManager.isGoalVerified` uses the same `isVerifiedCompletion`.
+- **Call sites added:** `LogProteinIntent`, `LogWaterIntent`, `QuickRepeatMealIntent`,
+  `LogCreatineIntent`, `LogCustomGoalIntent`, `SunriseKeyIntent` (before it starts the day lock),
+  `FocusSessionVerifier.endSession` and `StretchVerifier.endSession` (when verified),
+  `MealPrepVerifier.verifyMealPrep`, `StepsVerifier.checkToday`, `SunriseAlarmManager` dismiss.
+  NFC taps go through these intents, so they're covered.
+- **Gym:** `GymVerifier`'s first `true` from `isVerified` for a dwell now writes the day's
+  `.complete` (`source: .geofence`, `meta` gymID / dwellMinutes / heartRateCorroborated) and calls
+  the coordinator; the geofence exit event runs the same check, so completion no longer depends on
+  Today polling. `TodayView.pollGymDwell` unchanged.
+- **App side:** nothing new to wire: `endLock` sets `LockEngineManager.lastUnlockedSessionID`, which
+  `ContentView` → `AppRouter.handleUnlock` (and Today's own cover) already present.
+- **Tests:** `Core/Tests/CoreTests/GoalCompletionTests.swift` — rollup to one `.complete`,
+  idempotency, unverified logs, DailyPlan override, binary `.verify`, misses; 2-goal lock ends
+  earned only after both (once); earlier logs rolled up; engine must agree; emergency-ended lock
+  untouched; Earn Mode deposits once per goal, Plan B half, full mode none. Live lock engine is
+  stubbed (ManagedSettings can't run in a test bundle); Time Bank is real on an in-memory store.
+
+**Unverified / known issues:** syntax-checked only; needs a CI compile and test run.
+- An intent run inside the widget process ends the lock from there (`ManagedSettingsStore` in the
+  widget extension, same as the existing widget Start Lock) — needs a device check.
+- Today's quick-log undo deletes the `.verify` but leaves a rollup `.complete` (and any unlock)
+  that it produced. Retracting needs an undo → coordinator path (Wave 1D).
+- A lock started when its required goals are already done isn't ended until the next goal event.
+- `HomeWorkoutVerifier` has no completion path or caller yet (Wave 1C/1D); partial unlock tiers
+  aren't persisted anywhere, so they aren't evaluated; no coin award exists (§8 rule 4 reward has
+  no engine); the Earn Meter Live Activity isn't updated on deposit.
+- Onboarding first win: the focus verifier now ends that lock as earned via the coordinator a moment
+  before `Screen14FirstWin` tries to (its `try?` endLock then no-ops; streak is same-day idempotent;
+  the root celebration is skipped before onboarding completes).
+

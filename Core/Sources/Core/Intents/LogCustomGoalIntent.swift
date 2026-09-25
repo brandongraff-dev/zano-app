@@ -61,6 +61,7 @@ public struct LogCustomGoalIntent: AppIntent {
         )
         context.insert(event)
         try context.save()
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: matchedGoal.id)
 
         // Instrumentation (spec §23: "Instrument from day one: ... every intent").
         Analytics.shared.capture(

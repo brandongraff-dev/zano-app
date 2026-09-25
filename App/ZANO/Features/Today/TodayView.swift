@@ -1194,52 +1194,8 @@ func goalIconName(for type: GoalType) -> String {
     }
 }
 
-/// A goal's progress for today, shared by Today and Lock. A goal with no numeric target (e.g. a
-/// dwell-based workout with no `targetValue`/`plannedValue`) is binary: done once a `.complete`,
-/// `.verify`, or `.planB` (spec §8 Plan B days still count as done) event lands today.
-///
-/// A numeric goal is done when its logged amount reaches the target, or on a `.complete`/`.planB`
-/// event, or a `.verify` that carries no amount. A `.verify` *with* an amount is a log (protein and
-/// water intents write `.verify` + grams/ml), so one +25g no longer marks a 150g goal done.
-/// Unverified logs (a duplicate NFC tap, marked not counted) don't add to the total.
-struct GoalDayProgress {
-    /// `0...1`.
-    let fraction: Double
-    /// Logged amount so far (numeric goals only). Never shown below the target once the goal is
-    /// complete, so a ring can't read "0 of 35 min" while full.
-    let current: Int?
-    /// Target amount (numeric goals only).
-    let target: Int?
-    let unit: String
-
-    var isComplete: Bool { fraction >= 1 }
-    var hasStarted: Bool { fraction > 0 }
-
-    init(goal: Goal, todaysEvents events: [GoalEvent], plannedValue: Double?) {
-        guard let targetValue = plannedValue ?? goal.targetValue, targetValue > 0 else {
-            let hasCompletion = events.contains { [.complete, .verify, .planB].contains($0.kind) }
-            fraction = hasCompletion ? 1 : 0
-            current = nil
-            target = nil
-            unit = ""
-            return
-        }
-
-        let hasCompletion = events.contains {
-            $0.kind == .complete || $0.kind == .planB || ($0.kind == .verify && $0.value == nil)
-        }
-        let logged = events
-            .filter { !($0.kind == .verify && !$0.verified) }
-            .compactMap(\.value)
-            .reduce(0, +)
-        let targetInt = Int(targetValue.rounded())
-        let loggedInt = Int(logged.rounded())
-        fraction = hasCompletion ? 1 : min(1, logged / targetValue)
-        current = hasCompletion ? max(loggedInt, targetInt) : loggedInt
-        target = targetInt
-        unit = goal.unit ?? ""
-    }
-}
+// `GoalDayProgress` (shared by Today and Lock) lives in Core: `Core/Sources/Core/LockEngine/
+// GoalDayProgress.swift`, so the UI and `GoalCompletionCoordinator` use one rule.
 
 /// One capsule per required goal (capped at 8; beyond that, proportionally), filled for done. The
 /// unfilled segments are `Theme.Colors.track` (1.6 : 1 on a card) so a fresh day's bar is visible,

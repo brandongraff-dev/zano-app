@@ -26,8 +26,8 @@
 // - Goal rows here are read-only; a "Go to Today" link under them says where to act.
 // - Large navigation title, like every other tab.
 //
-// Shared pieces (`LockVaultCard`, `GoalActionList`, `GoalDayProgress`, `goalIconName`) live in
-// `Features/Today`.
+// Shared pieces (`LockVaultCard`, `GoalActionList`, `goalIconName`) live in `Features/Today`;
+// `GoalDayProgress` lives in Core (`LockEngine/GoalDayProgress.swift`).
 //
 // No `NavigationStack` of its own: this view is pushed from `TodayView`'s hero card via
 // `navigationDestination`, and is also a tab root that `ContentView` wraps in its own

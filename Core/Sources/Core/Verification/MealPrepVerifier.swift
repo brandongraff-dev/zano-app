@@ -264,6 +264,7 @@ public final class MealPrepVerifier {
 
         if vision.confirmed {
             try logVerification(goal: goal, photoPath: trimmedPath, vision: vision, at: now)
+            await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
             logger.notice("Meal prep verified for goal \(goalID.uuidString, privacy: .public): \(vision.containersDetected, privacy: .public) containers, confidence \(vision.confidence, privacy: .public).")
         } else {
             logger.notice("Meal prep photo rejected for goal \(goalID.uuidString, privacy: .public): \(vision.notes, privacy: .public)")

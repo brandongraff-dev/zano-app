@@ -402,9 +402,9 @@ public final class LockEngineManager {
             predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= startOfDay }
         )
         guard let events = try? context.fetch(descriptor) else { return false }
+        // Same rule `GoalCompletionCoordinator` and the Today/Lock UI use (`GoalDayProgress`).
         return events.contains { event in
-            event.goal?.id == goalID
-                && (event.kind == .complete || event.kind == .planB || event.kind == .freeze)
+            event.goal?.id == goalID && GoalDayProgress.isVerifiedCompletion(event)
         }
     }
 

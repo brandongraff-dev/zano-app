@@ -67,6 +67,7 @@ public struct LogWaterIntent: AppIntent {
         )
         context.insert(event)
         try context.save()
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goal.id)
 
         // Instrumentation (spec §23: "Instrument from day one: ... every intent").
         Analytics.shared.capture(

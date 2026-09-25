@@ -235,6 +235,7 @@ public final class StretchVerifier {
         let verified = elapsedSeconds >= plannedSeconds && flatRatio >= Self.requiredFlatRatio
 
         try logOutcome(session: session, elapsedSeconds: elapsedSeconds, flatRatio: flatRatio, verified: verified, at: now)
+        if verified { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: session.goalID) }
 
         logger.notice("Ended stretch session \(sessionID.uuidString, privacy: .public): elapsed \(Int(elapsedSeconds), privacy: .public)s / planned \(Int(plannedSeconds), privacy: .public)s, flatRatio=\(flatRatio, privacy: .public), verified=\(verified, privacy: .public).")
         return verified

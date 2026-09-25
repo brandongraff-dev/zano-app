@@ -116,6 +116,10 @@ public final class GymVerifier: Sendable {
     /// never gates this result — dwell + anti-cheat alone satisfy Tier A's "auto-verify if
     /// possible... never a form" (spec §3).
     ///
+    /// The first `true` for a dwell also writes the day's workout `.complete` `GoalEvent`
+    /// (`source: .geofence`, HR corroboration in `meta`) and calls `GoalCompletionCoordinator`.
+    /// The same check runs on its own when the geofence reports the user leaving the gym.
+    ///
     /// `requiredMinutes` has no default in the orchestrator's CONTRACTS block; the default added
     /// here is purely additive (every explicit-argument call site still compiles and behaves
     /// identically) and just saves callers from repeating the spec's default at every call site.
@@ -240,6 +244,7 @@ actor GymDwellState {
             sessions[gymID]?.healthKitCorroborated = elevated
         }
 
+        await recordCompletionIfNeeded(gymID: gymID, dwellMinutes: dwellMinutes)
         return true
     }
 
@@ -291,6 +296,9 @@ actor GymDwellState {
                     handleRegionEntered(gymID: gymID)
                 case .unsatisfied:
                     handleRegionExited(gymID: gymID)
+                    // Completion must not depend on a screen polling `isVerified`: leaving the gym
+                    // after the required dwell verifies (and logs) the workout on its own.
+                    _ = await isVerified(gymID: gymID, requiredMinutes: requiredDwellMinutes())
                 case .unknown, .unmonitored:
                     // Transient/undetermined states (e.g. right after `add`, before Core
                     // Location has a fix, or the 20-region cap was hit). Deliberately not
@@ -351,6 +359,84 @@ actor GymDwellState {
         let context = ModelContext(ModelContainer.appGroup)
         let descriptor = FetchDescriptor<Gym>(predicate: #Predicate { $0.id == id })
         return try? context.fetch(descriptor).first
+    }
+
+    // MARK: Completion (spec §3 gym row → GoalEvent, then GoalCompletionCoordinator)
+
+    /// Writes the day's workout `.complete` (`source: .geofence`) the first time this dwell
+    /// verifies, then hands off to `GoalCompletionCoordinator` (unlock, streak, Time Bank). The
+    /// flag is set before any `await` so a second concurrent `isVerified` can't log twice.
+    private func recordCompletionIfNeeded(gymID: UUID, dwellMinutes: Int) async {
+        guard let session = sessions[gymID], !session.completionLogged else { return }
+        sessions[gymID]?.completionLogged = true
+        guard let goalID = writeCompletion(
+            gymID: gymID,
+            dwellMinutes: dwellMinutes,
+            heartRateCorroborated: session.healthKitCorroborated
+        ) else { return }
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
+    }
+
+    /// Returns the gym goal's id when a completion exists for today (written now or earlier), or
+    /// `nil` if there's no active gym goal or the save failed.
+    private func writeCompletion(gymID: UUID, dwellMinutes: Int, heartRateCorroborated: Bool?) -> UUID? {
+        let context = ModelContext(ModelContainer.appGroup)
+        guard let goal = activeGymGoal(in: context) else {
+            logger.notice("Gym dwell verified but no active gym goal exists; nothing to log.")
+            return nil
+        }
+        let goalID = goal.id
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        let todays = (try? context.fetch(FetchDescriptor<GoalEvent>(
+            predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= startOfDay }
+        ))) ?? []
+        if todays.contains(where: { $0.goal?.id == goalID && $0.kind == .complete }) {
+            return goalID
+        }
+
+        var meta: [String: JSONValue] = [
+            "gymID": .string(gymID.uuidString),
+            "dwellMinutes": .number(Double(dwellMinutes)),
+        ]
+        if let heartRateCorroborated {
+            meta["heartRateCorroborated"] = .bool(heartRateCorroborated)
+        }
+        let event = GoalEvent(
+            kind: .complete,
+            value: Double(dwellMinutes),
+            source: .geofence,
+            verified: true,
+            meta: .object(meta),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(event)
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to save gym workout GoalEvent: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+        return goalID
+    }
+
+    /// The gym goal's dwell target (`targetValue`, minutes), else spec §3's default 35 — the same
+    /// fallback Today uses when it polls `isVerified`.
+    private func requiredDwellMinutes() -> Int {
+        let context = ModelContext(ModelContainer.appGroup)
+        guard let minutes = activeGymGoal(in: context)?.targetValue, minutes > 0 else {
+            return GymVerificationDefaults.requiredDwellMinutes
+        }
+        return Int(minutes)
+    }
+
+    /// The newest active `.workoutGym` goal. The enum comparison is done in Swift, not
+    /// `#Predicate` (this codebase's usual SwiftData conservatism).
+    private func activeGymGoal(in context: ModelContext) -> Goal? {
+        let goals = (try? context.fetch(FetchDescriptor<Goal>(predicate: #Predicate { $0.active }))) ?? []
+        return goals
+            .filter { $0.type == .workoutGym }
+            .max { $0.createdAt < $1.createdAt }
     }
 
     // MARK: Anti-cheat — Core Motion automotive check
@@ -425,6 +511,9 @@ private struct DwellSession {
     /// Last opportunistic HealthKit corroboration result for this session, read back via
     /// `GymVerifier.lastHealthKitCorroboration(gymID:)`.
     var healthKitCorroborated: Bool?
+
+    /// Set once this dwell's workout `.complete` was written, so it's logged at most once.
+    var completionLogged = false
 
     var isActive: Bool { exitedAt == nil }
 

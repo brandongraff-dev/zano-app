@@ -718,7 +718,8 @@ public final class SunriseAlarmManager {
     private func completeDismiss(variant: DismissVariant, writeGoalEvent: Bool, meta: [String: JSONValue], now: Date = .now) async {
         if writeGoalEvent {
             do {
-                try logGoalEvent(kind: .complete, verified: true, source: sourceFor(variant), meta: .object(meta), now: now)
+                let event = try logGoalEvent(kind: .complete, verified: true, source: sourceFor(variant), meta: .object(meta), now: now)
+                if let goalID = event.goal?.id { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID) }
             } catch {
                 logger.error("completeDismiss: failed to log GoalEvent: \(String(describing: error), privacy: .public)")
             }

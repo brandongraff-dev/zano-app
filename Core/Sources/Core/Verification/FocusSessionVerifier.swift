@@ -252,6 +252,7 @@ public final class FocusSessionVerifier {
 
         await endActivity(for: session, elapsedSeconds: elapsedSeconds, asOf: now)
         try logOutcome(session: session, elapsedSeconds: elapsedSeconds, verified: verified, at: now)
+        if verified { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: session.goalID) }
 
         logger.notice("Ended focus session \(sessionID.uuidString, privacy: .public): elapsed \(Int(elapsedSeconds), privacy: .public)s / planned \(Int(plannedSeconds), privacy: .public)s, verified=\(verified, privacy: .public).")
         return verified

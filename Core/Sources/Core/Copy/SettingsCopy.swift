@@ -278,6 +278,9 @@ extension Copy.settings {
     public static let inviteFriendsRowLabel = "Invite friends"
     public static let autoFocusRowLabel = "Auto-Focus"
     public static let autoFocusRowValueOn = "On"
+    public static let calendarAwarenessRowLabel = "Lighter plans on packed days"
+    public static let calendarAwarenessDeniedTitle = "Calendar access is off"
+    public static let calendarAwarenessDenied = "Turn on Calendar access for ZANO in iOS Settings, then try again."
 
     // Auto-Focus guide (spec §5.12). The steps and limits themselves live in
     // `AutoFocusSetupInstructions` (same directory).

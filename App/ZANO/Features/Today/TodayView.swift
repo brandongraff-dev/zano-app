@@ -157,6 +157,7 @@ struct TodayView: View {
     /// Known gap (flagged, not built here): spec §8 rule 4's "1 in ~6 unlocks" variable-reward
     /// badge has no gating logic yet, so this always presents with `badge: nil`.
     @State private var showUnlockCelebration = false
+    @Environment(\.zanoTabIsSelected) private var isTabSelected
     /// Today vs. "Ghost You" (spec §5.4). `nil` until the first load completes.
     @State private var ghostComparison: GhostMode.GhostComparison?
 
@@ -311,6 +312,8 @@ struct TodayView: View {
                 )
             }
             guard lastUnlockWasEarned else { return }
+            // Kept alive while another tab is on screen; the router celebrates over that tab.
+            guard isTabSelected else { return }
             showUnlockCelebration = true
         }
         .fullScreenCover(isPresented: $showUnlockCelebration) {

@@ -65,6 +65,8 @@ public final class GoalCompletionCoordinator {
                 },
                 recordEarnedUnlock: { date in
                     await StreakEngine.shared.recordEarnedUnlock(on: date)
+                    // Advances a running comeback challenge (no-op when none is running).
+                    await ComebackMode.shared.recordDayCompleted(on: date)
                 },
                 applyDuelPoint: { userID, date in
                     // Local-only: updates duel rows and queues an outbox sync. Swallows its own errors.

@@ -149,6 +149,7 @@ struct SettingsView: View {
     @AppStorage("zano.founderSeriesCard.dismissed") private var founderCardDismissed = false
     /// Mirrors `AutoFocusIntegration.isSetUp` for the row's trailing value; refreshed on appear.
     @State private var autoFocusIsSetUp = AutoFocusIntegration.isSetUp
+    @State private var calendarAwarenessOn = false
 
     /// The sign-off at the bottom of Settings: the wordmark, the tagline and the build, the way
     /// premium apps close their settings (docs/brand/brand-kit.md). The version line is plain
@@ -453,7 +454,39 @@ struct SettingsView: View {
                 ) {
                     AutoFocusGuideView()
                 }
+
+                SettingsRowDivider()
+
+                // Today's "light day" card (Wave 2F) asks once; this is the way back on or off.
+                HStack(spacing: Theme.Spacing.sm) {
+                    SettingsIconBadge(systemImage: "calendar.badge.clock")
+                    Toggle(isOn: Binding(
+                        get: { calendarAwarenessOn },
+                        set: { newValue in Task { await setCalendarAwareness(newValue) } }
+                    )) {
+                        Text(Copy.settings.calendarAwarenessRowLabel)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                    }
+                    .tint(Theme.Colors.accentFill)
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.sm)
+                .frame(minHeight: Theme.Metrics.minTapTarget)
             }
+        }
+        .task { calendarAwarenessOn = await CalendarAwareness.shared.accessState() == .granted }
+    }
+
+    private func setCalendarAwareness(_ on: Bool) async {
+        if on {
+            let granted = (try? await CalendarAwareness.shared.optIn()) ?? false
+            if !granted { await CalendarAwareness.shared.optOut() }
+            calendarAwarenessOn = granted
+            if !granted { errorAlert = SettingsErrorAlert(title: Copy.settings.calendarAwarenessDeniedTitle, message: Copy.settings.calendarAwarenessDenied) }
+        } else {
+            await CalendarAwareness.shared.optOut()
+            calendarAwarenessOn = false
         }
     }
 

@@ -339,7 +339,11 @@ per wave.
   tour exposed a launch crash from Wave 1A: `CLMonitor` rejects non-alphanumeric names and the gym
   monitor was named `com.zano.app.gymMonitor`, so the app aborted seconds after every launch (it
   would have on devices too). Renamed to `ZANOGymMonitor`; CI now fails when the tour leaves crash
-  reports instead of passing with home-screen screenshots. Everything device-only (geofence, NFC, DeviceActivity schedules, Live
+  reports instead of passing with home-screen screenshots. A second launch crash followed (the
+  active-lock fetch compared an optional enum inside `#Predicate`, which SwiftData's SQLite store
+  rejects with an Objective-C exception); that fetch, the intents' active-lock fetch and the
+  active-goal fetch now match enums in Swift. Run 36087716188: build, Core tests, UI-test compile,
+  full screenshot tour with zero crash reports — all green. Everything device-only (geofence, NFC, DeviceActivity schedules, Live
   Activities, Screen Time, camera) is unverified.
 - Backend not live: squads (joins, squadmate rings, nudge delivery, duels), leaderboard, referral
   redeem and meal vision all run in clearly labelled offline states until Supabase is configured.

@@ -335,8 +335,11 @@ per wave.
   guide, Founder Series card. Comeback challenge now advances on each earned unlock.
 
 **Unverified / known issues:**
-- CI: Wave 1 app build, Core tests and UI-test compile green (run 36078947162); Waves 2–3 compile pending
-  (run 36081036480). Everything device-only (geofence, NFC, DeviceActivity schedules, Live
+- CI: Waves 1–3 build, Core tests and UI-test compile green (run 36082614553). That run's screenshot
+  tour exposed a launch crash from Wave 1A: `CLMonitor` rejects non-alphanumeric names and the gym
+  monitor was named `com.zano.app.gymMonitor`, so the app aborted seconds after every launch (it
+  would have on devices too). Renamed to `ZANOGymMonitor`; CI now fails when the tour leaves crash
+  reports instead of passing with home-screen screenshots. Everything device-only (geofence, NFC, DeviceActivity schedules, Live
   Activities, Screen Time, camera) is unverified.
 - Backend not live: squads (joins, squadmate rings, nudge delivery, duels), leaderboard, referral
   redeem and meal vision all run in clearly labelled offline states until Supabase is configured.

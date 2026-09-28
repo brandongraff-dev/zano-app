@@ -287,10 +287,10 @@ public final class StretchVerifier {
 
     // MARK: - Persistence
 
-    private func fetchGoal(id: UUID) throws -> Goal? {
+    private func fetchGoal(id: UUID, in context: ModelContext? = nil) throws -> Goal? {
         var descriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        return try modelContext.fetch(descriptor).first
+        return try (context ?? modelContext).fetch(descriptor).first
     }
 
     /// Logs the session's outcome as a `GoalEvent` (docs/spec.md §13). Attaches it to the
@@ -305,7 +305,11 @@ public final class StretchVerifier {
         verified: Bool,
         at now: Date
     ) throws {
-        let goal = try? fetchGoal(id: session.goalID)
+        // A fresh context per write: this type's long-lived context can hold a stale `Goal` whose
+        // `events` list predates rows other contexts added since (e.g. the coordinator's rollup), and
+        // saving through it detached those rows from the goal.
+        let context = ModelContext(modelContainer)
+        let goal = try? fetchGoal(id: session.goalID, in: context)
 
         let event = GoalEvent(
             ts: now,
@@ -323,7 +327,7 @@ public final class StretchVerifier {
             user: goal?.user,
             goal: goal
         )
-        modelContext.insert(event)
-        try modelContext.save()
+        context.insert(event)
+        try context.save()
     }
 }

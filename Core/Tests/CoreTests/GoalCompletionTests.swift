@@ -98,16 +98,26 @@ private struct Harness {
         verified: Bool = true,
         hour: Int = 9
     ) throws {
-        context.insert(GoalEvent(
+        // A fresh context per log, like the app's intents and verifiers: the harness's long-lived
+        // context holds a stale `Goal` whose `events` list predates the coordinator's rollups, and
+        // saving through it would detach them.
+        let logContext = ModelContext(container)
+        let goalID = goal.id
+        let userID = user.id
+        var goalDescriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == goalID })
+        goalDescriptor.fetchLimit = 1
+        var userDescriptor = FetchDescriptor<User>(predicate: #Predicate { $0.id == userID })
+        userDescriptor.fetchLimit = 1
+        logContext.insert(GoalEvent(
             ts: Self.at(hour: hour),
             kind: kind,
             value: amount,
             source: .manual,
             verified: verified,
-            user: user,
-            goal: goal
+            user: try logContext.fetch(userDescriptor).first,
+            goal: try logContext.fetch(goalDescriptor).first
         ))
-        try context.save()
+        try logContext.save()
     }
 
     func startLock(requiring goals: [Goal], mode: LockMode) throws -> UUID {
@@ -439,12 +449,11 @@ struct GoalCompletionPlanBRollupTests {
 
         try h.log(protein, amount: 60)
         await h.recorded(protein)
-        let afterFirst = try h.allEventKinds()
         await h.recorded(protein)
         try h.log(protein, amount: 100, hour: 11)
         await h.recorded(protein)
 
-        let kinds = "after first: \(afterFirst) | end: \(try h.allEventKinds())"
+        let kinds = try h.allEventKinds()
         #expect(try h.planBCount(for: protein) == 1, "events: \(kinds)")
         #expect(try h.completionCount(for: protein) == 0, "events: \(kinds)")
         #expect(h.spy.duelPoints == 1)

@@ -311,7 +311,7 @@ actor StepsObserverState {
         }
         guard observerQueries[goalID] == nil else { return }
 
-        let query = HKObserverQuery(sampleType: stepCountType, predicate: nil) { [weak self] _, completionHandler, error in
+        let query = HKObserverQuery(sampleType: stepCountType, predicate: nil) { @Sendable [weak self] _, completionHandler, error in
             defer { completionHandler() }
             guard let self else { return }
             if let error {
@@ -390,7 +390,7 @@ actor StepsObserverState {
                 quantityType: stepCountType,
                 quantitySamplePredicate: predicate,
                 options: .cumulativeSum
-            ) { _, statistics, error in
+            ) { @Sendable _, statistics, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return

@@ -399,24 +399,14 @@ public final class SunriseAlarmManager {
 
     private func cancelPendingNotifications() async {
         let center = UNUserNotificationCenter.current()
-        // The async `pendingNotificationRequests()` / `deliveredNotifications()` return arrays of
-        // non-Sendable UIKit-era objects, which Swift 6 refuses to send out of the center's
-        // isolation. The callback forms let us map to plain `[String]` identifiers inside the
-        // callback, so only Sendable values ever cross.
-        let pendingIDs: [String] = await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { requests in
-                continuation.resume(returning: requests.map(\.identifier))
-            }
-        }
+        // Identifiers only, read through `NotificationCenterQueries` (nonisolated callbacks: a
+        // callback written in this main-actor type would trap when called off the main queue).
+        let pendingIDs = await NotificationCenterQueries.pendingIdentifiers()
         center.removePendingNotificationRequests(
             withIdentifiers: pendingIDs.filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
         )
 
-        let deliveredIDs: [String] = await withCheckedContinuation { continuation in
-            center.getDeliveredNotifications { notifications in
-                continuation.resume(returning: notifications.map { $0.request.identifier })
-            }
-        }
+        let deliveredIDs = await NotificationCenterQueries.deliveredIdentifiers()
         center.removeDeliveredNotifications(
             withIdentifiers: deliveredIDs.filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
         )

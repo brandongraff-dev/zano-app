@@ -286,11 +286,9 @@ public final class NudgeScheduler {
         let center = UNUserNotificationCenter.current()
 
         // 1. Take back everything still pending, rows included, so the counts below are real.
-        let pendingIDs: [String] = await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { requests in
-                continuation.resume(returning: requests.map(\.identifier))
-            }
-        }
+        // Via a nonisolated helper: a callback written here would be main-actor isolated and trap
+        // when the center calls it off the main queue.
+        let pendingIDs = await NotificationCenterQueries.pendingIdentifiers()
         let ours = pendingIDs.filter { $0.hasPrefix(Self.identifierPrefix) }
         if !ours.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: ours)
@@ -299,12 +297,7 @@ public final class NudgeScheduler {
 
         // 2. Only schedule what the user will actually see. Permission is asked in onboarding
         //    (Screen12PermissionPriming), never from here.
-        let authorized: Bool = await withCheckedContinuation { continuation in
-            center.getNotificationSettings { settings in
-                let status = settings.authorizationStatus
-                continuation.resume(returning: status == .authorized || status == .provisional || status == .ephemeral)
-            }
-        }
+        let authorized = await NotificationCenterQueries.canPostNotifications()
         guard authorized else { return }
 
         // 3. Plan and schedule.

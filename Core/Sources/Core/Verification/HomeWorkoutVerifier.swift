@@ -408,7 +408,7 @@ actor HomeWorkoutQueryState {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: [sortByEndDateDescending]
-            ) { _, samples, error in
+            ) { @Sendable _, samples, error in
                 guard let workouts = samples as? [HKWorkout], error == nil else {
                     continuation.resume(returning: [])
                     return
@@ -488,7 +488,7 @@ actor HomeWorkoutQueryState {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
-            ) { _, samples, error in
+            ) { @Sendable _, samples, error in
                 guard let quantitySamples = samples as? [HKQuantitySample], error == nil, !quantitySamples.isEmpty else {
                     continuation.resume(returning: nil)
                     return
@@ -522,7 +522,7 @@ actor HomeWorkoutQueryState {
         guard CMMotionActivityManager.isActivityAvailable() else { return .notVerified }
 
         let activities: [CMMotionActivity] = await withCheckedContinuation { continuation in
-            motionActivityManager.queryActivityStarting(from: window.start, to: window.end, to: .main) { activities, error in
+            motionActivityManager.queryActivityStarting(from: window.start, to: window.end, to: .main) { @Sendable activities, error in
                 guard let activities, error == nil else {
                     continuation.resume(returning: [])
                     return

@@ -667,7 +667,7 @@ actor GymDwellState {
     private func isAutomotive(during window: DateInterval) async -> Bool {
         guard CMMotionActivityManager.isActivityAvailable() else { return false }
         return await withCheckedContinuation { continuation in
-            motionActivityManager.queryActivityStarting(from: window.start, to: window.end, to: .main) { activities, error in
+            motionActivityManager.queryActivityStarting(from: window.start, to: window.end, to: .main) { @Sendable activities, error in
                 guard let activities, error == nil else {
                     continuation.resume(returning: false)
                     return
@@ -700,7 +700,7 @@ actor GymDwellState {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
-            ) { _, samples, error in
+            ) { @Sendable _, samples, error in
                 guard error == nil, let quantitySamples = samples as? [HKQuantitySample], !quantitySamples.isEmpty else {
                     continuation.resume(returning: nil)
                     return

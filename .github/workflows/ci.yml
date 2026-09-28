@@ -204,6 +204,7 @@ jobs:
       # The screenshot tour can't see a crash (it just captures the home screen), so fail the run
       # when the app left crash reports, and print the reason for each.
       - name: Fail on app crashes during the screenshot tour
+        if: always()
         run: |
           shopt -s nullglob
           reports=(shots/ZANO*.ips)

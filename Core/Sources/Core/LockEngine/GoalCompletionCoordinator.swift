@@ -59,6 +59,9 @@ public final class GoalCompletionCoordinator {
         var isPlanBAccepted: @MainActor (UUID, Date) -> Bool = { goalID, date in
             PlanB.isAccepted(goalID: goalID, on: date)
         }
+        /// Runs after every goal event: `NudgeScheduler.reschedule`, so a reminder planned for a
+        /// goal that just got done ("40g to go") is withdrawn. No-op in tests.
+        var afterGoalEvent: @MainActor () async -> Void = {}
 
         static var live: Effects {
             Effects(
@@ -72,6 +75,9 @@ public final class GoalCompletionCoordinator {
                     try await TimeBankEngine.shared.deposit(minutes: minutes, for: date)
                 },
                 recordEarnedUnlock: { date in
+                    // Record fully missed days first: an unlock from a widget, intent or tag can
+                    // land before the app's own foreground catch-up has run.
+                    await StreakEngine.shared.reconcileMissedDays(asOf: date)
                     await StreakEngine.shared.recordEarnedUnlock(on: date)
                     // Advances a running comeback challenge (no-op when none is running).
                     await ComebackMode.shared.recordDayCompleted(on: date)
@@ -83,6 +89,9 @@ public final class GoalCompletionCoordinator {
                 rollVariableReward: { sessionID, date in
                     // Deterministic per session and idempotent (ledger-backed); never throws.
                     _ = VariableReward.shared.roll(sessionID: sessionID, at: date)
+                },
+                afterGoalEvent: {
+                    await NudgeScheduler.shared.reschedule()
                 }
             )
         }
@@ -108,6 +117,11 @@ public final class GoalCompletionCoordinator {
     /// Call right after saving any `GoalEvent` for `goalID`. Never throws: a failure here is logged
     /// and must never fail the log the user just made.
     public func goalEventRecorded(goalID: UUID, at now: Date = .now) async {
+        await reconcileGoalEvent(goalID: goalID, at: now)
+        await effects.afterGoalEvent()
+    }
+
+    private func reconcileGoalEvent(goalID: UUID, at now: Date) async {
         let context = ModelContext(modelContainer)
         guard let goal = fetchGoal(id: goalID, in: context) else { return }
         let activeLock = fetchActiveLock(in: context)

@@ -103,10 +103,13 @@ struct ContentView: View {
     /// opted in (spec §5.10 frames both as opt-in). Once Core exposes a "has been configured"
     /// signal (or defaults `enabled` to `false`), add both calls right here.
     private func runForegroundChecks() async {
-        // Turn any lock the monitor started while the app was closed into a real session.
-        // Records any fully missed days first, so Never Miss Twice / Comeback see them.
+        // Record any fully missed days first, so Never Miss Twice / Comeback see them.
         await StreakEngine.shared.reconcileMissedDays()
+        // Turn any lock the monitor started while the app was closed into a real session.
         await LockScheduler.shared.reconcile()
+        // Last known location only (never prompts): feeds travel-mode city detection.
+        await TravelMode.shared.sampleLastKnownLocation()
+        // Replan today's reminders against current progress, prefs and pause state.
         await NudgeScheduler.shared.reschedule()
         // First foreground after onboarding: make the plan's "locks each morning until your goals
         // are done" real by saving that schedule for the default lock set (once, never overwriting

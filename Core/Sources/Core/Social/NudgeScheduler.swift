@@ -438,10 +438,13 @@ public final class NudgeScheduler {
         var proteinUnit = "g"
         for goal in dailyGoals {
             let goalEvents = events.filter { $0.goal?.id == goal.id }
-            let plannedValue = plans.first { $0.goal?.id == goal.id }?.plannedValue
-            let progress = GoalDayProgress(goal: goal, todaysEvents: goalEvents, plannedValue: plannedValue)
+            let plan = plans.first { $0.goal?.id == goal.id }
+            let plannedValue = plan?.plannedValue
+            // A goal switched to Plan B today counts against its smaller target.
+            let planBValue = PlanB.acceptedTarget(for: plan, goalID: goal.id, on: now)
+            let progress = GoalDayProgress(goal: goal, todaysEvents: goalEvents, plannedValue: plannedValue, planBValue: planBValue)
             if !progress.isComplete { openGoals += 1 }
-            if protein == nil, goal.type == .protein, let target = plannedValue ?? goal.targetValue {
+            if protein == nil, goal.type == .protein, let target = planBValue ?? plannedValue ?? goal.targetValue {
                 protein = NudgeScheduleInputs.Protein(logged: progress.loggedAmount, target: target, isComplete: progress.isComplete)
                 if let unit = goal.unit, !unit.isEmpty { proteinUnit = unit }
             }

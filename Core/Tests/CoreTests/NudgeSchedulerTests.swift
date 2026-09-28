@@ -135,12 +135,19 @@ struct NudgeSchedulerTests {
         func hasProtein(_ protein: NudgeScheduleInputs.Protein?) -> Bool {
             NudgeScheduler.plan(mondayInputs(protein: protein, streak: 0)).contains { $0.kind == .proteinLastMile }
         }
-        #expect(!hasProtein(nil))
-        #expect(!hasProtein(.init(logged: 45, target: 150)))            // 30%
-        #expect(hasProtein(.init(logged: 60, target: 150)))             // 40%
-        #expect(hasProtein(.init(logged: 140, target: 150)))
-        #expect(!hasProtein(.init(logged: 150, target: 150)))           // done
-        #expect(!hasProtein(.init(logged: 90, target: 150, isComplete: true)))
+        // Evaluated into locals first: `#expect(!localFunc(...))` isn't expanded reliably.
+        let none = hasProtein(nil)
+        let thirtyPercent = hasProtein(NudgeScheduleInputs.Protein(logged: 45, target: 150))
+        let fortyPercent = hasProtein(NudgeScheduleInputs.Protein(logged: 60, target: 150))
+        let nearlyDone = hasProtein(NudgeScheduleInputs.Protein(logged: 140, target: 150))
+        let done = hasProtein(NudgeScheduleInputs.Protein(logged: 150, target: 150))
+        let markedComplete = hasProtein(NudgeScheduleInputs.Protein(logged: 90, target: 150, isComplete: true))
+        #expect(none == false)
+        #expect(thirtyPercent == false)
+        #expect(fortyPercent == true)
+        #expect(nearlyDone == true)
+        #expect(done == false)
+        #expect(markedComplete == false)
         #expect(NudgeScheduleInputs.Protein(logged: 110.2, target: 150).amountToGo == 40)
     }
 

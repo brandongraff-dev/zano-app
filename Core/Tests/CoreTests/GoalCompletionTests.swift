@@ -135,6 +135,15 @@ private struct Harness {
             .count
     }
 
+    /// Every event for `goal`, oldest first, as "kind value verified" — for failure messages.
+    func eventKinds(for goal: Goal) throws -> [String] {
+        let goalID = goal.id
+        return try ModelContext(container).fetch(FetchDescriptor<GoalEvent>())
+            .filter { $0.goal?.id == goalID }
+            .sorted { $0.ts < $1.ts }
+            .map { "\($0.kind) \($0.value.map { String($0) } ?? "-") \($0.verified) \($0.ts)" }
+    }
+
     func planBCount(for goal: Goal) throws -> Int {
         let goalID = goal.id
         return try ModelContext(container).fetch(FetchDescriptor<GoalEvent>())
@@ -427,8 +436,9 @@ struct GoalCompletionPlanBRollupTests {
         try h.log(protein, amount: 100, hour: 11)
         await h.recorded(protein)
 
-        #expect(try h.planBCount(for: protein) == 1)
-        #expect(try h.completionCount(for: protein) == 0)
+        let kinds = try h.eventKinds(for: protein)
+        #expect(try h.planBCount(for: protein) == 1, "events: \(kinds)")
+        #expect(try h.completionCount(for: protein) == 0, "events: \(kinds)")
         #expect(h.spy.duelPoints == 1)
         #expect(await h.bankMinutes() == PlanB.earnModeMinutes(forFullMinutes: TimeBankEarnRates.proteinMinutes))
     }

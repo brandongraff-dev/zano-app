@@ -237,15 +237,34 @@ public final class HomeWorkoutVerifier: Sendable {
         max(HomeWorkoutVerificationDefaults.requiredMinutes, Int((target ?? 0).rounded()))
     }
 
+    /// A gym goal's minutes as one Health workout during travel mode: its planned/target dwell
+    /// minutes, else spec §3's default dwell, never under the home-workout floor.
+    static func travelGymRequiredMinutes(target: Double?) -> Int {
+        let dwell = target.map { Int($0.rounded()) } ?? GymVerificationDefaults.requiredDwellMinutes
+        return max(HomeWorkoutVerificationDefaults.requiredMinutes, dwell)
+    }
+
     /// Checks today's HealthKit workouts for `goalID` (a `.workoutHomeOutdoor` goal). When one
     /// workout reaches the required minutes and no verified completion exists yet today, writes a
     /// verified `.complete` `GoalEvent` (`source: .healthKit`, the workout's minutes as `value`),
     /// then calls `GoalCompletionCoordinator`. Idempotent: returns `true` without writing when
     /// today is already complete.
+    ///
+    /// Travel mode (spec §5.18, "gym optional"): while a travel session runs, a `.workoutGym` goal
+    /// is accepted too. Any single Health workout of the gym goal's minutes (today's planned value,
+    /// else its target, else spec §3's 35-minute dwell; never under 20) counts as a full
+    /// `.complete` with `meta.travelMode = true`. Full credit, not `.planB`: the user did a
+    /// full-length workout; only the gym wasn't available. Outside travel mode a gym goal still
+    /// throws `wrongGoalType` (the gym verifies through its geofence).
     @discardableResult
     public func checkToday(goalID: UUID) async throws -> Bool {
-        let required = await requiredMinutes(forGoalID: goalID)
-        let wrote = try await state.checkToday(goalID: goalID, requiredMinutes: required, window: Self.defaultWindow())
+        let target = await AdaptiveGoalEngine.shared.effectiveTarget(forGoalID: goalID, on: .now)
+        let wrote = try await state.checkToday(
+            goalID: goalID,
+            requiredMinutes: Self.requiredMinutes(target: target),
+            travelGymRequiredMinutes: TravelMode.isActiveNow() ? Self.travelGymRequiredMinutes(target: target) : nil,
+            window: Self.defaultWindow()
+        )
         if wrote == .wroteCompletion {
             await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
         }
@@ -286,9 +305,28 @@ actor HomeWorkoutQueryState {
 
     // MARK: Goal completion
 
-    func checkToday(goalID: UUID, requiredMinutes: Int, window: DateInterval) async throws -> CheckOutcome {
+    /// - Parameter travelGymRequiredMinutes: non-`nil` only while travel mode is on; then a
+    ///   `.workoutGym` goal is checked against these minutes instead of throwing `wrongGoalType`.
+    func checkToday(
+        goalID: UUID,
+        requiredMinutes homeRequiredMinutes: Int,
+        travelGymRequiredMinutes: Int? = nil,
+        window: DateInterval
+    ) async throws -> CheckOutcome {
         guard let goal = fetchGoal(id: goalID) else { throw HomeWorkoutVerifierError.goalNotFound(goalID) }
-        guard goal.type == .workoutHomeOutdoor else { throw HomeWorkoutVerifierError.wrongGoalType(goal.type) }
+        let requiredMinutes: Int
+        let isTravelGym: Bool
+        switch goal.type {
+        case .workoutHomeOutdoor:
+            requiredMinutes = homeRequiredMinutes
+            isTravelGym = false
+        case .workoutGym:
+            guard let travelGymRequiredMinutes else { throw HomeWorkoutVerifierError.wrongGoalType(goal.type) }
+            requiredMinutes = travelGymRequiredMinutes
+            isTravelGym = true
+        default:
+            throw HomeWorkoutVerifierError.wrongGoalType(goal.type)
+        }
         if hasVerifiedCompletion(goalID: goalID, since: window.start) { return .alreadyComplete }
 
         guard let result = await verifyViaHealthKitWorkout(window: window, requiredMinutes: requiredMinutes),
@@ -303,6 +341,7 @@ actor HomeWorkoutQueryState {
             "requiredMinutes": .number(Double(requiredMinutes)),
         ]
         if let hr = result.heartRateCorroboration { meta["heartRateCorroborated"] = .bool(hr) }
+        if isTravelGym { meta["travelMode"] = .bool(true) }
         let event = GoalEvent(
             kind: .complete,
             value: Double(result.minutes),

@@ -360,7 +360,7 @@ extension Copy.today {
         guard let city, !city.isEmpty else { return "Travel mode is on" }
         return "Travel mode · \(city)"
     }
-    public static let travelActiveDetail = "The gym is optional until you're back. New locks won't wait on it."
+    public static let travelActiveDetail = "The gym is optional until you're back. Locks won't wait on it, and any Apple Health workout counts."
     public static let travelActiveAction = "I'm home"
     public static let travelFailed = "Couldn't change travel mode. Try again."
 

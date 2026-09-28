@@ -79,6 +79,7 @@ struct NudgeSettingsView: View {
         }
         .onChange(of: prefs) { _, newValue in
             NudgePreferences.current = newValue
+            Task { await NudgeScheduler.shared.reschedule() }
         }
     }
 

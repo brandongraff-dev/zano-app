@@ -4,11 +4,13 @@
 // docs/spec.md 5.5 Plan B Days: "a smaller goal that still preserves the streak (20-min walk instead
 // of gym; 25-min focus instead of 90). Half credit in Earn Mode." Two states:
 //   - Offer: late in the day with a goal under half done. One tap switches it (`PlanB.accept`).
-//   - Switched: progress toward the Plan B target. Once verified progress reaches it, "Count Plan B"
-//     writes the `.planB` completion (`PlanB.recordCompletion`, then `GoalCompletionCoordinator`,
-//     which pays half Earn minutes and unlocks if that was the last goal). Before that the button is
-//     the goal's own next step (a quick log, a shorter focus session), or none for goals Health or
-//     the gym verify.
+//   - Switched: progress toward the Plan B target. Logged goals (protein, water) and focus count on
+//     their own: `GoalCompletionCoordinator` rolls the logged amount up into one `.planB` at the
+//     Plan B target, and the card's shorter focus session logs `.planB` (half Earn minutes, and an
+//     unlock if that was the last goal). For goals Health or the gym verify, "Count Plan B" writes
+//     it once verified progress reaches the target (`PlanB.recordCompletion`, a no-op if the goal
+//     is already done). Before that the button is the goal's own next step (a quick log, a shorter
+//     focus session), or none for goals Health or the gym verify.
 
 import SwiftUI
 import Core

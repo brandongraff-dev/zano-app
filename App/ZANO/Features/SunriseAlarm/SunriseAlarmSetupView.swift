@@ -519,6 +519,8 @@ struct SunriseAlarmSetupView: View {
         Task {
             do {
                 try await SunriseAlarmManager.shared.saveSettings(settings)
+                // The morning plan nudge follows the wake time.
+                await NudgeScheduler.shared.reschedule()
                 isSaving = false
                 saveTick += 1
                 dismiss()

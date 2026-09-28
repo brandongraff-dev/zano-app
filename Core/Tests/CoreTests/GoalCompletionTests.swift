@@ -1,8 +1,8 @@
 // Core/Tests/CoreTests/GoalCompletionTests.swift
 //
 // Tests Core/Sources/Core/LockEngine/GoalCompletionCoordinator.swift and GoalDayProgress.swift
-// (docs/spec.md §2 core loop, §5.2 Earn Mode, §5.5 Plan B half credit; Wave 0 of
-// docs/design/buildout-plan.md).
+// (docs/spec.md §2 core loop, §5.2 Earn Mode, §5.5 Plan B half credit and the Plan B rollup;
+// Wave 0 of docs/design/buildout-plan.md).
 //
 // Every test builds its own in-memory store. The live lock engine is replaced by a stub that ends
 // the `LockSession` row directly: the real `LockEngineManager.endLock` clears a
@@ -37,7 +37,7 @@ private struct Harness {
     let timeBank: TimeBankEngine
     let coordinator: GoalCompletionCoordinator
 
-    init(lockEngineAgrees: Bool = true) throws {
+    init(lockEngineAgrees: Bool = true, planBAccepted: Bool = false) throws {
         let container = try ModelContainer.makeAppGroupContainer(inMemory: true)
         let context = ModelContext(container)
         let user = User()
@@ -68,7 +68,8 @@ private struct Harness {
             },
             applyDuelPoint: { _, _ in
                 spy.duelPoints += 1
-            }
+            },
+            isPlanBAccepted: { _, _ in planBAccepted }
         )
 
         self.container = container
@@ -132,6 +133,25 @@ private struct Harness {
         return try ModelContext(container).fetch(FetchDescriptor<GoalEvent>())
             .filter { $0.goal?.id == goalID && $0.kind == .complete }
             .count
+    }
+
+    func planBCount(for goal: Goal) throws -> Int {
+        let goalID = goal.id
+        return try ModelContext(container).fetch(FetchDescriptor<GoalEvent>())
+            .filter { $0.goal?.id == goalID && $0.kind == .planB }
+            .count
+    }
+
+    /// Today's plan with a Plan B target, the shape `PlanB.offer` persists.
+    func addPlan(for goal: Goal, planned: Double?, planB: Double?) throws {
+        context.insert(DailyPlan(
+            date: Calendar.current.startOfDay(for: Self.referenceDay),
+            plannedValue: planned,
+            planBValue: planB,
+            user: user,
+            goal: goal
+        ))
+        try context.save()
     }
 
     func session(_ id: UUID) throws -> LockSession? {
@@ -365,5 +385,91 @@ struct GoalCompletionEarnModeTests {
         await h.recorded(protein)
 
         #expect(await h.bankMinutes() == 0)
+    }
+}
+
+// MARK: - Plan B rollup (spec §5.5)
+
+@Suite("GoalCompletionCoordinator — accepted Plan B rolls up into one .planB")
+@MainActor
+struct GoalCompletionPlanBRollupTests {
+    @Test("reaching the accepted Plan B target writes one .planB, pays half credit, and ends the lock")
+    func planBTargetRollsUpWithHalfCredit() async throws {
+        let h = try Harness(planBAccepted: true)
+        let protein = try h.addGoal(.protein, target: 150)
+        try h.addPlan(for: protein, planned: 150, planB: 60)
+        let lockID = try h.startLock(requiring: [protein], mode: .earn)
+
+        try h.log(protein, amount: 40)
+        await h.recorded(protein)
+        #expect(try h.planBCount(for: protein) == 0)
+
+        try h.log(protein, amount: 25, hour: 10)
+        await h.recorded(protein)
+
+        #expect(try h.planBCount(for: protein) == 1)
+        #expect(try h.completionCount(for: protein) == 0)
+        #expect(await h.bankMinutes() == PlanB.earnModeMinutes(forFullMinutes: TimeBankEarnRates.proteinMinutes))
+        #expect(h.spy.endedSessionIDs == [lockID])
+    }
+
+    @Test("repeated calls and later logs never add a second .planB or a second deposit")
+    func planBRollupIsIdempotent() async throws {
+        let h = try Harness(planBAccepted: true)
+        let protein = try h.addGoal(.protein, target: 150)
+        try h.addPlan(for: protein, planned: 150, planB: 60)
+        let focus = try h.addGoal(.focusSession, target: 25)
+        _ = try h.startLock(requiring: [protein, focus], mode: .earn)
+
+        try h.log(protein, amount: 60)
+        await h.recorded(protein)
+        await h.recorded(protein)
+        try h.log(protein, amount: 100, hour: 11)
+        await h.recorded(protein)
+
+        #expect(try h.planBCount(for: protein) == 1)
+        #expect(try h.completionCount(for: protein) == 0)
+        #expect(h.spy.duelPoints == 1)
+        #expect(await h.bankMinutes() == PlanB.earnModeMinutes(forFullMinutes: TimeBankEarnRates.proteinMinutes))
+    }
+
+    @Test("a Plan B target the user didn't accept (e.g. Comeback's) doesn't complete the goal")
+    func unacceptedPlanBTargetIsIgnored() async throws {
+        let h = try Harness(planBAccepted: false)
+        let protein = try h.addGoal(.protein, target: 150)
+        try h.addPlan(for: protein, planned: 150, planB: 60)
+
+        try h.log(protein, amount: 60)
+        await h.recorded(protein)
+
+        #expect(try h.planBCount(for: protein) == 0)
+        #expect(try h.completionCount(for: protein) == 0)
+    }
+
+    @Test("reaching the full target on a Plan B day is a full .complete")
+    func fullTargetOnPlanBDayIsComplete() async throws {
+        let h = try Harness(planBAccepted: true)
+        let protein = try h.addGoal(.protein, target: 100)
+        try h.addPlan(for: protein, planned: 100, planB: 40)
+
+        try h.log(protein, amount: 100)
+        await h.recorded(protein)
+
+        #expect(try h.completionCount(for: protein) == 1)
+        #expect(try h.planBCount(for: protein) == 0)
+    }
+
+    @Test("GoalDayProgress measures against the Plan B target and keeps the full one")
+    func progressUsesPlanBTarget() {
+        let events = [GoalEvent(ts: Harness.at(hour: 9), kind: .verify, value: 30, source: .manual, verified: true)]
+        let progress = GoalDayProgress(targetValue: 150, unit: "g", events: events, planBValue: 60)
+        #expect(progress.target == 60)
+        #expect(progress.fullTarget == 150)
+        #expect(progress.isPlanBTarget)
+        #expect(progress.fraction == 0.5)
+
+        let ignored = GoalDayProgress(targetValue: 150, unit: "g", events: events, planBValue: 200)
+        #expect(ignored.target == 150)
+        #expect(!ignored.isPlanBTarget)
     }
 }

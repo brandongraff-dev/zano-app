@@ -35,7 +35,7 @@
 // "week" (a weekly meal prep can't be open "today").
 //
 // Tapping a nudge opens the app through `userInfo["deepLink"]`, the key `ZANONotificationDelegate`
-// already routes. Only existing `zano://` links are used: `zano://today` and `zano://goals`.
+// already routes. Links: `zano://today`, `zano://goals`, `zano://fuel`, `zano://progress`.
 
 import Foundation
 import SwiftData
@@ -366,7 +366,9 @@ public final class NudgeScheduler {
     nonisolated static func deepLink(for kind: NudgeKind) -> String {
         switch kind {
         case .streakAtRisk: "zano://goals"
-        case .morningPlan, .proteinLastMile, .weeklyRecap: "zano://today"
+        case .morningPlan: "zano://today"
+        case .proteinLastMile: "zano://fuel"
+        case .weeklyRecap: "zano://progress"
         }
     }
 

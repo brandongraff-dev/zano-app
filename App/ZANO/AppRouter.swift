@@ -63,6 +63,10 @@ enum AppDeepLink: Equatable, Sendable {
     /// `zano://gym` — the Settings tab with Gym setup pushed (Wave 1A). For links from gym
     /// notifications, onboarding drips, Today's "set up your gym", etc.
     case gymSetup
+    /// `zano://fuel` — the Fuel tab (protein nudge).
+    case fuel
+    /// `zano://progress` — the Progress tab (weekly recap nudge).
+    case progress
     /// `zano://squad` — the Squad tab; `zano://squad/join/<CODE>` also opens the join sheet with
     /// the invite code filled in (the link `CreateJoinSquadSheet` shares, spec §5.7).
     case squad(joinCode: String?)
@@ -92,6 +96,8 @@ enum AppDeepLink: Equatable, Sendable {
         case "goals": self = .goals
         case "emergency": self = .emergency
         case "gym": self = .gymSetup
+        case "fuel": self = .fuel
+        case "progress": self = .progress
         case "squad":
             // `zano://squad/join/CODE` → host "squad", path ["join", "CODE"];
             // `zano:squad/join/CODE` → no host, path ["squad", "join", "CODE"].
@@ -274,7 +280,7 @@ final class AppRouter {
                 // No tag can be mapped before onboarding finishes, and replaying a tap's action
                 // minutes later would surprise the person — drop it.
                 logger.notice("Dropping a tag link received before onboarding finished.")
-            case .today, .goals, .emergency, .settings, .gymSetup, .squad, .invite:
+            case .today, .goals, .emergency, .settings, .gymSetup, .fuel, .progress, .squad, .invite:
                 pendingDeepLink = link
             }
             return
@@ -321,6 +327,10 @@ final class AppRouter {
             selectedTab = .settings
         case .gymSetup:
             openGymSetup()
+        case .fuel:
+            selectedTab = .fuel
+        case .progress:
+            selectedTab = .progress
         case .squad(let joinCode):
             selectedTab = .squad
             if let joinCode { pendingSquadJoinCode = joinCode }

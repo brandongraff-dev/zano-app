@@ -264,11 +264,13 @@ struct PauseForHealthView: View {
             let days = length.days
             Task {
                 await HealthPause.startReleasingActiveLock(days: days)
+                await NudgeScheduler.shared.reschedule()
                 refresh()
                 isWorking = false
             }
         } else {
             HealthPause.end()
+            Task { await NudgeScheduler.shared.reschedule() }
             refresh()
         }
     }

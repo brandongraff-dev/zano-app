@@ -22,13 +22,14 @@
 // time, inside whichever goal verifier (`FocusSessionVerifier`, `GymVerifier`, an Intents handler
 // for Tier B/C goals, ...) is running, none of which are this task's file list.
 //
-// TODO(cross-module integration — Verification/Intents layer, spec §5.5 + §14
-// `LogCustomGoalIntent`/`EndFocusIntent`/goal verifiers; not this task's file list): when a goal
-// is completed as its Plan B version, that layer should (a) log a `GoalEvent(kind: .planB, ...)`
-// and (b), in Earn Mode, call `TimeBankEngine.shared.deposit(minutes: PlanB.earnModeMinutes(
-// forFullMinutes: <that goal type's normal full-credit minute value, spec §5.2>), for: <date>)`.
-// Neither call exists yet anywhere in the codebase as of this task — this file only provides the
-// math (`earnModeMinutes(forFullMinutes:)`) those call sites need once they're written.
+// Update (Plan B wiring): completing a Plan B is now recorded in three places, all ending in one
+// verified `.planB` `GoalEvent` that `GoalCompletionCoordinator` pays half Earn Mode credit for:
+//   - logged-amount goals (protein, water, ...): the coordinator rolls the day's amount up into a
+//     `.planB` once it reaches the accepted Plan B target (`acceptedTarget(for:goalID:on:)`);
+//   - focus: `FocusSessionVerifier` logs a Plan B session (shortened from Today's Plan B card, or
+//     any session shorter than the full target on a Plan B day) as `.planB`;
+//   - goals Health or the gym verify (steps, workouts): `recordCompletion(goalID:verifiedAmount:on:)`
+//     from Today's Plan B card.
 
 import Foundation
 import SwiftData
@@ -180,18 +181,36 @@ public enum PlanB {
         acceptedEntries().contains(entry(goalID: goalID, on: date))
     }
 
+    /// Today's Plan B target for `goalID` when the user switched it to Plan B, else `nil`. Pass the
+    /// goal's `DailyPlan` for `date`'s day. This is what `GoalDayProgress(…, planBValue:)` takes:
+    /// `planBValue` alone isn't enough, since Comeback mode also writes it without the user
+    /// choosing Plan B.
+    public static func acceptedTarget(for plan: DailyPlan?, goalID: UUID, on date: Date = .now) -> Double? {
+        guard let value = plan?.planBValue, value > 0, isAccepted(goalID: goalID, on: date) else { return nil }
+        return value
+    }
+
+    /// `meta` key on a `.planB` event, and on the coordinator's Plan B rollup.
+    public static let planBMetaKey = "planB"
+
     /// Writes one verified `.planB` completion for `goalID` today and runs the coordinator. The
     /// caller passes an amount that is already verified (logged grams/ml, Health steps/workout
-    /// minutes, gym dwell minutes); this only records it. No-op when the goal already has a verified
-    /// completion today, so a double tap never writes two.
+    /// minutes, gym dwell minutes); this only records it.
     ///
-    /// - Returns: `true` if a Plan B completion was written.
+    /// Idempotent with the coordinator's automatic Plan B rollup: the coordinator runs first (for a
+    /// logged-amount goal that already reached its Plan B target it writes the rollup itself), and
+    /// nothing is written when the goal then has any verified completion today. A double tap never
+    /// writes two.
+    ///
+    /// - Returns: `true` if this call wrote the Plan B completion (`false` when it already existed).
     @discardableResult
     public static func recordCompletion(
         goalID: UUID,
         verifiedAmount: Double?,
         on date: Date = .now
     ) async throws -> Bool {
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID, at: date)
+
         let context = ModelContext(ModelContainer.appGroup)
         var goalDescriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == goalID })
         goalDescriptor.fetchLimit = 1
@@ -203,7 +222,7 @@ public enum PlanB {
         let todays = try context.fetch(eventDescriptor).filter { $0.goal?.id == goalID }
         guard !todays.contains(where: GoalDayProgress.isVerifiedCompletion) else { return false }
 
-        var meta: [String: JSONValue] = ["planB": .bool(true)]
+        var meta: [String: JSONValue] = [planBMetaKey: .bool(true)]
         if let verifiedAmount { meta["verifiedAmount"] = .number(verifiedAmount) }
         // `value: nil` so the amount already logged by other events isn't counted twice.
         let event = GoalEvent(

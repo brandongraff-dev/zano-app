@@ -7,7 +7,11 @@
 // What works offline, and what doesn't:
 //   - Your code: `ReferralManager.myReferralCode()` generates and saves it locally, so it shows
 //     and shares with no network. (Registering it server-side is best-effort inside the manager.)
-//   - Sharing: a plain-text `ShareLink` with the code. There is no invite URL or App Store link yet.
+//   - Sharing: a plain-text `ShareLink` with the code and its `zano://invite/<CODE>` link. No App
+//     Store link yet.
+//   - Arriving via `zano://invite/<CODE>` (`AppRouter.pendingReferralCode`): the code prefills the
+//     redeem field, or — while redeeming is offline — shows inside the offline note and is kept
+//     (per device) until redeemed, so it isn't lost.
 //   - Redeeming a friend's code needs the server (both freezes land in one server transaction, see
 //     `ReferralBackend`). Until `ReferralManager.isBackendConfigured` is true, the field is replaced
 //     by a clear "needs the network" note instead of a button that always fails.
@@ -25,6 +29,10 @@ struct ReferralView: View {
     @Query private var users: [User]
 
     @Environment(\.dismiss) private var dismiss
+    /// Optional: the celebration sheet and screenshot gallery may present this without a router.
+    @Environment(AppRouter.self) private var router: AppRouter?
+    /// A friend's code that arrived by invite link, kept until it's redeemed.
+    @AppStorage("zano.referral.inviteCode") private var inviteCode = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Show a Done button (when presented as a sheet rather than pushed).
@@ -68,7 +76,11 @@ struct ReferralView: View {
             }
         }
         .sensoryFeedback(.success, trigger: copiedTick)
-        .task { load() }
+        .task {
+            load()
+            consumeInviteLink()
+        }
+        .onChange(of: router?.pendingReferralCode) { _, _ in consumeInviteLink() }
         .onAppear { Analytics.shared.capture(event: "referral_viewed") }
     }
 
@@ -201,6 +213,13 @@ struct ReferralView: View {
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
                         .fixedSize(horizontal: false, vertical: true)
+                    if !inviteCode.isEmpty {
+                        Text(Copy.share.referralInviteCodeSaved(code: inviteCode))
+                            .font(Theme.Typography.captionEmphasized)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
                 }
                 .padding(Theme.Spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -259,6 +278,19 @@ struct ReferralView: View {
         code = try? manager.myReferralCode()
     }
 
+    /// Takes a code from `zano://invite/<CODE>`: keeps it and prefills the redeem field. Ignored
+    /// once this account already redeemed one, and when it's the person's own code.
+    private func consumeInviteLink() {
+        guard let incoming = router?.consumeReferralCode() else {
+            if redeemDraft.isEmpty, !inviteCode.isEmpty { redeemDraft = inviteCode }
+            return
+        }
+        guard !alreadyRedeemed, incoming != code else { return }
+        inviteCode = incoming
+        redeemDraft = incoming
+        Analytics.shared.capture(event: "referral_invite_link_opened")
+    }
+
     private func redeem() async {
         guard !isRedeeming else { return }
         isRedeeming = true
@@ -267,6 +299,7 @@ struct ReferralView: View {
             try await ReferralManager.shared.redeem(code: redeemDraft)
             redeemMessage = RedeemMessage(text: Copy.share.referralRedeemSuccess, isSuccess: true)
             redeemDraft = ""
+            inviteCode = ""
             Analytics.shared.capture(event: "referral_redeemed")
         } catch let error as ReferralManagerError {
             let text: String

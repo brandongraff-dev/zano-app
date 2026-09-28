@@ -104,6 +104,8 @@ struct ContentView: View {
     /// signal (or defaults `enabled` to `false`), add both calls right here.
     private func runForegroundChecks() async {
         // Turn any lock the monitor started while the app was closed into a real session.
+        // Records any fully missed days first, so Never Miss Twice / Comeback see them.
+        await StreakEngine.shared.reconcileMissedDays()
         await LockScheduler.shared.reconcile()
         // First foreground after onboarding: make the plan's "locks each morning until your goals
         // are done" real by saving that schedule for the default lock set (once, never overwriting

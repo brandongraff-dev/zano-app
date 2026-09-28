@@ -104,6 +104,8 @@ public final class FocusSessionVerifier {
         let goalID: UUID
         let plannedMinutes: Int
         let startedAt: Date
+        /// Started as the goal's Plan B (spec §5.5): a verified session logs `.planB`, not `.complete`.
+        let isPlanB: Bool
 
         /// `nil` while running; set to the moment `pauseSession` was called while paused.
         var pausedAt: Date? = nil
@@ -158,10 +160,15 @@ public final class FocusSessionVerifier {
     ///   - plannedMinutes: The timer length. The UI layer is expected to pass one of
     ///     `FocusSessionPreset`'s 25/50/90 values (docs/spec.md §3), but any positive value is
     ///     accepted here — see `FocusSessionPreset`'s doc comment for why this stays an `Int`.
+    ///   - isPlanB: `true` when Today's Plan B card started this shortened session (spec §5.5 "25-min
+    ///     focus instead of 90"). A verified Plan B session logs `.planB` (half Earn Mode credit in
+    ///     `GoalCompletionCoordinator`) instead of `.complete`. A session started elsewhere on a day
+    ///     the goal was switched to Plan B also logs `.planB` when it is shorter than the full
+    ///     target — see `completionKind(for:elapsedMinutes:)`.
     /// - Returns: A new session id. Pass it to `endSession`/`pauseSession`/`resumeSession`.
     /// - Throws: `FocusSessionVerifierError.invalidPlannedMinutes` or `.goalNotFound`, or a
     ///   SwiftData fetch error.
-    public func startSession(goalID: UUID, plannedMinutes: Int) async throws -> UUID {
+    public func startSession(goalID: UUID, plannedMinutes: Int, isPlanB: Bool = false) async throws -> UUID {
         guard plannedMinutes > 0 else {
             throw FocusSessionVerifierError.invalidPlannedMinutes(plannedMinutes)
         }
@@ -181,6 +188,7 @@ public final class FocusSessionVerifier {
             goalID: goalID,
             plannedMinutes: plannedMinutes,
             startedAt: .now,
+            isPlanB: isPlanB,
             activity: activity
         )
         startTicking(for: sessionID)
@@ -371,6 +379,27 @@ public final class FocusSessionVerifier {
         max(0, Int((plannedSeconds - elapsedSeconds).rounded(.up)))
     }
 
+    // MARK: - Plan B (spec §5.5)
+
+    /// `.planB` for a session the Plan B card started, or for any session shorter than today's
+    /// full target on a day the user switched this goal to Plan B (a session started from the row
+    /// or `StartFocusIntent` that day). Otherwise `.complete`. Reads the same `DailyPlan`/target
+    /// `GoalDayProgress` uses: today's planned value, else the goal's target.
+    private func completionKind(for session: RunningSession, elapsedMinutes: Double, at now: Date) -> GoalEventKind {
+        if session.isPlanB { return .planB }
+        guard PlanB.isAccepted(goalID: session.goalID, on: now) else { return .complete }
+        guard let fullTarget = fullTarget(goalID: session.goalID, on: now) else { return .complete }
+        return elapsedMinutes < fullTarget ? .planB : .complete
+    }
+
+    private func fullTarget(goalID: UUID, on date: Date) -> Double? {
+        let start = Calendar.current.startOfDay(for: date)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let descriptor = FetchDescriptor<DailyPlan>(predicate: #Predicate { $0.date >= start && $0.date < end })
+        let planned = (try? modelContext.fetch(descriptor))?.first { $0.goal?.id == goalID }?.plannedValue
+        return planned ?? (try? fetchGoal(id: goalID))?.targetValue
+    }
+
     // MARK: - Persistence
 
     private func fetchGoal(id: UUID) throws -> Goal? {
@@ -386,18 +415,22 @@ public final class FocusSessionVerifier {
     /// rather than throwing.
     private func logOutcome(session: RunningSession, elapsedSeconds: TimeInterval, verified: Bool, at now: Date) throws {
         let goal = try? fetchGoal(id: session.goalID)
+        let kind: GoalEventKind = verified ? completionKind(for: session, elapsedMinutes: elapsedSeconds / 60, at: now) : .miss
+
+        var meta: [String: JSONValue] = [
+            "plannedMinutes": .number(Double(session.plannedMinutes)),
+            "elapsedSeconds": .number(elapsedSeconds),
+            "pausedSeconds": .number(session.accumulatedPauseDuration),
+        ]
+        if kind == .planB { meta[PlanB.planBMetaKey] = .bool(true) }
 
         let event = GoalEvent(
             ts: now,
-            kind: verified ? .complete : .miss,
+            kind: kind,
             value: elapsedSeconds / 60,
             source: .timer,
             verified: verified,
-            meta: .object([
-                "plannedMinutes": .number(Double(session.plannedMinutes)),
-                "elapsedSeconds": .number(elapsedSeconds),
-                "pausedSeconds": .number(session.accumulatedPauseDuration),
-            ]),
+            meta: .object(meta),
             user: goal?.user,
             goal: goal
         )

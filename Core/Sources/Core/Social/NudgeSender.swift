@@ -182,8 +182,9 @@ public struct NudgeSendOutcome: Sendable, Equatable {
 public final class NudgeSender {
     public static let shared = NudgeSender()
 
-    /// docs/spec.md §8 rule 7: "Max 2 proactive pushes/day."
-    public static let dailyCap = 2
+    /// docs/spec.md §8 rule 7: "Max 2 proactive pushes/day." `nonisolated` so
+    /// `NudgeScheduler.plan(_:)` (a pure, nonisolated planner) can read it.
+    nonisolated public static let dailyCap = 2
 
     /// docs/spec.md §9.3: "Reward: goal completed within 3 hours of nudge."
     public static let attributionWindow: TimeInterval = 3 * 60 * 60
@@ -280,6 +281,58 @@ public final class NudgeSender {
               let deliveredToday = try? deliveredCount(for: user.id, on: date)
         else { return 0 }
         return max(0, Self.dailyCap - deliveredToday)
+    }
+
+    // MARK: - Scheduled nudges (NudgeScheduler)
+    //
+    // `send` records a nudge at the moment it goes out. `NudgeScheduler` instead hands future
+    // nudges to iOS as calendar-triggered local notifications, and nothing of ours runs when one
+    // fires (there is no delivery callback for a notification the app isn't open for). So the
+    // scheduler records each one here *when it schedules it*: a `delivered == true` row whose `ts`
+    // is the fire time. That keeps the 2/day cap honest for every other sender (a row dated
+    // tonight already counts against tonight) and gives `closeExpiredAttributionWindows` a real
+    // window to score once the fire time has passed. When the scheduler replaces a still-pending
+    // notification it deletes that row with `cancelScheduled`, so a nudge that never fired is
+    // never counted. Known gap: if the user turns notifications off in iOS Settings after a nudge
+    // was scheduled, its row still reads as delivered.
+
+    /// Records a nudge that has been scheduled to fire at `fireDate`. Returns the row's id, which
+    /// the scheduler puts in the notification identifier so it can cancel the row later.
+    @discardableResult
+    public func recordScheduled(arm: NudgeArm, fireDate: Date) throws -> UUID {
+        let user = try fetchCurrentUser()
+        let nudge = Nudge(userID: user.id, ts: fireDate, arm: arm, delivered: true)
+        context.insert(nudge)
+        try context.save()
+        logger.notice("Scheduled nudge \(nudge.id.uuidString, privacy: .public) for \(fireDate.timeIntervalSince1970, privacy: .public).")
+        return nudge.id
+    }
+
+    /// Deletes the rows for scheduled nudges that were cancelled before they fired. Only rows
+    /// whose fire time is still after `now` are deleted, so a notification that fired a moment
+    /// before it was cancelled keeps its row.
+    public func cancelScheduled(nudgeIDs: [UUID], notFiredBy now: Date = .now) {
+        guard !nudgeIDs.isEmpty else { return }
+        for id in nudgeIDs {
+            var descriptor = FetchDescriptor<Nudge>(predicate: #Predicate<Nudge> { $0.id == id && $0.ts > now })
+            descriptor.fetchLimit = 1
+            if let nudge = try? context.fetch(descriptor).first {
+                context.delete(nudge)
+            }
+        }
+        do {
+            try context.save()
+        } catch {
+            logger.error("cancelScheduled: save failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Nudges already delivered (or scheduled) for the local user on `date`'s calendar day. When
+    /// the count can't be read, returns ``dailyCap`` so a caller sends nothing rather than risk
+    /// going over the cap.
+    public func deliveredCount(on date: Date) -> Int {
+        guard let user = try? fetchCurrentUser() else { return Self.dailyCap }
+        return (try? deliveredCount(for: user.id, on: date)) ?? Self.dailyCap
     }
 
     // MARK: - Attribution (reward signal for §9.3's bandit)

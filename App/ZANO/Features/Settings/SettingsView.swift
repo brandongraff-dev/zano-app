@@ -527,6 +527,13 @@ struct SettingsView: View {
                     ReferralView()
                 }
                 .disabled(currentUser == nil)
+                // `zano://invite/<CODE>` lands here; `ReferralView` prefills the code.
+                .navigationDestination(isPresented: Binding(
+                    get: { appRouter.isReferralPresented },
+                    set: { appRouter.isReferralPresented = $0 }
+                )) {
+                    ReferralView()
+                }
 
                 if let gearStoreURL = SettingsReferenceData.gearStoreURL {
                     SettingsRowDivider()

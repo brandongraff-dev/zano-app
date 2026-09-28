@@ -1035,7 +1035,7 @@ struct TodayView: View {
     private static let rollupMetaKey = "rollup"
 
     private static func isRollupCompletion(_ event: GoalEvent) -> Bool {
-        guard event.kind == .complete, case .object(let fields) = event.meta else { return false }
+        guard event.kind == .complete || event.kind == .planB, case .object(let fields) = event.meta else { return false }
         return fields[rollupMetaKey] == .bool(true)
     }
 
@@ -1054,7 +1054,8 @@ struct TodayView: View {
         let progress = GoalDayProgress(
             goal: goal,
             todaysEvents: backing,
-            plannedValue: todaysPlan(for: goal)?.plannedValue
+            plannedValue: todaysPlan(for: goal)?.plannedValue,
+            planBValue: acceptedPlanBValue(for: goal)
         )
         guard !progress.isComplete else { return }
         for rollup in rollups {
@@ -1062,13 +1063,13 @@ struct TodayView: View {
         }
     }
 
-    private func startFocus(goalID: UUID, minutes: Int) {
+    private func startFocus(goalID: UUID, minutes: Int, isPlanB: Bool = false) {
         Analytics.shared.capture(event: "today_start_focus_tapped", properties: ["planned_minutes": minutes])
         isPerformingAction = true
         Task {
             defer { isPerformingAction = false }
             do {
-                _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: minutes)
+                _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: minutes, isPlanB: isPlanB)
                 runningFocusGoalID = goalID
             } catch {
                 showError(Copy.today.focusStartFailed)
@@ -1315,10 +1316,15 @@ struct TodayView: View {
         }
     }
 
-    /// Steps and home/outdoor workout goals that still need Health checks today.
+    /// Steps and home/outdoor workout goals that still need Health checks today, plus the gym goal
+    /// while travel mode is on (any Health workout of its minutes counts, `HomeWorkoutVerifier`).
     private var healthGoalIDs: [UUID] {
         activeGoals
-            .filter { ($0.type == .steps || $0.type == .workoutHomeOutdoor) && !isGoalDoneToday($0) }
+            .filter { goal in
+                let isHealthType = goal.type == .steps || goal.type == .workoutHomeOutdoor
+                    || (goal.type == .workoutGym && suggestionSignals.travelActive)
+                return isHealthType && !isGoalDoneToday(goal)
+            }
             .map(\.id)
     }
 
@@ -1330,7 +1336,9 @@ struct TodayView: View {
     private func refreshHealthRows() async {
         let ids = Set(healthGoalIDs)
         let stepGoalIDs = activeGoals.filter { $0.type == .steps && ids.contains($0.id) }.map(\.id)
-        let workoutGoalIDs = activeGoals.filter { $0.type == .workoutHomeOutdoor && ids.contains($0.id) }.map(\.id)
+        let workoutGoalIDs = activeGoals
+            .filter { ($0.type == .workoutHomeOutdoor || $0.type == .workoutGym) && ids.contains($0.id) }
+            .map(\.id)
         guard !stepGoalIDs.isEmpty || !workoutGoalIDs.isEmpty else { return }
 
         while !Task.isCancelled {
@@ -1652,15 +1660,15 @@ struct TodayView: View {
             current = liveWorkoutMinutes[goal.id] ?? 0
             unit = "min"
         case .steps:
-            guard let target = p.target else { return nil }
+            guard let target = p.fullTarget else { return nil }
             full = target
-            reduced = Self.planBReduced(full)
+            reduced = p.isPlanBTarget ? (p.target ?? Self.planBReduced(full)) : Self.planBReduced(full)
             current = liveSteps[goal.id] ?? p.current ?? 0
             unit = p.unit
         case .protein, .water, .focusSession:
-            guard let target = p.target else { return nil }
+            guard let target = p.fullTarget else { return nil }
             full = target
-            reduced = Self.planBReduced(full)
+            reduced = p.isPlanBTarget ? (p.target ?? Self.planBReduced(full)) : Self.planBReduced(full)
             current = Int(p.loggedAmount.rounded(.down))
             unit = p.unit
         default:
@@ -1727,7 +1735,7 @@ struct TodayView: View {
         case .protein, .water:
             runRowAction(goalID: goal.id)
         case .focusSession:
-            startFocus(goalID: goal.id, minutes: state.reduced)
+            startFocus(goalID: goal.id, minutes: state.reduced, isPlanB: true)
         case .steps, .workoutHomeOutdoor, .workoutGym:
             openHealthPrimer()
         default:
@@ -1833,19 +1841,14 @@ struct TodayView: View {
         }
     }
 
-    /// The poster's content: today's tries, the one open goal as "until I hit the gym" when only
+    /// The poster's content: the last hour's tries, the one open goal as "until I hit the gym" when only
     /// one is left, and the streak.
     private func lockedOutContent(attempts: Int) -> LockedOutMomentContent {
         let open = requiredGoals.filter { !isGoalDoneToday($0) }
         let phrase = open.count == 1 ? open.first.flatMap { Copy.today.lockedOutGoalPhrase($0.type) } : nil
-        let lockStart = activeLockSession?.startedAt
-        let since = lockStart.flatMap { Calendar.current.isDateInToday($0) ? $0 : nil }
-            ?? Calendar.current.startOfDay(for: .now)
-        let minutes = max(60, Int(Date.now.timeIntervalSince(since) / 60))
         return LockedOutMomentContent(
-            appName: nil,
+            appName: LockedOutAttemptTracker.lastAttemptAppName(),
             attemptCount: attempts,
-            windowMinutes: minutes,
             blockingGoalSummary: phrase,
             goalsRemaining: isLocked ? remainingRequiredGoalCount : nil,
             streak: streak?.current
@@ -1864,17 +1867,15 @@ struct TodayView: View {
         }
     }
 
-    /// Loads the engines' state for the slot. Also records yesterday's miss with `StreakEngine`
-    /// when nothing else did (see `recordYesterdaysMissIfNeeded`).
+    /// Loads the engines' state for the slot. Missed days are recorded by
+    /// `StreakEngine.reconcileMissedDays()` on foreground, not here.
     private func refreshSuggestionSignals() async {
         var signals = TodaySuggestionSignals()
-        signals.shieldAttemptsToday = max(ShieldAttemptTally.absorbPending(), LockedOutAttemptTracker.currentAttemptCount())
+        signals.shieldAttemptsToday = ShieldAttemptTally.absorbPending()
         signals.planBAcceptedGoalIDs = Set(activeGoals.map(\.id).filter { PlanB.isAccepted(goalID: $0) })
         signals.comebackTotalDays = ComebackMode.totalDays
 
         if !HealthPause.isActive {
-            await recordYesterdaysMissIfNeeded()
-
             if let challenge = await ComebackMode.shared.activeChallenge() {
                 signals.comebackDay = challenge.dayIndex
                 signals.comebackTotalDays = challenge.totalDays
@@ -1904,29 +1905,11 @@ struct TodayView: View {
         suggestionSignals = signals
     }
 
-    /// Spec 5.6 needs yesterday's miss recorded for the streak to survive it: `StreakEngine` only
-    /// forgives a one-day gap after `recordMiss` armed Never Miss Twice, and nothing else records
-    /// a plain missed day yet. So when the last earned day was exactly two days ago (yesterday had
-    /// nothing, no freeze, no health pause) and the flag isn't armed, record it once. A second
-    /// consecutive miss is left alone: that one breaks the streak, and Today never does that.
-    private func recordYesterdaysMissIfNeeded() async {
-        guard let streak, streak.current > 0, !streak.neverMissTwiceArmed, let lastEarned = streak.lastEarnedDate else { return }
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return }
-        let gap = calendar.dateComponents([.day], from: calendar.startOfDay(for: lastEarned), to: today).day ?? 0
-        guard gap == 2, !HealthPause.wasPaused(on: yesterday) else { return }
-        await StreakEngine.shared.recordMiss(on: yesterday)
-    }
-
     /// The goals a lock started from Today requires: every active goal, minus the gym while travel
     /// mode is on (spec 5.18, "gym optional"). A gym-only goal list keeps the gym, so the lock can
     /// still be earned.
     private var lockRequiredGoalIDs: [UUID] {
-        let all = activeGoals.map(\.id)
-        guard suggestionSignals.travelActive else { return all }
-        let withoutGym = activeGoals.filter { $0.type != .workoutGym }.map(\.id)
-        return withoutGym.isEmpty ? all : withoutGym
+        TravelMode.requiredGoalIDs(activeGoals.map { (id: $0.id, type: $0.type) }, travelActive: suggestionSignals.travelActive)
     }
 
     // MARK: - Derived state
@@ -2003,8 +1986,17 @@ struct TodayView: View {
         GoalDayProgress(
             goal: goal,
             todaysEvents: todaysEvents(for: goal),
-            plannedValue: todaysPlan(for: goal)?.plannedValue
+            plannedValue: todaysPlan(for: goal)?.plannedValue,
+            planBValue: acceptedPlanBValue(for: goal)
         )
+    }
+
+    /// Today's Plan B target once the user switched this goal to Plan B (spec 5.5), so its row
+    /// counts toward the smaller target. Read from `suggestionSignals` (state, so the row redraws
+    /// on accept) rather than `PlanB.isAccepted` on every render.
+    private func acceptedPlanBValue(for goal: Goal) -> Double? {
+        guard suggestionSignals.planBAcceptedGoalIDs.contains(goal.id) else { return nil }
+        return todaysPlan(for: goal)?.planBValue
     }
 
     private func isGoalDoneToday(_ goal: Goal) -> Bool {

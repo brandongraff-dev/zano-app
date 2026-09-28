@@ -659,7 +659,9 @@ public final class LockScheduler {
             guard let lockSetID = pending.lockSetID else { return }
             var sessionID: UUID?
             do {
-                let goals = try pending.requiredGoalIDs ?? engine.activeGoalIDsForCurrentUser()
+                // Spec §5.18: travel mode drops the gym goal (not when it's the only one).
+                let requested = try pending.requiredGoalIDs ?? engine.activeGoalIDsForCurrentUser()
+                let goals = TravelMode.shared.requiredGoalIDs(for: requested)
                 sessionID = try await engine.startLock(
                     lockSetID: lockSetID,
                     mode: pending.mode,

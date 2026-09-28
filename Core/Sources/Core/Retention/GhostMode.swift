@@ -141,8 +141,12 @@ public final class GhostMode {
         }
         let currentCount = completedGoalCount(userID: user.id, from: currentWeek.start, to: currentCutoff)
 
+        // Health pause (spec §24): paused days this week are a chosen break, not a slower pace —
+        // race Ghost You over the same number of *active* days so a pause never reads as falling
+        // behind.
+        let pacedOffset = max(0, offset - pausedDaysThisWeek(from: currentWeek.start, to: currentCutoff, now: date))
         guard let ghostWeekStart = bestHistoricalWeekStart(userID: user.id, before: currentWeek.start),
-              let ghostCutoff = calendar.date(byAdding: .day, value: offset, to: ghostWeekStart)
+              let ghostCutoff = calendar.date(byAdding: .day, value: pacedOffset, to: ghostWeekStart)
         else {
             return Self.emptyComparison(
                 date: today, weekStart: currentWeek.start, offset: offset, dayLabel: label,
@@ -171,6 +175,12 @@ public final class GhostMode {
     /// at every call site, so this should never actually need the clamp, but a stray off-by-one
     /// from a DST boundary should degrade to "somewhere in the week," never an out-of-range index
     /// a caller might use to subscript something.
+    /// Calendar days in `[start, end)` that fell inside a health pause.
+    private func pausedDaysThisWeek(from start: Date, to end: Date, now: Date) -> Int {
+        guard let dayBeforeStart = calendar.date(byAdding: .day, value: -1, to: start) else { return 0 }
+        return HealthPause.pausedDayCount(strictlyBetween: dayBeforeStart, and: end, calendar: calendar, now: now)
+    }
+
     private func dayOffset(of day: Date, in week: DateInterval) -> Int {
         let value = calendar.dateComponents([.day], from: week.start, to: day).day ?? 0
         return min(7, max(1, value + 1))

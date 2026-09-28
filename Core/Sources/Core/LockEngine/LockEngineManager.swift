@@ -350,6 +350,25 @@ public final class LockEngineManager {
         return remaining.isEmpty
     }
 
+    /// Drops goals from a running lock's required list: travel mode starting mid-lock makes the gym
+    /// optional (spec §5.18). Only ever removes goals (never adds one to a lock already running) and
+    /// never empties the list, so the lock stays earnable; emergency unlock is untouched. Goes
+    /// through this engine's own context so `evaluateUnlockEligibility` sees the new list. Callers
+    /// then run `GoalCompletionCoordinator.goalEventRecorded` so the lock can end as earned.
+    ///
+    /// - Returns: `true` if the list changed.
+    @discardableResult
+    public func narrowRequiredGoals(sessionID: UUID, keeping goalIDs: [UUID]) throws -> Bool {
+        guard let session = try fetchSession(id: sessionID), session.isActive else { return false }
+        let keep = Set(goalIDs)
+        let narrowed = session.requiredGoalIDs.filter { keep.contains($0) }
+        guard !narrowed.isEmpty, narrowed.count < session.requiredGoalIDs.count else { return false }
+        session.requiredGoalIDs = narrowed
+        try context.save()
+        logger.notice("Lock \(sessionID.uuidString, privacy: .public) now requires \(narrowed.count, privacy: .public) goal(s).")
+        return true
+    }
+
     // MARK: - Partial unlock tiers (spec §2 "Partial unlocks", §4 v2)
 
     /// Lifts the apps of every partial tier the session has reached, keeping the rest shielded.

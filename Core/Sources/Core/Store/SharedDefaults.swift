@@ -61,6 +61,8 @@ public enum SharedDefaults {
         static let nudgeQuietStartMinutes = "shared.nudges.quietStartMinutes"
         static let nudgeQuietEndMinutes = "shared.nudges.quietEndMinutes"
         static let nudgeDisabledKinds = "shared.nudges.disabledKinds"
+        static let neverMissTwiceArmed = "shared.neverMissTwiceArmed"
+        static let streakLastReconciledDay = "shared.streak.lastReconciledDay"
     }
 
     /// The underlying App Group suite, for SwiftUI `@AppStorage(_:store:)` observers only (e.g.
@@ -175,6 +177,19 @@ public enum SharedDefaults {
         get { defaults.integer(forKey: Keys.bestStreak) }
         set { defaults.set(newValue, forKey: Keys.bestStreak) }
     }
+
+    /// Mirrors `Streak.neverMissTwiceArmed`: yesterday was a miss and today's earn is a comeback.
+    /// Written by `StreakEngine` alongside ``currentStreak``; the shield extension reads it for
+    /// after-a-miss copy (`ShieldCopy.ShieldContext.recentMiss`).
+    public static var neverMissTwiceArmed: Bool {
+        get { defaults.bool(forKey: Keys.neverMissTwiceArmed) }
+        set { defaults.set(newValue, forKey: Keys.neverMissTwiceArmed) }
+    }
+
+    /// Key for the last day `StreakEngine.reconcileMissedDays` swept (a `Date`, start of day).
+    /// Exposed as a key because `StreakEngine` reads and writes it through an injectable
+    /// `UserDefaults` (this suite in production, a throwaway one in tests).
+    public static let streakLastReconciledDayKey = Keys.streakLastReconciledDay
 
     // MARK: - Coach voice (spec §5.13 Coach Voice)
 

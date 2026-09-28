@@ -185,10 +185,10 @@ struct LockStatusView: View {
         )
     }
 
-    /// Reads and resets ``SharedDefaults/shieldImpressionCount``, reports the total as a single
-    /// aggregate event (none when it's `0`), and adds it to today's tally that Today's locked-out
-    /// card reads. `ShieldAttemptTally` (Today/Suggestions) does all three, so the flush from either
-    /// screen counts once.
+    /// Reads and resets ``SharedDefaults/shieldImpressionCount`` and reports the total as a single
+    /// aggregate event (none when it's `0`). `ShieldAttemptTally` (Today/Suggestions) does both, so
+    /// the flush from either screen counts once. The locked-out card's per-hour count lives in
+    /// `LockedOutAttemptTracker` (Core) and needs no flush.
     private func flushShieldImpressions() {
         ShieldAttemptTally.absorbPending()
     }
@@ -937,10 +937,13 @@ struct LockStatusView: View {
     }
 
     private func dayProgress(for goal: Goal) -> GoalDayProgress {
-        GoalDayProgress(
+        let plan = todaysPlan(for: goal)
+        return GoalDayProgress(
             goal: goal,
             todaysEvents: todaysEvents(for: goal),
-            plannedValue: todaysPlan(for: goal)?.plannedValue
+            plannedValue: plan?.plannedValue,
+            // A goal switched to Plan B today counts toward the smaller target (spec §5.5).
+            planBValue: PlanB.acceptedTarget(for: plan, goalID: goal.id)
         )
     }
 

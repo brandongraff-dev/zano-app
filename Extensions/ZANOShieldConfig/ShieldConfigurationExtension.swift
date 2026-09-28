@@ -48,6 +48,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     private func configuration(shieldedName: String?) -> ShieldConfiguration {
         // spec §23: count every rendered shield on device; the app flushes it later.
         SharedDefaults.incrementShieldImpressionCount()
+        // spec §5.16: one attempt for the locked-out moment (display name only, never a token).
+        LockedOutAttemptTracker.recordAttempt(appName: shieldedName)
 
         let content = ShieldCopy.content(for: Self.makeContext(shieldedName: shieldedName))
 
@@ -97,10 +99,9 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             goalsRemaining: SharedDefaults.goalsRemainingForActiveLock,
             mode: SharedDefaults.activeLockMode,
             earnedMinutesRemainingToday: SharedDefaults.earnedMinutesRemainingToday,
-            earnedMinutesMirrorIsForToday: SharedDefaults.earnedMinutesMirrorIsForToday
-            // `recentMiss` intentionally left at its default (`false`) — see the TODO on
-            // `ShieldCopy.ShieldContext.recentMiss` for the still-missing SharedDefaults mirror
-            // of `Streak.neverMissTwiceArmed` that would drive the after-a-miss moment for real.
+            earnedMinutesMirrorIsForToday: SharedDefaults.earnedMinutesMirrorIsForToday,
+            // Mirrored by `StreakEngine` on every streak write (spec §5.6 after-a-miss moment).
+            recentMiss: SharedDefaults.neverMissTwiceArmed
         )
     }
 }

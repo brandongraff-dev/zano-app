@@ -2,8 +2,8 @@
 // App / ZANO / Features / Today / Suggestions
 //
 // docs/spec.md 5.16 Locked-Out Moment. The shield extension can't present anything shareable, so
-// the moment surfaces here: once today's blocked-app attempts (`ShieldAttemptTally`) reach
-// `LockedOutAttemptTracker.threshold`, this card opens `LockedOutMomentView` to share it.
+// the moment surfaces here: once the trailing hour's blocked-app attempts (`LockedOutAttemptTracker`,
+// recorded by the shield extension) reach its `threshold`, this card opens `LockedOutMomentView`.
 
 import SwiftUI
 import Core

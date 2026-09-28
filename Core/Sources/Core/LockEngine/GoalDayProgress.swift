@@ -19,6 +19,11 @@ import Foundation
 /// A `.verify` *with* an amount is a log (protein and water intents write `.verify` + grams/ml), so
 /// one +25g doesn't mark a 150g goal done. Unverified events (a duplicate NFC tap, a focus session
 /// that ended early) never count.
+///
+/// Plan B (spec §5.5): when the user switched a goal to Plan B today, callers pass the day's
+/// `DailyPlan.planBValue` as `planBValue` (use `PlanB.acceptedTarget(for:goalID:on:)`, which is `nil`
+/// unless Plan B was accepted). Progress is then measured against that smaller target, and
+/// `fullTarget` keeps today's regular target for anything that needs both.
 public struct GoalDayProgress: Sendable, Equatable {
     /// `0...1`.
     public let fraction: Double
@@ -30,6 +35,10 @@ public struct GoalDayProgress: Sendable, Equatable {
     public let unit: String
     /// The unrounded verified amount logged today (0 for binary goals).
     public let loggedAmount: Double
+    /// Today's regular target (numeric goals only). Equals `target` unless a Plan B target applies.
+    public let fullTarget: Int?
+    /// `true` when `target` is today's accepted Plan B target rather than the regular one.
+    public let isPlanBTarget: Bool
 
     public var isComplete: Bool { fraction >= 1 }
     public var hasStarted: Bool { fraction > 0 }
@@ -37,22 +46,32 @@ public struct GoalDayProgress: Sendable, Equatable {
     /// - Parameters:
     ///   - todaysEvents: this goal's events for the day (callers filter by goal and day).
     ///   - plannedValue: today's `DailyPlan.plannedValue`, which overrides `goal.targetValue`.
-    public init(goal: Goal, todaysEvents events: [GoalEvent], plannedValue: Double?) {
-        self.init(targetValue: plannedValue ?? goal.targetValue, unit: goal.unit, events: events)
+    ///   - planBValue: today's accepted Plan B target (`PlanB.acceptedTarget`), or `nil`. Only used
+    ///     when it is positive and below the regular target.
+    public init(goal: Goal, todaysEvents events: [GoalEvent], plannedValue: Double?, planBValue: Double? = nil) {
+        self.init(targetValue: plannedValue ?? goal.targetValue, unit: goal.unit, events: events, planBValue: planBValue)
     }
 
-    init(targetValue: Double?, unit goalUnit: String?, events: [GoalEvent]) {
+    init(targetValue fullValue: Double?, unit goalUnit: String?, events: [GoalEvent], planBValue: Double? = nil) {
         let hasVerifiedCompletion = events.contains(where: Self.isVerifiedCompletion)
 
-        guard let targetValue, targetValue > 0 else {
+        guard let fullValue, fullValue > 0 else {
             let done = hasVerifiedCompletion || events.contains { $0.verified && $0.kind == .verify }
             fraction = done ? 1 : 0
             current = nil
             target = nil
             unit = ""
             loggedAmount = 0
+            fullTarget = nil
+            isPlanBTarget = false
             return
         }
+
+        let usesPlanB: Bool
+        if let planBValue, planBValue > 0, planBValue < fullValue { usesPlanB = true } else { usesPlanB = false }
+        let targetValue = usesPlanB ? (planBValue ?? fullValue) : fullValue
+        fullTarget = Int(fullValue.rounded())
+        isPlanBTarget = usesPlanB
 
         let hasCompletion = hasVerifiedCompletion
             || events.contains { $0.verified && $0.kind == .verify && $0.value == nil }

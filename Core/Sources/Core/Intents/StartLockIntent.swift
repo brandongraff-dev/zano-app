@@ -115,12 +115,15 @@ public struct StartLockIntent: AppIntent {
             resolvedLockSetID = defaultSet.id
         }
 
-        let resolvedGoalIDs: [UUID]
+        let requestedGoalIDs: [UUID]
         if let requiredGoals, !requiredGoals.isEmpty {
-            resolvedGoalIDs = requiredGoals.map(\.id)
+            requestedGoalIDs = requiredGoals.map(\.id)
         } else {
-            resolvedGoalIDs = try IntentSupport.activeGoalIDs(for: user.id, in: context)
+            requestedGoalIDs = try IntentSupport.activeGoalIDs(for: user.id, in: context)
         }
+        // Spec §5.18 travel mode: the gym is optional while traveling (kept when it's the only
+        // goal, so the lock can still be earned). Same rule as Today and scheduled locks.
+        let resolvedGoalIDs = TravelMode.shared.requiredGoalIDs(for: requestedGoalIDs)
 
         _ = try await LockEngineManager.shared.startLock(
             lockSetID: resolvedLockSetID,

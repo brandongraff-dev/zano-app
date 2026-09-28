@@ -375,7 +375,7 @@ extension Copy.today {
 
     // Locked-out moment
     public static func lockedOutCardTitle(attempts: Int) -> String {
-        "\(attempts) tries on blocked apps today"
+        "\(attempts) tries on blocked apps in the last hour"
     }
     public static let lockedOutCardDetail = "Share the moment. It keeps you honest."
     public static let lockedOutCardAction = "Share it"

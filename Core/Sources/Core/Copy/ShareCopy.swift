@@ -167,9 +167,14 @@ extension Copy.share {
     public static let referralCopyCodeLabel = "Copy code"
     public static let referralCodeCopied = "Copied"
     public static let referralShareButton = "Share invite"
-    /// The text a friend receives. No link yet: there's no App Store listing or invite URL.
+    /// The `zano://invite/<CODE>` link that opens Invite friends with the code filled in.
+    public static func referralInviteLink(code: String) -> String {
+        "zano://invite/\(code)"
+    }
+    /// The text a friend receives: the plain code (works anywhere) plus the in-app link (works once
+    /// ZANO is installed). No App Store link yet.
     public static func referralShareMessage(code: String) -> String {
-        "I lock my apps until I hit my goals with ZANO. Join with my code \(code) and we both get a streak freeze."
+        "I lock my apps until I hit my goals with ZANO. Join with my code \(code) and we both get a streak freeze. Already have ZANO? Open \(referralInviteLink(code: code))"
     }
     public static let referralShareSubject = "Join me on ZANO"
     public static let referralCodeUnavailable = "Your code appears once setup is finished."
@@ -189,6 +194,10 @@ extension Copy.share {
     public static let referralRedeemInvalidFormat = "That code doesn't look right. Codes are 7 letters and numbers."
     public static let referralRedeemOwnCode = "That's your own code. Share it with a friend instead."
     public static let referralRedeemFailed = "Couldn't redeem that code. Check it and try again."
+    /// Shown with the offline note when an invite link brought a friend's code, so it isn't lost.
+    public static func referralInviteCodeSaved(code: String) -> String {
+        "Your friend's code: \(code). Redeem it here once redeeming opens."
+    }
 
     /// The quiet post-unlock link on the celebration.
     public static let referralPostUnlockPrompt = "Invite a friend. You both get a freeze."

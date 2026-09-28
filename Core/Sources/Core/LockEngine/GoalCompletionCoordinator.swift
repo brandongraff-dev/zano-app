@@ -8,7 +8,10 @@
 // Every intent/verifier that writes a `GoalEvent` calls `goalEventRecorded(goalID:)` right after
 // saving it. The coordinator then:
 //   1. Rolls the day's logged amount up into exactly one verified `.complete` event once the target
-//      is reached (protein/water log `.verify` + amount; the engine only accepts completions).
+//      is reached (protein/water log `.verify` + amount; the engine only accepts completions). When
+//      the user switched the goal to Plan B today (spec §5.5), reaching the smaller Plan B target
+//      (`DailyPlan.planBValue`) rolls up into one `.planB` instead — half Earn credit below. Reaching
+//      the full target on a Plan B day is still a full `.complete`.
 //   2. Runs the per-completion rewards once per goal per day, tracked with a marker in the
 //      completion event's `meta`: a duel point, and (Earn Mode lock only) Time Bank minutes.
 //   3. If a lock is active and every required goal is verified, ends it as `.earned` through
@@ -51,6 +54,11 @@ public final class GoalCompletionCoordinator {
         /// `VariableReward.roll` — the 1-in-~6 surprise on an earned unlock (spec §8 rule 4).
         /// Defaulted to a no-op so existing test harnesses keep compiling; `.live` wires it.
         var rollVariableReward: @MainActor (UUID, Date) async -> Void = { _, _ in }
+        /// `PlanB.isAccepted` — whether the user switched a goal to Plan B that day (spec §5.5).
+        /// Injectable so tests don't depend on the App Group defaults.
+        var isPlanBAccepted: @MainActor (UUID, Date) -> Bool = { goalID, date in
+            PlanB.isAccepted(goalID: goalID, on: date)
+        }
 
         static var live: Effects {
             Effects(
@@ -166,20 +174,30 @@ public final class GoalCompletionCoordinator {
             .min { $0.ts < $1.ts }
 
         if !events.contains(where: GoalDayProgress.isVerifiedCompletion) {
-            let plannedValue = todaysPlannedValue(goalID: goal.id, in: context, now: now)
-            let progress = GoalDayProgress(goal: goal, todaysEvents: events, plannedValue: plannedValue)
+            let plan = todaysPlan(goalID: goal.id, in: context, now: now)
+            let plannedValue = plan?.plannedValue
+            let planBValue = effects.isPlanBAccepted(goal.id, now) ? plan?.planBValue : nil
+            let full = GoalDayProgress(goal: goal, todaysEvents: events, plannedValue: plannedValue)
+            let progress = full.isComplete
+                ? full
+                : GoalDayProgress(goal: goal, todaysEvents: events, plannedValue: plannedValue, planBValue: planBValue)
             guard progress.isComplete else { return nil }
+            let isPlanB = progress.isPlanBTarget
 
             var meta: [String: JSONValue] = [
                 Self.rollupMetaKey: .bool(true),
                 "loggedAmount": .number(progress.loggedAmount),
             ]
             if let target = plannedValue ?? goal.targetValue { meta["target"] = .number(target) }
+            if isPlanB {
+                meta[PlanB.planBMetaKey] = .bool(true)
+                if let planBValue { meta["planBTarget"] = .number(planBValue) }
+            }
             let latestSource = events.filter(\.verified).max { $0.ts < $1.ts }?.source ?? .manual
             // `value: nil` so the amount isn't counted twice by `GoalDayProgress`.
             let rollup = GoalEvent(
                 ts: now,
-                kind: .complete,
+                kind: isPlanB ? .planB : .complete,
                 value: nil,
                 source: latestSource,
                 verified: true,
@@ -275,12 +293,12 @@ public final class GoalCompletionCoordinator {
         return ((try? context.fetch(descriptor)) ?? []).filter { $0.goal?.id == goalID }
     }
 
-    private func todaysPlannedValue(goalID: UUID, in context: ModelContext, now: Date) -> Double? {
+    private func todaysPlan(goalID: UUID, in context: ModelContext, now: Date) -> DailyPlan? {
         let (start, end) = dayBounds(for: now)
         let descriptor = FetchDescriptor<DailyPlan>(
             predicate: #Predicate<DailyPlan> { $0.date >= start && $0.date < end }
         )
-        return ((try? context.fetch(descriptor)) ?? []).first { $0.goal?.id == goalID }?.plannedValue
+        return ((try? context.fetch(descriptor)) ?? []).first { $0.goal?.id == goalID }
     }
 
     private func dayBounds(for date: Date) -> (start: Date, end: Date) {

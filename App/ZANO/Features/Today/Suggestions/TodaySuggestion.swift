@@ -153,32 +153,20 @@ enum TodaySuggestionDismissals {
 
 // MARK: - Today's shield attempts
 
-/// Today's count of shield impressions (each one is the user opening a blocked app). The shield
-/// extension only bumps `SharedDefaults.shieldImpressionCount`; whoever opens first (Today or the
-/// Lock tab) flushes it here, reports it to analytics once, and adds it to today's tally.
-///
-/// Approximate by design: impressions counted before a flush are attributed to the day of the
-/// flush, and a shield can render more than once per attempt.
+/// Blocked-app attempts for the locked-out card. The shield extension records each attempt in
+/// `LockedOutAttemptTracker` (Core) and bumps `SharedDefaults.shieldImpressionCount`; whoever
+/// opens first (Today or the Lock tab) reports pending impressions to analytics once.
 @MainActor
 enum ShieldAttemptTally {
-    private static let dayKey = "today.shieldAttempts.day"
-    private static let countKey = "today.shieldAttempts.count"
-
     /// Flushes pending impressions (one aggregate `shield_impression` event, spec 23) and returns
-    /// today's total.
+    /// the attempts in the trailing hour (spec 5.16: "3+ times in an hour").
     @discardableResult
     static func absorbPending(now: Date = .now) -> Int {
         let flushed = SharedDefaults.flushShieldImpressionCount()
         if flushed > 0 {
             Analytics.shared.capture(event: "shield_impression", properties: ["count": flushed])
         }
-        let today = Calendar.current.startOfDay(for: now).timeIntervalSince1970
-        let defaults = UserDefaults.standard
-        var count = defaults.double(forKey: dayKey) == today ? defaults.integer(forKey: countKey) : 0
-        count += flushed
-        defaults.set(today, forKey: dayKey)
-        defaults.set(count, forKey: countKey)
-        return count
+        return LockedOutAttemptTracker.attemptsInLastHour(asOf: now)
     }
 }
 

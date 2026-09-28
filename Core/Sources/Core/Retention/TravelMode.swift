@@ -142,7 +142,7 @@ public final class TravelMode {
     public static let suggestedGoalTypes: [GoalType] = [.workoutHomeOutdoor, .steps, .focusSession]
 
     /// Spec §5.18's "gym optional."
-    public static let optionalGoalType: GoalType = .workoutGym
+    nonisolated public static let optionalGoalType: GoalType = .workoutGym
 
     private let modelContainer: ModelContainer
     private lazy var context = ModelContext(modelContainer)
@@ -170,6 +170,7 @@ public final class TravelMode {
         static let activeStartDate = "com.zano.app.travelMode.active.startDate"
         static let activeCity = "com.zano.app.travelMode.active.city"
         static let activeDistanceMeters = "com.zano.app.travelMode.active.distanceMeters"
+        static let lastSampledFixAt = "com.zano.app.travelMode.lastSampledFixAt"
     }
 
     /// `internal`, not `private`, only so `CoreTests` can construct an isolated instance against
@@ -422,6 +423,7 @@ public final class TravelMode {
         logger.notice(
             "Travel Mode accepted: \(emphasizedIDs.count, privacy: .public) emphasized goal(s), \(optionalGymIDs.count, privacy: .public) gym goal(s) now optional."
         )
+        await applyToActiveLock()
         return TravelModeSession(
             startDate: date,
             detectedCity: city,
@@ -452,6 +454,7 @@ public final class TravelMode {
         travelDefaults.removeObject(forKey: DefaultsKey.activeCity)
 
         logger.notice("Travel Mode started manually: \(optionalGymIDs.count, privacy: .public) gym goal(s) now optional.")
+        await applyToActiveLock()
         return TravelModeSession(
             startDate: date,
             detectedCity: nil,
@@ -506,6 +509,90 @@ public final class TravelMode {
     /// mirrors every other read-only method in this codebase's engines.
     public func isGymOptional(asOf date: Date = .now) async -> Bool {
         await activeSession(asOf: date) != nil
+    }
+
+    // MARK: - Required goals ("gym optional", spec §5.18)
+    //
+    // The one rule every lock start uses (Today, the Lock tab via `StartLockIntent`, scheduled locks
+    // via `LockScheduler`) and a lock already running when travel mode starts: while travel mode
+    // is on, the gym goal isn't required. A list whose only goals are gym goals keeps them, so the
+    // lock can still be earned (a lock with no required goals can never end as earned).
+
+    /// Pure rule: `goals` in order, minus gym goals when `travelActive`, unless that leaves nothing.
+    nonisolated public static func requiredGoalIDs(
+        _ goals: [(id: UUID, type: GoalType)],
+        travelActive: Bool
+    ) -> [UUID] {
+        let all = goals.map { $0.id }
+        guard travelActive else { return all }
+        let withoutGym = goals.filter { $0.type != optionalGoalType }.map { $0.id }
+        return withoutGym.isEmpty ? all : withoutGym
+    }
+
+    /// Whether a travel session is running, straight from the App Group defaults. `nonisolated`
+    /// so verifiers off the main actor (`HomeWorkoutVerifier`) can ask without a hop.
+    nonisolated public static func isActiveNow() -> Bool {
+        let defaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard
+        return defaults.object(forKey: DefaultsKey.activeStartDate) != nil
+    }
+
+    /// `goalIDs` with the rule above applied against the current travel state. Ids whose goal
+    /// can't be found are kept as they are.
+    public func requiredGoalIDs(for goalIDs: [UUID]) -> [UUID] {
+        guard Self.isActiveNow(), !goalIDs.isEmpty else { return goalIDs }
+        let types = goalTypes(for: goalIDs)
+        return Self.requiredGoalIDs(
+            goalIDs.map { (id: $0, type: types[$0] ?? .custom) },
+            travelActive: true
+        )
+    }
+
+    /// A lock running when travel mode starts: drop the gym goal from its required list (not when
+    /// it's the only one) and run the coordinator, which ends the lock as earned if everything
+    /// else is already done. Never adds goals back when travel mode ends.
+    func applyToActiveLock() async {
+        let freshContext = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<LockSession>(predicate: #Predicate { $0.endedAt == nil })
+        guard let session = (try? freshContext.fetch(descriptor))?.first(where: { $0.isActive }) else { return }
+        let sessionID = session.id
+        let narrowed = requiredGoalIDs(for: session.requiredGoalIDs)
+        guard narrowed.count < session.requiredGoalIDs.count, let anyRequired = narrowed.first else { return }
+        do {
+            guard try LockEngineManager.shared.narrowRequiredGoals(sessionID: sessionID, keeping: narrowed) else { return }
+        } catch {
+            logger.error("Travel Mode: could not update the running lock: \(String(describing: error), privacy: .public)")
+            return
+        }
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: anyRequired)
+    }
+
+    // MARK: - Location feed (no new permission)
+
+    /// Feeds the system's last known location into `recordLocationSample` on app foreground, only
+    /// when location access was already granted (gym setup asks for it; this never asks). No
+    /// location request is started: `CLLocationManager.location` is whatever fix the system last
+    /// had. Fixes older than a day are skipped, and the same fix is never fed twice (two feeds of
+    /// one stale fix would otherwise meet `sustainedSampleCount` on their own).
+    ///
+    /// - Returns: a new suggestion, if this sample produced one.
+    @discardableResult
+    public func sampleLastKnownLocation(now: Date = .now) async -> TravelSuggestion? {
+        let manager = CLLocationManager()
+        let status = manager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return nil }
+        guard let location = manager.location, location.horizontalAccuracy > 0 else { return nil }
+        let fixTime = location.timestamp
+        guard now.timeIntervalSince(fixTime) < 86_400 else { return nil }
+        if let last = travelDefaults.object(forKey: DefaultsKey.lastSampledFixAt) as? Date, fixTime <= last {
+            return nil
+        }
+        travelDefaults.set(fixTime, forKey: DefaultsKey.lastSampledFixAt)
+        return await recordLocationSample(LocationSample(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            horizontalAccuracy: location.horizontalAccuracy,
+            timestamp: fixTime
+        ))
     }
 
     // MARK: - Reverse geocoding (best-effort city-name enrichment, spec §5.18/§9.7 copy support)
@@ -603,6 +690,15 @@ public final class TravelMode {
         let descriptor = FetchDescriptor<Goal>(predicate: #Predicate<Goal> { $0.active == true })
         guard let goals = try? context.fetch(descriptor) else { return [] }
         return goals.filter { $0.user?.id == userID && types.contains($0.type) }
+    }
+
+    /// Goal types by id, filtered in Swift (enum comparisons stay out of `#Predicate`).
+    private func goalTypes(for goalIDs: [UUID]) -> [UUID: GoalType] {
+        let wanted = Set(goalIDs)
+        let goals = (try? ModelContext(modelContainer).fetch(FetchDescriptor<Goal>())) ?? []
+        var types: [UUID: GoalType] = [:]
+        for goal in goals where wanted.contains(goal.id) { types[goal.id] = goal.type }
+        return types
     }
 
     /// This device's local store holds exactly one `User` row (`Models/User.swift`'s own doc

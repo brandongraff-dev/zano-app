@@ -66,6 +66,9 @@ enum AppDeepLink: Equatable, Sendable {
     /// `zano://squad` — the Squad tab; `zano://squad/join/<CODE>` also opens the join sheet with
     /// the invite code filled in (the link `CreateJoinSquadSheet` shares, spec §5.7).
     case squad(joinCode: String?)
+    /// `zano://invite/<CODE>` — a friend's referral code (the link `ReferralView` shares, spec §4
+    /// v2). Opens Settings → Invite friends with the code filled in.
+    case invite(code: String)
     /// `zano://tag/<uuid>` — dispatched to `NFCTagMapper`. `url` is kept so the mapper re-parses
     /// the exact URL it was given rather than one rebuilt from `id`.
     case tag(id: UUID, url: URL)
@@ -100,6 +103,14 @@ enum AppDeepLink: Equatable, Sendable {
             } else {
                 self = .squad(joinCode: nil)
             }
+        case "invite":
+            // `zano://invite/CODE` → host "invite", path ["CODE"];
+            // `zano:invite/CODE` → no host, path ["invite", "CODE"].
+            var parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == nil, parts.first?.lowercased() == "invite" { parts.removeFirst() }
+            let code = (parts.first ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard !code.isEmpty else { return nil }
+            self = .invite(code: code)
         default: return nil
         }
     }
@@ -179,6 +190,14 @@ final class AppRouter {
     /// sheet with it. Cleared by `consumeSquadJoinCode()`.
     private(set) var pendingSquadJoinCode: String?
 
+    /// A friend's referral code from `zano://invite/<CODE>`, waiting for `ReferralView` to prefill
+    /// its redeem field. Cleared by `consumeReferralCode()`.
+    private(set) var pendingReferralCode: String?
+
+    /// Drives `SettingsView`'s `.navigationDestination(isPresented:)` for `ReferralView`, set by an
+    /// invite link. SwiftUI sets it back to `false` when the pushed screen is popped.
+    var isReferralPresented = false
+
     /// The celebration currently queued/presented at the root. `ContentView` binds a
     /// `.fullScreenCover(item:)` to this and holds it back while the alarm is ringing.
     var unlockCelebration: UnlockCelebrationContent?
@@ -255,7 +274,7 @@ final class AppRouter {
                 // No tag can be mapped before onboarding finishes, and replaying a tap's action
                 // minutes later would surprise the person — drop it.
                 logger.notice("Dropping a tag link received before onboarding finished.")
-            case .today, .goals, .emergency, .settings, .gymSetup, .squad:
+            case .today, .goals, .emergency, .settings, .gymSetup, .squad, .invite:
                 pendingDeepLink = link
             }
             return
@@ -305,6 +324,10 @@ final class AppRouter {
         case .squad(let joinCode):
             selectedTab = .squad
             if let joinCode { pendingSquadJoinCode = joinCode }
+        case .invite(let code):
+            pendingReferralCode = code
+            selectedTab = .settings
+            isReferralPresented = true
         case .tag(let id, let url):
             Task { await performTagDispatch(id: id, url: url) }
         }
@@ -359,6 +382,12 @@ final class AppRouter {
     func consumeSquadJoinCode() -> String? {
         defer { pendingSquadJoinCode = nil }
         return pendingSquadJoinCode
+    }
+
+    /// Returns and clears `pendingReferralCode` (`ReferralView` picked it up).
+    func consumeReferralCode() -> String? {
+        defer { pendingReferralCode = nil }
+        return pendingReferralCode
     }
 
     /// Returns and clears `pendingUnmappedTagID` (the unmapped-tag sheet's dismissal).

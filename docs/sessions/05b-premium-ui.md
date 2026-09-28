@@ -352,3 +352,33 @@ per wave.
   location samples; Never Miss Twice is armed from Today (no nightly job); locked-out tally is per
   day, not per hour (shield extension can't record attempts yet); no invite deep link;
   NudgeSender callers (morning plan, protein last-mile, streak-at-risk) not scheduled yet.
+
+### 2026-09-28 — Closing the build-out gaps
+
+- **Plan B:** a Plan B focus session records `.planB` (half Earn credit); reaching an accepted
+  Plan B target rolls up into one `.planB` automatically; rows show the smaller target.
+- **Travel mode:** one rule (`TravelMode.requiredGoalIDs`) drops the gym goal from Today, Lock
+  tab/intent and scheduled locks (kept if it's the only goal); a running lock is narrowed when
+  travel starts; any Apple Health workout counts for the gym goal while traveling; last-known
+  location (never prompts) is sampled on foreground for new-city detection.
+- **Streaks:** `StreakEngine.reconcileMissedDays` records fully missed days on foreground and
+  before any earned unlock (widget/intent/tag), skipping paused and frozen days, 14-day look-back;
+  Never Miss Twice arms correctly; Comeback/Ghost subtract paused days.
+- **Locked-out moment:** `LockedOutAttemptTracker` (Core) is written by the shield configuration
+  extension; the Today card uses the real "3 in the last hour" count and the app's display name.
+- **Nudges:** `NudgeScheduler` schedules morning plan / protein last-mile / streak-at-risk /
+  weekly recap as local notifications (2/day cap, quiet hours, health pause, coach voice),
+  rescheduled on foreground, goal events, nudge/pause/wake-time changes. `zano://fuel`,
+  `zano://progress`, `zano://invite/CODE` deep links.
+- **Bugs CI found and fixed:** (1) launch crash — notification-center callbacks written in
+  main-actor types trapped when iOS called them off the main queue; reads now go through
+  nonisolated `NotificationCenterQueries`, and actor-context HealthKit/CoreMotion callbacks are
+  `@Sendable`. (2) data loss — saving through a long-lived context with a stale `Goal` detached the
+  coordinator's rollup from its goal; focus/stretch verifiers now write through fresh contexts.
+  (3) the emergency-hold progress test now measures real elapsed time. CI's crash check now runs
+  even when an earlier step fails.
+- **CI:** run 36491066217 — build, 300 Core tests, UI-test compile, crash-free screenshot tour.
+
+**Still device-only / unverified:** whether `CLLocationManager().location` is populated for travel
+detection; shield-extension app names; notification delivery timing; everything NFC / geofence /
+Screen Time / Live Activity.

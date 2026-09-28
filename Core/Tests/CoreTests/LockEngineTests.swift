@@ -361,15 +361,18 @@ struct EmergencyUnlockStateMachineTests {
     @Test("progress and secondsRemaining track real elapsed time during a hold")
     func progressAndSecondsRemainingTrackElapsedTime() async throws {
         let unlock = EmergencyUnlock(sessionID: UUID())
+        let started = Date()
         unlock.beginHold()
         try await Task.sleep(nanoseconds: 300_000_000) // ~0.3s into a 60s hold
 
-        // Generous bounds (not a tight equality) so this stays robust against CI scheduler
-        // jitter while still proving the tick loop is live and roughly on-pace.
+        // Measured against the time that actually passed (a loaded CI runner can suspend this
+        // test far longer than 0.3s), with generous slack for tick granularity.
+        let elapsed = Date().timeIntervalSince(started)
+        let expected = min(1, elapsed / 60)
         #expect(unlock.progress > 0)
-        #expect(unlock.progress < 0.5)
-        #expect(unlock.secondsRemaining >= 30)
+        #expect(abs(unlock.progress - expected) < 0.1, "progress \(unlock.progress), elapsed \(elapsed)s")
         #expect(unlock.secondsRemaining <= 60)
+        #expect(abs(Double(unlock.secondsRemaining) - (60 - elapsed)) <= 6, "remaining \(unlock.secondsRemaining), elapsed \(elapsed)s")
 
         unlock.cancelHold()
     }

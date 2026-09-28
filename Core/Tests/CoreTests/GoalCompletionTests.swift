@@ -144,6 +144,13 @@ private struct Harness {
             .map { "\($0.kind) \($0.value.map { String($0) } ?? "-") \($0.verified) \($0.ts)" }
     }
 
+    /// Every event in the store with its goal's title (or "no goal"), for failure messages.
+    func allEventKinds() throws -> [String] {
+        try ModelContext(container).fetch(FetchDescriptor<GoalEvent>())
+            .sorted { $0.ts < $1.ts }
+            .map { "\($0.kind) \($0.value.map { String($0) } ?? "-") goal=\($0.goal?.title ?? "none")" }
+    }
+
     func planBCount(for goal: Goal) throws -> Int {
         let goalID = goal.id
         return try ModelContext(container).fetch(FetchDescriptor<GoalEvent>())
@@ -432,11 +439,12 @@ struct GoalCompletionPlanBRollupTests {
 
         try h.log(protein, amount: 60)
         await h.recorded(protein)
+        let afterFirst = try h.allEventKinds()
         await h.recorded(protein)
         try h.log(protein, amount: 100, hour: 11)
         await h.recorded(protein)
 
-        let kinds = try h.eventKinds(for: protein)
+        let kinds = "after first: \(afterFirst) | end: \(try h.allEventKinds())"
         #expect(try h.planBCount(for: protein) == 1, "events: \(kinds)")
         #expect(try h.completionCount(for: protein) == 0, "events: \(kinds)")
         #expect(h.spy.duelPoints == 1)

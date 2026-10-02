@@ -208,7 +208,7 @@ extension Copy.lockStatus {
     /// Empty bank during an Earn Mode lock (goals add minutes there).
     public static let borrowEmptyEarn = "Your Time Bank is empty — finish a goal to earn minutes"
     /// Empty bank during a full lock: goals end the lock rather than adding minutes, so say that.
-    public static let borrowEmptyFull = "Your Time Bank is empty — finishing your goals ends this lock"
+    public static let borrowEmptyFull = "Your Time Bank is empty — finish a goal to earn minutes"
     public static func borrowNotEnough(remaining: Int) -> String { "Only \(remaining) min in your bank." }
     public static let borrowNoLock = "No lock is running."
     public static let borrowFailed = "Couldn't open your apps. Try again."

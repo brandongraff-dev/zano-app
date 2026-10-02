@@ -147,9 +147,11 @@ public final class GoalCompletionCoordinator {
             }
         }
 
-        let isEarnMode = activeLock?.mode == .earn
+        // Any running lock pays Time Bank minutes (full or Earn Mode): in a full lock they're
+        // what "Borrow 5 min" spends; in Earn Mode they're the whole point.
+        let paysMinutes = activeLock != nil
         for completion in newCompletions {
-            await payRewards(for: completion, earnMode: isEarnMode, at: now)
+            await payRewards(for: completion, paysMinutes: paysMinutes, at: now)
         }
 
         guard let activeLock else { return }
@@ -235,7 +237,7 @@ public final class GoalCompletionCoordinator {
         )
     }
 
-    private func payRewards(for completion: NewCompletion, earnMode: Bool, at now: Date) async {
+    private func payRewards(for completion: NewCompletion, paysMinutes: Bool, at now: Date) async {
         // A durable per-goal-per-day ledger, outside the event row: Today's undo can delete a
         // rollup `.complete` (and its processed marker), and a later log would otherwise pay the
         // duel point and Time Bank minutes a second time.
@@ -243,7 +245,7 @@ public final class GoalCompletionCoordinator {
         if let userID = completion.userID {
             await effects.applyDuelPoint(userID, now)
         }
-        guard earnMode, let fullMinutes = TimeBankEarnRates.minutes(for: completion.goalType) else { return }
+        guard paysMinutes, let fullMinutes = TimeBankEarnRates.minutes(for: completion.goalType) else { return }
         let minutes = completion.isPlanB ? PlanB.earnModeMinutes(forFullMinutes: fullMinutes) : fullMinutes
         guard minutes > 0 else { return }
         do {

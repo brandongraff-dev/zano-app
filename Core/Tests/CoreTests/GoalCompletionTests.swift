@@ -401,11 +401,23 @@ struct GoalCompletionEarnModeTests {
         #expect(await h.bankMinutes() == PlanB.earnModeMinutes(forFullMinutes: TimeBankEarnRates.gymSessionMinutes))
     }
 
-    @Test("a full-mode lock deposits nothing")
-    func fullModeDepositsNothing() async throws {
+    @Test("a full-mode lock deposits the same minutes as Earn Mode (they fund borrowing)")
+    func fullModeDepositsToo() async throws {
         let h = try Harness()
         let protein = try h.addGoal(.protein, target: 100)
-        _ = try h.startLock(requiring: [protein], mode: .full)
+        let creatine = try h.addGoal(.creatine, target: nil)
+        _ = try h.startLock(requiring: [protein, creatine], mode: .full)
+
+        try h.log(protein, amount: 100)
+        await h.recorded(protein)
+
+        #expect(await h.bankMinutes() == TimeBankEarnRates.proteinMinutes)
+    }
+
+    @Test("no running lock, no deposit")
+    func noLockDepositsNothing() async throws {
+        let h = try Harness()
+        let protein = try h.addGoal(.protein, target: 100)
 
         try h.log(protein, amount: 100)
         await h.recorded(protein)

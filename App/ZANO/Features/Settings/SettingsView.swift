@@ -779,6 +779,7 @@ struct SettingsView: View {
         }
 
         SettingsDataReset.clearDefaults()
+        MealPhotoStore.deleteAll()
         Analytics.shared.capture(event: "settings_all_data_deleted")
         errorAlert = SettingsErrorAlert(
             title: Copy.settings.deleteAllDataDoneTitle,

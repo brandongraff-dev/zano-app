@@ -93,6 +93,14 @@ enum MealPhotoStore {
             return nil
         }
     }
+
+    /// Removes every stored meal photo ("Delete all my data").
+    static func deleteAll() {
+        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier) else {
+            return
+        }
+        try? FileManager.default.removeItem(at: container.appendingPathComponent(folder, isDirectory: true))
+    }
 }
 
 // MARK: - Camera

@@ -166,14 +166,14 @@ doomscrolling,habit,workout,streak,discipline,lock,limit,social,media,self,contr
 ```
 100/100
 
-**Alternate** (swaps NFC for "detox" if search data after launch shows the NFC tag isn't a search
-driver; "detox" is fine as a hidden keyword, it just mustn't appear as a claim in visible copy):
+**Alternate** (drops `phone` and `nfc` for `study`, the student "lock in on work/school" audience
+from onboarding Q1; use if search data after launch shows NFC isn't a search driver):
 
 ```
-doomscrolling,habit,workout,streak,discipline,lock,limit,social,media,self,control,protein,phone
+doomscrolling,habit,workout,streak,discipline,lock,limit,social,media,self,control,protein,study
 ```
-96/100, then append `,study` (6) only if you drop another word; `detox` (6) also fits only by
-dropping `nfc`.
+96/100. `detox` (also 5 letters) can replace `study`; it is fine as a hidden keyword, it just must
+never appear as a claim in visible copy (§24).
 
 Rules applied: no spaces after commas; singular only (Apple matches plurals); none of the words
 already indexed from the name/subtitle (`zano`, `earn`, `your`, `screen`, `time`, `app`, `blocker`,
@@ -268,7 +268,7 @@ Lock the apps that eat your day. Earn them back by training, focusing or hitting
 
 Emergency unlock always works. This is day one. Tell us what to build next: [SUPPORT EMAIL]
 ```
-430/4,000
+455/4,000 (with the placeholder; recount once the email is filled in)
 
 ## 9. Screenshot plan
 

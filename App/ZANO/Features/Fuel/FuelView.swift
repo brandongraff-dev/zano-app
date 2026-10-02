@@ -410,7 +410,7 @@ struct FuelView: View {
                     isBarcodeSheetPresented = false
                     Analytics.shared.capture(
                         event: "fuel_barcode_scan_logged",
-                        properties: ["barcode": barcode, "protein_grams": grams]
+                        properties: ["protein_grams": grams]
                     )
                     Task { await log(goalType: .protein, amount: grams, source: .barcode) }
                 },
@@ -2112,7 +2112,7 @@ private struct BarcodeScanSheet: View {
                 let product = try await BarcodeProteinLookup.shared.lookupProtein(barcode: barcode)
                 Analytics.shared.capture(
                     event: "fuel_barcode_scan_lookup_succeeded",
-                    properties: ["barcode": product.barcode, "basis": product.proteinBasis.rawValue]
+                    properties: ["basis": product.proteinBasis.rawValue]
                 )
                 if product.proteinGramsPerServing != nil {
                     lookupState = .found(product)
@@ -2122,7 +2122,7 @@ private struct BarcodeScanSheet: View {
             } catch {
                 Analytics.shared.capture(
                     event: "fuel_barcode_scan_failed",
-                    properties: ["barcode": barcode, "reason": String(describing: error)]
+                    properties: ["reason": String(describing: error)]
                 )
                 lookupState = .failed(message: Self.reasonText(for: error))
                 scannedBarcode = nil

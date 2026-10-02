@@ -46,9 +46,9 @@ public enum HealthAuthorization {
             case .workoutGym, .workoutHomeOutdoor:
                 types.insert(HKObjectType.workoutType())
                 if let heartRate = HKQuantityType.quantityType(forIdentifier: .heartRate) { types.insert(heartRate) }
-            case .sleepOnTime:
-                if let sleep = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(sleep) }
-            case .focusSession, .protein, .water, .creatine, .sunriseAlarm, .reading, .mealPrep,
+            // Sleep isn't read by any verifier (the bedtime goal is verified by the Bedtime Gate),
+            // and requesting unused Health types is a common review rejection.
+            case .sleepOnTime, .focusSession, .protein, .water, .creatine, .sunriseAlarm, .reading, .mealPrep,
                  .stretchMobility, .coldShowerSauna, .custom:
                 break
             }

@@ -296,7 +296,7 @@ public final class NudgeScheduler {
         }
 
         // 2. Only schedule what the user will actually see. Permission is asked in onboarding
-        //    (Screen12PermissionPriming), never from here.
+        //    (the first-win step, on Start), never from here.
         let authorized = await NotificationCenterQueries.canPostNotifications()
         guard authorized else { return }
 

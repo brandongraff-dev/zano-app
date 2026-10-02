@@ -1475,8 +1475,9 @@ struct TodayView: View {
 
     private var showsFinishSetupCard: Bool {
         guard !finishSetupCardDismissed, !lockSessions.isEmpty, hasNFCTags != nil, hasWidget != nil else { return false }
-        let items = finishSetupItems
-        return !items.isEmpty && items.contains { !$0.isDone }
+        // `FinishSetupCard` adds its own steps (coach voice, Sunrise alarm, squad) and draws
+        // nothing once every step is done, so it decides its own visibility from here on.
+        return true
     }
 
     private var finishSetupItems: [FinishSetupItem] {

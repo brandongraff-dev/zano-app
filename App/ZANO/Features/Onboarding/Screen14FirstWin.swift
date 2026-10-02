@@ -202,8 +202,8 @@ struct Screen14FirstWin: View {
 
     // MARK: - Intro
 
-    /// The ring the user is about to fill — empty, with the length of the session inside it. The
-    /// running phase is this same ring, filling, so the promise and the thing are one object.
+    /// The ring the user is about to fill — empty, with the length of the session inside it. (Since
+    /// the short flow the running phase shows the charging star and a big countdown instead.)
     private var introView: some View {
         OnboardingKit.CenteredScroll {
             VStack(spacing: Theme.Spacing.xl) {

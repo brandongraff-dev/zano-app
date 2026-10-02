@@ -129,14 +129,12 @@ struct Screen4AppSelection: View {
         .onboardingEntrance()
         .onboardingKitActionBar {
             PrimaryButton(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
-                flowState.continuedWithoutScreenTime = false
                 flowState.advance()
             }
             // Refused Screen Time access is never a dead end: the first win still runs (as a plain
             // timer, no lock) and Today's first-day checklist offers to pick apps again.
             if authorizationDenied && !hasSelection {
                 PrimaryButton(title: Copy.onboarding.q2ContinueWithoutLockButton, style: .secondary) {
-                    flowState.continuedWithoutScreenTime = true
                     Analytics.shared.capture(event: "onboarding_continued_without_screen_time")
                     flowState.advance()
                 }

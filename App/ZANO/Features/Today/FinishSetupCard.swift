@@ -2,15 +2,30 @@
 // App / ZANO / Features / Today
 //
 // The post-onboarding "Finish setup" checklist on Today (docs/design/buildout-plan.md, Wave 1D):
-// once the first lock has run, the things that make verification automatic instead of manual (NFC
-// tags, a saved gym, Apple Health, the widget). `TodayView` decides which items apply (a gym item
-// only with a gym goal, Health only with a steps or home-workout goal), whether each is done, and
-// what each opens; this file only draws them. The card disappears when every item is done, or for
-// good when hidden.
+// once the first lock has run, the things that make verification automatic instead of manual.
 //
-// Also here: the widget how-to sheet the widget item opens (an app can't add a widget for the user).
+// Short flow (founder decision 2026-10-02): onboarding went from 15 screens to 7, and the optional
+// setup topics it used to walk through live here instead, as a short list of one-tap next steps:
+//   - from `TodayView` (unchanged call site): NFC tags, gym (only with a gym goal), Apple Health
+//     (only with a steps / home-workout goal), the widget. TodayView decides whether each is done
+//     and what it opens (`NFCTagsView`, `GymSetupView`, the Health primer, the widget how-to).
+//   - added here: coach voice (onboarding no longer asks; the default stays Hype), Sunrise alarm
+//     (onboarding no longer asks; the wake time stays unset until this is saved) and squads.
+// Each item disappears once done, at most `maxVisibleItems` open items show at a time (the next one
+// moves up as one is finished), and the whole card draws nothing when every item is done.
+//
+// Done-state for the items added here (read, never written by anything but the user's own action):
+//   coach voice  the user picked one in the sheet below, or their `User.coachVoice` is not the
+//                default (they picked one in Settings);
+//   Sunrise      the Sunrise alarm settings row exists in the App Group store, which only happens
+//                when its setup screen (or the Bedtime Gate's, which shares the row) is saved;
+//   squad        `SquadManager.mySquads()` is non-empty.
+//
+// Also here: the widget how-to sheet the widget item opens (an app can't add a widget for the user),
+// and the coach-voice sheet.
 
 import SwiftUI
+import SwiftData
 import Core
 
 struct FinishSetupItem: Identifiable {
@@ -23,50 +38,161 @@ struct FinishSetupItem: Identifiable {
 }
 
 struct FinishSetupCard: View {
+    /// Items `TodayView` builds (tags, gym, health, widget). The card adds its own after these.
     let items: [FinishSetupItem]
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query private var users: [User]
+
+    @AppStorage("finishSetup.coachVoicePicked.v1") private var coachVoicePicked = false
+    /// `nil` until read on appear.
+    @State private var sunriseConfigured: Bool?
+    @State private var hasSquad: Bool?
+    @State private var showsCoachVoice = false
+    @State private var showsSunrise = false
+
+    /// Same signature `TodayView` already calls (`FinishSetupCard(items:onDismiss:)`).
+    init(items: [FinishSetupItem], onDismiss: @escaping () -> Void) {
+        self.items = items
+        self.onDismiss = onDismiss
+    }
+
+    /// "A short checklist": never more than this many open items at once.
+    static let maxVisibleItems = 5
+
+    /// Display order, by id. Ids not listed (a future item from TodayView) go last.
+    private static let order = ["tags", "gym", "health", "voice", "sunrise", "squad", "widget"]
+
+    private var allItems: [FinishSetupItem] {
+        let merged = items + ownItems
+        return merged.sorted { lhs, rhs in
+            (Self.order.firstIndex(of: lhs.id) ?? Self.order.count) < (Self.order.firstIndex(of: rhs.id) ?? Self.order.count)
+        }
+    }
+
+    /// The open items on show: done ones are hidden, and only the first `maxVisibleItems`.
+    private var visibleItems: [FinishSetupItem] {
+        Array(allItems.filter { !$0.isDone }.prefix(Self.maxVisibleItems))
+    }
+
+    private var ownItems: [FinishSetupItem] {
+        var result = [
+            FinishSetupItem(
+                id: "voice",
+                icon: OnboardingKit.icon(for: currentVoice),
+                title: Copy.onboarding.finishSetupVoiceTitle,
+                detail: Copy.onboarding.finishSetupVoiceDetail,
+                isDone: coachVoicePicked || currentVoice != .hype,
+                action: { tapped("voice") { showsCoachVoice = true } }
+            )
+        ]
+        // Wait for the reads so an item never flashes in and straight back out.
+        if let sunriseConfigured {
+            result.append(FinishSetupItem(
+                id: "sunrise",
+                icon: "sunrise.fill",
+                title: Copy.onboarding.finishSetupSunriseTitle,
+                detail: Copy.onboarding.finishSetupSunriseDetail,
+                isDone: sunriseConfigured,
+                action: { tapped("sunrise") { showsSunrise = true } }
+            ))
+        }
+        if let hasSquad {
+            result.append(FinishSetupItem(
+                id: "squad",
+                icon: "person.3.fill",
+                title: Copy.onboarding.finishSetupSquadTitle,
+                detail: Copy.onboarding.finishSetupSquadDetail,
+                isDone: hasSquad,
+                action: { tapped("squad") { AppRouter.shared.selectedTab = .squad } }
+            ))
+        }
+        return result
+    }
+
+    private var currentVoice: CoachVoice {
+        users.first?.coachVoice ?? .hype
+    }
 
     var body: some View {
-        let doneCount = items.filter(\.isDone).count
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                Text(Copy.today.setupCardTitle)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .accessibilityAddTraits(.isHeader)
-                Text(Copy.today.setupCardProgress(done: doneCount, total: items.count))
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .monospacedDigit()
-                Spacer(minLength: Theme.Spacing.sm)
-                Button(action: onDismiss) {
-                    Text(Copy.today.setupCardDismiss)
-                        .font(Theme.Typography.captionEmphasized)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .frame(minWidth: Theme.Metrics.minTapTarget, minHeight: Theme.Metrics.minTapTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.pressable(scale: 0.94))
-                .accessibilityLabel(Copy.today.setupCardDismissSpoken)
-            }
-            .padding(.leading, Theme.Spacing.xxs)
-
-            VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(Theme.Colors.hairline)
-                            .frame(height: Theme.Metrics.edgeWidth)
-                            .padding(.leading, Theme.Spacing.md + 32 + Theme.Spacing.sm)
+        let all = allItems
+        let shown = visibleItems
+        let doneCount = all.filter(\.isDone).count
+        // A VStack, not a Group, so `.task` runs even while nothing is on show yet.
+        VStack(spacing: 0) {
+            if !shown.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                        Text(Copy.today.setupCardTitle)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(Copy.today.setupCardProgress(done: doneCount, total: all.count))
+                            .font(Theme.Typography.captionEmphasized)
+                            .foregroundStyle(Theme.Colors.muted)
+                            .monospacedDigit()
+                        Spacer(minLength: Theme.Spacing.sm)
+                        Button(action: onDismiss) {
+                            Text(Copy.today.setupCardDismiss)
+                                .font(Theme.Typography.captionEmphasized)
+                                .foregroundStyle(Theme.Colors.muted)
+                                .frame(minWidth: Theme.Metrics.minTapTarget, minHeight: Theme.Metrics.minTapTarget)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.pressable(scale: 0.94))
+                        .accessibilityLabel(Copy.today.setupCardDismissSpoken)
                     }
-                    FinishSetupRow(item: item)
+                    .padding(.leading, Theme.Spacing.xxs)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(Theme.Colors.hairline)
+                                    .frame(height: Theme.Metrics.edgeWidth)
+                                    .padding(.leading, Theme.Spacing.md + 32 + Theme.Spacing.sm)
+                            }
+                            FinishSetupRow(item: item)
+                                .transition(.opacity)
+                        }
+                    }
+                    .zanoCard()
                 }
             }
-            .zanoCard()
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: doneCount)
+        .task { await refreshOwnStatus() }
+        .sheet(isPresented: $showsCoachVoice) {
+            CoachVoiceSetupSheet {
+                coachVoicePicked = true
+            }
+        }
+        .sheet(isPresented: $showsSunrise, onDismiss: {
+            Task { await refreshOwnStatus() }
+        }) {
+            NavigationStack { SunriseAlarmSetupView() }
+                .preferredColorScheme(.dark)
+        }
+    }
+
+    private func tapped(_ item: String, open: () -> Void) {
+        Analytics.shared.capture(event: "today_finish_setup_item_tapped", properties: ["item": item])
+        open()
+    }
+
+    private func refreshOwnStatus() async {
+        sunriseConfigured = Self.isSunriseAlarmConfigured()
+        let squads = (try? await SquadManager.shared.mySquads()) ?? []
+        hasSquad = !squads.isEmpty
+    }
+
+    /// Whether the Sunrise alarm settings row has ever been saved. The key is the identifier
+    /// `SunriseAlarmManager` stores its settings under in the App Group defaults (an identifier, not
+    /// copy); Core exposes no "has been configured" flag yet.
+    private static func isSunriseAlarmConfigured() -> Bool {
+        let defaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard
+        return defaults.data(forKey: "core.sunriseAlarm.settings.v1") != nil
     }
 }
 
@@ -109,6 +235,76 @@ private struct FinishSetupRow: View {
         .disabled(item.isDone)
         .accessibilityElement(children: .combine)
         .accessibilityValue(item.isDone ? Copy.today.statusDone : "")
+    }
+}
+
+// MARK: - Coach voice sheet
+
+/// The coach-voice choice onboarding used to ask: the four voices with their sample lines. Saves to
+/// the local `User` row and the App Group mirror the extensions read, the same two writes Settings
+/// makes. `onPicked` runs after a successful save.
+private struct CoachVoiceSetupSheet: View {
+    let onPicked: () -> Void
+
+    init(onPicked: @escaping () -> Void) {
+        self.onPicked = onPicked
+    }
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var users: [User]
+
+    private var selected: CoachVoice {
+        users.first?.coachVoice ?? .hype
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    Text(Copy.onboarding.finishSetupVoiceSheetTitle)
+                        .font(Theme.Typography.titleLarge)
+                        .foregroundStyle(Theme.Colors.text)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(Copy.onboarding.finishSetupVoiceSheetSubtitle)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+                ForEach(CoachVoice.allCases, id: \.rawValue) { voice in
+                    SelectableCard(
+                        title: voice.displayName,
+                        subtitle: voice.sampleLine,
+                        icon: OnboardingKit.icon(for: voice),
+                        isSelected: selected == voice
+                    ) {
+                        select(voice)
+                    }
+                }
+            }
+            .padding(Theme.Spacing.lg)
+        }
+        .safeAreaInset(edge: .bottom) {
+            PrimaryButton(title: Copy.common.done) { dismiss() }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.bottom, Theme.Spacing.sm)
+        }
+        .background(Theme.Colors.background)
+        .sensoryFeedback(.selection, trigger: selected)
+        .presentationDetents([.large])
+        .preferredColorScheme(.dark)
+    }
+
+    private func select(_ voice: CoachVoice) {
+        guard let user = users.first else { return }
+        user.coachVoice = voice
+        do {
+            try modelContext.save()
+            SharedDefaults.coachVoice = voice.rawValue
+            Analytics.shared.capture(event: "finish_setup_coach_voice_picked", properties: ["voice": voice.rawValue])
+            onPicked()
+        } catch {
+            // Nothing saved; the selection simply doesn't move. Settings offers the same choice.
+        }
     }
 }
 

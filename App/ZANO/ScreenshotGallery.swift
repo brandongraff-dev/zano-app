@@ -80,6 +80,8 @@ struct ScreenshotHost: View {
     @ViewBuilder
     private var content: some View {
         if name.hasPrefix("onboarding-"), let n = Int(name.dropFirst("onboarding-".count)) {
+            // onboarding-1 ... onboarding-7 (the short flow's steps; see OnboardingFlowState.swift).
+            // Out-of-range numbers are clamped by the container.
             OnboardingContainerView(initialScreen: n)
         } else if name.hasPrefix("tab-") {
             ContentView()

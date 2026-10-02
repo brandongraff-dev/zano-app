@@ -4,8 +4,7 @@
 // Small pieces shared by the NFC screens: section/card/row chrome (Settings' equivalents are
 // `private` to `SettingsView.swift`), labels and glyphs for tag kinds and actions, and
 // `TagTapScene`, the phone-meets-tag illustration used by the write flow, the unmapped-tag prompt
-// and Lock Card setup (the onboarding one in `Screen9NFCTags.swift` is file-private and scripted;
-// this one is state-driven so it can show progress, success and failure).
+// and Lock Card setup (state-driven, so it can show progress, success and failure).
 
 import SwiftUI
 import Core

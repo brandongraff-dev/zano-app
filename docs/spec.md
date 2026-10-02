@@ -305,7 +305,7 @@ All actions are **App Intents** (§14). Build each once, reuse everywhere.
 
 ## 7. Onboarding Flow (screen by screen)
 
-Target: 10–14 screens, under 3 minutes, paywall at peak motivation. Every screen has one job.
+Target: 7 steps (cut from 15 on 2026-10-02, founder-approved), under 3 minutes, paywall at peak motivation, ending in a real first earned unlock. Setup that isn't needed for the first win (tags, gym, Sunrise alarm, coach voice, squads) lives on Today's "Finish setup" card. Every screen has one job.
 
 1. **Hook** — Full-bleed. "Your phone is fighting your goals. Let's flip that." CTA: "I'm ready."
 2. **Social proof strip** — 3 rotating quotes (real ones once you have them; placeholder copy marked clearly until then).
@@ -589,7 +589,7 @@ Do Session 0 and 1 first, alone. Then parallelize on branches. Each session has 
 | 3 | Verification: gym geofence + dwell + HealthKit check, auto-detect suggestion, focus timer + Live Activity, Core Motion anti-cheat | `feat/verify` | Gym visit auto-verifies; focus session verifies |
 | 4 | App Intents catalog + widgets (S/M/L, lock screen) + Controls + Siri phrases + NFC reader & tag mapping | `feat/intents` | Log water from widget without opening app; NFC tag starts lock |
 | 5 | Design system + screens: Today, Lock, Fuel (protein/water), Progress, Settings | `feat/ui` | All screens navigable with real data |
-| 6 | Onboarding (14 screens) + permission priming + RevenueCat paywall + first-win flow | `feat/onboarding` | New install → paywall → first earned unlock in < 4 min |
+| 6 | Onboarding (7 steps) + permission priming + RevenueCat paywall + first-win flow | `feat/onboarding` | New install → paywall → first earned unlock in < 4 min |
 | 7 | Supabase: schema, RLS, auth (anon → Apple), storage, sync Edge Function, RevenueCat webhook | `feat/backend` | Two devices sync; subscription status reflects in app |
 | 8 | AI: meal-vision Edge Function, quick repeats, weekly recap job + card + share image | `feat/ai` | Photo → protein estimate → confirm; Sunday recap appears |
 | 9 | Streak logic: freezes, Never Miss Twice, Plan B, Comeback; adaptive engine v1 (rules) | `feat/retention` | Simulated 30-day history behaves per §8/§9 |

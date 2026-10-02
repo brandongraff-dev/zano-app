@@ -5,8 +5,8 @@
 // more, so this scenario no longer taps through it. (The file keeps its old name so the scenario
 // order Flow1 -> Flow2 -> Flow3 is unchanged.) What it guards now, from
 // App/ZANO/Features/Onboarding/PaywallView.swift:
-//   1. Onboarding reaches the paywall as screen 13, straight after Commitment (screen 12; the NFC
-//      tags screen at 9 moved everything after it up by one on 2026-09-24).
+//   1. Onboarding reaches the paywall as step 6 of 7, straight after the plan step's hold to commit
+//      (short flow, founder decision 2026-10-02; it was screen 13 of 15).
 //   2. The headline ("Earn your phone back") renders.
 //   3. Restore purchases is on screen without scrolling (App Review, and "restore purchases
 //      visible"), as are the Terms and Privacy links.
@@ -19,8 +19,8 @@
 // It never buys anything and stops on the paywall, so the install stays un-onboarded for the next
 // scenario (no `onFinished`, no lock started).
 //
-// DEVICE-ONLY: reaching screen 13 passes screen 4's FamilyActivityPicker. It drives screens 1-12
-// itself (the same path `driveOnboardingToPaywall` in ZANOUIScenarioSupport.swift now takes).
+// DEVICE-ONLY: reaching step 6 passes step 4's FamilyActivityPicker. It uses the shared
+// `driveOnboardingToPaywall` in ZANOUIScenarioSupport.swift.
 //
 // UNVERIFIED -- see ZANOUIScenarioSupport.swift header. Lookups are label-based.
 
@@ -28,9 +28,8 @@ import XCTest
 
 final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
 
-    /// Paywall screen number (`OnboardingContainerView.screen(for:)`): 12 after the 2026-09-23
-    /// reorder, 13 since the NFC tags screen went in at 9 (2026-09-24).
-    private static let paywallStep = 13
+    /// Paywall step number (`OnboardingStep.paywall`): 6 of 7 since the short flow.
+    private static let paywallStep = ZANOUILabel.Step.paywall
 
     /// Test-side lookups for strings `ZANOUILabel.Paywall` does not mirror yet (NOT app copy).
     private enum Label {
@@ -52,7 +51,7 @@ final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
         try requireFamilyControlsEnvironment()
         let app = launchApp()
         try requireFreshOnboarding(app)
-        try driveOnboardingToHardPaywall(app)
+        try driveOnboardingToPaywall(app)
 
         let P = ZANOUILabel.Paywall.self
 
@@ -107,54 +106,5 @@ final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
             waitForOnboardingStep(Self.paywallStep, in: app, timeout: 2),
             "Left the paywall without a purchase."
         )
-    }
-
-    // MARK: - Driving screens 1-12
-
-    /// Screens 1-12 in the current order, ending on the paywall (screen 13).
-    @MainActor
-    private func driveOnboardingToHardPaywall(_ app: XCUIApplication) throws {
-        let L = ZANOUILabel.Onboarding.self
-        let continueButton = app.button(labelContaining: L.continueButton)
-
-        advance(app, from: 1, tapping: app.button(labelContaining: L.hookCTA))
-        advance(app, from: 2, tapping: continueButton)
-
-        XCTAssertTrue(waitForOnboardingStep(3, in: app), "Expected onboarding step 3.")
-        let goalOption = app.button(labelContaining: L.mainGoalGym)
-        XCTAssertTrue(goalOption.waitForExistence(timeout: 10), "Step 3: main-goal option not found.")
-        goalOption.tap()
-        advance(app, from: 3, tapping: continueButton)
-
-        XCTAssertTrue(waitForOnboardingStep(4, in: app), "Expected onboarding step 4.")
-        let pickerOpener = app.button(labelContaining: L.appPickerButton)
-        XCTAssertTrue(pickerOpener.waitForExistence(timeout: 10), "Step 4: 'Choose apps' button not found.")
-        try chooseAppsWithFamilyActivityPicker(app, opener: pickerOpener)
-        advance(app, from: 4, tapping: continueButton)
-
-        advance(app, from: 5, tapping: continueButton)
-        advance(app, from: 6, tapping: continueButton)
-
-        XCTAssertTrue(waitForOnboardingStep(7, in: app), "Expected onboarding step 7.")
-        let fallOff = app.button(labelContaining: L.fallOffEvenings)
-        XCTAssertTrue(fallOff.waitForExistence(timeout: 10), "Step 7: fall-off option not found.")
-        fallOff.tap()
-        advance(app, from: 7, tapping: continueButton)
-
-        advance(app, from: 8, tapping: continueButton)
-        chooseNFCSkip(app)
-        advance(app, from: 9, tapping: continueButton)
-        advance(app, from: 10, tapping: app.button(labelContaining: L.wakeUpContinue))
-        advance(app, from: 11, tapping: app.button(labelContaining: L.planContinue))
-
-        XCTAssertTrue(waitForOnboardingStep(12, in: app), "Expected onboarding step 12.")
-        let commit = app.button(labelContaining: L.holdToCommit)
-        XCTAssertTrue(commit.waitForExistence(timeout: 10), "Step 12: 'Hold to commit' button not found.")
-        commit.holdToCommit()
-        XCTAssertTrue(
-            waitForOnboardingStep(Self.paywallStep, in: app, timeout: 20),
-            "Held 'Hold to commit' but never reached the paywall (step \(Self.paywallStep))."
-        )
-        settle()
     }
 }

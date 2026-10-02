@@ -107,9 +107,6 @@ final class OnboardingFlowState {
     /// matching `SharedDefaults.coachVoice` and `User.coachVoice`.
     var coachVoice: CoachVoice = .hype
 
-    /// The user refused Screen Time access on step 4 and chose to continue without locking.
-    var continuedWithoutScreenTime = false
-
     /// Set when the user completes the hold-to-commit on the plan step.
     private(set) var committedAt: Date?
 

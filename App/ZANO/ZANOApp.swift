@@ -15,7 +15,14 @@ struct ZANOApp: App {
     private let storeOpenFailure: String?
 
     init() {
+        #if DEBUG
+        // Unsigned Simulator builds (CI, previews) get no App Group container at all, so they
+        // always run on the in-memory fallback by design. Only real open failures stop a debug run.
+        let failure = ModelContainer.appGroupOpenFailure
+        storeOpenFailure = (failure?.contains("appGroupContainerUnavailable") ?? false) ? nil : failure
+        #else
         storeOpenFailure = ModelContainer.appGroupOpenFailure
+        #endif
 
         // docs/spec.md §23 "Instrument from day one": wire analytics/crash reporting at launch so
         // every later session's screen views, intents, unlock kinds, and shield impressions have

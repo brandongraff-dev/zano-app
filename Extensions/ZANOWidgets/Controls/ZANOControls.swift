@@ -58,7 +58,7 @@ struct ZANOLockControl: ControlWidget {
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind, provider: ZANOLockControlValueProvider()) { state in
-            ControlWidgetButton(action: ZANOLockControlIntent()) {
+            ControlWidgetButton(action: LockControlIntent()) {
                 Label(state.title, systemImage: state.systemImage)
             }
             .tint(ZANOWidgetColor.accent)

@@ -86,7 +86,7 @@ targets:
           UIImageRespectsSafeAreaInsets: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        NSLocationWhenInUseUsageDescription: "ZANO uses your location to verify gym visits so you can earn your apps back."
+        NSLocationWhenInUseUsageDescription: "ZANO uses your location to verify gym visits so you can earn your apps back, and to notice when you're traveling so your gym goal can wait."
         NSLocationAlwaysAndWhenInUseUsageDescription: "ZANO uses background location to verify gym visits even when the app isn't open."
         # Matches what Core actually reads: step count (StepsVerifier requests it), workouts
         # (HomeWorkoutVerifier) and heart rate (GymVerifier / GymAutoDetect / HomeWorkoutVerifier).

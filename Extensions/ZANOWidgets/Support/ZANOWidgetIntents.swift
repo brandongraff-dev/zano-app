@@ -1,7 +1,7 @@
 // ZANOWidgetIntents.swift
 // Extensions/ZANOWidgets/Support
 //
-// The one App Intent that lives in this extension, plus the shared "is a lock on?" read.
+// The shared "is a lock on?" read for widgets and controls.
 //
 // Starting a lock is Core's `StartLockIntent` everywhere (Home widget button, NFC Lock Card,
 // Siri), so there is one "start a lock" code path. The extension used to carry its own
@@ -9,9 +9,8 @@
 // are gone. The toggle could also END a lock from Control Center with one tap, which the product
 // rules forbid: a lock only ends by earning it or through the app's emergency flow.
 //
-// `ZANOLockControlIntent` is the Control Center "Start lock" button's action. It's a thin
-// dispatcher, not new lock logic: no lock running → Core's `StartLockIntent`; lock running →
-// open ZANO, never touching the lock.
+// The Control Center "Start lock" button runs Core's `LockControlIntent`: no lock running →
+// `StartLockIntent`; lock running → open ZANO, never touching the lock.
 
 import AppIntents
 import Core
@@ -32,34 +31,5 @@ enum ZANOLockState {
     }
 }
 
-/// The Control Center / Lock Screen / Action Button "Start lock" control's action.
-///
-/// A `ControlWidgetTemplateBuilder` can't branch, so a control kind can carry only one intent
-/// type; the "start vs. open the app" choice therefore happens here at run time.
-@available(iOSApplicationExtension 18.0, *)
-struct ZANOLockControlIntent: AppIntent {
-    // Literals: the AppIntents metadata extractor only accepts string literals here. Keep in
-    // sync with WidgetCopy.controlLockTitle / controlLockDescription.
-    static let title: LocalizedStringResource = "Start lock"
-    static let description = IntentDescription("Start your ZANO lock. While locked, opens ZANO.")
-
-    init() {}
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        if ZANOLockState.isLocked {
-            // Never end or restart a running lock from Control Center. Hand off to the app, where
-            // the remaining goals and the emergency unlock are. UNVERIFIED: the non-generic
-            // `result(opensIntent:)` that can share a return type with `.result()` is believed
-            // to be iOS 18.2+; on 18.0/18.1 the tap is a harmless no-op (the label already says
-            // "Locked"). If CI rejects this overload, replace the `#available` block with
-            // `return .result()`.
-            if #available(iOSApplicationExtension 18.2, *) {
-                return .result(opensIntent: OpenTodayIntent())
-            }
-            return .result()
-        }
-        _ = try await StartLockIntent().perform()
-        return .result()
-    }
-}
+// The control's action is Core's `LockControlIntent` (a `LiveActivityIntent`, so it runs in the
+// app's process, which holds the Family Controls entitlement this extension lacks).

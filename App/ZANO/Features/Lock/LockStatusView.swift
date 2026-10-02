@@ -130,45 +130,14 @@ struct LockStatusView: View {
     /// `TimeBankBar`'s own suggested "low" line ("e.g. `remainingMinutes <= 5`").
     private static let lowBankThreshold = 5
 
+    // Split into pieces: one long chain here exceeded the type checker's time limit in CI.
     var body: some View {
+        lifecycle(chrome)
+    }
+
+    private var chrome: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                if activeSession != nil {
-                    lockedMark
-                }
-                heroCard
-
-                if let line = blockingLine {
-                    blockingLineRow(line)
-                }
-
-                if showsHealthCard {
-                    LockHealthCard(
-                        status: lockHealth,
-                        message: healthMessage,
-                        isFixing: isFixingHealth,
-                        onFix: fixLockHealth
-                    )
-                    .transition(.opacity)
-                }
-
-                if activeSession?.mode == .earn {
-                    spendSection
-                }
-
-                if !requiredGoals.isEmpty {
-                    goalsSection
-                }
-
-                if let session = activeSession, session.mode != .earn {
-                    borrowSection
-                }
-
-                contextSection
-            }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.top, Theme.Spacing.md)
-            .padding(.bottom, Theme.Spacing.xl)
+            contentStack
         }
         .scrollBounceBehavior(.basedOnSize)
         // The canvas, with a faint accent wash from the top edge while the reward is in hand
@@ -185,29 +154,73 @@ struct LockStatusView: View {
         .navigationTitle(Copy.lockStatus.screenTitle)
         // Large, like every other tab (it used to fall back to a small inline title here).
         .navigationBarTitleDisplayMode(.large)
-        .task(id: timeBankTaskKey) {
-            timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
+    }
+
+    private var contentStack: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            if activeSession != nil {
+                lockedMark
+            }
+            heroCard
+
+            if let line = blockingLine {
+                blockingLineRow(line)
+            }
+
+            if showsHealthCard {
+                LockHealthCard(
+                    status: lockHealth,
+                    message: healthMessage,
+                    isFixing: isFixingHealth,
+                    onFix: fixLockHealth
+                )
+                .transition(.opacity)
+            }
+
+            if activeSession?.mode == .earn {
+                spendSection
+            }
+
+            if !requiredGoals.isEmpty {
+                goalsSection
+            }
+
+            if let session = activeSession, session.mode != .earn {
+                borrowSection
+            }
+
+            contextSection
         }
-        .task {
-            logScreenView()
-            flushShieldImpressions()
-        }
-        .task(id: activeSession?.id) {
-            refreshSpendWindow()
-            refreshLockHealth()
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
-            refreshSpendWindow()
-            refreshLockHealth()
-        }
-        .task(id: spendWindowEndsAt) {
-            // Re-read once the window should have closed: it may have been extended, or ended.
-            guard let end = spendWindowEndsAt else { return }
-            try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow) + 1))
-            guard !Task.isCancelled else { return }
-            refreshSpendWindow()
-        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.md)
+        .padding(.bottom, Theme.Spacing.xl)
+    }
+
+    private func lifecycle<Content: View>(_ content: Content) -> some View {
+        content
+            .task(id: timeBankTaskKey) {
+                timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
+            }
+            .task {
+                logScreenView()
+                flushShieldImpressions()
+            }
+            .task(id: activeSession?.id) {
+                refreshSpendWindow()
+                refreshLockHealth()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                refreshSpendWindow()
+                refreshLockHealth()
+            }
+            .task(id: spendWindowEndsAt) {
+                // Re-read once the window should have closed: it may have been extended, or ended.
+                guard let end = spendWindowEndsAt else { return }
+                try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow) + 1))
+                guard !Task.isCancelled else { return }
+                refreshSpendWindow()
+            }
     }
 
     // MARK: - Analytics (spec §23: "Instrument from day one: every screen view, every intent,

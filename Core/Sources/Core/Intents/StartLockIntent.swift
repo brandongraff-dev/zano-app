@@ -12,6 +12,7 @@
 // `DeviceActivityMonitor` firing on its own, `.nfc` is `SunriseKeyIntent`'s tag-triggered lock
 // arm, and `.auto` is v2 geofence automation (spec §2) — none of those go through this intent.
 
+import ActivityKit
 import AppIntents
 import Foundation
 import SwiftData
@@ -47,7 +48,10 @@ public enum LockModeOption: String, AppEnum, Sendable {
     }
 }
 
-public struct StartLockIntent: AppIntent {
+/// `LiveActivityIntent` (not plain `AppIntent`) so a run from a widget button or Control Center
+/// executes in the app's process, which holds the Family Controls entitlement; the widget
+/// extension doesn't, so shielding from there would fail. Siri/Shortcuts behave the same.
+public struct StartLockIntent: LiveActivityIntent {
     public static let title: LocalizedStringResource = "Lock In"
 
     public static var description: IntentDescription {

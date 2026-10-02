@@ -476,6 +476,7 @@ public final class StreakEngine {
         SharedDefaults.currentStreak = streak.current
         SharedDefaults.bestStreak = streak.best
         SharedDefaults.neverMissTwiceArmed = streak.neverMissTwiceArmed
+        WidgetRefresh.reloadAll()
     }
 }
 

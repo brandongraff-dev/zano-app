@@ -92,6 +92,8 @@ public final class GoalCompletionCoordinator {
                 },
                 afterGoalEvent: {
                     await NudgeScheduler.shared.reschedule()
+                    // Lock Screen / Home widgets show goals left; refresh them now, not in 15 min.
+                    WidgetRefresh.reloadAll()
                 }
             )
         }

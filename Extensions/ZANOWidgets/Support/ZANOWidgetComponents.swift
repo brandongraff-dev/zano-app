@@ -109,6 +109,7 @@ extension ZANOWidgetSnapshot {
         lockMode: .earn,
         goalsRemainingForActiveLock: 2,
         lockSetName: placeholder.lockSetName,
+        remainingGoalTitles: ["Gym", placeholder.water.title],
         earnedMinutesRemainingToday: 35,
         nextScheduledLockAt: placeholder.nextScheduledLockAt,
         protein: ZANORingProgress(
@@ -123,6 +124,37 @@ extension ZANOWidgetSnapshot {
         defaultLockSetID: nil,
         todaysActiveGoalIDs: []
     )
+
+    /// Gallery / preview frame for the unlocked state: no lock running, two of three goals done.
+    static let galleryUnlocked = ZANOWidgetSnapshot(
+        asOf: .now,
+        currentStreak: 14,
+        bestStreak: 21,
+        isLocked: false,
+        lockMode: nil,
+        goalsRemainingForActiveLock: 0,
+        lockSetName: nil,
+        earnedMinutesRemainingToday: 70,
+        nextScheduledLockAt: placeholder.nextScheduledLockAt,
+        protein: galleryPreview.protein,
+        water: ZANORingProgress(
+            goalID: UUID(), title: placeholder.water.title, current: 2000, target: 2000, unit: placeholder.water.unit
+        ),
+        focus: galleryPreview.focus,
+        defaultLockSetID: UUID(),
+        todaysActiveGoalIDs: []
+    )
+}
+
+// MARK: - Deep links
+
+/// `zano://` routes `App/ZANO/AppRouter.swift` already parses. Accessory (Lock Screen) widgets
+/// can't run buttons, so a tap opens the app at one of these.
+enum ZANOWidgetLink {
+    /// Today: what's left, and the quick logs.
+    static let today = URL(string: "zano://today")!
+    /// Fuel: protein logging.
+    static let fuel = URL(string: "zano://fuel")!
 }
 
 // MARK: - Charged star

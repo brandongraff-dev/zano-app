@@ -106,6 +106,20 @@ public enum WidgetCopy {
     public static let metricWater = "Water"
     public static let metricStreak = "Streak"
 
+    /// "Gym + Protein" — the goals still standing between the user and an unlock, for the
+    /// rectangular Lock Screen widget. Two names, then "+1" for the rest, so it fits one line.
+    public static func remainingGoalNames(_ titles: [String]) -> String? {
+        let names = titles.filter { !$0.isEmpty }
+        guard !names.isEmpty else { return nil }
+        let shown = names.prefix(2).joined(separator: " + ")
+        return names.count > 2 ? "\(shown) +\(names.count - 2)" : shown
+    }
+
+    /// "Unlocked · 14-day streak" — the unlocked rectangular headline caption.
+    public static func unlockedWithStreak(_ streak: Int) -> String {
+        streak > 0 ? "\(noActiveLock) · \(Self.streak(streak))" : noActiveLock
+    }
+
     public static func inlineStatus(isLocked: Bool, goalsRemaining: Int) -> String {
         guard isLocked else { return "Unlocked" }
         return goalsRemaining > 0 ? "Locked · \(Self.goalsRemaining(goalsRemaining))" : "Locked"
@@ -113,10 +127,16 @@ public enum WidgetCopy {
 
     // MARK: - Controls (iOS 18+)
 
-    public static let controlLockToggleTitle = "Lock"
-    public static let controlLockToggleDescription = "Turn your ZANO lock on or off."
+    // The lock control only ever STARTS a lock. While a lock runs, tapping it opens ZANO, where
+    // the goals and the emergency unlock live; Control Center can never end a lock by itself.
+    public static let controlLockTitle = "Start lock"
+    public static let controlLockDescription = "Start your ZANO lock. While locked, opens ZANO."
     public static let controlLockedLabel = "Locked"
-    public static let controlUnlockedLabel = "Unlocked"
+
+    /// The locked control's label: "2 goals left", or "Locked" once nothing is left.
+    public static func controlLockedStatus(goalsRemaining: Int) -> String {
+        goalsRemaining > 0 ? Self.goalsRemaining(goalsRemaining) : controlLockedLabel
+    }
 
     public static let controlLogWaterTitle = "Log water"
     public static let controlLogWaterDescription = "Log 500ml of water."
@@ -127,8 +147,6 @@ public enum WidgetCopy {
     public static let controlLogCreatineTitle = "Log creatine"
     public static let controlLogCreatineDescription = "Log today's creatine dose."
 
-    public static let controlNoDefaultLockSetMessage =
-        "Add a lock set in ZANO before locking from Control Center."
 
     // MARK: - Live Activities
 

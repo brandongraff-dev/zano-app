@@ -3,11 +3,16 @@
 //
 // Lock Screen widgets, built around the ZANO star and goal progress (never Screen Time — widgets
 // can't read it; see `ZANOWidgetCharge` in Support/ZANOWidgetComponents.swift):
-//   Circular:    the star glyph inside an `.accessoryCircularCapacity` gauge of goals done
-//                (default), or the older protein / water / streak stats, picked in Edit Widget.
-//   Rectangular: "2 goals to unlock" beside the star, a one-segment-per-goal bar, and the lock
-//                set + streak.
-//   Inline:      "Locked · 2 goals left" / "Unlocked".
+//   Circular:    goals (default) is a capacity ring of goals done. Locked: a lock glyph over the
+//                big "2" goals left (a check once none are left). Unlocked: the star glyph.
+//                Protein / water / streak stats are the alternatives, picked in Edit Widget.
+//   Rectangular: locked: lock glyph + "2 goals to unlock", a one-segment-per-goal bar, and the
+//                goals still standing ("Gym + Protein"; lock set + streak when unknown).
+//                Unlocked: star + "Unlocked · 14-day streak", the bar, and "2 of 3 goals".
+//   Inline:      "Locked · 2 goals left" / "Unlocked", with a lock glyph.
+//
+// Accessory widgets can't run buttons, so a tap opens the app through `widgetURL`: Today for
+// everything, Fuel for the protein stat.
 //
 // One `Widget` covering all three accessory families (iOS 16+, below this project's iOS 17
 // minimum). Accessory widgets render in vibrant (or accented) mode, so everything here is drawn
@@ -111,6 +116,7 @@ struct ZANOLockScreenWidget: Widget {
         ) { entry in
             ZANOLockScreenEntryView(entry: entry)
                 .containerBackground(.clear, for: .widget)
+                .widgetURL(entry.metric == .protein ? ZANOWidgetLink.fuel : ZANOWidgetLink.today)
         }
         .configurationDisplayName(Text(WidgetCopy.appName))
         .description(Text(WidgetCopy.widgetDescription))
@@ -153,23 +159,44 @@ private struct ZANOLockScreenCircularView: View {
         }
     }
 
-    /// The star glyph in a capacity ring that fills as goals get done.
+    /// A capacity ring that fills as goals get done. Inside: a lock over the number of goals
+    /// left while locked (a check once none are left), the star when unlocked.
     private var goalsGauge: some View {
         let charge = snapshot.charge
         return Gauge(value: charge.fraction) {
             Text(WidgetCopy.metricGoals)
         } currentValueLabel: {
-            ZanoMarkShape()
-                .fill(Color.primary, style: FillStyle(eoFill: true))
-                .aspectRatio(ZanoMark.aspectRatio, contentMode: .fit)
-                .frame(width: 26)
-                .widgetAccentable()
+            goalsCenter(charge)
         }
         .gaugeStyle(.accessoryCircularCapacity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(charge.isLocked
             ? WidgetCopy.goalsToUnlock(charge.remaining)
             : WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
+    }
+
+    @ViewBuilder
+    private func goalsCenter(_ charge: ZANOWidgetCharge) -> some View {
+        if charge.isLocked {
+            VStack(spacing: -1) {
+                Image(systemName: charge.remaining > 0 ? "lock.fill" : "checkmark")
+                    .font(.system(size: charge.remaining > 0 ? 9 : 16, weight: .bold))
+                    .widgetAccentable()
+                if charge.remaining > 0 {
+                    Text("\(charge.remaining)")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                }
+            }
+        } else {
+            ZanoMarkShape()
+                .fill(Color.primary, style: FillStyle(eoFill: true))
+                .aspectRatio(ZanoMark.aspectRatio, contentMode: .fit)
+                .frame(width: 26)
+                .widgetAccentable()
+        }
     }
 
     // Switches on `metric` rather than re-deriving the icon from `progress.title`, which breaks
@@ -217,40 +244,58 @@ private struct ZANOLockScreenRectangularView: View {
         let charge = snapshot.charge
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 5) {
-                ZanoMarkShape()
-                    .fill(Color.primary, style: FillStyle(eoFill: true))
-                    .aspectRatio(ZanoMark.aspectRatio, contentMode: .fit)
-                    .frame(width: 18)
+                glyph(charge)
                     .widgetAccentable()
                     .accessibilityHidden(true)
                 Text(headline(charge))
                     .font(.system(.headline, design: .rounded))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.75)
             }
             ZANOSegmentBar(done: charge.done, total: charge.total)
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if let caption = caption(charge) {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
+    /// The lock while locked, the star otherwise.
+    @ViewBuilder
+    private func glyph(_ charge: ZANOWidgetCharge) -> some View {
+        if charge.isLocked {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 13, weight: .bold))
+        } else {
+            ZanoMarkShape()
+                .fill(Color.primary, style: FillStyle(eoFill: true))
+                .aspectRatio(ZanoMark.aspectRatio, contentMode: .fit)
+                .frame(width: 18)
+        }
+    }
+
+    /// "2 goals to unlock" / "All goals done" / "Unlocked · 14-day streak".
     private func headline(_ charge: ZANOWidgetCharge) -> String {
-        guard charge.isLocked else { return WidgetCopy.noActiveLock }
+        guard charge.isLocked else { return WidgetCopy.unlockedWithStreak(snapshot.currentStreak) }
         return charge.remaining > 0 ? WidgetCopy.goalsToUnlock(charge.remaining) : WidgetCopy.allGoalsDone
     }
 
-    /// "Locked · Social · 14-day streak", or "1 of 3 goals · 14-day streak" when unlocked.
-    private var caption: String {
-        let charge = snapshot.charge
-        let lead = snapshot.isLocked
-            ? WidgetCopy.lockStatusLine(lockSetName: snapshot.lockSetName)
-            : (charge.total > 0 ? WidgetCopy.goalsDone(charge.done, of: charge.total) : nil)
-        return [lead, WidgetCopy.streak(snapshot.currentStreak)]
-            .compactMap { $0 }
-            .joined(separator: " · ")
+    /// Locked: "Gym + Protein", or "Locked · Social · 14-day streak" when the goal names aren't
+    /// known. Unlocked: "2 of 3 goals" (nothing when no goals are set up).
+    private func caption(_ charge: ZANOWidgetCharge) -> String? {
+        if charge.isLocked {
+            if charge.remaining > 0, let names = WidgetCopy.remainingGoalNames(snapshot.remainingGoalTitles) {
+                return names
+            }
+            return [WidgetCopy.lockStatusLine(lockSetName: snapshot.lockSetName), WidgetCopy.streak(snapshot.currentStreak)]
+                .joined(separator: " · ")
+        }
+        return charge.total > 0 ? WidgetCopy.goalsDone(charge.done, of: charge.total) : nil
     }
 }
 
@@ -274,16 +319,19 @@ private struct ZANOLockScreenInlineView: View {
     ZANOLockScreenWidget()
 } timeline: {
     ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
+    ZANOLockScreenEntry(date: .now, snapshot: .galleryUnlocked, metric: .goals)
 }
 
 #Preview(as: .accessoryRectangular) {
     ZANOLockScreenWidget()
 } timeline: {
     ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
+    ZANOLockScreenEntry(date: .now, snapshot: .galleryUnlocked, metric: .goals)
 }
 
 #Preview(as: .accessoryInline) {
     ZANOLockScreenWidget()
 } timeline: {
     ZANOLockScreenEntry(date: .now, snapshot: .galleryPreview, metric: .goals)
+    ZANOLockScreenEntry(date: .now, snapshot: .galleryUnlocked, metric: .goals)
 }

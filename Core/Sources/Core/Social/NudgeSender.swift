@@ -48,7 +48,7 @@ public enum NudgeSenderError: Error, Sendable, Equatable, LocalizedError {
 
 /// What a nudge is *about* — the user-facing categories Settings lets them switch off. Orthogonal
 /// to `NudgeArm` (tone × timing × format), which is how it's said, not what it's for.
-public enum NudgeKind: String, CaseIterable, Identifiable, Sendable {
+public enum NudgeKind: String, CaseIterable, Identifiable, Sendable, Codable {
     /// The morning "here's today's plan" nudge.
     case morningPlan = "morning_plan"
     /// The 8 PM protein "last mile" nudge when within 20 g (spec, Wave 2 list).
@@ -346,6 +346,18 @@ public final class NudgeSender {
     /// - Returns: how many `Nudge` rows were scored by this call.
     @discardableResult
     public func closeExpiredAttributionWindows(asOf now: Date = .now) async throws -> Int {
+        try await scoreExpiredAttributionWindows(asOf: now).count
+    }
+
+    /// One nudge whose attribution window was just closed, and whether the user acted in it.
+    public struct AttributionOutcome: Sendable, Equatable {
+        public let nudgeID: UUID
+        public let acted: Bool
+    }
+
+    /// Same as ``closeExpiredAttributionWindows(asOf:)``, returning each newly scored nudge so a
+    /// caller can learn from it (`NudgeScheduler`'s timing bandit uses these as rewards).
+    public func scoreExpiredAttributionWindows(asOf now: Date = .now) async throws -> [AttributionOutcome] {
         let cutoff = now.addingTimeInterval(-Self.attributionWindow)
         let descriptor = FetchDescriptor<Nudge>(
             predicate: #Predicate<Nudge> {
@@ -353,14 +365,17 @@ public final class NudgeSender {
             }
         )
         let pending = try context.fetch(descriptor)
-        guard !pending.isEmpty else { return 0 }
+        guard !pending.isEmpty else { return [] }
 
+        var outcomes: [AttributionOutcome] = []
         for nudge in pending {
             let windowEnd = nudge.ts.addingTimeInterval(Self.attributionWindow)
-            nudge.actedWithin3h = try hasVerifiedGoalCompletion(userID: nudge.userID, from: nudge.ts, to: windowEnd)
+            let acted = try hasVerifiedGoalCompletion(userID: nudge.userID, from: nudge.ts, to: windowEnd)
+            nudge.actedWithin3h = acted
+            outcomes.append(AttributionOutcome(nudgeID: nudge.id, acted: acted))
         }
         try context.save()
-        return pending.count
+        return outcomes
     }
 
     // MARK: - SwiftData

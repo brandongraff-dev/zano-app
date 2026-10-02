@@ -650,7 +650,12 @@ private final class WatchSyncCoordinator {
         }
 
         do {
-            let sessionID = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: plannedMinutes)
+            // Started from the wrist, not in the app: leaving the app doesn't pause it.
+            let sessionID = try await FocusSessionVerifier.shared.startSession(
+                goalID: goalID,
+                plannedMinutes: plannedMinutes,
+                pausesWhenAppLeaves: false
+            )
             trackedFocusSessions[sessionID] = TrackedFocusSession(
                 id: sessionID,
                 goalID: goalID,

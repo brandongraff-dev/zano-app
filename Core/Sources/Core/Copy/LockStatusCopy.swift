@@ -186,6 +186,33 @@ extension Copy.lockStatus {
         return "Blocking \(what) · \(ending)"
     }
 
+    // Visual direction v2 (2026-10-02): the blocking line as two facts instead of one middle-dot
+    // sentence. `blockingLine` above stays (VoiceOver labels and tests use it).
+
+    /// What the lock is doing: `"Blocking 12 apps"`, or `"Apps open until 3:45 PM"` during a window.
+    public static func blockingHeadline(_ summary: LockBlockingSummary) -> String {
+        if let open = summary.openUntil {
+            return "Apps open until \(open.formatted(date: .omitted, time: .shortened))"
+        }
+        return "Blocking \(blockingWhat(apps: summary.appCount, categories: summary.categoryCount, websites: summary.webDomainCount))"
+    }
+
+    /// When it ends: `"Ends when your goals are done"`, `"Ends at 9:00 PM"`, `"On until you end it"`,
+    /// or `"Locks again after"` during a window.
+    public static func blockingEnding(_ summary: LockBlockingSummary) -> String {
+        if summary.openUntil != nil { return "Locks again after" }
+        switch summary.ending {
+        case .whenGoalsDone: return "Ends when your goals are done"
+        case .at(let date): return "Ends at \(date.formatted(date: .omitted, time: .shortened))"
+        case .whenEnded: return "On until you end it"
+        }
+    }
+
+    /// The (i) beside the borrow card's title, which now holds `borrowSectionDetail`.
+    public static let borrowInfoLabel = "About borrowing"
+    /// The (i) beside the spend card's title, which now holds `spendSectionDetail`.
+    public static let spendInfoLabel = "About spending minutes"
+
     // Screen Time self-check (`LockHealthCheck`)
     public static let healthAccessOffTitle = "Screen Time access is off — ZANO can't block apps"
     public static let healthAccessOffDetail = "Your lock is still on in ZANO, but iOS isn't letting it block anything. Turn access back on to fix it."

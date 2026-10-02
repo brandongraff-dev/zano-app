@@ -220,6 +220,15 @@ public final class SunriseAlarmManager {
 
     // MARK: - Settings (ASSUMED API)
 
+    /// Whether the person ever saved Sunrise Alarm / Bedtime Gate settings (`saveSettings`).
+    /// `Settings.enabled` defaults to `true`, so this — not `enabled` — is what tells an app
+    /// foreground hook it may keep the alarm scheduled: someone who never opened the setup screen
+    /// never gets a surprise 06:30 alarm (spec §5.10 frames the feature as opt-in). Reads one App
+    /// Group key; `nonisolated` so any caller can ask without a hop. Cleared by `resetAll()`.
+    public nonisolated static var hasBeenConfigured: Bool {
+        defaults.data(forKey: settingsKey) != nil
+    }
+
     public func currentSettings() async -> Settings {
         guard
             let data = Self.defaults.data(forKey: Self.settingsKey),
@@ -474,6 +483,15 @@ public final class SunriseAlarmManager {
     /// foreground hook as `beginRingingIfDue`/`reconcileIfDismissedElsewhere` so a normal daily
     /// "open the app in the morning" cadence keeps tonight's/tomorrow's cycle alive on its own;
     /// flagged in knownIssues as the honest limit of what's achievable without that hook.
+    ///
+    /// Recurrence (audit V1): the alarm is scheduled one occurrence at a time (AlarmKit `.fixed`,
+    /// or one notification chain), so each occurrence must be followed by the next. That happens
+    /// right after a dismiss or the escape hatch (`completeDismiss`, `triggerEscapeHatch`), and
+    /// here for everything else: an occurrence whose ringing window passed with nobody dismissing
+    /// it, or one that was already dismissed. The alarm repeats every day — `Settings` has no
+    /// weekday selection, and no setup screen offers one.
+    ///
+    /// The app calls this on every foreground, but only when `hasBeenConfigured` is true.
     public func ensureScheduledIfNeeded(now: Date = .now) async {
         let settings = await currentSettings()
         guard settings.enabled else { return }
@@ -481,10 +499,27 @@ public final class SunriseAlarmManager {
             _ = await scheduleAlarm(now: now)
             return
         }
-        let staleness = now.timeIntervalSince(state.fireDate)
-        if staleness > 24 * 60 * 60 {
+        if Self.needsNextOccurrence(fireDate: state.fireDate, dismissedAt: state.dismissedAt, now: now) {
             _ = await scheduleAlarm(now: now)
         }
+    }
+
+    /// Pure rule behind `ensureScheduledIfNeeded`: schedule the next occurrence once this one is
+    /// over — dismissed (and its fire time passed), or past its ringing window plus a minute of
+    /// grace (the same window `beginRingingIfDue` honours). An upcoming or still-ringing occurrence
+    /// is left alone.
+    nonisolated static func needsNextOccurrence(fireDate: Date, dismissedAt: Date?, now: Date) -> Bool {
+        guard now >= fireDate else { return false }
+        if dismissedAt != nil { return true }
+        return now > fireDate.addingTimeInterval(SunriseAlarmEngineDefaults.escalationWindow + 60)
+    }
+
+    /// Schedules tomorrow's occurrence after this one ended (dismiss or escape hatch), so the
+    /// alarm recurs even if the app isn't opened again before the next wake time (audit V1).
+    private func scheduleNextOccurrence(after now: Date) async {
+        let settings = await currentSettings()
+        guard settings.enabled else { return }
+        _ = await scheduleAlarm(now: now)
     }
 
     /// Defensive-only reconciliation for a Tag dismiss that happened via `SunriseKeyIntent`
@@ -725,6 +760,8 @@ public final class SunriseAlarmManager {
         // lock arms automatically" — applies identically to every variant that actually verifies
         // the morning goal, not just Tag.
         _ = await BedtimeGateManager.shared.armDayLockAfterWake(now: now)
+        // Recurrence (audit V1): the next wake time is scheduled now, not on some later app open.
+        await scheduleNextOccurrence(after: now)
 
         Analytics.shared.capture(event: "sunrise_alarm_dismissed", properties: ["variant": variant.rawValue])
         logger.notice("Sunrise alarm dismissed via \(variant.rawValue, privacy: .public).")
@@ -754,6 +791,19 @@ public final class SunriseAlarmManager {
         if #available(iOS 26.0, *) { await stopAlarmKitAlarmIfNeeded() }
         await endRingingActivity(now: .now)
         logger.notice("Cancelled sunrise alarm: \(String(describing: reason), privacy: .public).")
+    }
+
+    /// "Delete all my data": stops the alarm on every tier (AlarmKit + notification chain + the
+    /// ringing Live Activity) and forgets the settings and today's state, so `hasBeenConfigured`
+    /// is `false` again and no foreground hook reschedules it.
+    public func resetAll() async {
+        await cancelAlarm(reason: .disabled)
+        Self.defaults.removeObject(forKey: Self.settingsKey)
+        clearDailyState()
+        isRinging = false
+        ringingSince = nil
+        snoozesRemainingToday = SunriseAlarmEngineDefaults.maxSnoozes
+        stepsWalked = 0
     }
 
     // MARK: - Escape hatch (spec §5.10 point 6 / §24 point 2 — never trap the user)
@@ -787,6 +837,8 @@ public final class SunriseAlarmManager {
         isRinging = false
         ringingSince = nil
         await cancelAlarm(reason: .escapeHatch)
+        // The escape hatch ends today's alarm, not the feature: tomorrow's still rings (audit V1).
+        await scheduleNextOccurrence(after: .now)
         Analytics.shared.capture(event: "sunrise_alarm_escape_hatch", properties: ["reason": reason.rawValue])
     }
 
@@ -885,7 +937,7 @@ public final class SunriseAlarmManager {
     nonisolated(unsafe) private static let defaults: UserDefaults =
         UserDefaults(suiteName: AppGroup.identifier) ?? .standard
 
-    private static let settingsKey = "core.sunriseAlarm.settings.v1"
+    nonisolated private static let settingsKey = "core.sunriseAlarm.settings.v1"
     private static let dailyStateKey = "core.sunriseAlarm.dailyState.v1"
 }
 

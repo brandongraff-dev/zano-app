@@ -14,6 +14,10 @@
 //
 // Locked is cool navy (`lockedAmbient` wash, `textSecondary` glyph): red is reserved for emergency.
 // The earned state (`.unlocking` / all done) is the one place the card glows accent.
+//
+// v2 (docs/design/visual-direction-v2.md): the raised glass hero (radius `hero`), a lock medallion
+// beside the set's name instead of a "Locked · Name" eyebrow, the "since" time as a glass chip, the
+// score face for the number, bigger rings.
 
 import SwiftUI
 import FamilyControls
@@ -108,14 +112,14 @@ struct LockVaultCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if !segments.isEmpty {
-                    ConcentricGoalRings(segments: segments, diameter: 132)
+                    ConcentricGoalRings(segments: segments, diameter: 140)
                 }
             }
             LockedAppsStrip(blob: appTokensBlob, isLocked: status == .locked)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.lg)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous))
         .zanoHero(
             tint: reduceTransparency ? nil : washTint,
             active: status == .earned && !reduceTransparency
@@ -127,18 +131,16 @@ struct LockVaultCard: View {
     // MARK: - Pieces
 
     private var topRow: some View {
-        HStack(spacing: Theme.Spacing.xs) {
+        HStack(spacing: Theme.Spacing.sm) {
             statusDot
             Text(eyebrow)
-                .font(Theme.Typography.headline)
+                .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer(minLength: Theme.Spacing.xs)
             if let detail {
-                Text(detail)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .lineLimit(1)
+                ZanoGlassChip(detail, systemImage: "clock", tint: Theme.Colors.muted)
             }
             if showsChevron {
                 Image(systemName: "chevron.forward")
@@ -148,13 +150,20 @@ struct LockVaultCard: View {
         }
     }
 
-    /// A small filled glyph in a tinted disc: the state at a glance, in the state's color.
+    /// The lock medallion: the state's glyph in a glass disc, lit accent once earned.
     private var statusDot: some View {
         Image(systemName: statusSymbol)
-            .font(Theme.Typography.icon(.xsmall, weight: .bold))
-            .foregroundStyle(status == .earned ? Theme.Colors.onAccent : statusColor)
-            .frame(width: 24, height: 24)
-            .background(statusDotFill, in: Circle())
+            .font(Theme.Typography.icon(.medium, weight: .bold))
+            .foregroundStyle(status == .earned ? Theme.Colors.onAccent : Theme.Colors.text)
+            .frame(width: 40, height: 40)
+            .background {
+                if status == .earned {
+                    Circle().fill(Theme.Colors.accentFill)
+                } else {
+                    ZanoGlass(Circle())
+                }
+            }
+            .shadow(color: status == .earned ? Theme.Colors.accent.opacity(0.5) : .clear, radius: 10)
             .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
     }
 
@@ -172,7 +181,7 @@ struct LockVaultCard: View {
                 )
                 .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
                 Text(NumeralText.remainder(of: numeralLine))
-                    .font(.system(.title3, weight: .bold).width(.condensed))
+                    .font(Theme.Typography.title)
                     .foregroundStyle(Theme.Colors.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -209,21 +218,6 @@ struct LockVaultCard: View {
         }
     }
 
-    /// Solid accent once earned, navy while locked, a faint wash otherwise.
-    private var statusDotFill: Color {
-        switch status {
-        case .earned: Theme.Colors.accent
-        case .locked: Theme.Colors.lockedAmbient
-        case .setup, .unlocked: Theme.Colors.wash(statusColor)
-        }
-    }
-
-    private var statusColor: Color {
-        switch status {
-        case .setup, .unlocked, .locked: Theme.Colors.textSecondary
-        case .earned: Theme.Colors.accent
-        }
-    }
 
     private var washTint: Color? {
         switch status {
@@ -303,15 +297,26 @@ struct ConcentricGoalRings: View {
 struct VaultSegmentBar: View {
     let segments: [VaultSegment]
 
-    private static let height: CGFloat = 8
+    private static let height: CGFloat = 10
 
+    /// v2: each slot fills with its goal's progress (not only when done), in the goal's colour on
+    /// that colour's own dim track, and glows once done.
     var body: some View {
-        HStack(spacing: Theme.Spacing.xxs) {
+        HStack(spacing: Theme.Spacing.xs - 2) {
             ForEach(segments) { segment in
+                let fraction = segment.isDone ? 1 : min(1, max(0, segment.progress))
                 Capsule()
-                    .fill(segment.isDone ? segment.color : Theme.Colors.track)
+                    .fill(Theme.Colors.Ring.track(for: segment.color))
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(segment.color)
+                                .frame(width: max(fraction > 0 ? Self.height : 0, proxy.size.width * fraction))
+                        }
+                    }
+                    .clipShape(Capsule())
                     .frame(height: Self.height)
-                    .shadow(color: segment.isDone ? segment.color.opacity(0.45) : .clear, radius: 6)
+                    .shadow(color: segment.isDone ? segment.color.opacity(0.6) : .clear, radius: 8)
             }
         }
         .accessibilityHidden(true)

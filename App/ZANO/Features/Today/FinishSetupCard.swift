@@ -9,8 +9,11 @@
 //   - from `TodayView` (unchanged call site): NFC tags, gym (only with a gym goal), Apple Health
 //     (only with a steps / home-workout goal), the widget. TodayView decides whether each is done
 //     and what it opens (`NFCTagsView`, `GymSetupView`, the Health primer, the widget how-to).
-//   - added here: coach voice (onboarding no longer asks; the default stays Hype), Sunrise alarm
-//     (onboarding no longer asks; the wake time stays unset until this is saved) and squads.
+//   - added here: notifications (audit N2: before this, permission was only asked on the first-win
+//     Start, so "Do it later" left the shield's Emergency button notification silently failing),
+//     coach voice (onboarding no longer asks; the default stays Hype) and Sunrise alarm (onboarding
+//     no longer asks; the wake time stays unset until this is saved). The squad item was removed
+//     (founder decision 2026-10-02: squads are hidden for v1).
 // Each item disappears once done, at most `maxVisibleItems` open items show at a time (the next one
 // moves up as one is finished), and the whole card draws nothing when every item is done.
 //
@@ -19,7 +22,9 @@
 //                default (they picked one in Settings);
 //   Sunrise      the Sunrise alarm settings row exists in the App Group store, which only happens
 //                when its setup screen (or the Bedtime Gate's, which shares the row) is saved;
-//   squad        `SquadManager.mySquads()` is non-empty.
+//   notifications  permission is granted (authorized / provisional / ephemeral). Tapping asks once
+//                if never asked; if it was refused, it opens the app's page in the Settings app
+//                (iOS can't show the prompt twice). Re-read whenever the scene becomes active.
 //
 // Also here: the widget how-to sheet the widget item opens (an app can't add a widget for the user),
 // and the coach-voice sheet.
@@ -43,12 +48,14 @@ struct FinishSetupCard: View {
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     @Query private var users: [User]
 
     @AppStorage("finishSetup.coachVoicePicked.v1") private var coachVoicePicked = false
     /// `nil` until read on appear.
     @State private var sunriseConfigured: Bool?
-    @State private var hasSquad: Bool?
+    @State private var notificationStatus: NotificationPermission.Status?
     @State private var showsCoachVoice = false
     @State private var showsSunrise = false
 
@@ -62,7 +69,7 @@ struct FinishSetupCard: View {
     static let maxVisibleItems = 5
 
     /// Display order, by id. Ids not listed (a future item from TodayView) go last.
-    private static let order = ["tags", "gym", "health", "voice", "sunrise", "squad", "widget"]
+    private static let order = ["notifications", "tags", "gym", "health", "voice", "sunrise", "widget"]
 
     private var allItems: [FinishSetupItem] {
         let merged = items + ownItems
@@ -77,7 +84,21 @@ struct FinishSetupCard: View {
     }
 
     private var ownItems: [FinishSetupItem] {
-        var result = [
+        var result: [FinishSetupItem] = []
+        // Wait for the read so the item never flashes in and straight back out.
+        if let notificationStatus {
+            result.append(FinishSetupItem(
+                id: "notifications",
+                icon: "bell.badge.fill",
+                title: Copy.onboarding.finishSetupNotificationsTitle,
+                detail: notificationStatus == .denied
+                    ? Copy.onboarding.finishSetupNotificationsDeniedDetail
+                    : Copy.onboarding.finishSetupNotificationsDetail,
+                isDone: notificationStatus == .allowed,
+                action: { tapped("notifications") { turnOnNotifications() } }
+            ))
+        }
+        result.append(
             FinishSetupItem(
                 id: "voice",
                 icon: OnboardingKit.icon(for: currentVoice),
@@ -86,7 +107,7 @@ struct FinishSetupCard: View {
                 isDone: coachVoicePicked || currentVoice != .hype,
                 action: { tapped("voice") { showsCoachVoice = true } }
             )
-        ]
+        )
         // Wait for the reads so an item never flashes in and straight back out.
         if let sunriseConfigured {
             result.append(FinishSetupItem(
@@ -96,16 +117,6 @@ struct FinishSetupCard: View {
                 detail: Copy.onboarding.finishSetupSunriseDetail,
                 isDone: sunriseConfigured,
                 action: { tapped("sunrise") { showsSunrise = true } }
-            ))
-        }
-        if let hasSquad {
-            result.append(FinishSetupItem(
-                id: "squad",
-                icon: "person.3.fill",
-                title: Copy.onboarding.finishSetupSquadTitle,
-                detail: Copy.onboarding.finishSetupSquadDetail,
-                isDone: hasSquad,
-                action: { tapped("squad") { AppRouter.shared.selectedTab = .squad } }
             ))
         }
         return result
@@ -125,7 +136,7 @@ struct FinishSetupCard: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
                         Text(Copy.today.setupCardTitle)
-                            .font(Theme.Typography.headline)
+                            .font(Theme.Typography.title)
                             .foregroundStyle(Theme.Colors.text)
                             .accessibilityAddTraits(.isHeader)
                         Text(Copy.today.setupCardProgress(done: doneCount, total: all.count))
@@ -157,12 +168,16 @@ struct FinishSetupCard: View {
                                 .transition(.opacity)
                         }
                     }
-                    .zanoCard()
+                    .zanoCard(radius: Theme.Radius.medium)
                 }
             }
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: doneCount)
-        .task { await refreshOwnStatus() }
+        .task(id: scenePhase) {
+            // Also on returning from the Settings app, where notifications may have been turned on.
+            guard scenePhase == .active else { return }
+            await refreshOwnStatus()
+        }
         .sheet(isPresented: $showsCoachVoice) {
             CoachVoiceSetupSheet {
                 coachVoicePicked = true
@@ -183,8 +198,25 @@ struct FinishSetupCard: View {
 
     private func refreshOwnStatus() async {
         sunriseConfigured = Self.isSunriseAlarmConfigured()
-        let squads = (try? await SquadManager.shared.mySquads()) ?? []
-        hasSquad = !squads.isEmpty
+        notificationStatus = await NotificationPermission.status()
+    }
+
+    /// Never asked: the system prompt. Refused: the app's page in Settings (the prompt can't show
+    /// twice). The row re-reads the status when the scene becomes active again.
+    private func turnOnNotifications() {
+        Task {
+            if notificationStatus == .denied {
+                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                    openURL(url)
+                }
+                return
+            }
+            notificationStatus = await NotificationPermission.requestIfUndetermined()
+            Analytics.shared.capture(
+                event: "finish_setup_notifications_answered",
+                properties: ["allowed": notificationStatus == .allowed]
+            )
+        }
     }
 
     /// Whether the Sunrise alarm settings row has ever been saved. The key is the identifier
@@ -288,7 +320,8 @@ private struct CoachVoiceSetupSheet: View {
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.bottom, Theme.Spacing.sm)
         }
-        .background(Theme.Colors.background)
+        // v2: the aurora canvas, like every screen.
+        .zanoBackdrop()
         .sensoryFeedback(.selection, trigger: selected)
         .presentationDetents([.large])
         .preferredColorScheme(.dark)
@@ -337,7 +370,8 @@ struct WidgetHowToSheet: View {
         }
         .padding(Theme.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Theme.Colors.background)
+        // v2: the aurora canvas, like every screen.
+        .zanoBackdrop()
         .presentationDetents([.medium, .large])
         .preferredColorScheme(.dark)
     }

@@ -183,5 +183,49 @@ extension Copy {
 
         public static let termsLinkLabel = "Terms of use"
         public static let privacyLinkLabel = "Privacy policy"
+
+        // MARK: Billed amount on the timeline (Apple 3.1.2: the billed amount is the most
+        // prominent price; the per-month figure only ever appears smaller, under it)
+
+        /// The billing node with the amount: "You'll be charged $39.99/yr on Oct 9 unless you
+        /// cancel before then." `price` is the store-formatted price line (`annualPriceLine` etc.).
+        public static func timelineBillingDetail(price: String, date: String) -> String {
+            "You'll be charged \(price) on \(date) unless you cancel before then."
+        }
+        public static let timelineBillingTodayTitle = "Billing starts today"
+        /// A plan without a trial: billing is today.
+        public static func timelineBillingTodayDetail(price: String) -> String {
+            "\(price), charged today. Cancel anytime."
+        }
+
+        // MARK: Trial reminder toggle (growth research #1, audit M3)
+
+        public static let reminderToggleTitle = "Remind me before my trial ends"
+        public static func reminderToggleDetail(daysBefore: Int) -> String {
+            "A notification \(daysBefore) \(daysBefore == 1 ? "day" : "days") before billing starts."
+        }
+        /// Notifications were refused earlier, so the toggle can't deliver on its own.
+        public static let reminderToggleDeniedDetail = "Notifications are off for ZANO. Turn them on in Settings to get the reminder."
+        /// The timeline's reminder node while the toggle is off: no promise the app won't keep.
+        public static let timelineReminderOffDetail = "Reminder off. The billing date is below."
+
+        // MARK: Grace period (audit M2: plans couldn't load; never a dead end)
+
+        public static let continueOnGraceButtonLabel = "Continue for now"
+        public static func graceExplainer(days: Int) -> String {
+            let span = days == 1 ? "1 day" : "\(days) days"
+            return "You can use ZANO for \(span) and start your trial once plans load."
+        }
+        /// Banner on Today/Settings while the user is in the app on a grace.
+        public static let finishTrialBannerTitle = "Finish starting your trial"
+        public static func finishTrialBannerDetail(daysLeft: Int) -> String {
+            switch daysLeft {
+            case ..<1: "Plans didn't load earlier. Tap to see them."
+            case 1: "Plans didn't load earlier. 1 day left to pick one."
+            default: "Plans didn't load earlier. \(daysLeft) days left to pick one."
+            }
+        }
+        public static let finishTrialBannerSpoken = "Finish starting your trial. Opens plans."
+        public static let closeButtonLabel = "Close"
     }
 }

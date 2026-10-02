@@ -100,6 +100,9 @@ public enum ShieldCopy {
         /// `content(for:)`) already branches correctly on this value — only the call site needs
         /// to change.
         public var recentMiss: Bool
+        /// Shield "Close app" taps in the last 7 days (`ReclaimedOpens.countThisWeek`). From 3 up,
+        /// the rotating coach line can say so ("Closed it 6 times this week").
+        public var reclaimedThisWeek: Int
 
         public init(
             voice: CoachVoice,
@@ -109,7 +112,8 @@ public enum ShieldCopy {
             mode: LockMode?,
             earnedMinutesRemainingToday: Int,
             earnedMinutesMirrorIsForToday: Bool,
-            recentMiss: Bool = false
+            recentMiss: Bool = false,
+            reclaimedThisWeek: Int = 0
         ) {
             self.voice = voice
             self.shieldedName = shieldedName
@@ -119,6 +123,7 @@ public enum ShieldCopy {
             self.earnedMinutesRemainingToday = earnedMinutesRemainingToday
             self.earnedMinutesMirrorIsForToday = earnedMinutesMirrorIsForToday
             self.recentMiss = recentMiss
+            self.reclaimedThisWeek = reclaimedThisWeek
         }
     }
 
@@ -145,10 +150,14 @@ public enum ShieldCopy {
     /// two short sentences. The one exception is the after-a-slip moment, whose title stays a
     /// voice-varied comeback line so the total goals left is never the headline for someone who
     /// just slipped (docs/design/writing-findings.md §3.5 and §4).
-    /// - Parameter now: injectable for deterministic variant-rotation tests; defaults to `.now`.
-    public static func content(for context: ShieldContext, now: Date = .now) -> Content {
+    /// - Parameters:
+    ///   - now: injectable for deterministic variant-rotation tests; defaults to `.now`.
+    ///   - rotation: when given (the shield passes its running impression count), the coach line
+    ///     rotates per shield view instead of per day, so a user who keeps opening the same app
+    ///     sees a different line each time (research item 3: the one sec-style shield).
+    public static func content(for context: ShieldContext, now: Date = .now, rotation: Int? = nil) -> Content {
         let m = moment(for: context)
-        let variantIndex = dayIndex(on: now)
+        let variantIndex = rotation.map { abs($0) } ?? dayIndex(on: now)
         let name: String
         if let shieldedName = context.shieldedName, !shieldedName.isEmpty {
             name = shieldedName
@@ -185,7 +194,10 @@ public enum ShieldCopy {
             return Content(title: title, subtitle: subtitle)
 
         case .midLock:
-            let nudges = midLockNudges[context.voice] ?? []
+            var nudges = midLockNudges[context.voice] ?? []
+            if context.reclaimedThisWeek >= reclaimedLineMinimum {
+                nudges.append(reclaimedLine(context.voice, closes: context.reclaimedThisWeek))
+            }
             var subtitle = pick(nudges, at: variantIndex, fallback: "It'll be here when your goals are done.")
             if let extra {
                 subtitle += " " + extra
@@ -236,6 +248,12 @@ public enum ShieldCopy {
     public enum Buttons {
         public static let showGoals = "Show my goals"
         public static let emergency = "Emergency unlock"
+        /// One sec-style shield (research item 3, 2026-10-02): the primary action is the easy,
+        /// rewarding one. Closing counts as a reclaimed open (`ReclaimedOpens`).
+        public static let closeApp = "Close app"
+        /// The secondary action: opens ZANO's Lock tab, where the Time Bank borrow/spend card AND
+        /// the emergency unlock both live, so the way out stays one tap from the shield.
+        public static let useTimeBank = "Use Time Bank"
     }
 
     // MARK: - Deep links (docs/spec.md §27: shields can't open the app directly)
@@ -257,6 +275,10 @@ public enum ShieldCopy {
         /// Routes to the 60-second emergency-unlock hold screen (spec §5.1, §24: "provide an
         /// in-app emergency unlock with a short hold. Never trap users.").
         public static let emergency = URL(string: "zano://emergency")!
+        /// The Lock tab: the Time Bank card and the emergency unlock. `AppRouter` routes
+        /// `zano://emergency` there today, so the Time Bank hand-off reuses that link rather than
+        /// adding a route the app doesn't know yet.
+        public static let lockTab = emergency
     }
 
     // MARK: - Local notification copy (posted by ShieldActionExtension, spec §27)
@@ -312,7 +334,44 @@ public enum ShieldCopy {
         )
     }
 
+    /// Posted when the shield's "Use Time Bank" button is tapped. Lands on the Lock tab, which
+    /// has the Time Bank card and the emergency unlock, and says so: the way out is never hidden.
+    /// `earnedMinutes` is today's Earn Mode balance when it's known (0 otherwise).
+    public static func timeBankNotification(voice: CoachVoice, mode: LockMode?, earnedMinutes: Int) -> NotificationContent {
+        let title: String
+        switch mode {
+        case .earn where earnedMinutes > 0: title = "Time Bank: \(earnedMinutes) min ready"
+        case .earn, .full, nil: title = "Your Time Bank"
+        }
+        let body: String
+        switch voice {
+        case .hype: body = "Tap to spend a few minutes. Emergency unlock is there too if you need it."
+        case .toughLove: body = "Tap to use your minutes. Emergency unlock is on the same screen."
+        case .chill: body = "Tap to take a few minutes. Emergency unlock is there too, no stress."
+        case .data: body = "Tap to open the Time Bank. Emergency unlock is on the same screen."
+        }
+        return NotificationContent(
+            identifier: "zano.shield.timeBank",
+            title: title,
+            body: body,
+            deepLink: DeepLink.lockTab
+        )
+    }
+
     // MARK: - Variant tables
+
+    /// From this many closes in a week, the rotating line can mention them.
+    static let reclaimedLineMinimum = 3
+
+    /// "Reclaimed, not blocked" framing (research doc, UX patterns table).
+    static func reclaimedLine(_ voice: CoachVoice, closes: Int) -> String {
+        switch voice {
+        case .hype: return "You've closed this \(closes) times this week. That's time back!"
+        case .toughLove: return "Closed \(closes) times this week. Make it one more."
+        case .chill: return "\(closes) closes this week. That's time back for you."
+        case .data: return "Closes this week: \(closes)."
+        }
+    }
 
     /// Used mid-sentence ("2 goals to unlock this app") for a category-level shield with no
     /// single app/site name to show — hence lowercase.
@@ -352,11 +411,35 @@ public enum ShieldCopy {
     /// left). Built on the brand's one line — the star charges while you're off your phone — in
     /// each voice's shape (docs/design/writing-findings.md §2.2): Hype on the stakes, Tough Love
     /// states the fact and stops (no scolding), Chill gives permission, Data gives the rule.
+    ///
+    /// Rotation (2026-10-02): the shield passes its impression count, so these rotate per view.
+    /// The third and fourth lines frame closing as the win, since the option to close is what
+    /// worked in the one sec study (research item 3).
     private static let midLockNudges: [CoachVoice: [String]] = [
-        .hype: ["The star charges while you're off your phone. Go fill it.", "Every verified goal charges the star. Let's GO."],
-        .toughLove: ["It'll still be here after the work's done.", "The star only charges off your phone."],
-        .chill: ["It'll be here when you're done. No rush.", "The star charges while you're off your phone."],
-        .data: ["Unlock triggers on goal verification.", "Star charge accrues while you're off your phone."]
+        .hype: [
+            "The star charges while you're off your phone. Go fill it.",
+            "Every verified goal charges the star. Let's GO.",
+            "Closing it counts as a win. Take it!",
+            "Close it now. Future you says thanks.",
+        ],
+        .toughLove: [
+            "It'll still be here after the work's done.",
+            "The star only charges off your phone.",
+            "Close it. Do the thing. Come back.",
+            "You opened it on autopilot. Close it.",
+        ],
+        .chill: [
+            "It'll be here when you're done. No rush.",
+            "The star charges while you're off your phone.",
+            "Closing it counts. That's a little time back.",
+            "Maybe close it and come back later?",
+        ],
+        .data: [
+            "Unlock triggers on goal verification.",
+            "Star charge accrues while you're off your phone.",
+            "Each close is logged as time reclaimed.",
+            "Closing now adds to this week's reclaimed count.",
+        ],
     ]
 
     private static let showGoalsNotificationTitles: [CoachVoice: String] = [

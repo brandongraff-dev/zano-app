@@ -166,8 +166,8 @@ public struct NumeralText: View {
 
         fileprivate var numberSize: CGFloat {
             switch self {
-            case .hero: 88
-            case .large: 48
+            case .hero: 84
+            case .large: 46
             case .medium: 28
             case .small: 17
             }
@@ -184,16 +184,17 @@ public struct NumeralText: View {
 
         fileprivate var numberWeight: Font.Weight {
             switch self {
-            case .hero: .heavy
-            case .large, .medium: .bold
+            case .hero: .black
+            case .large: .heavy
+            case .medium: .bold
             case .small: .semibold
             }
         }
 
         fileprivate var tracking: CGFloat {
             switch self {
-            case .hero: -0.5
-            case .large: -0.3
+            case .hero: -1
+            case .large: -0.5
             case .medium, .small: 0
             }
         }
@@ -281,8 +282,18 @@ public struct NumeralText: View {
 
     private func attributed(for parsed: ValueTextParser.Parsed) -> AttributedString {
         let factor = min(scale, 1.35)
-        let numberFont = Theme.Typography.numeral(size: size.numberSize * factor, weight: size.numberWeight)
-        let unitFont = Theme.Typography.numeral(size: size.unitSize * factor, weight: .semibold)
+        // v2: hero and large numerals are the score face (SF Pro Expanded black); medium and small
+        // are rounded, like the rest of the app's voice. Units follow their numeral's family.
+        let numberFont: Font
+        let unitFont: Font
+        switch size {
+        case .hero, .large:
+            numberFont = Theme.Typography.score(size: size.numberSize * factor, weight: size.numberWeight)
+            unitFont = Font.system(size: size.unitSize * factor, weight: .bold, design: .rounded)
+        case .medium, .small:
+            numberFont = Font.system(size: size.numberSize * factor, weight: size.numberWeight, design: .rounded).monospacedDigit()
+            unitFont = Font.system(size: size.unitSize * factor, weight: .semibold, design: .rounded)
+        }
 
         var result = AttributedString()
         for run in parsed.runs {

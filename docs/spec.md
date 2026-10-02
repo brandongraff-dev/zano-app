@@ -795,7 +795,7 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 - **Family Controls entitlement:** apply to Apple on day one. Approval is per bundle ID, so file 4 requests (main app + ShieldConfig + ShieldAction + Monitor extensions). Explain the use case clearly; approval can take days to weeks and you cannot ship without it. While waiting, use the **Family Controls (Development)** capability in Xcode: fully functional on a real device, but cannot go to TestFlight or the App Store.
 - **Emergency access:** calls and Emergency SOS are never affected by shields (Apple guarantees this), but also provide an in-app emergency unlock with a short hold. Never trap users.
-- **Age:** rate 17+ initially (avoid COPPA/teen data complexity). No under-13 users. Reassess later with a parent-managed mode.
+- **Age:** rate 16+ (founder decision 2026-10-02; Apple's 2025 scale has no 17+, and 18+ would exclude 17-year-olds). No under-13 users. Reassess later with a parent-managed mode.
 - **Health data:** HealthKit data stays on device except aggregated goal completion; never sell or share it. Clear privacy policy and privacy nutrition labels.
 - **No restrictive goals:** no calorie ceilings, weight targets, or fasting. Protein and water are additive. Include a "pause for health reasons" option and disordered-eating-safe copy. Refuse to add "eat less" goals even if requested.
 - **Location:** request "When in Use" first; "Always" only at gym setup with a clear explanation. Provide a manual check-in fallback.

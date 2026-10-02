@@ -19,9 +19,25 @@
 // and any App Intent / UI call site can call `FocusSessionVerifier.shared.startSession(...)` /
 // `.endSession(...)` today, before this file exists on disk from their point of view, and keep
 // compiling once it lands.
+//
+// Launch-blocker fixes (docs/design/unfinished-audit-2026-10-02.md L3/L4/L5/L8):
+//   - A running session is persisted in the App Group defaults (`FocusSessionStore`), so it
+//     survives the app being killed or suspended. `restorePersistedSessions` (on every app
+//     activation, and before any end/lookup) re-adopts it and ends it as verified when its planned
+//     active time has already elapsed.
+//   - The countdown ends the session by itself at zero (verified), so a session started from
+//     Today, a widget, Siri or an NFC tag verifies without anyone calling `endSession`.
+//   - Spec section 3 anti-cheat "Leaving the app pauses timer": `appDidEnterBackground` pauses
+//     every session started in the app (`pausesWhenAppLeaves`), `appDidBecomeActive` resumes the
+//     ones it paused. There is no grace period in the spec, so none here. Sessions started
+//     outside the app (Siri, widget, NFC, Watch) run with shields on and don't pause: the person
+//     was never in the app to leave it.
+//   - `activeSession` is observable, so any screen can show a session it didn't start, and
+//     `endActiveSession()` lets `EndFocusIntent` / `zano://focus/end` end it without an id.
 
 import ActivityKit
 import Foundation
+import Observation
 import os
 import SwiftData
 
@@ -71,104 +87,83 @@ public enum FocusSessionVerifierError: Sendable, Equatable, LocalizedError {
     }
 }
 
-/// Runs the in-app focus-session timer (docs/spec.md §3 Focus session row), drives its
-/// `FocusActivityAttributes` Live Activity end-to-end (start → tick → pause/resume → end), and on
-/// end verifies the session (elapsed active time >= planned minutes) and logs the result as a
-/// `GoalEvent` (docs/spec.md §13; that table is "the training table for §9 ML systems" per its
-/// own header comment — every complete/miss belongs there, not just successes).
+/// Runs the in-app focus-session timer (docs/spec.md section 3 Focus session row), drives its
+/// `FocusActivityAttributes` Live Activity end-to-end (start, tick, pause/resume, end), and on end
+/// verifies the session (elapsed active time >= planned minutes) and logs the result as a
+/// `GoalEvent` (every complete/miss is a training row, not just successes).
 ///
-/// `@MainActor`, not a plain `actor`: this type owns a `Timer`-like tick loop and an ActivityKit
-/// `Activity` — both are UI-adjacent, foreground-only concerns (a focus session's Live Activity
-/// only usefully ticks while the app is active; see the "leaving the app pauses timer" TODO hook
-/// below), so confining all of its mutable state to the main actor is the simplest correct choice
-/// per this session's `write-swift` guidance ("shared mutable state → actor, or `@MainActor`
-/// class") while still matching this task's CONTRACTS declaration of `FocusSessionVerifier` as a
-/// `final class` (a `@MainActor final class` *is* implicitly `Sendable`, so `static let shared`
-/// and every `async` method below are callable from any isolation domain exactly the way
-/// CONTRACTS' other call sites assume — they just hop to the main actor to do it, the same as any
-/// other `@MainActor` singleton).
-///
-/// One `FocusSessionVerifier.shared` exists per process. The main app and every extension that
-/// links Core get their own instance — this is fine for focus sessions specifically because only
-/// the main app ever starts/ends one (the timer needs to be visibly running in-app); nothing here
-/// assumes cross-process state the way `SharedDefaults`/`ModelContainer.appGroup` do.
+/// `@MainActor @Observable`: it owns a tick loop and an ActivityKit `Activity` (main-actor
+/// concerns), and `activeSession` is read live by SwiftUI. One instance per process; the running
+/// session itself lives in the App Group defaults (`FocusSessionStore`) so the app's process can
+/// pick it up again after a relaunch. Every intent that starts or ends one is a
+/// `LiveActivityIntent`, so in practice only the app's process runs sessions.
 @MainActor
+@Observable
 public final class FocusSessionVerifier {
     public static let shared = FocusSessionVerifier()
 
-    /// One in-flight focus session's mutable state. Kept as a private value type (not a class) so
-    /// mutating one field is an ordinary struct mutation through the `runningSessions` dictionary
-    /// rather than a second layer of reference-type bookkeeping on top of the dictionary itself.
+    /// One in-flight focus session: its persisted record plus the process-local handles.
     private struct RunningSession {
-        let id: UUID
-        let goalID: UUID
-        let plannedMinutes: Int
-        let startedAt: Date
-        /// Started as the goal's Plan B (spec §5.5): a verified session logs `.planB`, not `.complete`.
-        let isPlanB: Bool
-
-        /// `nil` while running; set to the moment `pauseSession` was called while paused.
-        var pausedAt: Date? = nil
-        /// Total time spent paused across every past pause/resume cycle in this session, not
-        /// counting a pause currently in progress (that's `pausedAt`'s job — see
-        /// `elapsedActiveSeconds(asOf:)`).
-        var accumulatedPauseDuration: TimeInterval = 0
-
-        /// `nil` when Live Activities are unavailable/denied (`requestLiveActivity` logs and
-        /// degrades gracefully) — the timer and verification still work without one.
+        var record: PersistedFocusSession
+        /// `nil` when Live Activities are unavailable/denied: the timer and verification still work.
         var activity: Activity<FocusActivityAttributes>? = nil
-
-        /// The unstructured per-second tick loop while this session is running and unpaused.
-        /// `nil` while paused or once the countdown has reached zero (`tick` cancels its own
-        /// loop at that point; `endSession`/`pauseSession` cancel it explicitly otherwise).
+        /// The per-second tick loop while running and unpaused.
         var tickTask: Task<Void, Never>? = nil
-
-        /// Wall-clock time actually spent running (i.e. excluding every pause), as of `now`.
-        /// This — not raw `now.timeIntervalSince(startedAt)` — is what verification and the
-        /// countdown are both measured against, so pausing (docs/spec.md §3: "Leaving the app
-        /// pauses timer") genuinely stops the clock rather than just freezing the display.
-        func elapsedActiveSeconds(asOf now: Date) -> TimeInterval {
-            let inProgressPause = pausedAt.map { now.timeIntervalSince($0) } ?? 0
-            return max(0, now.timeIntervalSince(startedAt) - accumulatedPauseDuration - inProgressPause)
-        }
     }
 
-    /// How long a finished Live Activity stays visible (showing its final "complete"/"missed"
-    /// state) before the system is allowed to dismiss it, so the user actually sees the outcome
-    /// instead of it vanishing the instant `endSession` returns.
+    /// How long a finished Live Activity stays visible (showing its final state) before the system
+    /// may dismiss it.
     private static let activityDismissalGracePeriod: TimeInterval = 5
 
+    /// The session a screen should show, or `nil` when none is running. Updated on every start,
+    /// pause, resume, end and restore (not every tick: derive the countdown from `endsAt`).
+    public private(set) var activeSession: ActiveFocusSession?
+
     private let modelContainer: ModelContainer
-    private lazy var modelContext = ModelContext(modelContainer)
-    private var runningSessions: [UUID: RunningSession] = [:]
+    private let modelContext: ModelContext
+    private let store: FocusSessionStore
+    private let onVerified: @MainActor (UUID) async -> Void
+    @ObservationIgnored private var runningSessions: [UUID: RunningSession] = [:]
+    /// Outcomes of sessions this process already ended, so a second `endSession` for the same id
+    /// (the countdown ended it at zero, then the onboarding screen's own timer asks too) returns
+    /// the real result instead of throwing.
+    @ObservationIgnored private var endedResults: [UUID: Bool] = [:]
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "FocusSessionVerifier")
 
     /// `internal`, not `private`, only so `CoreTests` can construct an isolated instance against
-    /// an in-memory container; every real call site uses `.shared`.
-    init(modelContainer: ModelContainer = .appGroup) {
+    /// an in-memory container and its own defaults suite; every real call site uses `.shared`.
+    init(
+        modelContainer: ModelContainer = .appGroup,
+        store: FocusSessionStore = FocusSessionStore(),
+        onVerified: @escaping @MainActor (UUID) async -> Void = { goalID in
+            await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
+        }
+    ) {
         self.modelContainer = modelContainer
+        self.modelContext = ModelContext(modelContainer)
+        self.store = store
+        self.onVerified = onVerified
     }
 
     // MARK: - Start
 
-    /// Starts a new focus session for `goalID`: opens the `FocusActivityAttributes` Live Activity
-    /// (docs/spec.md §6) and begins the per-second countdown immediately.
+    /// Starts a new focus session for `goalID`: opens the Live Activity and begins the countdown.
     ///
     /// - Parameters:
-    ///   - goalID: The `Goal.id` this session counts toward. Must already exist in the shared
-    ///     store — see `FocusSessionVerifierError.goalNotFound`.
-    ///   - plannedMinutes: The timer length. The UI layer is expected to pass one of
-    ///     `FocusSessionPreset`'s 25/50/90 values (docs/spec.md §3), but any positive value is
-    ///     accepted here — see `FocusSessionPreset`'s doc comment for why this stays an `Int`.
-    ///   - isPlanB: `true` when Today's Plan B card started this shortened session (spec §5.5 "25-min
-    ///     focus instead of 90"). A verified Plan B session logs `.planB` (half Earn Mode credit in
-    ///     `GoalCompletionCoordinator`) instead of `.complete`. A session started elsewhere on a day
-    ///     the goal was switched to Plan B also logs `.planB` when it is shorter than the full
-    ///     target — see `completionKind(for:elapsedMinutes:)`.
-    /// - Returns: A new session id. Pass it to `endSession`/`pauseSession`/`resumeSession`.
-    /// - Throws: `FocusSessionVerifierError.invalidPlannedMinutes` or `.goalNotFound`, or a
-    ///   SwiftData fetch error.
-    public func startSession(goalID: UUID, plannedMinutes: Int, isPlanB: Bool = false) async throws -> UUID {
+    ///   - goalID: The `Goal.id` this session counts toward. Must exist in the shared store.
+    ///   - plannedMinutes: The timer length (any positive value; 25/50/90 are the UI presets).
+    ///   - isPlanB: `true` when Today's Plan B card started this shortened session (spec 5.5): a
+    ///     verified Plan B session logs `.planB` instead of `.complete`.
+    ///   - pausesWhenAppLeaves: `true` (the default) for a session the person runs in the app:
+    ///     leaving the app pauses it (spec section 3 anti-cheat). `false` for sessions started
+    ///     outside the app (`StartFocusIntent` from Siri, a widget or an NFC tag; the Watch).
+    /// - Returns: A new session id.
+    public func startSession(
+        goalID: UUID,
+        plannedMinutes: Int,
+        isPlanB: Bool = false,
+        pausesWhenAppLeaves: Bool = true
+    ) async throws -> UUID {
         guard plannedMinutes > 0 else {
             throw FocusSessionVerifierError.invalidPlannedMinutes(plannedMinutes)
         }
@@ -182,15 +177,17 @@ public final class FocusSessionVerifier {
             plannedMinutes: plannedMinutes,
             secondsRemaining: plannedMinutes * 60
         )
-
-        runningSessions[sessionID] = RunningSession(
+        let record = PersistedFocusSession(
             id: sessionID,
             goalID: goalID,
             plannedMinutes: plannedMinutes,
             startedAt: .now,
             isPlanB: isPlanB,
-            activity: activity
+            pausesWhenAppLeaves: pausesWhenAppLeaves,
+            activityID: activity?.id
         )
+        runningSessions[sessionID] = RunningSession(record: record, activity: activity)
+        persist()
         startTicking(for: sessionID)
 
         logger.notice("Started focus session \(sessionID.uuidString, privacy: .public) for goal \(goalID.uuidString, privacy: .public), \(plannedMinutes, privacy: .public) min planned.")
@@ -198,128 +195,241 @@ public final class FocusSessionVerifier {
     }
 
     // MARK: - Pause / resume
-    //
-    // Mechanics live here; *deciding when to call these* is the UI layer's job.
-    //
-    // TODO(cross-module integration — UI layer, `App/ZANO/Features`, docs/spec.md §3 Focus
-    // session row "Leaving the app pauses timer"; not this session's scope, see
-    // `FocusActivityAttributes.ContentState.isPaused`'s doc comment): observe `scenePhase` (or
-    // `UIApplication.willResignActiveNotification`/`didBecomeActiveNotification`) around the
-    // focus-session screen and call `pauseSession`/`resumeSession` accordingly. Everything below
-    // this point is real, working pause/resume — nothing about it is a stub.
 
     /// Pauses a running session's clock and freezes its Live Activity countdown. A no-op if the
     /// session is unknown or already paused.
     public func pauseSession(sessionID: UUID) async {
-        guard var session = runningSessions[sessionID], session.pausedAt == nil else { return }
-
-        let now = Date.now
-        session.pausedAt = now
-        session.tickTask?.cancel()
-        session.tickTask = nil
-        runningSessions[sessionID] = session
-
-        await updateActivity(for: session, asOf: now, isPaused: true)
+        guard markPaused(sessionID: sessionID, at: .now, automatically: false),
+              let session = runningSessions[sessionID] else { return }
+        await updateActivity(for: session, asOf: .now, isPaused: true)
     }
 
-    /// Resumes a paused session: folds the pause's duration into `accumulatedPauseDuration` (so
-    /// it's excluded from verification and the countdown) and restarts the tick loop. A no-op if
-    /// the session is unknown or not currently paused.
+    /// Resumes a paused session: the pause is excluded from verification and the countdown. A
+    /// no-op if the session is unknown or not paused.
     public func resumeSession(sessionID: UUID) async {
-        guard var session = runningSessions[sessionID], let pausedAt = session.pausedAt else { return }
-
-        session.accumulatedPauseDuration += Date.now.timeIntervalSince(pausedAt)
-        session.pausedAt = nil
-        runningSessions[sessionID] = session
-
+        guard markResumed(sessionID: sessionID, at: .now) else { return }
         startTicking(for: sessionID)
+    }
+
+    // MARK: - App lifecycle (spec section 3: "Leaving the app pauses timer")
+
+    /// The app went to the background: pause every in-app session (`pausesWhenAppLeaves`) and
+    /// count the leave. Synchronous so the pause is persisted before iOS suspends the process;
+    /// the Live Activity update follows on its own task.
+    public func appDidEnterBackground(now: Date = .now) {
+        var paused: [RunningSession] = []
+        for (id, session) in runningSessions where session.record.pausesWhenAppLeaves && session.record.pausedAt == nil {
+            runningSessions[id]?.record.appLeaveCount += 1
+            if markPaused(sessionID: id, at: now, automatically: true), let updated = runningSessions[id] {
+                paused.append(updated)
+            }
+        }
+        guard !paused.isEmpty else { return }
+        // `Activity` isn't `Sendable`; these values never leave the main actor.
+        nonisolated(unsafe) let toUpdate = paused
+        Task { [weak self] in
+            for session in toUpdate { await self?.updateActivity(for: session, asOf: now, isPaused: true) }
+        }
+    }
+
+    /// The app is active again (and on launch): re-adopt any persisted session, verify the ones
+    /// whose time already elapsed, and resume the sessions leaving the app paused.
+    public func appDidBecomeActive(now: Date = .now) async {
+        await restorePersistedSessions(now: now)
+        for (id, session) in runningSessions where session.record.autoPaused {
+            if markResumed(sessionID: id, at: now) { startTicking(for: id) }
+        }
+    }
+
+    /// Re-adopts sessions persisted by an earlier run of this process (killed, crashed, or a
+    /// session another launch started). One whose planned active time already elapsed is ended
+    /// as verified right away; the rest keep running (or stay paused). Idempotent and cheap.
+    public func restorePersistedSessions(now: Date = .now) async {
+        let records = store.load().filter { runningSessions[$0.id] == nil && endedResults[$0.id] == nil }
+        guard !records.isEmpty else { return }
+        for record in records {
+            let activity = record.activityID.flatMap { id in
+                Activity<FocusActivityAttributes>.activities.first { $0.id == id }
+            }
+            runningSessions[record.id] = RunningSession(record: record, activity: activity)
+        }
+        publishActiveSession()
+        for record in records {
+            if record.elapsedActiveSeconds(asOf: now) >= TimeInterval(record.plannedMinutes * 60) {
+                _ = try? await endSession(sessionID: record.id, at: now)
+            } else if record.pausedAt == nil {
+                startTicking(for: record.id)
+            }
+        }
     }
 
     // MARK: - End
 
     /// Ends a running focus session: stops the tick loop, ends the Live Activity, verifies
-    /// (elapsed active time >= `plannedMinutes`), and logs a `GoalEvent` (`.complete` if
-    /// verified, `.miss` otherwise — both are meaningful training rows, not just successes; see
-    /// `GoalEvent.swift`'s header comment).
+    /// (elapsed active time >= planned, see `isVerified`), and logs a `GoalEvent` (`.complete` /
+    /// `.planB` if verified, `.miss` otherwise).
     ///
-    /// - Returns: `true` if the session verified (elapsed active seconds >= planned).
+    /// Ending a session this process already ended returns that session's result again.
+    ///
+    /// - Returns: `true` if the session verified.
     /// - Throws: `FocusSessionVerifierError.sessionNotFound`, or a SwiftData save error.
     public func endSession(sessionID: UUID) async throws -> Bool {
+        try await endSession(sessionID: sessionID, at: .now)
+    }
+
+    /// Ends whichever session is running (the most recently started one), for callers that don't
+    /// hold an id: `EndFocusIntent`, the Live Activity's `zano://focus/end` link.
+    ///
+    /// - Returns: whether it verified, or `nil` when no session was running.
+    @discardableResult
+    public func endActiveSession(now: Date = .now) async throws -> Bool? {
+        await restorePersistedSessions(now: now)
+        guard let id = latestSessionID() else { return nil }
+        return try await endSession(sessionID: id, at: now)
+    }
+
+    /// The running session's id after re-adopting any persisted one, or `nil`.
+    public func activeSessionID(now: Date = .now) async -> UUID? {
+        await restorePersistedSessions(now: now)
+        return latestSessionID()
+    }
+
+    private func endSession(sessionID: UUID, at now: Date) async throws -> Bool {
+        if runningSessions[sessionID] == nil, endedResults[sessionID] == nil {
+            await restorePersistedSessions(now: now)
+        }
+        if let previous = endedResults[sessionID] { return previous }
         guard var session = runningSessions[sessionID] else {
             throw FocusSessionVerifierError.sessionNotFound(sessionID)
         }
+        // Removed (memory and App Group) before the first `await`, so a second caller can never
+        // end — and log — the same session twice.
         runningSessions.removeValue(forKey: sessionID)
-
         session.tickTask?.cancel()
         session.tickTask = nil
 
-        let now = Date.now
-        let elapsedSeconds = session.elapsedActiveSeconds(asOf: now)
-        let plannedSeconds = TimeInterval(session.plannedMinutes * 60)
-        let verified = elapsedSeconds >= plannedSeconds
+        let record = session.record
+        let elapsedSeconds = record.elapsedActiveSeconds(asOf: now)
+        let plannedSeconds = TimeInterval(record.plannedMinutes * 60)
+        let verified = Self.isVerified(
+            elapsedSeconds: elapsedSeconds,
+            plannedSeconds: plannedSeconds,
+            appLeaveCount: record.appLeaveCount
+        )
+        endedResults[sessionID] = verified
+        persist()
 
         await endActivity(for: session, elapsedSeconds: elapsedSeconds, asOf: now)
-        try logOutcome(session: session, elapsedSeconds: elapsedSeconds, verified: verified, at: now)
-        if verified { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: session.goalID) }
+        try logOutcome(record: record, elapsedSeconds: elapsedSeconds, verified: verified, at: now)
+        if verified { await onVerified(record.goalID) }
 
         logger.notice("Ended focus session \(sessionID.uuidString, privacy: .public): elapsed \(Int(elapsedSeconds), privacy: .public)s / planned \(Int(plannedSeconds), privacy: .public)s, verified=\(verified, privacy: .public).")
         return verified
     }
 
+    /// "Delete all my data": stops every running session without logging anything (the rows are
+    /// being deleted anyway) and forgets the persisted record. The Live Activities are ended by
+    /// `DeviceDataReset`.
+    public func resetAll() {
+        for session in runningSessions.values { session.tickTask?.cancel() }
+        runningSessions = [:]
+        endedResults = [:]
+        persist()
+    }
+
+    /// Pure verification rule: the session's active time reached the plan. A few seconds of slack
+    /// per time the person left the app, because a screen's own countdown keeps running in the
+    /// seconds iOS gives a backgrounded app while this clock is already paused (the onboarding
+    /// first-win screen ends its session from its own countdown). Capped at 30 seconds.
+    nonisolated static func isVerified(elapsedSeconds: TimeInterval, plannedSeconds: TimeInterval, appLeaveCount: Int) -> Bool {
+        let slack = min(30, 2 + 5 * TimeInterval(max(0, appLeaveCount)))
+        return elapsedSeconds + slack >= plannedSeconds
+    }
+
+    // MARK: - State changes (synchronous, persisted)
+
+    @discardableResult
+    private func markPaused(sessionID: UUID, at now: Date, automatically: Bool) -> Bool {
+        guard var session = runningSessions[sessionID], session.record.pausedAt == nil else { return false }
+        session.record.pausedAt = now
+        session.record.autoPaused = automatically
+        session.tickTask?.cancel()
+        session.tickTask = nil
+        runningSessions[sessionID] = session
+        persist()
+        return true
+    }
+
+    @discardableResult
+    private func markResumed(sessionID: UUID, at now: Date) -> Bool {
+        guard var session = runningSessions[sessionID], let pausedAt = session.record.pausedAt else { return false }
+        session.record.accumulatedPauseDuration += max(0, now.timeIntervalSince(pausedAt))
+        session.record.pausedAt = nil
+        session.record.autoPaused = false
+        runningSessions[sessionID] = session
+        persist()
+        return true
+    }
+
+    private func latestSessionID() -> UUID? {
+        runningSessions.values.max { $0.record.startedAt < $1.record.startedAt }?.record.id
+    }
+
+    /// Writes every running session to the App Group and republishes `activeSession`.
+    private func persist() {
+        store.save(runningSessions.values.map(\.record))
+        publishActiveSession()
+    }
+
+    private func publishActiveSession() {
+        let latest = runningSessions.values.max { $0.record.startedAt < $1.record.startedAt }?.record
+        let snapshot = latest.map { ActiveFocusSession(record: $0, asOf: .now) }
+        if snapshot != activeSession { activeSession = snapshot }
+    }
+
     // MARK: - Tick loop
 
-    /// Spawns (or replaces) the unstructured per-second countdown for `sessionID`. Unstructured,
-    /// not `async let`/a task group, because its lifetime (up to 90 minutes, per docs/spec.md §3)
-    /// doesn't fit a lexical scope — see this session's `write-swift` guidance on `Task { }`.
-    /// Synchronous on purpose: the assignment to `runningSessions[sessionID]?.tickTask` below must
-    /// happen before the spawned task's body gets a chance to run (no `await` sits between the
-    /// two on this main-actor call stack), so there's no race with `tick(sessionID:)` reading it.
+    /// Spawns (or replaces) the per-second countdown for `sessionID`. Synchronous on purpose: the
+    /// task is stored before its body can run, so `tick` always sees it.
     private func startTicking(for sessionID: UUID) {
+        runningSessions[sessionID]?.tickTask?.cancel()
         let task = Task { [weak self] in
             while let self, !Task.isCancelled {
-                await self.tick(sessionID: sessionID)
-
-                // Stop looping once `tick` cancelled itself (countdown hit zero) or the session
-                // was paused/ended by someone else while we were suspended below.
-                guard let current = self.runningSessions[sessionID],
-                      current.pausedAt == nil,
+                let keepGoing = await self.tick(sessionID: sessionID)
+                guard keepGoing,
+                      let current = self.runningSessions[sessionID],
+                      current.record.pausedAt == nil,
                       current.tickTask != nil
                 else { return }
-
                 do {
                     try await Task.sleep(for: .seconds(1))
                 } catch {
-                    return // Cancelled mid-sleep.
+                    return
                 }
             }
         }
         runningSessions[sessionID]?.tickTask = task
     }
 
-    /// One countdown step: recompute `secondsRemaining` from actual elapsed active time (not a
-    /// simple decrement — this makes the countdown self-correcting against any inexact timer
-    /// firing) and push it to the Live Activity. Cancels its own session's tick task once the
-    /// countdown reaches zero; the session otherwise stays "running" (Tier A auto-verification
-    /// still needs an explicit `endSession` call — e.g. from `EndFocusIntent`, docs/spec.md §14 —
-    /// the same way it would if the user finishes early or over-runs).
-    private func tick(sessionID: UUID) async {
-        guard let session = runningSessions[sessionID], session.pausedAt == nil else { return }
-
+    /// One countdown step, recomputed from real elapsed active time. At zero the session ends
+    /// itself as verified (audit L3/L4: nobody else has to call `endSession`). Returns whether the
+    /// loop should keep going.
+    private func tick(sessionID: UUID) async -> Bool {
+        guard let session = runningSessions[sessionID], session.record.pausedAt == nil else { return false }
         let now = Date.now
-        await updateActivity(for: session, asOf: now, isPaused: false)
-
-        if session.elapsedActiveSeconds(asOf: now) >= TimeInterval(session.plannedMinutes * 60) {
-            runningSessions[sessionID]?.tickTask?.cancel()
+        if session.record.elapsedActiveSeconds(asOf: now) >= TimeInterval(session.record.plannedMinutes * 60) {
             runningSessions[sessionID]?.tickTask = nil
+            _ = try? await endSession(sessionID: sessionID, at: now)
+            return false
         }
+        await updateActivity(for: session, asOf: now, isPaused: false)
+        return true
     }
 
     // MARK: - Live Activity
 
     /// Starts the Focus Session Live Activity. Never throws outward: a denied/unavailable Live
-    /// Activity (user disabled them in Settings, `ActivityAuthorizationError`, etc.) degrades to
-    /// "timer runs, no Live Activity" rather than failing the whole session — the countdown and
-    /// verification are the part of docs/spec.md §3 that must always work.
+    /// Activity degrades to "timer runs, no Live Activity".
     private func requestLiveActivity(
         goalTitle: String,
         plannedMinutes: Int,
@@ -349,8 +459,8 @@ public final class FocusSessionVerifier {
         guard let liveActivity = session.activity else { return }
         nonisolated(unsafe) let activity = liveActivity
 
-        let plannedSeconds = TimeInterval(session.plannedMinutes * 60)
-        let remaining = remainingSeconds(elapsedSeconds: session.elapsedActiveSeconds(asOf: now), plannedSeconds: plannedSeconds)
+        let plannedSeconds = TimeInterval(session.record.plannedMinutes * 60)
+        let remaining = remainingSeconds(elapsedSeconds: session.record.elapsedActiveSeconds(asOf: now), plannedSeconds: plannedSeconds)
 
         let content = ActivityContent(
             state: FocusActivityAttributes.ContentState(secondsRemaining: remaining, isPaused: isPaused),
@@ -359,17 +469,16 @@ public final class FocusSessionVerifier {
         await activity.update(content)
     }
 
-    /// Ends `session`'s Live Activity (if any) showing its final countdown value, with a short
-    /// grace period before the system may dismiss it (`activityDismissalGracePeriod`).
+    /// Ends `session`'s Live Activity (if any) showing its final countdown value.
     private func endActivity(for session: RunningSession, elapsedSeconds: TimeInterval, asOf now: Date) async {
         guard let liveActivity = session.activity else { return }
         nonisolated(unsafe) let activity = liveActivity
 
-        let plannedSeconds = TimeInterval(session.plannedMinutes * 60)
+        let plannedSeconds = TimeInterval(session.record.plannedMinutes * 60)
         let remaining = remainingSeconds(elapsedSeconds: elapsedSeconds, plannedSeconds: plannedSeconds)
 
         let content = ActivityContent(
-            state: FocusActivityAttributes.ContentState(secondsRemaining: remaining, isPaused: session.pausedAt != nil),
+            state: FocusActivityAttributes.ContentState(secondsRemaining: remaining, isPaused: session.record.pausedAt != nil),
             staleDate: nil
         )
         await activity.end(content, dismissalPolicy: .after(now.addingTimeInterval(Self.activityDismissalGracePeriod)))
@@ -379,25 +488,24 @@ public final class FocusSessionVerifier {
         max(0, Int((plannedSeconds - elapsedSeconds).rounded(.up)))
     }
 
-    // MARK: - Plan B (spec §5.5)
+    // MARK: - Plan B (spec 5.5)
 
     /// `.planB` for a session the Plan B card started, or for any session shorter than today's
-    /// full target on a day the user switched this goal to Plan B (a session started from the row
-    /// or `StartFocusIntent` that day). Otherwise `.complete`. Reads the same `DailyPlan`/target
-    /// `GoalDayProgress` uses: today's planned value, else the goal's target.
-    private func completionKind(for session: RunningSession, elapsedMinutes: Double, at now: Date) -> GoalEventKind {
-        if session.isPlanB { return .planB }
-        guard PlanB.isAccepted(goalID: session.goalID, on: now) else { return .complete }
-        guard let fullTarget = fullTarget(goalID: session.goalID, on: now) else { return .complete }
+    /// full target on a day the user switched this goal to Plan B. Otherwise `.complete`.
+    private func completionKind(for record: PersistedFocusSession, elapsedMinutes: Double, at now: Date) -> GoalEventKind {
+        if record.isPlanB { return .planB }
+        guard PlanB.isAccepted(goalID: record.goalID, on: now) else { return .complete }
+        guard let fullTarget = fullTarget(goalID: record.goalID, on: now) else { return .complete }
         return elapsedMinutes < fullTarget ? .planB : .complete
     }
 
     private func fullTarget(goalID: UUID, on date: Date) -> Double? {
         let start = Calendar.current.startOfDay(for: date)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let context = ModelContext(modelContainer)
         let descriptor = FetchDescriptor<DailyPlan>(predicate: #Predicate { $0.date >= start && $0.date < end })
-        let planned = (try? modelContext.fetch(descriptor))?.first { $0.goal?.id == goalID }?.plannedValue
-        return planned ?? (try? fetchGoal(id: goalID))?.targetValue
+        let planned = (try? context.fetch(descriptor))?.first { $0.goal?.id == goalID }?.plannedValue
+        return planned ?? (try? fetchGoal(id: goalID, in: context))?.targetValue
     }
 
     // MARK: - Persistence
@@ -408,23 +516,20 @@ public final class FocusSessionVerifier {
         return try (context ?? modelContext).fetch(descriptor).first
     }
 
-    /// Logs the session's outcome as a `GoalEvent` (docs/spec.md §13). Attaches it to the
-    /// session's `Goal` (and that goal's `user`) when the goal can still be found — a goal
-    /// deleted mid-session is an edge case, not a reason to silently drop a completed/missed
-    /// session's record, so this still logs with `goal: nil, user: nil` if that lookup fails
-    /// rather than throwing.
-    private func logOutcome(session: RunningSession, elapsedSeconds: TimeInterval, verified: Bool, at now: Date) throws {
-        // A fresh context per write: this type's long-lived context can hold a stale `Goal` whose
-        // `events` list predates rows other contexts added since (e.g. the coordinator's rollup), and
-        // saving through it detached those rows from the goal.
+    /// Logs the session's outcome as a `GoalEvent`, attached to its goal when it still exists.
+    private func logOutcome(record: PersistedFocusSession, elapsedSeconds: TimeInterval, verified: Bool, at now: Date) throws {
+        // A fresh context per write: a long-lived context can hold a stale `Goal` whose `events`
+        // list predates rows other contexts added since, and saving through it detaches them.
         let context = ModelContext(modelContainer)
-        let goal = try? fetchGoal(id: session.goalID, in: context)
-        let kind: GoalEventKind = verified ? completionKind(for: session, elapsedMinutes: elapsedSeconds / 60, at: now) : .miss
+        let goal = try? fetchGoal(id: record.goalID, in: context)
+        let kind: GoalEventKind = verified ? completionKind(for: record, elapsedMinutes: elapsedSeconds / 60, at: now) : .miss
 
         var meta: [String: JSONValue] = [
-            "plannedMinutes": .number(Double(session.plannedMinutes)),
+            "plannedMinutes": .number(Double(record.plannedMinutes)),
             "elapsedSeconds": .number(elapsedSeconds),
-            "pausedSeconds": .number(session.accumulatedPauseDuration),
+            "pausedSeconds": .number(record.accumulatedPauseDuration),
+            // Spec section 3 anti-cheat: "phone pickup count logged" — times the person left the app.
+            "appLeaves": .number(Double(record.appLeaveCount)),
         ]
         if kind == .planB { meta[PlanB.planBMetaKey] = .bool(true) }
 
@@ -440,5 +545,89 @@ public final class FocusSessionVerifier {
         )
         context.insert(event)
         try context.save()
+    }
+}
+
+// MARK: - Public snapshot
+
+/// What a screen needs to show a running focus session it may not have started (Today, the Lock
+/// tab): which goal, how long, and when it ends. `endsAt` is `nil` while paused.
+public struct ActiveFocusSession: Sendable, Equatable {
+    public let id: UUID
+    public let goalID: UUID
+    public let plannedMinutes: Int
+    public let startedAt: Date
+    public let isPaused: Bool
+    /// Wall-clock time the countdown reaches zero if it isn't paused again; `nil` while paused.
+    public let endsAt: Date?
+    /// Remaining seconds at the time of the snapshot (frozen while paused).
+    public let secondsRemainingAtSnapshot: Int
+
+    init(record: PersistedFocusSession, asOf now: Date) {
+        let remaining = max(0, TimeInterval(record.plannedMinutes * 60) - record.elapsedActiveSeconds(asOf: now))
+        self.id = record.id
+        self.goalID = record.goalID
+        self.plannedMinutes = record.plannedMinutes
+        self.startedAt = record.startedAt
+        self.isPaused = record.pausedAt != nil
+        self.endsAt = record.pausedAt == nil ? now.addingTimeInterval(remaining) : nil
+        self.secondsRemainingAtSnapshot = Int(remaining.rounded(.up))
+    }
+}
+
+// MARK: - Persistence (App Group)
+
+/// A running focus session as stored in the App Group defaults (device-local, never synced).
+struct PersistedFocusSession: Codable, Sendable, Equatable {
+    var id: UUID
+    var goalID: UUID
+    var plannedMinutes: Int
+    var startedAt: Date
+    var isPlanB: Bool
+    var pausesWhenAppLeaves: Bool
+    /// `ActivityKit` `Activity.id`, to re-attach the Live Activity after a relaunch.
+    var activityID: String?
+    /// Set while paused.
+    var pausedAt: Date? = nil
+    /// `true` when leaving the app (not the person) paused it, so returning resumes it.
+    var autoPaused: Bool = false
+    /// Every finished pause, excluded from the active time.
+    var accumulatedPauseDuration: TimeInterval = 0
+    /// Times the person left the app during the session (spec section 3: "phone pickup count logged").
+    var appLeaveCount: Int = 0
+
+    /// Wall-clock time actually spent running (every pause excluded), as of `now`.
+    func elapsedActiveSeconds(asOf now: Date) -> TimeInterval {
+        let inProgressPause = pausedAt.map { max(0, now.timeIntervalSince($0)) } ?? 0
+        return max(0, now.timeIntervalSince(startedAt) - accumulatedPauseDuration - inProgressPause)
+    }
+}
+
+/// The App Group key holding running focus sessions. `@unchecked Sendable`: `UserDefaults` is
+/// thread-safe, the same reasoning as `LockEngineSharedState`'s `nonisolated(unsafe)` defaults.
+struct FocusSessionStore: @unchecked Sendable {
+    static let key = "core.focusSession.running.v1"
+    let defaults: UserDefaults
+
+    init(defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard) {
+        self.defaults = defaults
+    }
+
+    func load() -> [PersistedFocusSession] {
+        guard let data = defaults.data(forKey: Self.key) else { return [] }
+        return (try? JSONDecoder().decode([PersistedFocusSession].self, from: data)) ?? []
+    }
+
+    func save(_ sessions: [PersistedFocusSession]) {
+        guard !sessions.isEmpty, let data = try? JSONEncoder().encode(sessions) else {
+            defaults.removeObject(forKey: Self.key)
+            return
+        }
+        defaults.set(data, forKey: Self.key)
+    }
+
+    /// "Delete all my data": forget any running session.
+    static func clearAll() {
+        FocusSessionStore().save([])
     }
 }

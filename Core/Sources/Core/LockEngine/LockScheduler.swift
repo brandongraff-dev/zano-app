@@ -10,7 +10,9 @@
 //   - A mirror of each lock set's `appTokensBlob` + the default lock set id, so the monitor can
 //     shield without opening the SwiftData store (written by `LockSetManager`).
 //   - A "pending scheduled lock" record the monitor writes when it shields at a scheduled start;
-//     the app turns it into a real `LockSession` on its next foreground (`LockScheduler.reconcile`).
+//     the app's process turns it into a real `LockSession` on its next foreground
+//     (`LockScheduler.reconcile`) or as soon as any goal event / unlock intent runs
+//     (`LockScheduler.adoptPendingScheduledLock`), whichever comes first.
 //   - The Time Bank spend window (`SpendWindow`: an Earn Mode spend, or a borrow on any lock) and
 //     the "intended shield" selection, so whichever process notices the window is over can put the
 //     shield back.
@@ -579,6 +581,15 @@ public enum ScheduledLockMonitor {
         liftLock()
     }
 
+    /// The escape hatch when the app can't open its data store (audit W1): no `LockSession` can be
+    /// read, so the usual emergency unlock can't run. Lifts ZANO's shield and forgets the
+    /// monitor's hand-off so nothing re-applies it. Never traps the user.
+    public static func liftAllShieldsForRecovery() {
+        LockEngineSharedState.pendingStart = nil
+        LockEngineSharedState.scheduleOwnedLock = nil
+        liftLock()
+    }
+
     private static func liftLock() {
         ManagedSettingsStore(named: .zanoLock).clearAllSettings()
         LockEngineSharedState.intendedShieldSelection = nil
@@ -688,10 +699,9 @@ public final class LockScheduler {
         LockEngineSharedState.finishedPendingLocks = []
         for record in finished { engine.recordFinishedScheduledLock(record) }
 
-        if let pending = LockEngineSharedState.pendingStart {
-            LockEngineSharedState.pendingStart = nil
-            await convert(pending, now: now)
-        }
+        await adoptPendingScheduledLock(now: now, endIfAlreadyEarned: true)
+        // A lock still requiring a goal nothing can complete (audit L2) stays earnable.
+        engine.dropGoalsThatCannotCompleteFromActiveLock()
 
         engine.restoreShieldIfSpendWindowExpired(now: now)
         engine.removeShieldIfNoActiveLock()
@@ -699,7 +709,25 @@ public final class LockScheduler {
         LockEngineSharedState.refreshNextScheduledLockAt(now: now)
     }
 
-    private func convert(_ pending: PendingScheduledLock, now: Date) async {
+    /// The lighter half of `reconcile`: only turns a lock the monitor armed while the app was
+    /// closed into a real `LockSession`. Cheap (one App Group read) when nothing is pending, so
+    /// every path that evaluates an unlock calls it first — `GoalCompletionCoordinator` (widgets,
+    /// NFC, Siri, gym geofence wakes), `EndLockIntent`, `EmergencyUnlockIntent` — and a scheduled
+    /// lock can end as earned (or by emergency) without the app being opened (audit L1).
+    ///
+    /// `endIfAlreadyEarned` is `false` from the coordinator: it evaluates the new session itself
+    /// right after, so the earned unlock also records the streak and the variable reward.
+    public func adoptPendingScheduledLock(now: Date = .now, endIfAlreadyEarned: Bool = false) async {
+        guard let pending = LockEngineSharedState.pendingStart else { return }
+        // Cleared before the first `await`, so two callers on the main actor never convert twice.
+        LockEngineSharedState.pendingStart = nil
+        await convert(pending, now: now, endIfAlreadyEarned: endIfAlreadyEarned)
+        // If the hand-off failed (health pause, missing lock set) never leave a shield without a
+        // session the user can end.
+        LockEngineManager.shared.removeShieldIfNoActiveLock()
+    }
+
+    private func convert(_ pending: PendingScheduledLock, now: Date, endIfAlreadyEarned: Bool) async {
         let engine = LockEngineManager.shared
         // A pause started after the monitor shielded: drop the hand-off; the orphan check that
         // follows in `reconcile` lifts the shield.
@@ -738,7 +766,7 @@ public final class LockScheduler {
                 activityRawName: pending.activityRawName
             )
             // Goals may already be done (applies partial tiers too).
-            if await engine.evaluateUnlockEligibility(sessionID: sessionID) {
+            if endIfAlreadyEarned, await engine.evaluateUnlockEligibility(sessionID: sessionID) {
                 try? await engine.endLock(sessionID: sessionID, unlockKind: .earned)
             }
         }

@@ -4,26 +4,32 @@ import os
 import Core
 
 // docs/spec.md §27 Known Platform Gotchas: "Shield buttons cannot open your app directly; the
-// standard workaround is ShieldActionDelegate → local notification → tap opens app." Both shield
-// buttons follow that path here:
-//   - "Show my goals" (primary) → posts a notification deep-linking to `zano://goals`.
-//   - "Emergency unlock" (secondary) → posts a notification deep-linking to `zano://emergency`, the
-//     60-second emergency-unlock hold screen (spec §5.1, §24: "provide an in-app emergency
+// standard workaround is ShieldActionDelegate → local notification → tap opens app."
+//
+// One sec-style shield (2026-10-02, research item 3 in docs/design/growth-and-ml-research.md):
+//   - "Close app" (primary) → counts one reclaimed open (`ReclaimedOpens.recordClose`, a single
+//     App Group dictionary write) and responds `.close`, which closes the shielded app. No
+//     notification: closing is the whole point, it shouldn't buzz.
+//   - "Use Time Bank" (secondary) → posts a notification deep-linking to ZANO's Lock tab
+//     (`ShieldCopy.DeepLink.lockTab`), where the Time Bank borrow/spend card and the 60-second
+//     emergency-unlock hold both live, then `.close`. The notification body names the emergency
+//     unlock, so the way out stays one tap away (spec §5.1, §24: "provide an in-app emergency
 //     unlock with a short hold. Never trap users.").
-// Copy for both notifications is composed by `ShieldCopy`
-// (`Core/Sources/Core/Copy/ShieldCopy.swift`) from the user's coach voice — this file only reads
-// that voice from the App Group and posts what `ShieldCopy` returns.
+// Copy comes from `ShieldCopy` (`Core/Sources/Core/Copy/ShieldCopy.swift`) in the user's coach
+// voice; this file only reads App Group state and posts what `ShieldCopy` returns.
 //
-// This extension never grants the emergency unlock itself — it only gets the user to the app,
-// where the actual 60-second hold runs and `LockEngineManager.emergencyUnlock(sessionID:)`
-// (system contract, `Core/Sources/Core/LockEngine/LockEngineManager.swift`) is the sole thing
-// that ends the lock. Keeping the grant in exactly one place (the in-app hold flow) is what makes
-// CLAUDE.md's "any lock/shield feature must always keep an emergency-unlock path" enforceable —
-// an extension that could grant it unilaterally would make "never trap the user" and "never let
-// the user skip the hold" two different promises instead of one.
+// This extension never unlocks anything itself — it only gets the user to the app, where the
+// actual 60-second hold runs and `LockEngineManager.emergencyUnlock(sessionID:)` is the sole thing
+// that ends the lock early. Keeping the grant in exactly one place (the in-app hold flow) is what
+// makes CLAUDE.md's "any lock/shield feature must always keep an emergency-unlock path"
+// enforceable.
 //
-// No networking here either (docs/spec.md §11, §27) — `UNUserNotificationCenter.add` and
-// `SharedDefaults` are both purely local/App-Group calls.
+// ShieldAction API as used here (iOS 18.5 SDK): `ShieldAction` has `.primaryButtonPressed` and
+// `.secondaryButtonPressed`; `ShieldActionResponse` is `.none` / `.close` / `.defer`. There's no
+// response that opens the containing app, hence the notification hand-off. Unverified on iOS 26+.
+//
+// No networking here either (docs/spec.md §11, §27) — `UNUserNotificationCenter.add` and the App
+// Group defaults are both purely local.
 class ShieldActionExtension: ShieldActionDelegate {
 
     override func handle(
@@ -59,26 +65,20 @@ class ShieldActionExtension: ShieldActionDelegate {
         to action: ShieldAction,
         completionHandler: @escaping (ShieldActionResponse) -> Void
     ) {
-        let voice = CoachVoice.from(sharedDefaultsRaw: SharedDefaults.coachVoice)
-
         switch action {
         case .primaryButtonPressed:
-            post(ShieldCopy.showGoalsNotification(
-                voice: voice,
-                goalsRemaining: SharedDefaults.goalsRemainingForActiveLock
-            ))
-            // `.close` closes the shielded app and drops the user on the Home Screen, where the
-            // notification posted above arrives a second later — tap it and ZANO opens on the
-            // goals. Nothing is unlocked here (this extension has no power to), and the user is
-            // never left on a button that does nothing (CLAUDE.md: never trap the user).
-            // (`.defer` would keep them on the shield staring at a banner they can't act on
-            // until they leave anyway.)
+            // "Close app": a reclaimed open. Close the shielded app and drop the user on the Home
+            // Screen. Nothing is unlocked (this extension has no power to).
+            ReclaimedOpens.recordClose()
             completionHandler(.close)
 
         case .secondaryButtonPressed:
-            // The emergency path: unconditional, never gated on any mirrored state. Same
-            // close-then-notification hand-off as above, landing on the 60-second hold screen.
-            post(ShieldCopy.emergencyNotification(voice: voice))
+            // "Use Time Bank": unconditional, never gated on any mirrored state. Close, then the
+            // notification posted here lands a second later; tapping it opens the Lock tab with the
+            // Time Bank card and the emergency unlock.
+            let voice = CoachVoice.from(sharedDefaultsRaw: SharedDefaults.coachVoice)
+            let earned = SharedDefaults.earnedMinutesMirrorIsForToday ? SharedDefaults.earnedMinutesRemainingToday : 0
+            post(ShieldCopy.timeBankNotification(voice: voice, mode: SharedDefaults.activeLockMode, earnedMinutes: earned))
             completionHandler(.close)
 
         @unknown default:

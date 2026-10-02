@@ -137,14 +137,17 @@ public enum IntentSupport {
         return try context.fetch(descriptor).first(where: { $0.type == type })
     }
 
-    /// All of the user's currently active goal ids, used as `StartLockIntent`'s default
-    /// `requiredGoalIDs` when the caller doesn't specify which goals gate the lock.
+    /// All of the user's currently active goal ids that can gate a lock, used as `StartLockIntent`'s
+    /// (and every schedule's / bedtime's) default `requiredGoalIDs` when the caller doesn't specify
+    /// which goals gate the lock. Goal types nothing can complete yet
+    /// (`GoalType.canGateLock == false`, e.g. an older "Sleep on time" goal) are left out so they
+    /// never trap a lock (audit L2). The type is matched in Swift, never in `#Predicate`.
     @MainActor
     public static func activeGoalIDs(for userID: UUID, in context: ModelContext) throws -> [UUID] {
         let descriptor = FetchDescriptor<Goal>(
             predicate: #Predicate { $0.user?.id == userID && $0.active }
         )
-        return try context.fetch(descriptor).map(\.id)
+        return try context.fetch(descriptor).filter { $0.type.canGateLock }.map(\.id)
     }
 
     /// A specific `Goal` by id, scoped to `userID`. Used by intents that take a `GoalEntity`
@@ -369,4 +372,17 @@ public struct MealQuery: EntityQuery, EnumerableEntityQuery {
         }
         return name
     }
+}
+
+// MARK: - Goal types that can't complete yet
+
+extension GoalType {
+    /// Goal types nothing in this version can verify: no verifier ever writes their completion.
+    /// "Sleep on time" needs Health sleep data, which v1 stopped reading (audit L2). They're hidden
+    /// from every goal picker, and an existing one never gates a lock — as a required goal it
+    /// would leave emergency unlock as the only way out.
+    public static let notYetCompletable: Set<GoalType> = [.sleepOnTime]
+
+    /// `false` for `notYetCompletable` types: never offered, never required by a lock.
+    public var canGateLock: Bool { !Self.notYetCompletable.contains(self) }
 }

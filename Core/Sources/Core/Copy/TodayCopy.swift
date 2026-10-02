@@ -105,6 +105,15 @@ extension Copy {
             count == 1 ? "+1 more goal" : "+\(count) more goals"
         }
 
+        // MARK: - Visual direction v2 (2026-10-02, docs/design/visual-direction-v2.md)
+
+        /// The glass chip under the star: `"72% charged"` (time off your phone today). Replaces the
+        /// old caption `Copy.screenTime.chargeLine` under the hero.
+        public static func heroStarCharge(percent: Int) -> String { "\(percent)% charged" }
+
+        /// Today's lock capsule when the lock set has no name.
+        public static let heroLockedCapsuleFallback = "Locked"
+
         // MARK: - Premium UI pass 2026-09-24 (docs/design/premium-ui-plan.md)
 
         /// Hero while locked: `"2"` loud, `"goals to unlock"` quiet. Says what the number buys.

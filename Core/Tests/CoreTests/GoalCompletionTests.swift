@@ -22,6 +22,7 @@ private final class CoordinatorSpy {
     var endedSessionIDs: [UUID] = []
     var earnedUnlockDates: [Date] = []
     var duelPoints = 0
+    var adoptCalls = 0
 }
 
 @MainActor
@@ -37,7 +38,11 @@ private struct Harness {
     let timeBank: TimeBankEngine
     let coordinator: GoalCompletionCoordinator
 
-    init(lockEngineAgrees: Bool = true, planBAccepted: Bool = false) throws {
+    init(
+        lockEngineAgrees: Bool = true,
+        planBAccepted: Bool = false,
+        adoptPendingLock: (@MainActor (ModelContainer) throws -> Void)? = nil
+    ) throws {
         let container = try ModelContainer.makeAppGroupContainer(inMemory: true)
         let context = ModelContext(container)
         let user = User()
@@ -69,7 +74,11 @@ private struct Harness {
             applyDuelPoint: { _, _ in
                 spy.duelPoints += 1
             },
-            isPlanBAccepted: { _, _ in planBAccepted }
+            isPlanBAccepted: { _, _ in planBAccepted },
+            adoptPendingScheduledLock: { _ in
+                spy.adoptCalls += 1
+                try? adoptPendingLock?(container)
+            }
         )
 
         self.container = container
@@ -510,5 +519,94 @@ struct GoalCompletionPlanBRollupTests {
         let ignored = GoalDayProgress(targetValue: 150, unit: "g", events: events, planBValue: 200)
         #expect(ignored.target == 150)
         #expect(!ignored.isPlanBTarget)
+    }
+}
+
+// MARK: - Monitor-armed locks (audit L1)
+
+/// Stands in for the App Group "pending scheduled lock" the monitor writes: the first adopt turns
+/// it into a real, active `.schedule` session (what `LockScheduler.adoptPendingScheduledLock`
+/// does), later adopts find nothing.
+@MainActor
+private final class PendingLockStub {
+    var userID: UUID?
+    var requiredGoalIDs: [UUID] = []
+    var adoptedSessionID: UUID?
+
+    func adopt(into container: ModelContainer) throws {
+        guard adoptedSessionID == nil, let userID else { return }
+        let context = ModelContext(container)
+        let session = LockSession(
+            userID: userID,
+            startedAt: Harness.at(hour: 7),
+            trigger: .schedule,
+            mode: .full,
+            requiredGoalIDs: requiredGoalIDs
+        )
+        context.insert(session)
+        try context.save()
+        adoptedSessionID = session.id
+    }
+}
+
+@Suite("GoalCompletionCoordinator — a lock the monitor armed while the app was closed")
+@MainActor
+struct GoalCompletionPendingScheduledLockTests {
+    @Test("a goal event adopts the pending scheduled lock first, then ends it as earned")
+    func goalEventAdoptsAndEndsPendingLock() async throws {
+        let pending = PendingLockStub()
+        let h = try Harness(adoptPendingLock: { try pending.adopt(into: $0) })
+        let water = try h.addGoal(.water, target: 1000)
+        pending.userID = h.user.id
+        pending.requiredGoalIDs = [water.id]
+
+        try h.log(water, amount: 1000)
+        await h.recorded(water)
+
+        let sessionID = try #require(pending.adoptedSessionID)
+        #expect(h.spy.adoptCalls == 1)
+        #expect(h.spy.endedSessionIDs == [sessionID])
+        #expect(h.spy.earnedUnlockDates.count == 1)
+        #expect(try h.session(sessionID)?.unlockKind == .earned)
+    }
+
+    @Test("an adopted lock whose goals aren't all done stays active")
+    func adoptedLockWithOpenGoalsStaysActive() async throws {
+        let pending = PendingLockStub()
+        let h = try Harness(adoptPendingLock: { try pending.adopt(into: $0) })
+        let water = try h.addGoal(.water, target: 1000)
+        let protein = try h.addGoal(.protein, target: 150)
+        pending.userID = h.user.id
+        pending.requiredGoalIDs = [water.id, protein.id]
+
+        try h.log(water, amount: 1000)
+        await h.recorded(water)
+
+        let sessionID = try #require(pending.adoptedSessionID)
+        #expect(h.spy.endedSessionIDs.isEmpty)
+        #expect(try h.session(sessionID)?.isActive == true)
+    }
+}
+
+// MARK: - Goals nothing can complete yet (audit L2)
+
+@Suite("Goal types that can't complete yet never gate a lock")
+@MainActor
+struct NotYetCompletableGoalTests {
+    @Test("Sleep on time is the one type that can't gate a lock")
+    func sleepOnTimeCannotGateLock() {
+        #expect(GoalType.notYetCompletable == [.sleepOnTime])
+        #expect(!GoalType.sleepOnTime.canGateLock)
+        #expect(GoalType.allCases.filter { !$0.canGateLock } == [.sleepOnTime])
+    }
+
+    @Test("a lock's default required goals leave out an active sleep goal")
+    func activeGoalIDsSkipSleep() throws {
+        let h = try Harness()
+        let water = try h.addGoal(.water, target: 1000)
+        _ = try h.addGoal(.sleepOnTime, target: nil)
+
+        let ids = try IntentSupport.activeGoalIDs(for: h.user.id, in: ModelContext(h.container))
+        #expect(ids == [water.id])
     }
 }

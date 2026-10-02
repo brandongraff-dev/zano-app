@@ -1,7 +1,8 @@
 # App Review notes and guideline pre-check (v1.0)
 
-Status: **draft, 2026-10-02.** Written against the code as of today (7-step onboarding, hard
-paywall, 2-minute first win). It supersedes the walkthrough in `docs/setup/app-review-notes.md`,
+Status: **draft, 2026-10-02** (updated the same day for the conversion pass: RevenueCat linked,
+paywall grace period, trial reminder, age rating 16+, squads hidden). Written against the code as of
+today (7-step onboarding, hard paywall, 2-minute first win). It supersedes the walkthrough in `docs/setup/app-review-notes.md`,
 which still describes the old 14/15-screen flow (paywall "screen 12", notifications "screen 13",
 first win "screen 14"); update or retire that file so nobody pastes stale steps.
 
@@ -22,7 +23,13 @@ Placeholders: `[COMPANY LEGAL NAME]`, `[SUPPORT EMAIL]`, `[WEBSITE]`, `[PRICE_*]
 These are the RISK items (§6) that would very likely cause a rejection or make review impossible.
 Details and the rest of the list are in §6.
 
-1. **RISK: RevenueCat isn't linked, so the hard paywall is a dead end in a Release build.**
+1. **RISK (reduced 2026-10-02): RevenueCat is now linked, but needs its key, products and
+   offering.** `purchases-ios` (5.x) is a dependency of Core and the app (`project.yml`,
+   `Core/Package.swift`). The Release build reads `REVENUECAT_API_KEY` from Info.plist, which is
+   empty in the repo and must be passed at build time. Without a key, or with no offering, the
+   paywall offers "Continue for now" (the grace period, §3a), so a reviewer is never stuck, but they
+   also can't buy anything. That is a 3.1.2/2.1 problem in its own right, so ship with a working key
+   and sandbox-tested products.
 2. **RISK: `UIBackgroundModes: location` is declared, but no feature needs continuous background
    location** (2.5.4).
 3. **RISK: "goes live soon" / "coming soon" features are visible in the app** (2.1 / 2.3.1).
@@ -41,8 +48,13 @@ Steps match `OnboardingFlowState.swift` (7 steps) and the Copy files.
    (News, Stocks). Refusing is fine: "Continue without locking" lets the reviewer through, and the
    first win then runs as a plain 2-minute timer with no shield.
 4. **Step 5: plan reveal → hold the button for 2 seconds** to commit.
-5. **Step 6: paywall.** Choose Yearly → "Start my 7-day free trial" with the sandbox account.
-   Restore purchases, Terms and Privacy are on the same screen.
+5. **Step 6: paywall.** Yearly is pre-selected; its tile shows the billed amount ("$39.99/year"),
+   with the per-month figure smaller under it. "Remind me before my trial ends" is ON; turning it
+   on (or starting the trial with it on) asks for notifications once. "Start my 7-day free trial"
+   with the sandbox account. Restore purchases, Terms and Privacy are on the same screen.
+   - **If plans don't load** (offline, store error): "Try again" and **"Continue for now"**. The
+     second one lets you into the app for 3 days without a trial (see §3a). Check it on device
+     once, in Airplane Mode.
 6. **Step 7: "Start your first lock now" → Start focus session.** iOS asks for notifications once
    (allow, see §3). A real 2-minute lock starts on the picked apps.
    - Go Home and open a picked app: **the ZANO shield appears.** Return to ZANO. (Leaving ZANO
@@ -79,8 +91,10 @@ Steps match `OnboardingFlowState.swift` (7 steps) and the Copy files.
 > 2. At "Which apps steal your time?", tap Choose apps, allow Screen Time access, and pick 1–2 apps
 >    (for example News). You can also tap "Continue without locking".
 > 3. Hold the button on the plan screen for 2 seconds.
-> 4. On the subscription screen, choose Yearly and start the 7-day free trial with your sandbox
->    account. Restore purchases, Terms and Privacy are on the same screen.
+> 4. On the subscription screen, Yearly is pre-selected; start the 7-day free trial with your
+>    sandbox account. Restore purchases, Terms and Privacy are on the same screen. If the plans ever
+>    fail to load, tap "Continue for now": the app opens without a purchase and asks again later, so
+>    the review is never blocked.
 > 5. Tap "Start focus session" and allow notifications. A real 2-minute lock starts. Open one of the
 >    apps you picked from the Home Screen: ZANO's shield appears. Return to ZANO (leaving pauses
 >    the timer). After 2 minutes the session verifies, the shield lifts and a celebration plays.
@@ -113,14 +127,55 @@ Steps match `OnboardingFlowState.swift` (7 steps) and the Copy files.
 > Apple's DeviceActivityReport extension. App selections are opaque tokens stored only on the device.
 >
 > **Subscriptions:** auto-renewable, Monthly and Yearly (Yearly has a 7-day free trial). The paywall
-> shows a dated trial timeline (today, reminder, billing date), the price, the full terms next to the
-> button, Restore purchases, Terms and Privacy.
+> shows a dated trial timeline (today, reminder, billing date with the amount), the billed price as
+> the largest price on each plan, the full terms next to the button, Restore purchases, Terms and
+> Privacy. "Remind me before my trial ends" is an optional notification two days before billing; it
+> does not change the plan or the price. If the store can't load plans, "Continue for now" opens the
+> app for 3 days; the subscription screen comes back once that time is up and the store is
+> reachable. Squads and leaderboards are not part of this version.
 >
 > **Known iOS behaviours:** DeviceActivity schedules have a 15-minute minimum and iOS may deliver
 > them late, so scheduled locks aren't exact to the second. If ZANO is force-quit or reinstalled
 > during a lock, the shield can persist; opening ZANO and using emergency unlock clears it.
 >
 > Demo video: [VIDEO LINK]. Contact: [SUPPORT EMAIL].
+
+## 3a. Grace period and RevenueCat sandbox (for whoever submits)
+
+**Grace period** (audit M2, founder decision 2026-10-02; `Core/Sources/Core/Monetization/
+SubscriptionGate.swift`):
+
+- Shown only when the paywall's plans fail to load: offline, no `REVENUECAT_API_KEY` in the build,
+  no current offering, or a store error. "Continue for now" grants **3 days**; the app shows a soft
+  "Finish starting your trial" banner that reopens the paywall.
+- When the grace is over and the store answers "not subscribed", the paywall returns (any active
+  lock is released first, as for a lapsed subscription). If the store still can't be reached, the
+  app stays open (fail open, `EntitlementGate`). If plans fail again on that paywall, "Continue for
+  now" grants **1 more day**. It is never offered when plans loaded, and nothing appears when a
+  user closes or declines the paywall (spec §21: no post-close offers).
+- Result for review: **no path leaves a reviewer stuck at the paywall.** The DEBUG-only
+  `ZANOSkipPaywall` flag is unchanged (UI tests).
+
+**RevenueCat sandbox checklist:**
+
+- Key: the **public Apple SDK key** (`appl_...`) from the RevenueCat dashboard, passed as the
+  `REVENUECAT_API_KEY` build setting (e.g. `xcodebuild ... REVENUECAT_API_KEY=appl_xxx` from a
+  Codemagic/GitHub secret). Never commit it; `project.yml` keeps the setting empty.
+- Dashboard: entitlement identifier **`pro`** (hard-coded in `RevenueCatManager.
+  proEntitlementIdentifier`; a mismatch reads every user as not subscribed), one **current**
+  offering with `$rc_annual` (7-day free-trial intro offer) and `$rc_monthly` packages mapped to
+  the App Store Connect products (`app-store-listing.md` §10).
+- Products must be "Ready to Submit" with the first build, and attached to the version, or the
+  reviewer's sandbox purchase fails.
+- Test on device with a Sandbox Apple Account (Settings → App Store → Sandbox Account): purchase
+  the trial, Restore purchases on a reinstall, and let a sandbox trial expire (minutes, not days,
+  in sandbox) to see the lapsed paywall and the lock release.
+- The trial reminder is dated from RevenueCat's `expirationDate` when available. Sandbox
+  accelerates subscriptions (a 1-week trial lasts minutes), so "2 days before the end" is already
+  past and the reminder is skipped there; that is expected. The reminder can only be seen end to
+  end with a real trial (TestFlight is also accelerated). What sandbox can show: the toggle's
+  permission prompt, and that a sandbox purchase records the trial (no crash, no stray
+  notification).
 
 ## 4. Permission and capability justifications
 
@@ -184,9 +239,12 @@ days. Nothing is written; nothing leaves the device. Never asked unless the user
 
 ### Notifications
 
-Asked once, when the user taps Start on the first-win screen. Used for: shield button hand-off (the
-only way a shield action can open the app), the trial-ending reminder, and at most 2 nudges a day
-(spec §8 rule 7). All local.
+Asked at most once by iOS, at the first of: turning on (or starting the trial with) the paywall's
+"Remind me before my trial ends" toggle, the Start button on the first-win screen, or Today's
+Finish setup "Turn on notifications" item (which opens the Settings app if it was refused). Used
+for: shield button hand-off (the only way a shield action can open the app), the trial-ending
+reminder ("What your trial earned you", two days before billing), and at most 2 nudges a day (spec
+§8 rule 7). All local.
 
 ### Background modes (`UIBackgroundModes: [location]`)
 
@@ -206,7 +264,7 @@ widgets and Controls.
 | Guideline | Risk | How ZANO complies / what to do |
 |---|---|---|
 | **4.2 Minimum functionality** | Low | Native SwiftUI app with real device integrations (Screen Time shielding, geofence verification, HealthKit, NFC, Live Activities, widgets, Controls, Siri). Not a web wrapper. |
-| **2.1 App completeness** | **High** | RevenueCat not linked (RISK 1); "coming soon" features (RISK 3). Otherwise the full loop works offline with no account. |
+| **2.1 App completeness** | **High** | RevenueCat linked but needs key/products (RISK 1); "coming soon" features (RISK 3). The paywall's grace period keeps every build from dead-ending (§3a). Otherwise the full loop works offline with no account. |
 | **5.1.1 Data collection & storage** | Medium | No account in 1.0, so no account-deletion requirement yet (5.1.1(v) applies the day Sign in with Apple ships with sync). Every permission is asked in context, with a purpose string, and refusing each one leaves a working path (continue without locking, manual check-in, one-tap logging). Privacy policy draft exists (`docs/launch/privacy-policy.md`), not yet reviewed or published (RISK 4, RISK 6). |
 | **5.1.2 Data use and sharing / 5.1.3 Health** | Low | No ads, no tracking (`NSPrivacyTracking: false`), Health data not used for ads or sold, Screen Time data never leaves the device (by design of Apple's frameworks). |
 | **2.5.4 Background services** | **High** | Only `location` declared; see RISK 2. |
@@ -222,13 +280,13 @@ widgets and Controls.
 
 ## 6. RISK items found in the code
 
-1. **RISK (blocker): no purchase SDK is linked, so a Release build can't get past the hard
-   paywall.** `project.yml` has no RevenueCat (or PostHog/Sentry) package; `RevenueCatManager` is
-   compiled behind `#if canImport(RevenueCat)` and returns `.notConfigured`. The onboarding paywall
-   only advances on `purchaseState == .succeeded`; the `ZANOSkipPaywall` escape is `#if DEBUG`. A
-   reviewer would be stuck on step 6 with a "Try again" card: a guaranteed 2.1 rejection. Fix: add
-   `purchases-ios` to `project.yml`/Core, configure the API key, create the products in App Store
-   Connect and the RevenueCat offering, and test a sandbox purchase on device.
+1. **RISK (was blocker; code side fixed 2026-10-02): purchases need a key and products.**
+   `purchases-ios` is now linked (`project.yml`, `Core/Package.swift`) and the paywall no longer
+   dead-ends: when plans can't load it offers the grace period (§3a). Still open, founder side:
+   create the RevenueCat project (entitlement `pro`, current offering), the App Store Connect
+   subscription group and products, pass `REVENUECAT_API_KEY` to the Release build, and test a
+   sandbox purchase, restore and trial expiry on device. A build without a key gets through
+   onboarding but can never sell, so don't submit one.
 2. **RISK (likely rejection): `UIBackgroundModes: location` without a continuous-location
    feature.** The code uses `CLMonitor` geofences, a last-known-location read (Travel Mode) and a
    one-shot fetch; none needs the background mode (region monitoring relaunches a suspended or
@@ -241,9 +299,11 @@ widgets and Controls.
 3. **RISK: "coming soon" features are reachable in 1.0.** Squad tab ("Squads go live soon", "Needs
    squads live"), gym leaderboard ("That isn't live yet"), referral redemption ("That isn't live
    yet"), meal-photo estimates ("Photo estimates are coming soon"), meal-prep photo checks. App
-   Review rejects placeholder or "coming soon" features under 2.1/2.3.1. Fix: hide the Squad tab,
-   leaderboard and referral entry in Release until the backend is live, and make the meal-photo
-   flow a plain "log your photo + grams" flow without the "coming soon" line.
+   Review rejects placeholder or "coming soon" features under 2.1/2.3.1. **Decision (founder,
+   2026-10-02): squads and the leaderboard are hidden for v1.** Today's Finish setup no longer has a
+   "Start a squad" item; confirm on the submitted build that the Squad tab and the leaderboard entry
+   are gone too. Still to do: the referral entry and a plain "log your photo + grams" meal-photo
+   flow without the "coming soon" line.
 4. **RISK: privacy/terms URLs are placeholders.** `PaywallView` links `https://zano.app/privacy`;
    `SettingsCopy.termsOfUseURLString` is `https://zano.app/terms`; the privacy policy is an
    unreviewed draft with `[ ]` placeholders. App Store Connect requires a working Privacy Policy URL,
@@ -304,7 +364,10 @@ widgets and Controls.
       iPad in compatibility mode.
 - [ ] Privacy Policy and Terms published at real URLs; App Privacy questionnaire matches the
       manifest and the policy.
-- [ ] Age rating set (decision pending, see `app-store-listing.md` §7).
+- [ ] Age rating set to **16+** (founder decision 2026-10-02, `app-store-listing.md` §7).
+- [ ] `REVENUECAT_API_KEY` passed to the Release build; RevenueCat entitlement `pro` and a current
+      offering exist; the grace path ("Continue for now") checked once in Airplane Mode (§3a).
+- [ ] Squad tab and gym leaderboard hidden in the submitted build (RISK 3).
 - [ ] Demo video recorded (fresh install → picker → sandbox trial → first-win lock → shield →
       verified → new lock → 60-second emergency hold, uncut) and linked in §3.
 - [ ] Review contact: name, phone, [SUPPORT EMAIL]. No demo account needed (no sign-in); say so in

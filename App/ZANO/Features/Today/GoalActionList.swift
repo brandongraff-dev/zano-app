@@ -1,8 +1,13 @@
 // GoalActionList.swift
 // App / ZANO / Features / Today
 //
-// Today's and Lock's goal list: one inset-grouped card, one row per goal, each row with the one
-// action that moves that goal forward right there (docs/design/premium-ui-plan.md, UX pass).
+// Today's and Lock's goal list. v2 (docs/design/visual-direction-v2.md §4): each goal is its own
+// glass tile washed in the goal's colour, two per row (an odd last tile spans the row as a wide
+// tile; one per row at accessibility text sizes), with the one action that moves that goal forward
+// full width at the bottom. A tile that completes pops (ring burst) and glows in its colour. The
+// "78g to go" second line is spoken, not shown, on tiles (fewer words); wide tiles still show it.
+//
+// Before v2: one inset-grouped card, one row per goal (docs/design/premium-ui-plan.md, UX pass).
 //
 // Why rows with actions instead of a ring row + one "Log the rest on Fuel" button: the old screen
 // made the most common action of the day (logging protein or water) cost a tab switch, a scroll and
@@ -49,6 +54,7 @@ struct GoalActionList: View {
     let onAction: (GoalActionItem) -> Void
 
     @State private var tapTick = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(items: [GoalActionItem], isBusy: Bool = false, onAction: @escaping (GoalActionItem) -> Void) {
         self.items = items
@@ -56,77 +62,120 @@ struct GoalActionList: View {
         self.onAction = onAction
     }
 
+    /// Items in rows of two; a row of one is a wide tile. One per row at accessibility sizes.
+    private var rows: [[GoalActionItem]] {
+        let perRow = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        return stride(from: 0, to: items.count, by: perRow).map { Array(items[$0..<min($0 + perRow, items.count)]) }
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                if index > 0 {
-                    Rectangle()
-                        .fill(Theme.Colors.hairline)
-                        .frame(height: Theme.Metrics.edgeWidth)
-                        // Inset to the text column, iOS inset-grouped style: the divider starts
-                        // after the ring, so the rings read as one column.
-                        .padding(.leading, Theme.Spacing.md + GoalActionRow.ringSize + Theme.Spacing.sm)
+        VStack(spacing: Theme.Spacing.sm) {
+            ForEach(rows, id: \.first?.id) { row in
+                HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                    ForEach(row) { item in
+                        GoalTile(item: item, isWide: row.count == 1, isBusy: isBusy) {
+                            tapTick += 1
+                            onAction(item)
+                        }
+                    }
                 }
-                GoalActionRow(item: item, isBusy: isBusy) {
-                    tapTick += 1
-                    onAction(item)
-                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .zanoCard()
         .sensoryFeedback(.impact(weight: .medium), trigger: tapTick)
     }
 }
 
-struct GoalActionRow: View {
+/// One goal as a glass tile. `isWide`: the horizontal layout for a row of one.
+struct GoalTile: View {
     static let ringSize: CGFloat = 46
 
     let item: GoalActionItem
+    let isWide: Bool
     let isBusy: Bool
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Bumps when the goal flips to done: the ring's burst and the tile's pop.
+    @State private var doneTick = 0
 
-    init(item: GoalActionItem, isBusy: Bool, action: @escaping () -> Void) {
+    init(item: GoalActionItem, isWide: Bool, isBusy: Bool, action: @escaping () -> Void) {
         self.item = item
+        self.isWide = isWide
         self.isBusy = isBusy
         self.action = action
     }
 
     private var isDone: Bool { item.trailing == .done }
-
-    /// Stacked at accessibility sizes; side by side otherwise.
-    private var isStacked: Bool { dynamicTypeSize.isAccessibilitySize }
-    private var textLineLimit: Int { isStacked ? 2 : 1 }
+    private var hasAction: Bool {
+        switch item.trailing {
+        case .quickAdd, .start: true
+        default: false
+        }
+    }
 
     var body: some View {
-        Group {
-            if isStacked {
-                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        ring
-                        words
-                        Spacer(minLength: 0)
-                    }
-                    if item.trailing != .none {
-                        trailing
-                    }
-                }
+        // Captured as a plain value: the keyframe content closure is `@Sendable`.
+        let popScale: Double = reduceMotion ? 1 : 1.04
+        return Group {
+            if isWide {
+                wideLayout
             } else {
-                HStack(spacing: Theme.Spacing.sm) {
-                    ring
-                    words
-                    Spacer(minLength: Theme.Spacing.xs)
-                    trailing
-                }
+                tileLayout
             }
         }
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.sm)
-        .frame(minHeight: 68)
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .zanoCard(
+            radius: Theme.Radius.medium,
+            tint: reduceTransparency ? nil : item.color,
+            active: isDone && !reduceTransparency
+        )
+        .keyframeAnimator(initialValue: 1.0, trigger: doneTick) { tile, scale in
+            tile.scaleEffect(scale)
+        } keyframes: { _ in
+            SpringKeyframe(popScale, duration: 0.16, spring: .snappy)
+            SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
+        }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: item)
+        .onChange(of: isDone) { wasDone, nowDone in
+            if !wasDone && nowDone { doneTick += 1 }
+        }
     }
+
+    // MARK: Layouts
+
+    private var tileLayout: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .top) {
+                ring
+                Spacer(minLength: Theme.Spacing.xs)
+                if isDone { doneBadge }
+            }
+            words(showsSecondary: false)
+            Spacer(minLength: 0)
+            if hasAction || !isDone {
+                trailing(fullWidth: true)
+            }
+        }
+    }
+
+    private var wideLayout: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ring
+            words(showsSecondary: true)
+            Spacer(minLength: Theme.Spacing.xs)
+            if isDone {
+                doneBadge
+            } else {
+                trailing(fullWidth: false)
+            }
+        }
+    }
+
+    // MARK: Pieces
 
     private var ring: some View {
         GoalRing(
@@ -135,50 +184,63 @@ struct GoalActionRow: View {
             size: .custom(Self.ringSize),
             center: .icon(systemName: isDone ? "checkmark" : item.icon)
         )
+        .zanoChargeBurst(trigger: doneTick, color: item.color)
         .accessibilityHidden(true)
     }
 
-    private var words: some View {
+    private func words(showsSecondary: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.title)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)
-                .lineLimit(textLineLimit)
-            HStack(spacing: Theme.Spacing.xxs) {
-                Text(item.primaryLine)
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(isDone ? Theme.Colors.accent : Theme.Colors.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(item.primaryLine)
+                .font(Theme.Typography.label)
+                .foregroundStyle(isDone ? item.color : Theme.Colors.textSecondary)
+                .contentTransition(reduceMotion ? .identity : .numericText())
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(0.85)
+            if showsSecondary, let secondary = item.secondaryLine {
+                Text(secondary)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(1)
                     .contentTransition(reduceMotion ? .identity : .numericText())
-                if let secondary = item.secondaryLine {
-                    Text(Copy.today.goalLineSeparator)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .accessibilityHidden(true)
-                    Text(secondary)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .contentTransition(reduceMotion ? .identity : .numericText())
-                }
             }
-            .lineLimit(textLineLimit)
-            .minimumScaleFactor(0.85)
         }
-        .fixedSize(horizontal: false, vertical: isStacked)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenWords)
+    }
+
+    /// Title, progress and (always, even when not shown) the "to go" line.
+    private var spokenWords: String {
+        [item.title, item.primaryLine, item.secondaryLine].compactMap { $0 }.joined(separator: ", ")
+    }
+
+    private var doneBadge: some View {
+        Image(systemName: "checkmark")
+            .font(Theme.Typography.icon(.small, weight: .heavy))
+            .foregroundStyle(Theme.Colors.onFill)
+            .frame(width: 28, height: 28)
+            .background(item.color, in: Circle())
+            .shadow(color: item.color.opacity(0.55), radius: 8)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
-    private var trailing: some View {
+    private func trailing(fullWidth: Bool) -> some View {
         switch item.trailing {
         case .quickAdd(let label, let spoken):
             Button(action: action) {
                 Text(label)
-                    .font(.system(.subheadline, weight: .bold).width(.condensed))
+                    .font(Theme.Typography.label.weight(.bold))
                     .foregroundStyle(item.color)
+                    .lineLimit(1)
                     .padding(.horizontal, Theme.Spacing.md)
-                    .frame(minHeight: 36)
+                    .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 40)
                     .background(Theme.Colors.wash(item.color), in: Capsule())
-                    .overlay(Capsule().strokeBorder(item.color.opacity(0.35), lineWidth: 1))
+                    .overlay(Capsule().strokeBorder(item.color.opacity(0.45), lineWidth: 1))
                     .frame(minHeight: Theme.Metrics.minTapTarget)
                     .contentShape(Rectangle())
             }
@@ -189,12 +251,15 @@ struct GoalActionRow: View {
         case .start(let label):
             Button(action: action) {
                 Text(label)
-                    .font(.system(.subheadline, weight: .bold).width(.condensed))
+                    .font(Theme.Typography.label.weight(.bold))
                     .foregroundStyle(Theme.Colors.onAccent)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .padding(.horizontal, Theme.Spacing.md)
-                    .frame(minHeight: 36)
-                    .background(Theme.Colors.interactive, in: Capsule())
+                    .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 40)
+                    // `accentFill`, not `accent`: the white label needs the deeper blue for AA.
+                    .background(Theme.Colors.accentFill, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.Colors.glassEdge, lineWidth: 1))
                     .frame(minHeight: Theme.Metrics.minTapTarget)
                     .contentShape(Rectangle())
             }
@@ -203,30 +268,23 @@ struct GoalActionRow: View {
             .accessibilityLabel(Copy.today.startActionSpoken(label: label, goal: item.title))
 
         case .status(let text, let isLive):
-            HStack(spacing: Theme.Spacing.xxs) {
+            HStack(spacing: Theme.Spacing.xxs + 2) {
                 if isLive {
                     Image(systemName: "circle.fill")
                         .font(.system(size: 7))
                         .foregroundStyle(item.color)
+                        .shadow(color: item.color.opacity(0.7), radius: 4)
                         .symbolEffect(.pulse, isActive: !reduceMotion)
+                        .accessibilityHidden(true)
                 }
                 Text(text)
                     .font(Theme.Typography.captionEmphasized)
                     .foregroundStyle(isLive ? Theme.Colors.text : Theme.Colors.muted)
-                    .lineLimit(textLineLimit)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .fixedSize(horizontal: !isStacked, vertical: true)
 
-        case .done:
-            Image(systemName: "checkmark")
-                .font(Theme.Typography.icon(.small, weight: .heavy))
-                .foregroundStyle(Theme.Colors.onAccent)
-                .frame(width: 28, height: 28)
-                .background(Theme.Colors.accent, in: Circle())
-                .shadow(color: Theme.Colors.accent.opacity(0.45), radius: 8)
-                .accessibilityHidden(true)
-
-        case .none:
+        case .done, .none:
             EmptyView()
         }
     }

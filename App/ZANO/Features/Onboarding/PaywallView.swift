@@ -32,6 +32,20 @@
 // failed load is a calm card with "Try again" and Restore, never a disabled button under an error.
 // CI screenshots use `PaywallDemo` (DEBUG only) because the Simulator has no StoreKit products.
 //
+// Conversion pass (2026-10-02; audit M1–M3, growth research #1):
+//   * Annual is pre-selected and its tile reads "$39.99/year": the billed amount is the largest
+//     price on the screen; "$3.33/mo" only ever appears smaller, under it (Apple 3.1.2). The billing
+//     node of the timeline names the amount and the date.
+//   * "Remind me before my trial ends" is a real toggle, ON by default, shown while a trial plan is
+//     selected. Turning it on asks for notification permission right there (only if never asked);
+//     starting the trial schedules the reminder (`TrialReminder`). With it off, the timeline's
+//     reminder node says so instead of promising a reminder.
+//   * Plans failed to load (offline, no RevenueCat key, store error): "Try again" plus "Continue for
+//     now", which grants the grace period (`SubscriptionGate`) and moves on. A Release build is never
+//     stuck here. Nothing appears when the user simply closes or declines (spec §21: no post-close
+//     offers).
+//   * `.grace` context: opened from the "Finish starting your trial" banner; dismisses on success.
+//
 // Carried from earlier passes: `SwiftUI.ProgressView()` (bare `ProgressView` is this module's
 // Progress tab), Terms/Privacy links App Review expects, every animation gated on Reduce Motion.
 // The Terms link is Apple's standard EULA and Privacy is a placeholder: both need final URLs before
@@ -49,8 +63,10 @@ struct PaywallView: View {
     enum Context: Sendable, Equatable {
         /// Step 6 of onboarding (after the commitment, before the first win).
         case onboarding
-        /// Shown by the app shell after a subscription or trial lapsed.
+        /// Shown by the app shell after a subscription or trial lapsed (or a grace ran out).
         case lapsed
+        /// Opened as a sheet from the "Finish starting your trial" banner (`FinishTrialBanner`).
+        case grace
     }
 
     @Bindable var flowState: OnboardingFlowState
@@ -63,6 +79,7 @@ struct PaywallView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
 
     /// The plan tiles' minimum height; they grow with Dynamic Type.
     private static let tileMinHeight: CGFloat = 96
@@ -134,6 +151,7 @@ struct PaywallView: View {
         withFeedback
             .task {
                 viewModel.coachVoice = flowState.coachVoice
+                await viewModel.refreshNotificationStatus()
                 #if DEBUG
                 // CI screenshots: the Simulator has no StoreKit products, so show the real layout
                 // with the spec's §21 price points instead of only ever photographing the error.
@@ -162,6 +180,7 @@ struct PaywallView: View {
                     // Re-read the entitlement so a lapsed-subscription paywall (ContentView) dismisses.
                     Task { await EntitlementGate.shared.refresh() }
                     if isOnboarding { flowState.advance() }
+                    if context == .grace { dismiss() }
                 }
             }
             .alert(
@@ -204,9 +223,10 @@ struct PaywallView: View {
 
     private var firstHeadlineLine: String {
         switch context {
-        case .lapsed:
+        case .lapsed where !SubscriptionGate.hasPendingTrialStart():
             Copy.paywall.lapsedHeadline
-        case .onboarding:
+        case .lapsed, .onboarding, .grace:
+            // A grace user never had a trial, so "Welcome back." would be wrong for them.
             selectedTrialDays.map { Copy.paywall.trialHeadline(days: $0) } ?? Copy.paywall.subscribeHeadline
         }
     }
@@ -237,7 +257,8 @@ struct PaywallView: View {
                 startDate: openedAt,
                 trialDays: trialDays,
                 reminderDaysBefore: PaywallViewModel.trialReminderDaysBefore,
-                priceLine: priceLine(for: package)
+                priceLine: priceLine(for: package),
+                isReminderOn: viewModel.remindBeforeTrialEnds
             )
             .transition(.opacity)
         } else if viewModel.loadState == .loaded, viewModel.selectedPackage != nil {
@@ -280,7 +301,11 @@ struct PaywallView: View {
                     PrimaryButton(title: Copy.paywall.retryButtonLabel, systemImage: "arrow.clockwise") {
                         Task { await viewModel.loadOfferings() }
                     }
+                    graceBlock
                 } else {
+                    if selectedTrialDays != nil {
+                        reminderToggle
+                    }
                     reassurance
                     ctaButton
                     termsParagraph
@@ -321,13 +346,22 @@ struct PaywallView: View {
         PaywallPlanTile(
             title: planTitle(for: package),
             price: package.priceString,
-            priceSuffix: package.period == .monthly ? Copy.paywall.perMonthSuffix : nil,
+            // The billed amount, as billed: "$39.99/year", "$6.99/month" (Apple 3.1.2).
+            priceSuffix: priceSuffix(for: package.period),
             detail: package.period == .annual ? package.pricePerMonthString : nil,
             pill: package.introductoryTrialDays.flatMap { $0 > 0 ? Copy.paywall.trialPill(days: $0) : nil },
             isSelected: viewModel.selectedPackageID == package.id,
             action: { viewModel.selectPackage(id: package.id) }
         )
         .frame(maxWidth: .infinity, minHeight: Self.tileMinHeight, maxHeight: .infinity)
+    }
+
+    private func priceSuffix(for period: SubscriptionPackage.Period) -> String? {
+        switch period {
+        case .monthly: Copy.paywall.perMonthSuffix
+        case .annual: Copy.paywall.perYearSuffix
+        default: nil
+        }
     }
 
     private var plansPlaceholder: some View {
@@ -365,6 +399,71 @@ struct PaywallView: View {
         .padding(Theme.Spacing.md)
         .zanoCard(radius: Theme.Radius.medium)
         .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Trial reminder toggle (growth research #1)
+
+    /// A real toggle, ON by default. Turning it on asks for notification permission right here
+    /// (only if never asked). Not a trial toggle: it changes no price and no plan. One compact row
+    /// (a second line only when notifications are off) so Terms / Privacy / Restore stay on the
+    /// first screen.
+    private var reminderToggle: some View {
+        Toggle(isOn: Binding(
+            get: { viewModel.remindBeforeTrialEnds },
+            set: { newValue in Task { await viewModel.setReminderEnabled(newValue) } }
+        )) {
+            VStack(alignment: .leading, spacing: 2) {
+                Label(Copy.paywall.reminderToggleTitle, systemImage: "bell.fill")
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.text)
+                if viewModel.remindBeforeTrialEnds, viewModel.notificationStatus == .denied {
+                    Text(Copy.paywall.reminderToggleDeniedDetail)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .tint(Theme.Colors.accent)
+        .frame(minHeight: Theme.Metrics.minTapTarget)
+        .accessibilityHint(Copy.paywall.reminderToggleDetail(daysBefore: PaywallViewModel.trialReminderDaysBefore))
+    }
+
+    // MARK: - Grace (audit M2): plans couldn't load, never a dead end
+
+    private var graceBlock: some View {
+        VStack(spacing: Theme.Spacing.xs) {
+            Button {
+                continueOnGrace()
+            } label: {
+                Text(Copy.paywall.continueOnGraceButtonLabel)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable(scale: 0.97))
+            Text(Copy.paywall.graceExplainer(days: graceDaysOnOffer))
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// What "Continue for now" would grant: the full first grace, or the short retry one.
+    private var graceDaysOnOffer: Int {
+        if SubscriptionGate.isInGracePeriod() { return max(SubscriptionGate.graceDaysLeft(), 1) }
+        return SubscriptionGate.hasPendingTrialStart() ? SubscriptionGate.retryGraceDays : SubscriptionGate.initialGraceDays
+    }
+
+    private func continueOnGrace() {
+        viewModel.continueOnGrace()
+        switch context {
+        case .onboarding: flowState.advance()
+        case .grace: dismiss()
+        case .lapsed: break // EntitlementGate stops blocking; ContentView swaps to the app.
+        }
     }
 
     /// "✓ No payment due now" while a trial is selected; "✓ Cancel anytime" otherwise.
@@ -532,6 +631,8 @@ private struct PaywallTrialTimeline: View {
     let trialDays: Int
     let reminderDaysBefore: Int
     let priceLine: String
+    /// The paywall's reminder toggle. Off: the reminder node says so instead of promising one.
+    var isReminderOn: Bool = true
 
     private static let nodeSize: CGFloat = 36
     private static let trackWidth: CGFloat = 10
@@ -550,13 +651,18 @@ private struct PaywallTrialTimeline: View {
 
     private var nodes: [Node] {
         var result = [Node(id: 0, kind: .today, title: Copy.paywall.timelineTodayTitle, detail: Copy.paywall.timelineTodayDetail)]
-        guard trialDays > 0 else { return result }
+        guard trialDays > 0 else {
+            if !priceLine.isEmpty {
+                result.append(Node(id: 2, kind: .billing, title: Copy.paywall.timelineBillingTodayTitle, detail: Copy.paywall.timelineBillingTodayDetail(price: priceLine)))
+            }
+            return result
+        }
         if trialDays > reminderDaysBefore {
             result.append(Node(
                 id: 1,
                 kind: .reminder,
                 title: Copy.paywall.timelineReminderTitle(inDays: trialDays - reminderDaysBefore),
-                detail: Copy.paywall.timelineReminderDetail
+                detail: isReminderOn ? Copy.paywall.timelineReminderDetail : Copy.paywall.timelineReminderOffDetail
             ))
         }
         let chargeDate = date(addingDays: trialDays).formatted(date: .abbreviated, time: .omitted)
@@ -564,7 +670,9 @@ private struct PaywallTrialTimeline: View {
             id: 2,
             kind: .billing,
             title: Copy.paywall.timelineBillingTitle(inDays: trialDays),
-            detail: Copy.paywall.timelineBillingDetail(date: chargeDate)
+            detail: priceLine.isEmpty
+                ? Copy.paywall.timelineBillingDetail(date: chargeDate)
+                : Copy.paywall.timelineBillingDetail(price: priceLine, date: chargeDate)
         ))
         return result
     }

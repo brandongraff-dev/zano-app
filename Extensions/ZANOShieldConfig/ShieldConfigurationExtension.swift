@@ -42,16 +42,29 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     /// Look (shield redesign, brand tokens from `Core/Sources/Core/UI/Theme.swift`): near-black
     /// base over a dark blur, the silver ZANO star as the icon, a pearl title that states what's
-    /// left, a softer pearl coach line, ONE ZANO Blue button with a white label, and the
-    /// always-present "Emergency unlock" as the quiet secondary button (CLAUDE.md: never ship a
-    /// lock with no way out — this label is never conditional on any state read below).
+    /// left, a softer pearl coach line, ONE ZANO Blue button with a white label, and a quiet
+    /// secondary button.
+    ///
+    /// One sec-style shield (2026-10-02, research item 3 in
+    /// docs/design/growth-and-ml-research.md): the primary button is "Close app", the easy and
+    /// rewarding choice (each tap counts as a reclaimed open), and the secondary is "Use Time
+    /// Bank", which opens ZANO's Lock tab through the notification hand-off. That tab holds the
+    /// Time Bank card AND the emergency unlock, and the notification says so, so the way out is
+    /// still one tap from the shield (CLAUDE.md: never ship a lock with no way out). The labels are
+    /// never conditional on any state read below.
+    ///
+    /// Not possible here: a timed pause before the buttons work. `ShieldConfiguration` is a static
+    /// value (labels, colours, icon) with no animation or delay, so the one sec "breath" can't be
+    /// reproduced on the shield itself (unverified for iOS 26+; true for the iOS 18.5 SDK).
     private func configuration(shieldedName: String?) -> ShieldConfiguration {
-        // spec §23: count every rendered shield on device; the app flushes it later.
+        // spec §23: count every rendered shield on device; the app flushes it later. Read after
+        // the increment, it also rotates the coach line per view.
         SharedDefaults.incrementShieldImpressionCount()
+        let rotation = SharedDefaults.shieldImpressionCount
         // spec §5.16: one attempt for the locked-out moment (display name only, never a token).
         LockedOutAttemptTracker.recordAttempt(appName: shieldedName)
 
-        let content = ShieldCopy.content(for: Self.makeContext(shieldedName: shieldedName))
+        let content = ShieldCopy.content(for: Self.makeContext(shieldedName: shieldedName), rotation: rotation)
 
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
@@ -59,9 +72,9 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             icon: Self.starIcon,
             title: ShieldConfiguration.Label(text: content.title, color: Self.pearl),
             subtitle: ShieldConfiguration.Label(text: content.subtitle, color: Self.pearlSoft),
-            primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.showGoals, color: Self.onAccent),
+            primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.closeApp, color: Self.onAccent),
             primaryButtonBackgroundColor: Self.accent,
-            secondaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.emergency, color: Self.muted)
+            secondaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.useTimeBank, color: Self.muted)
         )
     }
 
@@ -101,7 +114,9 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             earnedMinutesRemainingToday: SharedDefaults.earnedMinutesRemainingToday,
             earnedMinutesMirrorIsForToday: SharedDefaults.earnedMinutesMirrorIsForToday,
             // Mirrored by `StreakEngine` on every streak write (spec §5.6 after-a-miss moment).
-            recentMiss: SharedDefaults.neverMissTwiceArmed
+            recentMiss: SharedDefaults.neverMissTwiceArmed,
+            // One small App Group dictionary read (`ShieldActionExtension` writes it).
+            reclaimedThisWeek: ReclaimedOpens.countThisWeek()
         )
     }
 }

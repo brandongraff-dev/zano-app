@@ -6,6 +6,9 @@
 // ("a burst of particles", "dark, calm, motivating"), and they were all a flat `#0A0A0B` rectangle
 // with an icon on it (docs/design/better-ui-findings.md DEP-06, 2026-ios-trends.md §3.3.C).
 //
+// v2 (2026-10-02): `zanoBackdrop` / `zanoAmbient` now draw the aurora canvas (`ZanoAurora.swift`);
+// `HeroGlow` stays as the optional top wash on moment screens.
+//
 // A `HeroGlow` is a single, faint, static radial wash of one hue from the top of the screen. No new
 // hex: the tint is always an existing token (ZANO Blue `accent` for earned/unlock, navy
 // `lockedAmbient` for the shield, a phase tint for the alarm). It is *not* animated — no looping blur/depth motion, which HIG asks
@@ -41,13 +44,13 @@ public struct HeroGlow: View {
 }
 
 extension View {
-    /// The standard ZANO screen backdrop: `Theme.Colors.background` filling the safe area, with an
-    /// optional `HeroGlow` of `glow`. Replaces `.background(Theme.Colors.background.ignoresSafeArea())`
-    /// on screens that want a hero wash.
+    /// The standard ZANO screen backdrop: the v2 aurora canvas (`ZanoAuroraBackground`, neutral
+    /// mood) filling the safe area, with an optional `HeroGlow` of `glow` from the top. Replaces
+    /// `.background(Theme.Colors.background.ignoresSafeArea())` on screens that want a hero wash.
     public func zanoBackdrop(glow: Color? = nil, intensity: Double = 0.16) -> some View {
         background {
             ZStack(alignment: .top) {
-                Theme.Colors.background
+                ZanoAuroraBackground(state: .neutral)
                 if let glow {
                     HeroGlow(tint: glow, intensity: intensity)
                 }
@@ -56,21 +59,19 @@ extension View {
         }
     }
 
-    /// The state-driven ambient light behind a whole screen ("light is earned",
-    /// premium-ui-plan.md §4). Two soft pools falling from above the top corners, so the page has
-    /// a direction of light instead of a flat fill:
+    /// The state-driven light behind a whole screen ("light is earned"): the v2 aurora canvas with
+    /// its lights set by `state` (see `ZanoAuroraBackground`):
     ///
-    ///  * `.locked` — cool, dim steel (`lockedAmbient`) with a faint trace of `danger`: quiet, a
-    ///    little cold.
-    ///  * `.progress(fraction)` — the cool light warms toward the accent as goals complete.
-    ///  * `.earned` — the accent at its fullest: the one bright screen state.
-    ///  * `.neutral` — a barely-there cool pool, for screens with no lock state.
+    ///  * `.locked` — cool and dim: violet leads, blue low.
+    ///  * `.progress(fraction)` — blue rises and a trace of ember appears as goals complete.
+    ///  * `.earned` — the brightest room, with ember: the one warm state.
+    ///  * `.neutral` — blue and violet at rest, for screens with no lock state.
     ///
-    /// Static: a function of state, never animated on its own (a looping glow on the most-seen
-    /// screens is motion nobody asked for). Callers pass `.neutral` under Reduce Transparency.
+    /// The lights drift slowly (paused off-screen, still under Reduce Motion) and drop out under
+    /// Reduce Transparency, so callers no longer need to pass `.neutral` for that themselves.
     public func zanoAmbient(_ state: ZanoAmbientState) -> some View {
         background {
-            ZanoAmbientBackdrop(state: state)
+            ZanoAuroraBackground(state: state)
                 .ignoresSafeArea()
         }
     }
@@ -81,57 +82,6 @@ public enum ZanoAmbientState: Equatable, Sendable {
     case locked
     case progress(Double)
     case earned
-}
-
-private struct ZanoAmbientBackdrop: View {
-    let state: ZanoAmbientState
-
-    private var primary: (color: Color, strength: Double) {
-        switch state {
-        case .neutral:
-            (Theme.Colors.lockedAmbient, 0.10)
-        case .locked:
-            (Theme.Colors.lockedAmbient, 0.24)
-        case .progress(let fraction):
-            fraction >= 0.5
-                ? (Theme.Colors.accent, 0.06 + 0.08 * fraction)
-                : (Theme.Colors.lockedAmbient, 0.24 - 0.12 * fraction)
-        case .earned:
-            (Theme.Colors.accent, 0.20)
-        }
-    }
-
-    private var secondary: (color: Color, strength: Double) {
-        switch state {
-        case .neutral: (Theme.Colors.lockedAmbient, 0.04)
-        case .locked: (Theme.Colors.danger, 0.07)
-        case .progress(let fraction): (Theme.Colors.accent, 0.04 + 0.08 * fraction)
-        case .earned: (Theme.Colors.accent, 0.10)
-        }
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            ZStack {
-                Theme.Colors.background
-                RadialGradient(
-                    colors: [primary.color.opacity(primary.strength), primary.color.opacity(0)],
-                    center: UnitPoint(x: 0.15, y: -0.05),
-                    startRadius: 0,
-                    endRadius: width * 1.25
-                )
-                RadialGradient(
-                    colors: [secondary.color.opacity(secondary.strength), secondary.color.opacity(0)],
-                    center: UnitPoint(x: 1.0, y: 0.05),
-                    startRadius: 0,
-                    endRadius: width * 0.95
-                )
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
 }
 
 #Preview("HeroGlow") {

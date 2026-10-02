@@ -76,6 +76,15 @@
 //   - No apps picked (Screen Time access refused): the apps row shows dashed slots and a line that
 //     apps can be picked from Today; nothing here pretends a lock exists.
 //
+// IF-THEN PLAN (2026-10-02, research item 2 in docs/design/growth-and-ml-research.md): under the
+// schedule, a compact "When will you do it?" picker per timed goal (gym: day chips + a time, which
+// follow the workout stepper until the user touches them; focus: a time, every day). Each row plays
+// the answer back as an implementation intention ("If it's Mon/Wed/Fri at 6:00 PM, I go to the
+// gym."). On commit, before the plan rows are saved as before, it's stored as
+// `ImplementationPlan.current` (App Group), which shapes the default lock schedule, times the
+// reminder nudge, and gives the slip-risk score its prior. Protein has no picker: it's logged
+// through the day, not done at a time.
+//
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
 
@@ -106,6 +115,13 @@ struct Screen10PlanReveal: View {
     /// The hold completed; guards a double commit while the save and the advance run.
     @State private var isCommitted = false
 
+    // If-then plan answers (see file header).
+    @State private var gymDays: Set<Int> = ImplementationPlan.defaultWorkoutDays(perWeek: 3)
+    /// Until the user taps a day chip, the gym days follow the workout stepper.
+    @State private var gymDaysEdited = false
+    @State private var gymTime = Screen10PlanReveal.time(minuteOfDay: ImplementationPlan.defaultWorkoutMinute)
+    @State private var focusTime = Screen10PlanReveal.time(minuteOfDay: ImplementationPlan.defaultFocusMinute)
+
     private static let groupCount = 3
     /// Token labels stall when many render at once (Apple forums, FB12332927), so cap the row.
     private static let maxAppIcons = 4
@@ -133,6 +149,15 @@ struct Screen10PlanReveal: View {
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: visiblePhase)
         .task {
             await runBuildBeat()
+        }
+        .onAppear {
+            if !gymDaysEdited {
+                gymDays = ImplementationPlan.defaultWorkoutDays(perWeek: flowState.targetWorkoutsPerWeek)
+            }
+        }
+        .onChange(of: flowState.targetWorkoutsPerWeek) { _, perWeek in
+            guard !gymDaysEdited else { return }
+            gymDays = ImplementationPlan.defaultWorkoutDays(perWeek: perWeek)
         }
         .onAppear {
             Analytics.shared.capture(
@@ -301,6 +326,11 @@ struct Screen10PlanReveal: View {
             groupDivider
             scheduleGroup
                 .planGroupReveal(isVisible: visibleGroups >= 3, reduceMotion: reduceMotion)
+            if !plannableGoalTypes.isEmpty {
+                groupDivider
+                ifThenGroup
+                    .planGroupReveal(isVisible: visibleGroups >= 3, reduceMotion: reduceMotion)
+            }
             groupDivider
             footer
                 .planGroupReveal(isVisible: visibleGroups >= 3, reduceMotion: reduceMotion)
@@ -594,6 +624,93 @@ struct Screen10PlanReveal: View {
         .padding(Theme.Spacing.md)
     }
 
+    // MARK: Group 3b — the if-then plan
+
+    /// Goals that are done at a time (the picker's rows), in plan order.
+    private var plannableGoalTypes: [GoalType] {
+        planGoals.map(\.type).filter { $0 == .workoutGym || $0 == .focusSession }
+    }
+
+    private var ifThenGroup: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                sectionLabel(Copy.ifThenPlan.sectionLabel)
+                Text(Copy.ifThenPlan.sectionDetail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(plannableGoalTypes, id: \.self) { type in
+                ifThenRow(type)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+    }
+
+    private func ifThenRow(_ type: GoalType) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            HStack(spacing: Theme.Spacing.sm) {
+                Text(Copy.ifThenPlan.rowTitle(for: type))
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Spacer(minLength: Theme.Spacing.xs)
+                DatePicker(
+                    Copy.ifThenPlan.timeLabel,
+                    selection: type == .workoutGym ? $gymTime : $focusTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .tint(Theme.Colors.interactive)
+            }
+
+            if type == .workoutGym {
+                PlanDayChips(selection: $gymDays, onEdit: { gymDaysEdited = true })
+                if gymDays.isEmpty {
+                    Text(Copy.ifThenPlan.noDaysHint)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                }
+            }
+
+            if let line = ifThenSentence(for: type) {
+                Text(line)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// "If it's Mon/Wed/Fri at 6:00 PM, I go to the gym." `nil` while no day is picked.
+    private func ifThenSentence(for type: GoalType) -> String? {
+        guard let entry = implementationPlan.entries.first(where: { $0.goalType == type }) else { return nil }
+        let symbols = Calendar.current.shortWeekdaySymbols
+        let dayNames = PlanDayChips.orderedWeekdays().filter(entry.weekdays.contains).map { symbols[$0 - 1] }
+        let time = Self.time(minuteOfDay: entry.minuteOfDay).formatted(date: .omitted, time: .shortened)
+        return Copy.ifThenPlan.sentence(for: type, dayNames: dayNames, isEveryDay: entry.isEveryDay, time: time)
+    }
+
+    /// The answers as Core's plan. The gym uses the picked days; focus is every day.
+    private var implementationPlan: ImplementationPlan {
+        let entries = plannableGoalTypes.map { type in
+            type == .workoutGym
+                ? ImplementationPlan.Entry(goalType: type, weekdays: gymDays, minuteOfDay: Self.minuteOfDay(gymTime))
+                : ImplementationPlan.Entry(goalType: type, weekdays: LockSchedule.allWeekdays, minuteOfDay: Self.minuteOfDay(focusTime))
+        }
+        return ImplementationPlan(entries: entries, slipPatternRaw: flowState.fallOffPattern?.rawValue)
+    }
+
+    private static func time(minuteOfDay: Int) -> Date {
+        Calendar.current.date(bySettingHour: minuteOfDay / 60, minute: minuteOfDay % 60, second: 0, of: .now) ?? .now
+    }
+
+    private static func minuteOfDay(_ date: Date) -> Int {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
     /// The ticket's stub: the coach the user picked, and where the plan came from.
     private var footer: some View {
         HStack(spacing: Theme.Spacing.xs) {
@@ -726,8 +843,13 @@ struct Screen10PlanReveal: View {
                 "main_goal": flowState.mainGoal?.rawValue ?? "unspecified",
                 "has_apps": flowState.hasAppSelection,
                 "workout_target": flowState.targetWorkoutsPerWeek,
+                "if_then_entries": implementationPlan.entries.count,
             ]
         )
+        // The if-then plan first: cheap, App Group only, and read by the lock schedule seeding,
+        // the nudges and the slip-risk score from here on.
+        let plan = implementationPlan
+        ImplementationPlan.current = plan.entries.isEmpty ? nil : plan
         await persistPlanIfNeeded()
         try? await Task.sleep(for: .milliseconds(reduceMotion ? 150 : 450))
         flowState.advance()
@@ -784,6 +906,44 @@ struct Screen10PlanReveal: View {
             // Swallowed deliberately — see file header. `Screen14FirstWin.swift` re-derives
             // whatever's still missing when the first win actually needs it.
         }
+    }
+}
+
+// MARK: - Day chips (if-then plan)
+
+/// Seven day chips in the user's locale order (same look as the lock schedule editor's).
+private struct PlanDayChips: View {
+    @Binding var selection: Set<Int>
+    var onEdit: () -> Void
+
+    var body: some View {
+        let symbols = Calendar.current.veryShortWeekdaySymbols
+        let fullSymbols = Calendar.current.weekdaySymbols
+        HStack(spacing: Theme.Spacing.xxs) {
+            ForEach(Self.orderedWeekdays(), id: \.self) { day in
+                let isOn = selection.contains(day)
+                Button {
+                    if isOn { selection.remove(day) } else { selection.insert(day) }
+                    onEdit()
+                } label: {
+                    Text(symbols[day - 1])
+                        .font(Theme.Typography.captionEmphasized)
+                        .foregroundStyle(isOn ? Theme.Colors.onAccent : Theme.Colors.text)
+                        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
+                        .background(isOn ? Theme.Colors.accent : Theme.Colors.track, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(fullSymbols[day - 1])
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .sensoryFeedback(.selection, trigger: selection)
+    }
+
+    /// Weekdays (1 = Sunday) in the user's locale order.
+    static func orderedWeekdays() -> [Int] {
+        let first = Calendar.current.firstWeekday
+        return (0..<7).map { (first - 1 + $0) % 7 + 1 }
     }
 }
 

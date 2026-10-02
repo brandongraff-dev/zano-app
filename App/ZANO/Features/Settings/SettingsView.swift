@@ -183,6 +183,7 @@ struct SettingsView: View {
                 // Only renders while a health pause is on (spec §24; SettingsSupportViews.swift).
                 HealthPauseStatusCapsule()
                 alwaysAllowedSection
+                FinishTrialBanner()
                 planCard
                 verificationSetupSection
                 coachVoiceSection
@@ -490,7 +491,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Rewards: Trophy Case, Cosmetics Shop (spec §5.17)
+    // MARK: - Rewards: Trophy Case (spec §5.17; the Cosmetics Shop row is hidden for v1)
     //
     // The Gear store row (spec §25.6) and its contextual offer callout are hidden until a real
     // store exists: the row opened a placeholder domain, and the offer pointed at it. Re-enable by
@@ -507,33 +508,12 @@ struct SettingsView: View {
                     TrophyCaseView()
                 }
 
-                SettingsRowDivider()
-
-                SettingsNavRow(
-                    Copy.settings.cosmeticsShopRowLabel,
-                    systemImage: "paintpalette"
-                ) {
-                    CosmeticsShopView()
-                }
-
-                SettingsRowDivider()
-
-                // Spec §4 v2 referrals (Wave 3K): the code works offline; redeeming says it needs
-                // the network until the backend is live.
-                SettingsNavRow(
-                    Copy.settings.inviteFriendsRowLabel,
-                    systemImage: "person.2"
-                ) {
-                    ReferralView()
-                }
-                .disabled(currentUser == nil)
-                // `zano://invite/<CODE>` lands here; `ReferralView` prefills the code.
-                .navigationDestination(isPresented: Binding(
-                    get: { appRouter.isReferralPresented },
-                    set: { appRouter.isReferralPresented = $0 }
-                )) {
-                    ReferralView()
-                }
+                // v1 (founder decision, 2026-10-02): the Cosmetics Shop is hidden — purchases don't
+                // change anything yet (audit M4) — and so is "Invite friends": the code shares
+                // offline, but the friend can only redeem it (both get a streak freeze) through the
+                // backend, which isn't live, so the row would promise a reward nobody can collect.
+                // `CosmeticsShopView` and `ReferralView` stay in the target; restore their rows here
+                // (with the `appRouter.isReferralPresented` destination) when they can deliver.
 
                 if let gearStoreURL = SettingsReferenceData.gearStoreURL {
                     SettingsRowDivider()
@@ -778,6 +758,10 @@ struct SettingsView: View {
             return
         }
 
+        // Everything the app registered with the system: DeviceActivity schedules, local
+        // notifications, the Sunrise alarm (AlarmKit + fallback), Live Activities, running focus
+        // sessions, and every App Group ledger (milestones, rewards, nudges). Audit N5.
+        await DeviceDataReset.eraseDeviceState()
         SettingsDataReset.clearDefaults()
         MealPhotoStore.deleteAll()
         Analytics.shared.capture(event: "settings_all_data_deleted")
@@ -806,9 +790,15 @@ private enum SettingsDataReset {
         }
     }
 
+    /// App-local (`UserDefaults.standard`) keys that describe this person's setup: the morning
+    /// schedule created after onboarding (`ContentView.runForegroundChecks`) and a kept referral
+    /// invite code (`AppRouter.referralInviteCodeKey`). Cleared so a fresh start really is fresh.
+    static let appLocalSetupKeys = ["zano.morningScheduleCreated.v1", AppRouter.referralInviteCodeKey]
+
     static func clearDefaults() {
         UserDefaults(suiteName: AppGroup.identifier)?.removePersistentDomain(forName: AppGroup.identifier)
         UserDefaults.standard.removeObject(forKey: onboardingCompletedKey)
+        for key in appLocalSetupKeys { UserDefaults.standard.removeObject(forKey: key) }
     }
 }
 

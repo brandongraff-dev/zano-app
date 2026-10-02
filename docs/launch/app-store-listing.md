@@ -1,6 +1,7 @@
 # ZANO — App Store listing (v1.0)
 
-Status: **draft for the first submission, 2026-10-02.** Supersedes `docs/marketing/app-store-listing.md`,
+Status: **draft for the first submission, 2026-10-02** (updated the same day: age rating 16+
+decided, squads/leaderboards hidden in v1, trial reminder and paywall grace period described). Supersedes `docs/marketing/app-store-listing.md`,
 which predates the hard-paywall decision (spec §21, 2026-09-23) and still describes a Free tier and
 "ZANO Pro". Don't paste from that file.
 
@@ -15,11 +16,11 @@ Placeholders: `[COMPANY LEGAL NAME]`, `[SUPPORT EMAIL]`, `[WEBSITE]`, `[PRICE_MO
 lifetime (test only). Prices are never written into the description or screenshots, so a price test
 doesn't force a metadata update.
 
-**Listing rule:** only advertise what works in the build under review. As of today these are
-visible in the app but **not live** (they say "goes live soon" / "coming soon" in-app), so they are
-**not** in the name, subtitle, description, screenshots or preview: Squads/duels/nudges, gym
-leaderboards, referral redemption, AI meal-photo protein estimates. Add them back the release they
-go live.
+**Listing rule:** only advertise what works in the build under review. **Squads/duels/nudges and
+gym leaderboards are hidden in v1** (founder decision 2026-10-02), and referral redemption and AI
+meal-photo protein estimates aren't live either, so none of them appear in the name, subtitle,
+description, keywords, screenshots or preview. Add them back the release they go live (and revisit
+the age rating's user-generated-content answer then, §7).
 
 ---
 
@@ -220,7 +221,12 @@ chart placement, so decide on purpose, not by default.
 
 ## 7. Age rating
 
-Spec §24 says "rate 17+ initially (avoid COPPA/teen data complexity). No under-13 users." Apple
+**Decision (founder, 2026-10-02): 16+.** It keeps the whole 17–27 target audience (spec §1), keeps
+under-13s and most COPPA complexity out, and replaces spec §24's "17+" (that scale no longer
+exists; Apple's old 17+ maps to the new 18+, which would exclude 17-year-olds). Update spec §24 to
+match.
+
+Background: spec §24 says "rate 17+ initially (avoid COPPA/teen data complexity). No under-13 users." Apple
 replaced the 4+/9+/12+/17+ scale in 2025 with **4+ / 9+ / 13+ / 16+ / 18+** and a longer
 questionnaire. **Verify the exact questions in App Store Connect; the answers below are written
 against the questionnaire as last known, not checked live.**
@@ -239,19 +245,16 @@ Honest answers for ZANO 1.0:
 | Medical or treatment information | None | Goal verification only; no medical advice. |
 | Health or wellness topics | **Yes** (if asked) | Fitness, protein, sleep goals. |
 | Unrestricted web access | No | Only links to Terms/Privacy/Maps. |
-| User-generated content | **No for 1.0** | Squads aren't live. Answer **Yes** the release squads ship (names, nudges). |
+| User-generated content | **No for 1.0** | Squads and leaderboards are hidden in v1. Answer **Yes** the release they ship (names, nudges). |
 | Messaging / chat | No | — |
 | Advertising | No | — |
 | Parental controls | No | ZANO uses Family Controls in *individual* mode, not parental controls. |
 | Age assurance | No | — |
 
-**Recommendation: set the rating to 16+** (or 18+ if counsel prefers): the questionnaire will
-likely compute 4+ or 9+, but spec §24 wants a higher floor, and App Store Connect lets you choose a
-higher rating than the computed one (verify this option still exists). **Decision needed from the
-founder:** spec §1's target audience is **17–27**, and Apple mapped the old 17+ to the new 18+. 18+
-would exclude 17-year-olds from the listing; 16+ keeps the whole target audience and still keeps
-under-13s and most COPPA complexity out. This conflicts with spec §24's literal "17+", so per
-CLAUDE.md this is flagged, not decided here.
+**Set the rating to 16+.** The questionnaire will likely compute 4+ or 9+; App Store Connect lets
+you choose a higher rating than the computed one (verify this option still exists when you set it;
+if it doesn't, record what the questionnaire allows and raise it with the founder before
+submitting).
 
 ## 8. What's New (v1.0)
 
@@ -291,8 +294,7 @@ Format: dark background (brand), caption on top in the brand font, device frame 
 | 7 | **Tap a tag. Logged.** | NFC tags for shakes, water and locks. | `nfc-tags` | Optional: composite with a photo of a tag on a shaker. Physical tags are sold separately; don't imply they ship with the app. |
 | 8 | **See the time you took back** | Streaks, milestones and your monthly story. | `monthly-story` (or `milestone`, 30-day streak) | Shareable output; doubles as social proof without fake quotes. |
 
-Not used, on purpose: `tab-squad` (squads aren't live: a "goes live soon" screen is a 2.1/2.3
-risk); `paywall` (Apple discourages pricing screens in screenshots); `tab-progress` is a fine
+Not used, on purpose: `tab-squad` (squads are hidden in v1); `paywall` (Apple discourages pricing screens in screenshots); `tab-progress` is a fine
 swap-in for #8.
 
 Demo-data check before export: the CI seed (`DemoData`) uses "Instagram"/"TikTok" app names in the
@@ -344,9 +346,30 @@ use the app name.
 - "No payment due now" above the button; the full terms paragraph directly under it; Terms ·
   Privacy · Restore purchases links on the same screen.
 - Never: fake countdowns, "offer ends" timers, post-close discount screens, guilt copy (§21).
-- The pre-expiry reminder is promised in copy, so it has to actually fire (local notification two
-  days before the trial ends). If notifications are off, the copy already says "if notifications are
-  on". Verify on device before submission.
+- The billed amount is the most prominent price (Apple 3.1.2): the yearly tile reads "$39.99/year"
+  and "$3.33/mo" only appears smaller, under it. Yearly is pre-selected. The timeline's billing node
+  names the amount and the date.
+- The pre-expiry reminder is real (2026-10-02, `TrialReminder`): a "Remind me before my trial
+  ends" toggle on the paywall, ON by default, asks for notifications there (only if never asked)
+  and schedules a local notification two days before the trial ends, dated from RevenueCat's trial
+  expiration. Its body is "What your trial earned you" (earned unlocks, gym visits, hours locked
+  in, best streak, the billing date); the same numbers show as a card in the app during those last
+  two days. With the toggle off, the timeline says "Reminder off" instead of promising one. Verify
+  on device with a real (non-sandbox) trial before relying on it; sandbox trials are too short.
+- Not a trial toggle: the reminder toggle changes no plan and no price (trial toggles are rejected
+  since January 2026).
+- **Grace period:** if plans can't load (offline, no key, store error), the paywall offers
+  "Continue for now": 3 days in the app with a "Finish starting your trial" banner, then the
+  paywall again once the store is reachable. Shown only when nothing can be bought; there is no
+  offer after a user closes or declines the paywall (§21). Details for reviewers:
+  `review-notes.md` §3a.
+
+**RevenueCat setup (founder):** entitlement identifier `pro` (must match
+`RevenueCatManager.proEntitlementIdentifier`), one current offering with `$rc_annual` (the yearly
+product with its 7-day introductory free trial) and `$rc_monthly`. The app reads the public Apple
+SDK key (`appl_...`) from the `REVENUECAT_API_KEY` build setting, which the repo keeps empty; pass
+it in the Release build from a CI secret. Test purchase, restore and trial expiry with a Sandbox
+Apple Account on device.
 
 Review screenshot for each IAP (App Store Connect requires one): the `paywall` CI screen with the
 corresponding plan selected.

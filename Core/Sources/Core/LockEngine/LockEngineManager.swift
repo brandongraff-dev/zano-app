@@ -244,6 +244,9 @@ public final class LockEngineManager {
         SharedDefaults.lockedSelectionData = lockSet.appTokensBlob
 
         let user = try fetchCurrentUser()
+        // A goal nothing can complete yet (e.g. "Sleep on time") must never gate a lock, whoever
+        // built the list (Lock tab, Today, onboarding, NFC tag, Watch, a schedule) — audit L2.
+        let requiredGoalIDs = excludingGoalsThatCannotComplete(requiredGoalIDs)
         let session = LockSession(
             userID: user.id,
             lockSetID: lockSetID,
@@ -606,6 +609,28 @@ public final class LockEngineManager {
     }
 
     // MARK: - SwiftData
+
+    /// A lock started before an update hid "Sleep on time" may still require it: drop such goals
+    /// from the running lock (never emptying it — `narrowRequiredGoals`), so it stays earnable.
+    /// Called from `LockScheduler.reconcile` on every app foreground. Audit L2.
+    public func dropGoalsThatCannotCompleteFromActiveLock() {
+        guard let session = try? fetchActiveSession() else { return }
+        let keep = excludingGoalsThatCannotComplete(session.requiredGoalIDs)
+        guard keep.count < session.requiredGoalIDs.count else { return }
+        _ = try? narrowRequiredGoals(sessionID: session.id, keeping: keep)
+    }
+
+    /// `goalIDs` minus goals whose type can't be completed yet (`GoalType.canGateLock`). Ids whose
+    /// goal can't be found are kept. Enum matched in Swift, not in `#Predicate`.
+    private func excludingGoalsThatCannotComplete(_ goalIDs: [UUID]) -> [UUID] {
+        guard !goalIDs.isEmpty else { return goalIDs }
+        let wanted = Set(goalIDs)
+        let blocked = Set(((try? context.fetch(FetchDescriptor<Goal>())) ?? [])
+            .filter { wanted.contains($0.id) && !$0.type.canGateLock }
+            .map(\.id))
+        guard !blocked.isEmpty else { return goalIDs }
+        return goalIDs.filter { !blocked.contains($0) }
+    }
 
     private func fetchLockSet(id: UUID) throws -> LockSet? {
         var descriptor = FetchDescriptor<LockSet>(predicate: #Predicate { $0.id == id })

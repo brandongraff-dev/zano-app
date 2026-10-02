@@ -8,7 +8,7 @@
 //      the five-tab UI. The container already exposes the completion signal
 //      (`OnboardingContainerView.onFinished`, fired once by `Screen14FirstWin`), so no hook had to
 //      be added to it.
-//   2. Tabs — Today / Lock / Fuel / Squad / Progress / Settings (docs/spec.md §15). Titles reuse each
+//   2. Tabs — Today / Lock / Fuel / Progress / Settings (docs/spec.md §15; Squad hidden for v1). Titles reuse each
 //      screen's existing `Copy.<area>.screenTitle`; no new copy. Today's `onOpenFuel` hook is wired
 //      to the Fuel tab here (see `MainTabView`).
 //   3. Alarm ringing — a full-screen cover for `AlarmRingingView`, presented whenever
@@ -96,13 +96,11 @@ struct ContentView: View {
     /// while the app is open). `beginAlarmIfDue` reads one small `UserDefaults` blob and returns
     /// immediately when nothing is scheduled, so 5 seconds is cheap.
     ///
-    /// TODO(Core owner): `SunriseAlarmManager.ensureScheduledIfNeeded()` and
-    /// `BedtimeGateManager.evaluateOnForeground()` are documented as belonging in this same hook but
-    /// are deliberately NOT called here. `SunriseAlarmManager.Settings.enabled` defaults to `true`
-    /// and nothing public says whether the person ever configured it, so calling either on every
-    /// foreground would schedule a 06:30 alarm and auto-arm a bedtime lock for people who never
-    /// opted in (spec §5.10 frames both as opt-in). Once Core exposes a "has been configured"
-    /// signal (or defaults `enabled` to `false`), add both calls right here.
+    /// The Sunrise Alarm is kept scheduled here (it's scheduled one occurrence at a time, audit V1),
+    /// but only behind `SunriseAlarmManager.hasBeenConfigured`: `Settings.enabled` defaults to
+    /// `true`, and someone who never opened the alarm setup must never get a 06:30 alarm (spec
+    /// §5.10 frames it as opt-in). `BedtimeGateManager.evaluateOnForeground()` is still not called
+    /// here (its daily schedule is a DeviceActivity registration that runs without the app).
     private func runForegroundChecks() async {
         // Record any fully missed days first, so Never Miss Twice / Comeback see them.
         await StreakEngine.shared.reconcileMissedDays()
@@ -123,6 +121,11 @@ struct ContentView: View {
             }
             UserDefaults.standard.set(true, forKey: "zano.morningScheduleCreated.v1")
         }
+        // Steps / home-workout goals verify even when Today isn't opened (audit L6).
+        await HealthGoalChecks.run()
+        if SunriseAlarmManager.hasBeenConfigured {
+            await SunriseAlarmManager.shared.ensureScheduledIfNeeded()
+        }
         await entitlement.refresh()
         await router.beginAlarmIfDue()
         await router.reconcileAlarmIfNeeded()
@@ -138,7 +141,7 @@ struct ContentView: View {
 
 // MARK: - Tabs
 
-/// The six-tab shell. Split out of `ContentView` so the unlock-celebration cover lives on the tab
+/// The tab shell (five visible tabs; Squad hidden for v1). Split out of `ContentView` so the unlock-celebration cover lives on the tab
 /// UI only — it can never present over onboarding, which runs its own first-win celebration.
 private struct MainTabView: View {
     @Environment(AppRouter.self) private var router
@@ -158,8 +161,8 @@ private struct MainTabView: View {
         let appRouter = router
         let celebration = appRouter.unlockCelebration
 
-        // Six tabs: a system `TabView` would fold tabs 5+ under UIKit's "More" controller on iPhone
-        // (it does even with its bar hidden), so the shell keeps its own container instead. Every
+        // A custom container rather than a system `TabView` (which would fold tabs 5+ under UIKit's
+        // "More" controller if Squad comes back, and draws its own bar). Every
         // tab is built once and kept alive (navigation stacks and scroll positions survive a
         // switch); only the selected one is visible, hit-testable and in the accessibility tree.
         ZStack {
@@ -177,11 +180,18 @@ private struct MainTabView: View {
             // supplies one.
             tab(.lock) { NavigationStack { LockStatusView(onGoToToday: { appRouter.selectedTab = .today }) } }
             tab(.fuel) { NavigationStack { FuelView() } }
-            tab(.squad) { NavigationStack { SquadHomeView() } }
+            // Squad is hidden for v1 (visual direction v2, 2026-10-02): no tab, no container entry.
+            // `AppTab.squad` and `SquadHomeView` stay compiled; `selection` is steered off `.squad`
+            // below if a deep link or notification ever selects it.
             tab(.progress) { NavigationStack { ProgressView() } }
             tab(.settings) { NavigationStack { SettingsView() } }
         }
         .tint(Theme.Colors.interactive)
+        // Squad is unreachable in v1: a `zano://squad` link or the first-invite nudge lands on Today
+        // instead of an empty screen.
+        .onChange(of: selection, initial: true) { _, newValue in
+            if newValue == .squad { selection = .today }
+        }
         // The floating glass bar is the only tab bar.
         // It stays put when the keyboard opens rather than riding up on it.
         .overlay(alignment: .bottom) {
@@ -244,6 +254,8 @@ extension MainTabView {
         content()
             .zanoTabContent()
             .environment(\.zanoTabIsSelected, isSelected)
+            // Hidden tabs stop redrawing the aurora canvas (Core's `ZanoAuroraBackground`).
+            .environment(\.zanoAmbientIsLive, isSelected)
             .opacity(isSelected ? 1 : 0)
             .allowsHitTesting(isSelected)
             .accessibilityHidden(!isSelected)

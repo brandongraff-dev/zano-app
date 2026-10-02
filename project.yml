@@ -31,6 +31,12 @@ settings:
 packages:
   Core:
     path: Core
+  # RevenueCat purchases-ios (audit M1, 2026-10-02). Core/Package.swift declares the same URL and
+  # lower bound (Core's RevenueCatManager is the only code that imports it), so Xcode resolves one
+  # copy; it is listed here too so the app target links it explicitly. `from:` keeps it on 5.x.
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios
+    from: 5.92.0
 
 targets:
   ZANO:
@@ -66,6 +72,8 @@ targets:
       - path: App/ZANO
     dependencies:
       - package: Core
+      - package: RevenueCat
+        product: RevenueCat
       - target: ZANOWidgets
         embed: true
       - target: ZANOShieldConfig
@@ -112,6 +120,12 @@ targets:
         # Only HTTPS/system crypto (URLSession, Supabase over TLS) — exempt, so no export-compliance
         # questionnaire on every upload.
         ITSAppUsesNonExemptEncryption: false
+        # RevenueCat public SDK key (App Store app key, `appl_...`), read by ZANOApp ->
+        # RevenueCatManager.configure. Expands the REVENUECAT_API_KEY build setting below, which is
+        # EMPTY in the repo on purpose: never commit a key. Supply it at build time, e.g.
+        # `xcodebuild ... REVENUECAT_API_KEY=appl_xxx` in CI/Codemagic from a secret. Empty = the
+        # not-configured path: the paywall can't load plans, and onboarding offers the grace period.
+        REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)
         # Background execution the verifiers depend on. Without this declared, iOS never wakes the
         # app for geofence/visit events and the gym verifier silently never fires:
         #   location - GymVerifier (Core/Sources/Core/Verification/GymVerifier.swift): CLMonitor
@@ -181,6 +195,8 @@ targets:
         # docs/sessions/00 mentions; whichever spelling is registered in the Apple developer portal
         # must match what is generated here, so reconcile before registering (UNVERIFIED — no Mac).
         PRODUCT_BUNDLE_IDENTIFIER: com.zano.app
+        # Placeholder for the Info.plist key above. Leave empty here; override per build.
+        REVENUECAT_API_KEY: ""
 
   ZANOWidgets:
     type: app-extension

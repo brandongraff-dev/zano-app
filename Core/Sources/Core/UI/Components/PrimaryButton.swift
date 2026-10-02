@@ -163,7 +163,7 @@ public struct PrimaryButton: View {
                     .accessibilityHidden(true)
             }
             Text(title)
-                .font(Theme.Typography.headline)
+                .font(Theme.Typography.headline.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
         }
@@ -356,12 +356,29 @@ private struct PrimaryButtonStyle: ButtonStyle {
         return configuration.label
             .foregroundStyle(labelColor)
             .background {
-                Capsule()
-                    .fill(fillColor)
-                    // Accent glow only on the *pressed* CTA (spec §16: "inner glow on active
-                    // elements") — never a resting shadow: drop shadows don't show on near-black,
-                    // and a glow on every button would dilute the one that matters.
-                    .shadow(color: isFilled && pressed ? tint.color.opacity(0.35) : .clear, radius: 14)
+                if kind == .secondary && isEnabled {
+                    // v2: the second action is chrome glass, not a grey slab.
+                    ZanoGlass(Capsule(style: .continuous))
+                } else {
+                    Capsule()
+                        .fill(fillColor)
+                        // A liquid sheen across the top third of a filled control (white 10% →
+                        // 0), kept faint so the white label still clears AA on `accentFill`.
+                        .overlay {
+                            if isFilled {
+                                Capsule().fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.10), Color.white.opacity(0)],
+                                        startPoint: .top,
+                                        endPoint: UnitPoint(x: 0.5, y: 0.45)
+                                    )
+                                )
+                            }
+                        }
+                        // Accent glow only on the *pressed* CTA (spec §16: "inner glow on active
+                        // elements") — never a resting shadow.
+                        .shadow(color: isFilled && pressed ? tint.color.opacity(0.45) : .clear, radius: 16)
+                }
             }
             .overlay {
                 if isFilled {
@@ -374,11 +391,9 @@ private struct PrimaryButtonStyle: ButtonStyle {
                         ),
                         lineWidth: 1
                     )
-                } else {
-                    Capsule().strokeBorder(
-                        kind == .secondary && isEnabled ? Theme.Colors.hairlineStrong : Theme.Colors.hairline,
-                        lineWidth: 1
-                    )
+                } else if !(kind == .secondary && isEnabled) {
+                    // The glass secondary carries its own specular rim.
+                    Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: 1)
                 }
             }
             .scaleEffect(pressed && !reduceMotion ? 0.96 : 1)

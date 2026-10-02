@@ -62,6 +62,12 @@ public final class GoalCompletionCoordinator {
         /// Runs after every goal event: `NudgeScheduler.reschedule`, so a reminder planned for a
         /// goal that just got done ("40g to go") is withdrawn. No-op in tests.
         var afterGoalEvent: @MainActor () async -> Void = {}
+        /// Turns a lock the `ZANOMonitor` extension armed while the app was closed (a schedule or
+        /// Bedtime Gate window) into a real `LockSession` before anything is evaluated, so a goal
+        /// logged from a widget, NFC tag, Siri or a gym geofence wake can end it as earned without
+        /// the app ever being opened (audit L1). `LockScheduler.adoptPendingScheduledLock`; no-op
+        /// in tests unless a harness injects one.
+        var adoptPendingScheduledLock: @MainActor (Date) async -> Void = { _ in }
 
         static var live: Effects {
             Effects(
@@ -94,6 +100,9 @@ public final class GoalCompletionCoordinator {
                     await NudgeScheduler.shared.reschedule()
                     // Lock Screen / Home widgets show goals left; refresh them now, not in 15 min.
                     WidgetRefresh.reloadAll()
+                },
+                adoptPendingScheduledLock: { now in
+                    await LockScheduler.shared.adoptPendingScheduledLock(now: now)
                 }
             )
         }
@@ -119,6 +128,9 @@ public final class GoalCompletionCoordinator {
     /// Call right after saving any `GoalEvent` for `goalID`. Never throws: a failure here is logged
     /// and must never fail the log the user just made.
     public func goalEventRecorded(goalID: UUID, at now: Date = .now) async {
+        // A monitor-armed lock has no `LockSession` until something adopts it; do that first so
+        // this very event can end it (audit L1).
+        await effects.adoptPendingScheduledLock(now)
         await reconcileGoalEvent(goalID: goalID, at: now)
         await effects.afterGoalEvent()
     }

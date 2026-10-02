@@ -2,7 +2,8 @@
 // App / ZANO / Features / Today / Suggestions
 //
 // The shared shape of every Today suggestion card: an icon, one headline, one line, an optional
-// small accessory (a chip, a ramp, a progress bar), one primary action, and "Not today". The six
+// small accessory (a chip, a ramp, a progress bar), one primary action, and a close glyph ("Not
+// today" to VoiceOver). v2: on tinted glass. The six
 // card files only fill it in. Strings come from `Copy.today`; the card composes none.
 
 import SwiftUI
@@ -40,12 +41,14 @@ struct SuggestionCard<Accessory: View>: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Theme.Spacing.xs)
+                // v2: a glass close glyph instead of the words "Not today" (still spoken).
                 Button(action: onDismiss) {
-                    Text(Copy.today.suggestionDismiss)
-                        .font(Theme.Typography.captionEmphasized)
+                    Image(systemName: "xmark")
+                        .font(Theme.Typography.icon(.xsmall, weight: .bold))
                         .foregroundStyle(Theme.Colors.muted)
-                        .frame(minWidth: Theme.Metrics.minTapTarget, minHeight: Theme.Metrics.minTapTarget)
-                        .contentShape(Rectangle())
+                        .frame(width: 30, height: 30)
+                        .background(ZanoGlass(Circle()))
+                        .minTapTarget()
                 }
                 .buttonStyle(.pressable(scale: 0.94))
                 .accessibilityLabel(Copy.today.suggestionDismissSpoken(title))
@@ -64,7 +67,7 @@ struct SuggestionCard<Accessory: View>: View {
             }
         }
         .padding(Theme.Spacing.md)
-        .zanoCard(tint: reduceTransparency ? nil : tint)
+        .zanoCard(radius: Theme.Radius.medium, tint: reduceTransparency ? nil : tint)
     }
 }
 
@@ -103,7 +106,8 @@ struct SuggestionChip: View {
             .font(Theme.Typography.captionEmphasized)
             .foregroundStyle(tint)
             .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.vertical, Theme.Spacing.xxs)
-            .background(tint.opacity(0.14), in: Capsule())
+            .padding(.vertical, Theme.Spacing.xxs + 2)
+            .background(tint.opacity(0.16), in: Capsule())
+            .overlay(Capsule().strokeBorder(tint.opacity(0.35), lineWidth: Theme.Metrics.edgeWidth))
     }
 }

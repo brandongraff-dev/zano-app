@@ -60,6 +60,11 @@
 // a spend window runs. The emergency unlock bar below is unchanged and stays visible throughout.
 // The idle start uses `LockPreferences.defaultMode`.
 //
+// Visual direction v2 (2026-10-02, docs/design/visual-direction-v2.md §5): one hero (the vault, on
+// raised glass); the separate star above it is gone (Today owns the mascot); the blocking line is two
+// glass facts; "Locked since" lives in the vault's chip, not the bottom rows; the borrow and spend
+// explanations moved behind an (i). Emergency unlock is unchanged and pinned in every locked state.
+//
 // Lock trust pass (2026-10-02):
 // - Under the hero, one honest line says what the lock is doing: "Blocking 12 apps · ends when your
 //   goals are done" (or "· ends at 9:00 PM" for a timed schedule), and during a Time Bank window
@@ -158,13 +163,11 @@ struct LockStatusView: View {
 
     private var contentStack: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-            if activeSession != nil {
-                lockedMark
-            }
+            // v2: one hero (the vault). The star above it is gone: Today owns the mascot.
             heroCard
 
-            if let line = blockingLine {
-                blockingLineRow(line)
+            if let summary = blockingSummary {
+                blockingFacts(summary)
             }
 
             if showsHealthCard {
@@ -302,14 +305,15 @@ struct LockStatusView: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(heroAccessibilityLabel)
         case .goals(let remaining, _):
+            // v2: the medallion says "locked", so the title is just the set's name; the goal names
+            // caption is gone (the goal tiles below name them).
             LockVaultCard(
                 status: .locked,
-                eyebrow: Copy.today.heroLockedEyebrow(lockSetName: shownLockSet?.name),
+                eyebrow: lockSetTitle,
                 detail: activeSession.map {
                     Copy.today.heroLockedSince($0.startedAt.formatted(date: .omitted, time: .shortened))
                 },
                 numeralLine: Copy.today.heroGoalsToUnlockLine(count: remaining),
-                caption: Copy.today.heroRemainingGoals(orderedRequiredGoals.filter { !isGoalDoneToday($0) }.map(\.title)),
                 segments: vaultSegments,
                 appTokensBlob: shownLockSet?.appTokensBlob,
                 changeKey: remaining
@@ -401,6 +405,7 @@ struct LockStatusView: View {
             do {
                 let mode = LockModeOption(rawValue: LockPreferences.defaultMode.rawValue) ?? .earn
                 _ = try await StartLockIntent(mode: mode).perform()
+                _ = await NotificationPermission.requestIfUndetermined()
             } catch {
                 showError(Copy.lockStatus.lockStartFailed)
             }
@@ -414,42 +419,10 @@ struct LockStatusView: View {
         AccessibilityNotification.Announcement(message).post()
     }
 
-    // MARK: - Locked mark (matches Today's hero)
-
-    /// The ZANO mark on a navy halo, charged by how much of the lock's work is done.
-    private var lockedMark: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Theme.Colors.lockedAmbient.opacity(reduceTransparency ? 0 : 0.6), Theme.Colors.lockedAmbient.opacity(0)],
-                        center: .center,
-                        startRadius: 10,
-                        endRadius: 130
-                    )
-                )
-                .frame(maxWidth: 260, maxHeight: 260)
-                .aspectRatio(1, contentMode: .fit)
-            ZanoLivingMark(charge: lockedCharge, height: 120)
-                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: lockedCharge)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 200)
-        .accessibilityHidden(true)
-    }
-
-    /// Required goals done over required goals; full once everything is done.
-    private var lockedCharge: Double {
-        switch heroState {
-        case .allDone: return 1
-        case .goals(let remaining, let total):
-            return Double(total - remaining) / Double(max(total, 1))
-        case .bank(_, _, let goalsLeft):
-            let total = max(requiredGoals.count, goalsLeft)
-            return total == 0 ? 1 : Double(total - goalsLeft) / Double(total)
-        case .unlocked:
-            return 0
-        }
+    /// The vault's title: the lock set's name, or "Locked" when it has none.
+    private var lockSetTitle: String {
+        if let name = shownLockSet?.name, !name.isEmpty { return name }
+        return Copy.today.heroLockedCapsuleFallback
     }
 
     private var vaultSegments: [VaultSegment] {
@@ -681,7 +654,7 @@ struct LockStatusView: View {
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text(Copy.lockStatus.requiredGoalsHeading)
-                .font(Theme.Typography.headline)
+                .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)
                 .padding(.leading, Theme.Spacing.xxs)
                 .accessibilityAddTraits(.isHeader)
@@ -739,11 +712,9 @@ struct LockStatusView: View {
     private var contextSection: some View {
         if let session = activeSession {
             let trigger = Copy.lockStatus.triggerLine(session.trigger)
+            // v2: "Locked since" moved into the vault's chip; only the trigger and the next lock
+            // stay down here.
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                contextRow(icon: "clock.fill") {
-                    Text(Copy.lockStatus.lockedSincePrefix)
-                    Text(session.startedAt, style: .time)
-                }
                 if !trigger.isEmpty {
                     contextRow(icon: "hand.tap.fill") {
                         Text(trigger)
@@ -819,10 +790,7 @@ struct LockStatusView: View {
         let remaining = displayedRemainingMinutes
         let choice = effectiveSpendChoice(remaining: remaining)
         return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.lockStatus.spendSectionTitle)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
-                .accessibilityAddTraits(.isHeader)
+            cardHeader(Copy.lockStatus.spendSectionTitle, info: Copy.lockStatus.spendSectionDetail, infoLabel: Copy.lockStatus.spendInfoLabel)
 
             if let end = activeSpendWindowEnd {
                 HStack(spacing: Theme.Spacing.sm) {
@@ -847,8 +815,9 @@ struct LockStatusView: View {
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
                 }
-            } else {
-                Text(remaining > 0 ? Copy.lockStatus.spendSectionDetail : Copy.lockStatus.borrowEmptyEarn)
+            } else if remaining == 0 {
+                // The explanation lives behind the (i); only the empty state still says something.
+                Text(Copy.lockStatus.borrowEmptyEarn)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -895,9 +864,17 @@ struct LockStatusView: View {
                 .minimumScaleFactor(0.8)
                 .padding(.horizontal, Theme.Spacing.sm)
                 .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-                .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface2, in: Capsule())
+                .background {
+                    if isSelected {
+                        Capsule().fill(Theme.Colors.accentWash)
+                    } else {
+                        ZanoGlass(Capsule(style: .continuous))
+                    }
+                }
                 .overlay {
-                    Capsule().strokeBorder(isSelected ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+                    if isSelected {
+                        Capsule().strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke)
+                    }
                 }
         }
         .buttonStyle(.pressable(scale: 0.96))
@@ -945,10 +922,9 @@ struct LockStatusView: View {
 
     // MARK: - Blocking line (trust pass)
 
-    /// "Blocking 12 apps · ends when your goals are done" / "Apps open until 3:45 PM · locks again
-    /// after". `nil` while nothing runs. The window end comes from view state so the line flips back
-    /// the moment the window closes.
-    private var blockingLine: String? {
+    /// What the lock is blocking and when it ends, for the running lock. `nil` while nothing runs.
+    /// The window end comes from view state so the facts flip back the moment the window closes.
+    private var blockingSummary: LockBlockingSummary? {
         guard let session = activeSession else { return nil }
         var summary = LockBlockingSummary.current(
             sessionID: session.id,
@@ -956,23 +932,43 @@ struct LockStatusView: View {
             requiredGoalCount: session.requiredGoalIDs.count
         )
         summary.openUntil = activeSpendWindowEnd
-        return Copy.lockStatus.blockingLine(summary)
+        return summary
     }
 
-    private func blockingLineRow(_ line: String) -> some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: activeSpendWindowEnd == nil ? "lock.shield.fill" : "lock.open.fill")
-                .font(Theme.Typography.icon(.xsmall))
-                .foregroundStyle(activeSpendWindowEnd == nil ? Theme.Colors.textSecondary : Theme.Colors.accent)
-                .accessibilityHidden(true)
-            Text(line)
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(Theme.Colors.textSecondary)
+    /// v2: the old one-line "Blocking 12 apps · ends when your goals are done" as two glass facts side
+    /// by side ("Blocking 12 apps" / "Ends when your goals are done"), spoken as the original line.
+    private func blockingFacts(_ summary: LockBlockingSummary) -> some View {
+        let isOpen = summary.openUntil != nil
+        return HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            blockingFact(
+                icon: isOpen ? "lock.open.fill" : "lock.shield.fill",
+                tint: isOpen ? Theme.Colors.accent : Theme.Colors.textSecondary,
+                text: Copy.lockStatus.blockingHeadline(summary)
+            )
+            blockingFact(
+                icon: isOpen ? "arrow.uturn.backward" : "flag.checkered",
+                tint: Theme.Colors.textSecondary,
+                text: Copy.lockStatus.blockingEnding(summary)
+            )
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.lockStatus.blockingLine(summary))
+    }
+
+    private func blockingFact(icon: String, tint: Color, text: String) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Image(systemName: icon)
+                .font(Theme.Typography.icon(.medium))
+                .foregroundStyle(tint)
+            Text(text)
+                .font(Theme.Typography.label)
+                .foregroundStyle(Theme.Colors.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Theme.Spacing.xxs)
-        .accessibilityElement(children: .combine)
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .zanoCard(radius: Theme.Radius.medium)
     }
 
     // MARK: - Screen Time self-check (trust pass)
@@ -1017,10 +1013,7 @@ struct LockStatusView: View {
         let choices = TimeBankBorrow.choices(remaining: remaining)
         let selected = choices.contains(borrowMinutes) ? borrowMinutes : (choices.first ?? 0)
         return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.lockStatus.borrowSectionTitle)
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
-                .accessibilityAddTraits(.isHeader)
+            cardHeader(Copy.lockStatus.borrowSectionTitle, info: Copy.lockStatus.borrowSectionDetail, infoLabel: Copy.lockStatus.borrowInfoLabel)
 
             if let end = activeSpendWindowEnd {
                 HStack(spacing: Theme.Spacing.sm) {
@@ -1051,13 +1044,8 @@ struct LockStatusView: View {
                     .foregroundStyle(Theme.Colors.muted)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(Copy.lockStatus.borrowSectionDetail)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(Copy.lockStatus.borrowBalance(minutes: remaining))
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                // The "lock comes back on its own" explanation moved behind the (i).
+                ZanoGlassChip(Copy.lockStatus.borrowBalance(minutes: remaining), systemImage: "hourglass", tint: Theme.Colors.accent)
             }
 
             if !choices.isEmpty {
@@ -1091,6 +1079,19 @@ struct LockStatusView: View {
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: spendWindowEndsAt)
     }
 
+    /// A card's title with an (i) that holds its explanation (v2: no explanatory paragraphs on the
+    /// main surface).
+    private func cardHeader(_ title: String, info: String, infoLabel: String) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Text(title)
+                .font(Theme.Typography.title)
+                .foregroundStyle(Theme.Colors.text)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Theme.Spacing.xs)
+            ZanoInfoButton(info, accessibilityLabel: infoLabel)
+        }
+    }
+
     private func borrowChip(minutes: Int, isSelected: Bool) -> some View {
         Button {
             borrowMinutes = minutes
@@ -1102,9 +1103,17 @@ struct LockStatusView: View {
                 .minimumScaleFactor(0.8)
                 .padding(.horizontal, Theme.Spacing.sm)
                 .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-                .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface2, in: Capsule())
+                .background {
+                    if isSelected {
+                        Capsule().fill(Theme.Colors.accentWash)
+                    } else {
+                        ZanoGlass(Capsule(style: .continuous))
+                    }
+                }
                 .overlay {
-                    Capsule().strokeBorder(isSelected ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+                    if isSelected {
+                        Capsule().strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke)
+                    }
                 }
         }
         .buttonStyle(.pressable(scale: 0.96))

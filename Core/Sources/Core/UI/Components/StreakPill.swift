@@ -63,14 +63,16 @@ public struct StreakPill: View {
                 }
             }
             .font(Theme.Typography.icon(.medium))
-            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.accent)
+            // v2: the flame is ember (streak and fire moments are ember's only job).
+            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.ember)
+            .shadow(color: (isFrozen ? Theme.Colors.Ring.water : Theme.Colors.ember).opacity(0.55), radius: 6)
 
             NumeralText("\(count)", size: .small)
         }
-        .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, Theme.Spacing.xxs)
-        .background(Theme.Colors.surface2, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+        .padding(.horizontal, Theme.Spacing.sm + 2)
+        .padding(.vertical, Theme.Spacing.xs - 2)
+        // v2: chrome glass, like every floating capsule.
+        .zanoGlass()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelOverride ?? defaultAccessibilityLabel)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isFrozen)

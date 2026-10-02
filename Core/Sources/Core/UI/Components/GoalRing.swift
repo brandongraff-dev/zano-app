@@ -276,7 +276,11 @@ public struct GoalRing: View {
     /// diameter (88pt → 26, 112pt → 34, 148pt → 44, 200pt → 60), so the value scales with the ring
     /// instead of every size sharing one token.
     private func valueFont(diameter: CGFloat) -> Font {
-        diameter < 60 ? Theme.Typography.numeralSmall() : Theme.Typography.numeral(size: diameter * 0.34, weight: .heavy)
+        // v2: rounded heavy counters inside rings (friendly, game-like); `minimumScaleFactor` below
+        // keeps long values inside the ring.
+        diameter < 60
+            ? Theme.Typography.numeralSmall()
+            : Font.system(size: diameter * 0.3, weight: .heavy, design: .rounded).monospacedDigit()
     }
 
     @ViewBuilder
@@ -284,7 +288,7 @@ public struct GoalRing: View {
         switch center {
         case .icon(let systemName):
             Image(systemName: systemName)
-                .font(.system(size: diameter * 0.34, weight: .semibold))
+                .font(.system(size: diameter * 0.34, weight: .bold))
                 .foregroundStyle(color)
         case .text(let composed):
             if let parts = ProgressTextSplit.split(composed) {
@@ -320,7 +324,7 @@ public struct GoalRing: View {
                 .contentTransition(reduceMotion ? .identity : .numericText())
             if let unit, diameter >= 72 {
                 Text(unit)
-                    .font(.system(size: max(11, diameter * 0.12), weight: .semibold).width(.condensed))
+                    .font(.system(size: max(11, diameter * 0.12), weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

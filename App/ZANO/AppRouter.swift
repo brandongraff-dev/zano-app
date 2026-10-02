@@ -22,6 +22,11 @@
 // workaround), §5.10 (the alarm's ringing screen), §16 P3 / §8 rule 4 (unlock celebration), and
 // CLAUDE.md's "never ship a lock with no way out" (see `init(defaults:)`'s launch-time guard).
 //
+// v1 scope (founder decisions, 2026-10-02): Squads and referral redeeming need the backend, which
+// isn't live, so `zano://squad…` links, the `firstSquadInvite` drip and `zano://invite/<CODE>` all
+// land on Today instead of a hidden tab or screen. An invite code is still kept on the device
+// (`ReferralView`'s storage key) so it can be redeemed once referrals ship.
+//
 // Copy: none. Tab titles come from the existing per-screen `Copy.<area>.screenTitle` constants
 // (`ContentView.swift`); nothing in this file shows the user a string.
 
@@ -46,9 +51,12 @@ enum AppTab: Hashable, Sendable {
 /// A destination the app can be sent to from outside a view: a tapped shield notification, a
 /// widget/Live Activity `Link`, or an NFC tag URL.
 enum AppDeepLink: Equatable, Sendable {
-    /// `zano://today` (Earn Meter Live Activity's "View Today") and `zano://focus/end` (Focus Live
-    /// Activity's "End" link). Both land on Today, where the focus session's own controls live.
+    /// `zano://today` (Earn Meter Live Activity's "View Today") and `zano://focus`. Lands on Today.
     case today
+    /// `zano://focus/end` — the Focus Live Activity's "End" link. Ends the running focus session
+    /// (`FocusSessionVerifier.endActiveSession`, verified if it reached its planned time; audit L5)
+    /// and lands on Today.
+    case endFocus
     /// `zano://goals` — `ShieldActionExtension`'s "Show my goals". Today shows exactly what's left.
     case goals
     /// `zano://emergency` — `ShieldActionExtension`'s "Emergency". Lands on the Lock tab, whose
@@ -92,7 +100,12 @@ enum AppDeepLink: Equatable, Sendable {
         let pathTarget = url.pathComponents.first(where: { $0 != "/" })
         let target = (url.host ?? pathTarget)?.lowercased()
         switch target {
-        case "today", "focus": self = .today
+        case "today": self = .today
+        case "focus":
+            // `zano://focus/end` → host "focus", path ["end"]; `zano:focus/end` → path ["focus", "end"].
+            var parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == nil, parts.first?.lowercased() == "focus" { parts.removeFirst() }
+            self = parts.first?.lowercased() == "end" ? .endFocus : .today
         case "goals": self = .goals
         case "emergency": self = .emergency
         case "gym": self = .gymSetup
@@ -280,6 +293,10 @@ final class AppRouter {
                 // No tag can be mapped before onboarding finishes, and replaying a tap's action
                 // minutes later would surprise the person — drop it.
                 logger.notice("Dropping a tag link received before onboarding finished.")
+            case .endFocus:
+                // The onboarding first-win screen runs its own session controls; a stale Live
+                // Activity link must not end that session behind its back.
+                logger.notice("Dropping a focus-end link received before onboarding finished.")
             case .today, .goals, .emergency, .settings, .gymSetup, .fuel, .progress, .squad, .invite:
                 pendingDeepLink = link
             }
@@ -305,7 +322,8 @@ final class AppRouter {
             case .nfcTagCreated:
                 handle(.settings)
             case .firstSquadInvite:
-                handle(.squad(joinCode: nil))
+                // Squads are hidden for v1: land on Today, not a tab that isn't there.
+                handle(.today)
             case .widgetAdded:
                 // Widgets are added from the Home Screen, so there is no better place than where
                 // the app opens.
@@ -331,13 +349,25 @@ final class AppRouter {
             selectedTab = .fuel
         case .progress:
             selectedTab = .progress
-        case .squad(let joinCode):
-            selectedTab = .squad
-            if let joinCode { pendingSquadJoinCode = joinCode }
+        case .endFocus:
+            selectedTab = .today
+            Task {
+                do {
+                    _ = try await FocusSessionVerifier.shared.endActiveSession()
+                } catch {
+                    logger.error("Ending the focus session from its link failed: \(String(describing: error), privacy: .public)")
+                }
+            }
+        case .squad:
+            // Squads are hidden for v1 (no backend): a squad or join link lands on Today. The join
+            // code is dropped — nothing could redeem it yet.
+            selectedTab = .today
         case .invite(let code):
-            pendingReferralCode = code
-            selectedTab = .settings
-            isReferralPresented = true
+            // Referral redeeming needs the backend (hidden for v1). Keep the friend's code on the
+            // device under `ReferralView`'s own storage key so it can be redeemed later, and land
+            // on Today.
+            UserDefaults.standard.set(code, forKey: Self.referralInviteCodeKey)
+            selectedTab = .today
         case .tag(let id, let url):
             Task { await performTagDispatch(id: id, url: url) }
         }
@@ -387,6 +417,9 @@ final class AppRouter {
         selectedTab = .settings
         isGymSetupPresented = true
     }
+
+    /// `ReferralView`'s `@AppStorage` key for a friend's invite code, kept until it's redeemed.
+    nonisolated static let referralInviteCodeKey = "zano.referral.inviteCode"
 
     /// Returns and clears `pendingSquadJoinCode` (the Squad tab picked it up).
     func consumeSquadJoinCode() -> String? {

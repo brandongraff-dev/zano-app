@@ -40,14 +40,16 @@ public struct StickyActionBar<Content: View>: View {
                 // A fixed-height fade over the top padding only, then solid behind the controls. A
                 // proportional gradient left the first line of the bar (a paywall's terms) over
                 // half-transparent ground, where it collided with the content scrolling beneath.
+                // v2: fades into `backgroundDeep`, the colour the aurora canvas reaches at the bottom
+                // of the screen, so the bar reads as the floor of the room rather than a slab.
                 VStack(spacing: 0) {
                     LinearGradient(
-                        colors: [Theme.Colors.background.opacity(0), Theme.Colors.background],
+                        colors: [Theme.Colors.backgroundDeep.opacity(0), Theme.Colors.backgroundDeep.opacity(0.92)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                     .frame(height: Theme.Spacing.lg)
-                    Theme.Colors.background
+                    Theme.Colors.backgroundDeep.opacity(0.92)
                 }
                 .ignoresSafeArea(edges: extendsToBottomEdge ? .bottom : [])
             }

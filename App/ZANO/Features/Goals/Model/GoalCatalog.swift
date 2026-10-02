@@ -28,15 +28,17 @@ enum GoalCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Picker order within the group.
+    /// Picker order within the group. Types nothing can complete yet (`GoalType.notYetCompletable`
+    /// — "Sleep on time", audit L2) are left out entirely: not listed, not "Coming soon".
     var types: [GoalType] {
-        switch self {
+        let all: [GoalType] = switch self {
         case .move: [.workoutGym, .workoutHomeOutdoor, .steps, .stretchMobility]
         case .fuel: [.protein, .water, .creatine, .mealPrep]
         case .mind: [.focusSession, .reading]
-        case .mornings: [.sunriseAlarm, .sleepOnTime, .coldShowerSauna]
+        case .mornings: [.sunriseAlarm, .coldShowerSauna]
         case .custom: [.custom]
         }
+        return all.filter(GoalCatalog.isOffered)
     }
 }
 
@@ -55,9 +57,13 @@ enum GoalSetupStep: String, Identifiable {
 }
 
 enum GoalCatalog {
-    /// Every goal type can be added (all are additive; `GoalCategory.types` lists each once).
+    /// Every goal type is additive; `GoalCategory.types` lists each offered one once.
     /// Only `custom` can be on the plan more than once.
     static func allowsMultiple(_ type: GoalType) -> Bool { type == .custom }
+
+    /// Whether the type can be picked in v1. `false` for a type no verifier can complete yet
+    /// (audit L2: "Sleep on time"), which would otherwise trap any lock that required it.
+    static func isOffered(_ type: GoalType) -> Bool { type.canGateLock }
 
     /// Spec §3's tier for each type.
     static func tier(for type: GoalType) -> VerificationTier {

@@ -39,8 +39,14 @@
 // Presentation: `@Environment(\.dismiss)` for the Done button, which works for `.sheet`,
 // `.fullScreenCover` or a push. A full-screen cover has no swipe-to-dismiss, so this button is the
 // only way out and it never waits for the choreography.
+//
+// Rating ask (growth research #8, 2026-10-02): Done dismisses first; then, if `RatingPrompt` says
+// this unlock is one of the peak moments (3rd earned unlock, first gym-verified unlock, 7-day
+// streak) and none of its "never" rules apply, the system review prompt is requested a beat later,
+// over whatever screen is underneath. Never from a "rate us" button.
 
 import SwiftUI
+import StoreKit
 import Core
 
 /// The occasional bonus surprise this view can reveal alongside an unlock (docs/spec.md §8 rule 4:
@@ -90,6 +96,7 @@ public struct UnlockCelebrationView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.requestReview) private var requestReview
 
     /// The headline's size. Compressed heavy numeral face; scales with Dynamic Type.
     @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 76
@@ -114,6 +121,7 @@ public struct UnlockCelebrationView: View {
     @State private var showSurprise = false
     /// The quiet "Invite a friend" link (at most every `ReferralPrompt.minimumInterval`).
     @State private var showsReferralLink = false
+    private static let referralsLive = false
     @State private var isReferralPresented = false
 
     /// - Parameters:
@@ -184,6 +192,7 @@ public struct UnlockCelebrationView: View {
             // Tappable from the first frame; never gated on the choreography.
             PrimaryButton(title: Copy.celebration.dismissButtonLabel, tint: .accent) {
                 dismiss()
+                askForRatingIfDue()
             }
             .padding(.horizontal, Theme.Spacing.lg)
             .padding(.bottom, showsReferralLink ? Theme.Spacing.xs : Theme.Spacing.lg)
@@ -210,7 +219,9 @@ public struct UnlockCelebrationView: View {
         }
         .onAppear {
             // Decided once per appearance; a surprise gets the spotlight on its own.
-            if !hasPlayed, surprise == nil, ReferralPrompt.shouldOffer() {
+            // Referrals need the backend (hidden for v1 with the Invite row); flip this back on
+            // with `ReferralPrompt.shouldOffer()` when redeeming goes live.
+            if Self.referralsLive, !hasPlayed, surprise == nil, ReferralPrompt.shouldOffer() {
                 showsReferralLink = true
                 ReferralPrompt.recordOffered()
             }
@@ -218,6 +229,25 @@ public struct UnlockCelebrationView: View {
         }
         .onDisappear { playTask?.cancel() }
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Rating ask
+
+    /// See the file header. The decision is read before the delay; the prompt follows the
+    /// dismissal so it never covers the celebration itself.
+    private func askForRatingIfDue() {
+        #if DEBUG
+        // CI screenshots and UI tests: a review sheet would cover the next screen.
+        if ScreenshotMode.screen != nil || UserDefaults.standard.bool(forKey: "ZANOSkipPaywall") { return }
+        #endif
+        guard let trigger = RatingPrompt.shared.triggerIfDue() else { return }
+        RatingPrompt.shared.recordAsked(trigger)
+        Analytics.shared.capture(event: "rating_prompt_requested", properties: ["trigger": trigger.rawValue])
+        let requestReview = requestReview
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            requestReview()
+        }
     }
 
     // MARK: - Stage

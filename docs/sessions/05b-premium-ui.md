@@ -410,3 +410,26 @@ intents running in-app, shield read-back for the "not blocking" check, StandBy r
 - **Decision (founder, 2026-10-02):** goals pay Time Bank minutes during any running lock (full or
   Earn Mode; same rates, Plan B half; no lock → nothing), so borrowing works in full locks.
   CI run 36959520396 green.
+
+### 2026-10-02 — Launch fixes, conversion, smart features, visual v2 pass 1
+
+Founder decisions: 16+, Squads hidden for v1 (plus cosmetics shop and Invite friends), offline
+paywall grace period, keep `com.zano.app`.
+- **Launch blockers:** background goal events adopt a monitor-started lock (L1); "Sleep on time"
+  hidden and never gates a lock (L2); Sunrise Alarm recurs daily (V1); focus sessions persisted,
+  run in-app from Siri/NFC, pause when the app is left (L3–L5, L8); Health checks at launch (L6);
+  Delete all clears schedules/notifications/alarm/Live Activities/ledgers (N5); `ZanoSchemaV1` +
+  migration plan, store-unavailable screen instead of a silent in-memory store in Release (W1).
+- **Conversion:** RevenueCat `purchases-ios` 5.92.0 linked (key via `REVENUECAT_API_KEY` build
+  setting, empty by default); "Continue for now" 3-day grace when plans can't load; annual
+  pre-selected, billed amount first, "Remind me before my trial ends" toggle + scheduled reminder;
+  "What your trial earned you" card; rating prompt only after real wins; notifications item in
+  Finish setup and on first lock.
+- **Smart (on-device, no chatbot):** if-then plan in onboarding → lock schedule + reminder 45 min
+  before + slip prior; Thompson-sampling nudge timing; logistic slip risk (streak-at-risk gate,
+  earlier Plan B); weekly recap built on device; one sec-style shield ("Close app" counts as
+  reclaimed, "Time Bank or emergency" — emergency still named on the shield).
+- **Visual v2 pass 1** (docs/design/visual-direction-v2.md, session 05c): ink + aurora canvas,
+  glass system, rounded/expanded type, 5-tab floating glass nav with sliding pill, Today and Lock
+  rebuilt. Debug Simulator builds without an App Group no longer show the store-recovery screen.
+- **CI:** run 37070206641 green (build, Core tests, UI-test compile, crash-free tour).

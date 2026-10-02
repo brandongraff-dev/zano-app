@@ -14,8 +14,8 @@
 //   - the bespoke choice row     -> `SelectableCard` (one selected/unselected look app-wide: white
 //                                   selection; visible 12% hairline otherwise)
 //   - the hand-rolled pinned bar -> `zanoActionBar` (`StickyActionBar`)
-// What is still hosted here for screens 1-7 to share: `OnboardingSingleChoiceList` (screens 3 and 7)
-// and `View.onboardingPinnedContinue` (all seven).
+// What is still hosted here for the question steps to share: `OnboardingSingleChoiceList` and
+// `View.onboardingPinnedContinue`. (Short flow, 2026-10-02: this is step 2 of 7.)
 //
 // Pacing (docs/design/competitive-research.md §3.5, "every input triggers a visible consequence"; Cal
 // AI, Opal, Duolingo): Q1 used to be five text rows and nothing happened when you tapped one. Now a
@@ -32,7 +32,7 @@
 import SwiftUI
 import Core
 
-/// Screen 3 of 15 (spec §7.3) - Q1, single-select main goal.
+/// Step 2 of 7 (spec §7.3) - Q1, single-select main goal.
 struct Screen3MainGoal: View {
     @Bindable var flowState: OnboardingFlowState
 
@@ -61,7 +61,7 @@ struct Screen3MainGoal: View {
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "main_goal", "screen_number": 3]
+                properties: OnboardingStep.mainGoal.viewedProperties
             )
         }
     }

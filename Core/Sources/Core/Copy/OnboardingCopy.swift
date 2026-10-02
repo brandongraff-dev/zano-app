@@ -9,6 +9,11 @@
 // directly from those call sites, not re-derived, so every screen compiles unchanged against this
 // file. Wording is this file's own authored copy except where a comment marks it spec-verbatim.
 //
+// Short flow (2026-10-02): onboarding is 7 steps now. Keys for the merged screens (phone time,
+// fall-off, wake-up math, workouts, commitment) are still read by the steps that absorbed them; the
+// coach-voice and notification-screen keys are kept unchanged but unused by onboarding. New wording
+// for the short flow lives in `OnboardingShortFlowCopy.swift`.
+//
 // The paywall's strings live in `Copy.paywall` (`PaywallCopy.swift`). The superseded
 // `Screen13Paywall.swift` and its `paywall*` keys here are gone.
 
@@ -30,8 +35,8 @@ extension Copy {
         // have them"). Until then this strip carries plain product claims, not invented quotes:
         // fabricated endorsements are a ship risk (App Review and consumer-protection), and the old
         // "(placeholder)" attribution was user-visible. Every line below is a fact about how ZANO
-        // works (CLAUDE.md, docs/spec.md §3). Screen2SocialProof renders each entry as centered
-        // headline text and expects exactly 3, so a real quote drops in as `"..." — Name`.
+        // works (CLAUDE.md, docs/spec.md §3). The hook's "How it works" strip renders each entry as one
+        // line with a glyph (three glyphs, matched by position).
         public static let socialProofQuotes: [String] = [
             "Your distracting apps stay locked until you've earned them back.",
             "Workouts verify from your gym's location and Apple Health. Verified by your phone.",

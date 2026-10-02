@@ -7,17 +7,22 @@
 // LIVELINESS PASS (2026-09-24; the founder: onboarding "feels dull and lifeless"). Nothing here has
 // been rendered - there is no Mac.
 //
-// The hero is now the brand's signature object, `ZanoLivingMark`: the silver swoosh star, big (150pt),
+// The hero is now the brand's signature object, `ZanoLivingMark`: the silver swoosh star, big (120pt since the short flow),
 // charging from empty to ~85% over ~1.2s as the screen opens, then idling (float, turn, light sweep,
 // breathing blue glow - all inside the component, all Reduce Motion aware). That is the product line
 // ("the star charges while you're off your phone") shown before it is said, and it is the same star
-// the header then carries through the next 12 screens. A blue bloom behind it brightens with the
+// the header then carries through the rest of the flow. A blue bloom behind it brightens with the
 // charge (opacity only), and one soft haptic lands as the charge settles.
 //
 // Layout: the wordmark sits above the star, the spec-verbatim headline below (split at the sentence
 // boundary: the problem quiet in `textSecondary`, "Let's flip that." in `text`). Centered, scrolling
 // only when it must. The CTA is pinned and live from frame one; the intro never gates it (spec §8
 // rule 8). The old ring-and-padlock hero is gone: two hero objects on the first screen split the eye.
+//
+// SHORT FLOW (2026-10-02): the social-proof screen is gone and its three product claims sit here,
+// under the headline, as a quiet "How it works" strip (`Copy.onboarding.socialProofQuotes`, same
+// entries, same rule: claims, never invented testimonials). They fade in after the headline and
+// never gate the CTA. Step 1 of 7.
 //
 // Handoff (not editable here): spec §7.1 calls this screen full-bleed and `OnboardingContainerView`
 // already hides its header on screen 1. The straight apostrophes in the stored headline
@@ -26,7 +31,7 @@
 import SwiftUI
 import Core
 
-/// Screen 1 of 15 (spec §7.1). Full-bleed hero: headline + single CTA that advances the flow.
+/// Step 1 of 7 (spec §7.1, plus §7.2's proof strip). Full-bleed hero: headline + single CTA that advances the flow.
 /// No FamilyControls/HealthKit/etc. here - this screen only ever mutates `flowState.currentScreen`
 /// (via `advance()`).
 struct Screen1Hook: View {
@@ -42,7 +47,8 @@ struct Screen1Hook: View {
     private static let introCharge = 0.85
     /// `ZanoLivingMark` eases a charge change over 1.2s; the haptic lands as it settles.
     private static let chargeMilliseconds = 1200
-    private static let starHeight: CGFloat = 150
+    /// A little smaller than before (150) so the proof strip fits above the CTA on a small phone.
+    private static let starHeight: CGFloat = 120
 
     private var isShown: Bool { revealed || reduceMotion }
 
@@ -52,7 +58,7 @@ struct Screen1Hook: View {
 
     var body: some View {
         HookCenteredScroll {
-            VStack(spacing: Theme.Spacing.xl) {
+            VStack(spacing: Theme.Spacing.lg) {
                 // The brand's first appearance: the wordmark, then the star it names.
                 ZanoWordmark(height: 15)
                     .opacity(isShown ? 1 : 0)
@@ -68,10 +74,15 @@ struct Screen1Hook: View {
                     .opacity(isShown ? 1 : 0)
                     .offset(y: isShown ? 0 : Theme.Spacing.sm)
                     .animation(reveal(delay: 0.35), value: revealed)
+
+                proofStrip
+                    .opacity(isShown ? 1 : 0)
+                    .offset(y: isShown ? 0 : Theme.Spacing.sm)
+                    .animation(reveal(delay: 0.6), value: revealed)
             }
             .padding(.horizontal, Theme.Spacing.md)
-            // Bottom-heavy padding lifts the group above true center, where the eye rests.
-            .padding(.bottom, Theme.Spacing.xl * 2)
+            // Bottom padding keeps the strip clear of the pinned CTA.
+            .padding(.bottom, Theme.Spacing.xl)
         }
         .onboardingPinnedContinue(title: Copy.onboarding.hookCTA) {
             flowState.advance()
@@ -83,7 +94,7 @@ struct Screen1Hook: View {
             // docs/spec.md §23 "Instrument from day one: every screen view..."
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "hook", "screen_number": 1]
+                properties: OnboardingStep.hook.viewedProperties
             )
         }
     }
@@ -109,6 +120,39 @@ struct Screen1Hook: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
+
+    /// The three product claims that used to rotate on their own screen: one compact card, a glyph
+    /// per line, quiet type. Facts about how ZANO works, never dressed up as quotes.
+    private var proofStrip: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.onboarding.hookProofEyebrow)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+            ForEach(Array(Copy.onboarding.socialProofQuotes.enumerated()), id: \.offset) { index, claim in
+                HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                    Image(systemName: Self.proofSymbols[index % Self.proofSymbols.count])
+                        .font(Theme.Typography.icon(.small))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .frame(width: Theme.Spacing.lg)
+                        .accessibilityHidden(true)
+                    Text(claim)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard()
+        .accessibilityElement(children: .combine)
+    }
+
+    /// SF Symbol identifiers matched by position to the three claims (locked until earned /
+    /// verified by location + Health / works offline). Decorative only.
+    private static let proofSymbols = ["lock.fill", "location.fill", "wifi.slash"]
 
     /// Splits "Sentence one. Sentence two." at the first ". " so the second sentence can take the
     /// emphasis. Falls back to one un-split line if the copy ever loses that shape.

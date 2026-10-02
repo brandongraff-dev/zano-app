@@ -11,8 +11,9 @@
 //     shield without opening the SwiftData store (written by `LockSetManager`).
 //   - A "pending scheduled lock" record the monitor writes when it shields at a scheduled start;
 //     the app turns it into a real `LockSession` on its next foreground (`LockScheduler.reconcile`).
-//   - The Earn Mode spend window (`SpendWindow`) and the "intended shield" selection, so whichever
-//     process notices the window is over can put the shield back.
+//   - The Time Bank spend window (`SpendWindow`: an Earn Mode spend, or a borrow on any lock) and
+//     the "intended shield" selection, so whichever process notices the window is over can put the
+//     shield back.
 //
 // Why not a model field: `LockSet` (Models/, spec §13 `lock_sets`) is a synced table whose shape
 // mirrors Postgres; adding columns means a SwiftData schema migration plus a Supabase migration,
@@ -242,11 +243,57 @@ public struct ScheduleOwnedLock: Codable, Sendable, Equatable {
     public var activityRawName: String
 }
 
-/// Earn Mode: the shield is lifted until `endsAt` because the user spent Time Bank minutes.
+/// The shield is lifted until `endsAt` because the user spent Time Bank minutes: an Earn Mode
+/// spend, or a Time Bank borrow on any lock (`TimeBankEngine.borrowToUnlock`).
 public struct SpendWindow: Codable, Sendable, Equatable {
     public var sessionID: UUID
     public var startedAt: Date
     public var endsAt: Date
+
+    public init(sessionID: UUID, startedAt: Date, endsAt: Date) {
+        self.sessionID = sessionID
+        self.startedAt = startedAt
+        self.endsAt = endsAt
+    }
+
+    /// DeviceActivity callbacks can be early or late (spec §27); a window counts as over this
+    /// close to its end.
+    public static let endTolerance: TimeInterval = 90
+
+    /// The window after paying for `minutes` more. A still-open window for the same lock is
+    /// extended from its end; anything else (none, expired, or another lock's) starts fresh at `now`.
+    public static func opening(existing: SpendWindow?, sessionID: UUID, minutes: Int, now: Date) -> SpendWindow {
+        let current = existing.flatMap { $0.sessionID == sessionID && $0.endsAt > now ? $0 : nil }
+        let base = current?.endsAt ?? now
+        return SpendWindow(
+            sessionID: sessionID,
+            startedAt: current?.startedAt ?? now,
+            endsAt: base.addingTimeInterval(TimeInterval(minutes * 60))
+        )
+    }
+
+    /// What should happen when something notices a window may be over.
+    public enum EndOutcome: Sendable, Equatable {
+        /// Still open (a newer, longer window replaced it, or it's early): leave everything.
+        case stillOpen
+        /// Over, but its lock already ended (or there's nothing to put back): just forget it.
+        case clearOnly
+        /// Over and its lock is still running: forget it and put the shield back.
+        case reshield
+    }
+
+    /// Pure decision behind `ScheduledLockMonitor.spendWindowDidEnd`, unit-tested.
+    public static func endOutcome(
+        window: SpendWindow?,
+        activeSessionID: UUID?,
+        hasIntendedShield: Bool,
+        now: Date
+    ) -> EndOutcome {
+        guard let window else { return .clearOnly }
+        guard now.addingTimeInterval(endTolerance) >= window.endsAt else { return .stillOpen }
+        guard activeSessionID == window.sessionID, hasIntendedShield else { return .clearOnly }
+        return .reshield
+    }
 }
 
 // MARK: - LockPreferences
@@ -542,17 +589,26 @@ public enum ScheduledLockMonitor {
         SharedDefaults.goalsRemainingForActiveLock = 0
     }
 
-    /// Re-shields after a spend window, unless a newer (longer) window replaced it or the lock
-    /// already ended. 90 s tolerance: DeviceActivity callbacks can be early/late (spec §27).
+    /// Re-shields after a spend/borrow window (either lock mode), unless a newer (longer) window
+    /// replaced it or the lock already ended. See `SpendWindow.endOutcome`.
     static func spendWindowDidEnd(now: Date) {
         guard let window = LockEngineSharedState.spendWindow else { return }
-        guard now.addingTimeInterval(90) >= window.endsAt else { return }
-        LockEngineSharedState.spendWindow = nil
-        guard SharedDefaults.activeLockSessionID == window.sessionID,
-              let blob = LockEngineSharedState.intendedShieldSelection,
-              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: blob)
-        else { return }
-        ManagedSettingsStore(named: .zanoLock).applyZanoShield(selection)
+        let blob = LockEngineSharedState.intendedShieldSelection
+        let selection = blob.flatMap { try? JSONDecoder().decode(FamilyActivitySelection.self, from: $0) }
+        switch SpendWindow.endOutcome(
+            window: window,
+            activeSessionID: SharedDefaults.activeLockSessionID,
+            hasIntendedShield: selection != nil,
+            now: now
+        ) {
+        case .stillOpen:
+            return
+        case .clearOnly:
+            LockEngineSharedState.spendWindow = nil
+        case .reshield:
+            LockEngineSharedState.spendWindow = nil
+            if let selection { ManagedSettingsStore(named: .zanoLock).applyZanoShield(selection) }
+        }
     }
 }
 

@@ -36,8 +36,9 @@
 //
 // Denied access is not a dead end (2026-09-24 audit, P0): the alert offers "Open Settings", and
 // once access has been refused an inline card under the picker repeats the message with a
-// "Try again" that re-runs the request and the picker. Continue stays gated on a real selection
-// (screen 14's lock needs one), so this card is the way forward.
+// "Try again" that re-runs the request and the picker. Continue stays gated on a real selection,
+// and (short flow, 2026-10-02) a second "Continue without locking" button appears once access was
+// refused: the first win then runs as a plain timer with no lock, so nobody is stuck here.
 //
 // Handoff idea (needs a Copy key, not editable here): one privacy line under the subtitle, e.g.
 // "Your app list never leaves this phone." It is true (CLAUDE.md: tokens never leave the device) and
@@ -49,7 +50,7 @@ import ManagedSettings
 import ManagedSettingsUI
 import Core
 
-/// Screen 4 of 15 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
+/// Step 4 of 7 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
 /// FamilyControls authorization request (spec §7.4's parenthetical), primed with one sentence
 /// (`Copy.onboarding.q2Subtitle`) before the system picker/permission sheet appears.
 struct Screen4AppSelection: View {
@@ -126,8 +127,21 @@ struct Screen4AppSelection: View {
             }
         }
         .onboardingEntrance()
-        .onboardingPinnedContinue(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
-            flowState.advance()
+        .onboardingKitActionBar {
+            PrimaryButton(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
+                flowState.continuedWithoutScreenTime = false
+                flowState.advance()
+            }
+            // Refused Screen Time access is never a dead end: the first win still runs (as a plain
+            // timer, no lock) and Today's first-day checklist offers to pick apps again.
+            if authorizationDenied && !hasSelection {
+                PrimaryButton(title: Copy.onboarding.q2ContinueWithoutLockButton, style: .secondary) {
+                    flowState.continuedWithoutScreenTime = true
+                    Analytics.shared.capture(event: "onboarding_continued_without_screen_time")
+                    flowState.advance()
+                }
+                .transition(.opacity)
+            }
         }
         .familyActivityPicker(isPresented: $isPickerPresented, selection: $flowState.selectedApps)
         .alert(
@@ -150,7 +164,7 @@ struct Screen4AppSelection: View {
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "app_selection", "screen_number": 4]
+                properties: OnboardingStep.appSelection.viewedProperties
             )
         }
     }

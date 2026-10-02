@@ -6,6 +6,10 @@
 // plan reveal (screen 11). docs/spec.md §3 (protein/water/creatine verified by an NFC tap), §5.10
 // (the Sunrise Tag), §6 (NFC), §25.1 (Tag Pack placements) and §25.5-§25.6 (the gear store).
 //
+// Short flow (2026-10-02): the NFC tag screen left onboarding (tags are now the first item on Today's
+// Finish setup card), so only `planVerifiedByPhotoOrBarcode` is read today. The other keys are kept
+// unchanged for when a tags step or a tags explainer comes back.
+//
 // Honesty rules these strings follow:
 //   - No price and no "free with annual": the Tag Pack's price and its annual-plan bundling are
 //     spec intentions, not something the paywall or any store offers today.

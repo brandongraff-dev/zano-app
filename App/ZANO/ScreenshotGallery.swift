@@ -149,6 +149,14 @@ struct ScreenshotHost: View {
             NavigationStack { GymLeaderboardView() }
         case "autofocus":
             NavigationStack { AutoFocusGuideView() }
+        case "milestone":
+            MilestoneMomentView(milestone: .streak(days: 30), onDismiss: {})
+        case "monthly-story":
+            MonthlyStoryView(
+                story: MonthlyStory(year: 2026, month: 9, earnedDays: 21, earnedUnlocks: 26,
+                                    lockedMinutes: 84 * 60, bestStreak: 12, topGoalTitle: "Gym session"),
+                onDismiss: {}
+            )
         default:
             ContentUnavailableView("Unknown screen", systemImage: "questionmark.square.dashed",
                                    description: Text(name))

@@ -4,17 +4,17 @@
 // docs/spec.md §7.10 "Plan reveal": '"Your Lock-In Plan": locked apps, goals, schedule, starting
 // difficulty (deliberately below stated target). Looks bespoke. "Built for you in 2:14."' and §16
 // P4: "bespoke card: locked apps row with icons, goals list, schedule, difficulty tag 'Starting easy
-// on purpose', a hold-to-commit button at the bottom" (the hold lives on screen 11).
+// on purpose', a hold-to-commit button at the bottom" (since the short flow, the hold is on this step).
 //
 // Persistence: `OnboardingFlowState.swift`'s own header states the expectation explicitly —
 // "Plan Reveal (screen 10) is expected to hand this [`selectedApps`] straight to
 // `LockSetManager.createLockSet(name:selection:)` to become the user's default lock set" — and
 // `Core/Sources/Core/Monetization/PaywallViewModel.swift` (screen 13) reads exactly that:
 // `loadBuiltPlanAndLocalProStatus()` fetches the current user's active `Goal`s and default
-// `LockSet` to render the paywall's "the plan you built" section. So on appear,
-// `persistPlanIfNeeded()` turns `flowState`'s Q1/Q2/Q4 answers into real `Goal` rows and a real
+// `LockSet` to render the paywall's "the plan you built" section. So on commit (it ran on appear
+// before the short flow), `persistPlanIfNeeded()` turns `flowState`'s Q1/Q2/Q4 answers into real `Goal` rows and a real
 // default `LockSet`, exactly once per distinct goal type (`IntentSupport.activeGoal` re-check) and
-// via `LockSetManager.createLockSet`. This never blocks "Continue": any failure is swallowed
+// via `LockSetManager.createLockSet`. This never blocks the commit: any failure is swallowed
 // (matching `Screen14FirstWin.swift`'s own "never trap the user on a SwiftData write" precedent),
 // and `Screen14FirstWin.swift` re-derives whatever's still missing when the first win needs it.
 // (Unchanged by the design pass.)
@@ -56,12 +56,25 @@
 // Liveliness pass (2026-09-24): the build beat's hero is the living star (`ZanoLivingMark`) instead
 // of a white ring: it takes on charge as each of the user's answers checks off, over a ZANO Blue
 // bloom that brightens with it, so "building your plan" reads as the star being built. The revealed
-// plan carries a small star above its title, charged to where the flow is (11 of 15). The backdrop
+// plan carries a small star above its title, charged to where the flow is (5 of 7 since the short flow). The backdrop
 // is the scaffold's flow ambient, not a flat `zanoAmbient(.neutral)`.
 //
-// NFC pass (2026-09-24): this is now screen 11 (the NFC tags screen went in at 9). A protein goal row
-// says how it is verified, from the tags answer: "Verified by: NFC tap" with tags, "... once your tags
-// arrive" if the user wants them, and meal photo or barcode otherwise (`verificationLine(for:)`).
+// NFC pass (2026-09-24), superseded by the short flow: the tags question left onboarding, so a
+// protein goal row now always says "meal photo or barcode" (`verificationLine(for:)`).
+//
+// SHORT FLOW (founder decision 2026-10-02): this is step 5 of 7, and it absorbed two old screens.
+//   - Q4's workout target: when the plan has a workout goal, its row carries a -/+ stepper (1...7 a
+//     week, default 3). The old "current workouts" question is gone; the starting value stays ~70%
+//     of the target.
+//   - Commitment: the CTA is the hold-to-commit button (`PrimaryButton(style: .holdToCommit)`, a
+//     2-second hold with haptics; VoiceOver double-tap commits), exactly what the plan-reveal mockup
+//     describes. Completing the hold records `committed_at`, logs `onboarding_committed`, and only
+//     THEN persists the plan (Goals + default LockSet), so the workout target the user just set is
+//     the one saved. The hard paywall follows directly, as before.
+//   - The ZANO tags question moved to Today's Finish setup card, so a protein goal says it verifies
+//     by meal photo or barcode here (tags upgrade it once mapped).
+//   - No apps picked (Screen Time access refused): the apps row shows dashed slots and a line that
+//     apps can be picked from Today; nothing here pretends a lock exists.
 //
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
@@ -90,6 +103,8 @@ struct Screen10PlanReveal: View {
     @State private var builtRows = 0
     /// How many of the plan card's three groups are visible (staggered in after the build beat).
     @State private var revealedGroups = 0
+    /// The hold completed; guards a double commit while the save and the advance run.
+    @State private var isCommitted = false
 
     private static let groupCount = 3
     /// Token labels stall when many render at once (Apple forums, FB12332927), so cap the row.
@@ -117,15 +132,12 @@ struct Screen10PlanReveal: View {
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: visiblePhase)
         .task {
-            await persistPlanIfNeeded()
-        }
-        .task {
             await runBuildBeat()
         }
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "plan_reveal", "screen_number": 11]
+                properties: OnboardingStep.plan.viewedProperties
             )
         }
     }
@@ -138,7 +150,7 @@ struct Screen10PlanReveal: View {
         let text: String
     }
 
-    /// The user's real answers, in the order they gave them (Q1, Q2, Q5, Q6). Q3/Q4 are numbers the
+    /// The user's real answers, in the order they gave them (main goal, apps, when it slips). Q3/Q4 are numbers the
     /// plan card itself shows; Q5's label is the App-target-only `FallOffPattern.displayLabel`.
     private var buildRows: [BuildRow] {
         var rows: [BuildRow] = []
@@ -151,13 +163,8 @@ struct Screen10PlanReveal: View {
         if let pattern = flowState.fallOffPattern {
             rows.append(BuildRow(id: rows.count, icon: "calendar", text: pattern.displayLabel))
         }
-        rows.append(
-            BuildRow(
-                id: rows.count,
-                icon: OnboardingKit.icon(for: flowState.coachVoice),
-                text: flowState.coachVoice.displayName
-            )
-        )
+        // The coach voice is no longer asked (short flow): it stays the default and is shown on the
+        // ticket's footer, not here as if the user had answered it.
         return rows
     }
 
@@ -265,8 +272,19 @@ struct Screen10PlanReveal: View {
             .padding(.vertical, Theme.Spacing.lg)
         }
         .onboardingKitActionBar {
-            PrimaryButton(title: Copy.onboarding.planContinueButton) {
-                flowState.advance()
+            Text(Copy.onboarding.planCommitHint)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+            PrimaryButton(
+                title: Copy.onboarding.commitHoldButtonLabel,
+                style: .holdToCommit,
+                isEnabled: !isCommitted
+            ) {
+                Task { await commit() }
             }
         }
     }
@@ -319,7 +337,7 @@ struct Screen10PlanReveal: View {
                 Text(lockedAppsStatusLine)
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
-                Text(Copy.onboarding.planLockedAppsDetailLine)
+                Text(lockedItemCount > 0 ? Copy.onboarding.planLockedAppsDetailLine : Copy.onboarding.planNoAppsLine)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -346,7 +364,7 @@ struct Screen10PlanReveal: View {
 
     /// The picked apps as dimmed icon tiles, each behind a small padlock: "locked" as a picture,
     /// in neutral (nothing is locked yet, and locked is not an error — better-ui ICO-12). With no
-    /// selection (only reachable in previews/CI: Q2 requires one) it shows dashed empty slots.
+    /// selection (Screen Time access refused, or previews/CI) it shows dashed empty slots.
     @ViewBuilder
     private var appIconRow: some View {
         let tiles = appTiles
@@ -462,33 +480,69 @@ struct Screen10PlanReveal: View {
                 }
             }
             Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .combine)
-    }
 
-    /// How a tag-able goal gets verified, from the NFC tags answer (screen 9, spec §3: protein, water
-    /// and creatine verify by an NFC tap). `nil` for goals a tag doesn't verify (workout, focus), and
-    /// for water/creatine without tags (their fallback is a widget button, not a verification).
-    private func verificationLine(for type: GoalType) -> String? {
-        switch type {
-        case .protein, .water, .creatine:
-            switch flowState.nfcTagAnswer {
-            case .haveTags: return Copy.onboarding.planVerifiedByNFC
-            case .wantTags: return Copy.onboarding.planVerifiedByNFCWhenTagsArrive
-            case .skip, nil: return type == .protein ? Copy.onboarding.planVerifiedByPhotoOrBarcode : nil
+            if goal.type == .workoutGym {
+                workoutTargetStepper
             }
-        default:
-            return nil
+        }
+        .accessibilityElement(children: goal.type == .workoutGym ? .contain : .combine)
+    }
+
+    // MARK: Quick target (the old Q4, folded into the plan)
+
+    /// -/+ for the weekly workout target, right on the workout row. Under VoiceOver the pair is one
+    /// adjustable element, like a system stepper.
+    private var workoutTargetStepper: some View {
+        let value = flowState.targetWorkoutsPerWeek
+        return HStack(spacing: Theme.Spacing.xs) {
+            targetButton(symbol: "minus", label: Copy.onboarding.q4DecrementButtonLabel, isEnabled: value > Self.workoutTargetRange.lowerBound) {
+                flowState.targetWorkoutsPerWeek = max(Self.workoutTargetRange.lowerBound, value - 1)
+            }
+            targetButton(symbol: "plus", label: Copy.onboarding.q4IncrementButtonLabel, isEnabled: value < Self.workoutTargetRange.upperBound) {
+                flowState.targetWorkoutsPerWeek = min(Self.workoutTargetRange.upperBound, value + 1)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: value)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.onboarding.q4TargetLabel)
+        .accessibilityValue(Text(Copy.onboarding.q4WorkoutsPerWeekValue(value)))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                flowState.targetWorkoutsPerWeek = min(Self.workoutTargetRange.upperBound, value + 1)
+            case .decrement:
+                flowState.targetWorkoutsPerWeek = max(Self.workoutTargetRange.lowerBound, value - 1)
+            @unknown default:
+                break
+            }
         }
     }
 
-    /// SF Symbol for the verification line: NFC waves with tags, a camera for the photo fallback.
-    private var verificationSymbol: String {
-        switch flowState.nfcTagAnswer {
-        case .haveTags, .wantTags: "wave.3.right"
-        case .skip, nil: "camera.fill"
+    private static let workoutTargetRange = 1...7
+
+    private func targetButton(symbol: String, label: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(Theme.Typography.icon(.small, weight: .bold))
+                .foregroundStyle(Theme.Colors.text)
+                .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
+                .background(Theme.Colors.surface2, in: Circle())
+                .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
         }
+        .buttonStyle(.pressable(scale: 0.94))
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.35)
+        .accessibilityLabel(label)
     }
+
+    /// How a goal gets verified on day one. Only protein needs a line: tags are set up after
+    /// onboarding (Today's Finish setup card), so until then it is a meal photo or a barcode.
+    private func verificationLine(for type: GoalType) -> String? {
+        type == .protein ? Copy.onboarding.planVerifiedByPhotoOrBarcode : nil
+    }
+
+    /// SF Symbol for the verification line: a camera for the photo fallback.
+    private let verificationSymbol = "camera.fill"
 
     /// Spec §16 P4's "Starting easy on purpose" tag — the day-one targets really are ~70% of stated.
     /// Neutral: it is a fact about the plan, not something earned.
@@ -611,9 +665,8 @@ struct Screen10PlanReveal: View {
 
     // MARK: - Goal preview rows
 
-    /// One row's worth of the plan preview, derived from `flowState.mainGoal` (Q1) plus, where the
-    /// mapped `GoalType` is count-based, `flowState.currentWorkoutsPerWeek`/`targetWorkoutsPerWeek`
-    /// (Q4). `.allOfIt` shows every mapped goal type; every other case shows its one match. Uses
+    /// One row's worth of the plan preview, derived from `flowState.mainGoal` (Q1) plus, for the
+    /// workout goal, `flowState.targetWorkoutsPerWeek` (the stepper on this card). `.allOfIt` shows every mapped goal type; every other case shows its one match. Uses
     /// only Core's own `GoalType`/`VerificationTier` (never the App-only `MainGoal`) so this same
     /// value can be handed straight to `Goal.init` in `persistPlanIfNeeded()` below.
     private struct PlanGoalPreview: Identifiable {
@@ -659,20 +712,50 @@ struct Screen10PlanReveal: View {
         }
     }
 
+    // MARK: - Commit
+
+    /// The hold completed (or VoiceOver activated the button): record the commitment, save the plan,
+    /// then move on to the paywall after a beat. A failed save never traps the user here.
+    private func commit() async {
+        guard !isCommitted else { return }
+        isCommitted = true
+        flowState.recordCommitment()
+        Analytics.shared.capture(
+            event: "onboarding_committed",
+            properties: [
+                "main_goal": flowState.mainGoal?.rawValue ?? "unspecified",
+                "has_apps": flowState.hasAppSelection,
+                "workout_target": flowState.targetWorkoutsPerWeek,
+            ]
+        )
+        await persistPlanIfNeeded()
+        try? await Task.sleep(for: .milliseconds(reduceMotion ? 150 : 450))
+        flowState.advance()
+        // Coming back to this step (Back from the paywall) can commit again with new answers.
+        isCommitted = false
+    }
+
     // MARK: - Persistence (see file header)
 
     /// Best-effort: turns `planGoals` into real `Goal` rows (skipping any type that already has an
     /// active goal, via `IntentSupport.activeGoal` — the same lookup `Screen14FirstWin.swift` and
     /// every Focus App Intent already use, CLAUDE.md "never duplicate the same logic in two
     /// places") and `flowState.selectedApps` into a real default `LockSet`, so
-    /// `PaywallViewModel.builtPlan` (screen 13) has something to show. Never throws outward, never
+    /// `PaywallViewModel.builtPlan` (the paywall step) has something to show. Never throws outward, never
     /// blocks "Continue" — see file header.
     private func persistPlanIfNeeded() async {
         do {
             let user = try onboardingResolveOrCreateUser(coachVoice: flowState.coachVoice, in: modelContext)
 
             for preview in planGoals {
-                guard try IntentSupport.activeGoal(ofType: preview.type, for: user.id, in: modelContext) == nil else { continue }
+                if let existing = try IntentSupport.activeGoal(ofType: preview.type, for: user.id, in: modelContext) {
+                    // Back from the paywall and re-committed with a new workout target: keep one row,
+                    // with the latest target.
+                    if preview.type == .workoutGym {
+                        existing.targetValue = Double(preview.targetValue)
+                    }
+                    continue
+                }
                 let goal = Goal(
                     type: preview.type,
                     title: Copy.onboarding.planGoalTitle(for: preview.type),
@@ -687,10 +770,7 @@ struct Screen10PlanReveal: View {
             try modelContext.save()
 
             let selection = flowState.selectedApps
-            let hasSelection = !selection.applicationTokens.isEmpty
-                || !selection.categoryTokens.isEmpty
-                || !selection.webDomainTokens.isEmpty
-            if hasSelection, try await LockSetManager.shared.defaultLockSet(for: user.id) == nil {
+            if flowState.hasAppSelection, try await LockSetManager.shared.defaultLockSet(for: user.id) == nil {
                 // `LockSetManager.createLockSet(name:selection:makeDefault:)` resolves the current
                 // device's one local `User` row internally (see that file's own doc comment) — it
                 // takes no `userID:` parameter.

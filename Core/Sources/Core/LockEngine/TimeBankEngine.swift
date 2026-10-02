@@ -75,6 +75,47 @@ public enum SpendToUnlockResult: Sendable, Equatable {
     case noActiveEarnLock
 }
 
+// MARK: - Borrowing ("5 minutes now, from your Time Bank")
+
+/// The gentler way out than quitting: open the apps for a few minutes on *any* running lock (full
+/// or earn), paid from today's Time Bank. The lock itself never changes — same session, same goals,
+/// same 60-second emergency unlock — and the shield comes back on its own when the window ends.
+///
+/// Rules (pure, unit-tested):
+///   - Amounts are 5, 10 or 15 minutes; one borrow is at most `maxMinutes`. Borrowing again while a
+///     window is open extends it.
+///   - Only what's in today's bank can be borrowed (all-or-nothing, like `spend`). A bank with less
+///     than 5 minutes left offers exactly what's left; an empty bank offers nothing.
+///   - Minutes still expire at midnight (the bank is per day), so this never borrows from tomorrow.
+public enum TimeBankBorrow {
+    /// The chips the Lock tab offers.
+    public static let chipMinutes = [5, 10, 15]
+    /// A borrow is a short break, not a buy-out.
+    public static let maxMinutes = 15
+
+    /// The amounts that fit a bank holding `remaining` minutes.
+    public static func choices(remaining: Int) -> [Int] {
+        guard remaining > 0 else { return [] }
+        let fitting = chipMinutes.filter { $0 <= remaining }
+        return fitting.isEmpty ? [remaining] : fitting
+    }
+
+    /// `true` when `minutes` is a borrowable amount at all (independent of the balance).
+    public static func isValidAmount(_ minutes: Int) -> Bool {
+        (1...maxMinutes).contains(minutes)
+    }
+}
+
+/// Outcome of `TimeBankEngine.borrowToUnlock(minutes:)`.
+public enum TimeBankBorrowResult: Sendable, Equatable {
+    /// Minutes debited; apps are open until this time, then the lock comes back.
+    case unlocked(until: Date)
+    /// Not enough minutes in today's bank; nothing was debited.
+    case insufficientMinutes(remaining: Int)
+    /// No lock is running; nothing was debited.
+    case noActiveLock
+}
+
 // MARK: - Errors
 
 /// Errors `TimeBankEngine` throws itself, as opposed to errors bubbled up from SwiftData.
@@ -188,6 +229,56 @@ public final class TimeBankEngine {
         }
         do {
             let until = try LockEngineManager.shared.beginSpendWindow(minutes: minutes, now: now)
+            return .unlocked(until: until)
+        } catch {
+            await refund(minutes: minutes, for: now)
+            throw error
+        }
+    }
+
+    // MARK: - Borrowing on any lock ("5 minutes now, from your Time Bank")
+
+    /// Spends `minutes` (see `TimeBankBorrow` for the rules) from today's bank and opens the apps
+    /// for that long on whatever lock is running, full or earn
+    /// (`LockEngineManager.beginBorrowWindow`). The lock comes back automatically when the window
+    /// ends. Every successful borrow is counted in analytics (`time_bank_borrowed`).
+    ///
+    /// - Throws: `TimeBankEngineError.invalidMinutes` for an amount outside `1...maxMinutes`,
+    ///   `.noSignedInUser`, or whatever opening the window throws (the minutes are refunded then).
+    public func borrowToUnlock(minutes: Int, now: Date = .now) async throws -> TimeBankBorrowResult {
+        let engine = LockEngineManager.shared
+        return try await borrowToUnlock(
+            minutes: minutes,
+            now: now,
+            activeLockMode: { engine.activeSessionMode() },
+            openWindow: { minutes, now in try engine.beginBorrowWindow(minutes: minutes, now: now) }
+        )
+    }
+
+    /// The borrow flow with the lock engine injected, so the rules are testable without touching
+    /// ManagedSettings (a test bundle can't safely, see the CoreTests headers).
+    func borrowToUnlock(
+        minutes: Int,
+        now: Date,
+        activeLockMode: () -> LockMode?,
+        openWindow: (Int, Date) throws -> Date
+    ) async throws -> TimeBankBorrowResult {
+        guard TimeBankBorrow.isValidAmount(minutes) else { throw TimeBankEngineError.invalidMinutes(minutes) }
+        guard let mode = activeLockMode() else { return .noActiveLock }
+        guard try await spend(minutes: minutes, for: now) else {
+            let remaining = await remainingMinutes(for: now)
+            Analytics.shared.capture(
+                event: "time_bank_borrow_declined",
+                properties: ["minutes": minutes, "remaining": remaining, "mode": mode.rawValue]
+            )
+            return .insufficientMinutes(remaining: remaining)
+        }
+        do {
+            let until = try openWindow(minutes, now)
+            Analytics.shared.capture(
+                event: "time_bank_borrowed",
+                properties: ["minutes": minutes, "mode": mode.rawValue]
+            )
             return .unlocked(until: until)
         } catch {
             await refund(minutes: minutes, for: now)

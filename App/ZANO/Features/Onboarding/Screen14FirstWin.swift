@@ -90,7 +90,24 @@
 // arriving nearly charged (where the header left it) and filling to FULL charge as the session
 // verifies, with a ZANO Blue bloom that swells behind it and the accent burst firing as it lands. The
 // streak numeral now sits under the star instead of inside a ring. The intro's backdrop is the
-// scaffold's flow ambient (brightest at step 14) instead of a flat `zanoAmbient(.neutral)`.
+// scaffold's flow ambient (brightest late in the flow) instead of a flat `zanoAmbient(.neutral)`.
+//
+// SHORT FLOW (founder decision 2026-10-02: "first real win within ~3 minutes"). Step 7 of 7.
+//   - Notification priming no longer has its own screen: the intro carries spec §7.12's one line
+//     ("We'll only nudge when it matters") and tapping Start asks for notification permission once
+//     (only while undetermined), then starts the session whatever the answer.
+//   - The running phase is a big countdown under the living star (`ZanoLivingMark`), which charges
+//     from 0.1 to 0.9 as the session runs; the celebration then fills it to full as it verifies.
+//   - Permission states:
+//       Screen Time approved + apps picked: a real shield on the picked apps (`LockEngineManager.
+//         startLock`, gated on the focus goal). When the timer ends, `FocusSessionVerifier.endSession`
+//         records the verified event and `GoalCompletionCoordinator` ends the lock as `.earned` and
+//         records Day 1; this screen's own `endLock`/`recordEarnedUnlock` calls are then no-ops
+//         (already ended / same-day repeat). Exit while running: the 60-second emergency hold.
+//       Screen Time refused / no apps (or the Simulator): no shield; the same 2-minute timer runs and
+//         verifies, and Day 1 is recorded here. The intro says "to earn Day 1" instead of "to unlock".
+//         Exit while running: a plain "Do it later" button (nothing to unlock, so no wait).
+//     Either way "Do it later" on the intro skips the win and goes straight to Today.
 //
 // Every animation is gated on `accessibilityReduceMotion`. The header chrome is hidden on this
 // screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
@@ -98,6 +115,7 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 import Core
 import os
 
@@ -159,7 +177,7 @@ struct Screen14FirstWin: View {
             .onAppear {
                 Analytics.shared.capture(
                     event: "onboarding_screen_viewed",
-                    properties: ["screen": "first_win", "screen_number": 15]
+                    properties: OnboardingStep.firstWin.viewedProperties
                 )
             }
     }
@@ -194,13 +212,29 @@ struct Screen14FirstWin: View {
                 VStack(spacing: Theme.Spacing.sm) {
                     OnboardingKit.Eyebrow(text: Copy.onboarding.firstWinEyebrow)
                     OnboardingKit.DisplayTitle(text: Copy.onboarding.firstWinHeadline)
-                    Text(Copy.onboarding.firstWinSubtitle)
+                    Text(flowState.hasAppSelection ? Copy.onboarding.firstWinSubtitle : Copy.onboarding.firstWinSubtitleNoLock)
                         .font(Theme.Typography.body)
                         .foregroundStyle(Theme.Colors.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
+                .accessibilityElement(children: .combine)
+
+                // The notification priming line (its own screen before the short flow). Start asks.
+                HStack(spacing: Theme.Spacing.xs) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(Theme.Typography.icon(.xsmall))
+                        .accessibilityHidden(true)
+                    Text(Copy.onboarding.firstWinNotificationLine)
+                        .font(Theme.Typography.captionEmphasized)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background(Theme.Colors.surface2, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
                 .accessibilityElement(children: .combine)
             }
             .padding(.horizontal, Theme.Spacing.md)
@@ -229,6 +263,17 @@ struct Screen14FirstWin: View {
 
     // MARK: - Running
 
+    /// The star while the session runs: from a glimmer to nearly full, so the celebration still has
+    /// the last stretch to fill as the session verifies.
+    private var runningStarCharge: Double {
+        Self.runningStarStart + (Self.runningStarEnd - Self.runningStarStart) * progressFraction
+    }
+
+    /// Keep `runningStarEnd` in step with `FirstWinCelebration`'s starting charge.
+    private static let runningStarStart = 0.1
+    private static let runningStarEnd = 0.9
+    private static let runningStarHeight: CGFloat = 150
+
     private var runningView: some View {
         OnboardingKit.CenteredScroll {
             VStack(spacing: Theme.Spacing.lg) {
@@ -237,12 +282,30 @@ struct Screen14FirstWin: View {
                     .foregroundStyle(Theme.Colors.text)
                     .accessibilityAddTraits(.isHeader)
 
-                GoalRing(
-                    progress: progressFraction,
-                    color: Theme.Colors.Ring.focus,
-                    size: .custom(FirstWinIntroRing.diameter),
-                    center: .text(formattedCountdown)
+                // The living star charging while the user stays off their phone: the product line,
+                // played for real. It eases each change itself; the bloom only changes opacity.
+                ZanoLivingMark(
+                    charge: runningStarCharge,
+                    height: Self.runningStarHeight,
+                    accessibilityValue: Copy.onboarding.firstWinStarAccessibilityValue(
+                        percent: Int((progressFraction * 100).rounded())
+                    )
                 )
+                .background {
+                    OnboardingKit.StarBloom(diameter: Self.runningStarHeight * 3)
+                        .opacity(0.25 + 0.75 * progressFraction)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 1), value: progressFraction)
+                }
+                .padding(.vertical, Theme.Spacing.sm)
+
+                // The big countdown.
+                OnboardingKit.HeroNumeral(text: formattedCountdown, color: Theme.Colors.text)
+                    .accessibilityLabel(
+                        Copy.onboarding.firstWinCountdownAccessibilityLabel(
+                            minutes: secondsRemaining / 60,
+                            seconds: secondsRemaining % 60
+                        )
+                    )
 
                 Text(Copy.onboarding.firstWinRunningDetail)
                     .font(Theme.Typography.caption)
@@ -323,6 +386,10 @@ struct Screen14FirstWin: View {
         guard !isStarting else { return }
         isStarting = true
         defer { isStarting = false }
+
+        // The notification ask that used to be its own screen: once, only while undetermined, and
+        // the session starts whatever the answer.
+        await Self.requestNotificationsIfUndetermined()
 
         do {
             let user = try onboardingResolveOrCreateUser(coachVoice: flowState.coachVoice, in: modelContext)
@@ -420,6 +487,22 @@ struct Screen14FirstWin: View {
         } catch {
             Self.logger.notice("First-win real shield skipped: \(String(describing: error), privacy: .public)")
             return nil
+        }
+    }
+
+    /// `nonisolated` so the notification center's completion handlers (called off the main queue)
+    /// carry no main-actor isolation; only `Bool`/`Void` cross back.
+    nonisolated private static func requestNotificationsIfUndetermined() async {
+        let isUndetermined = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus == .notDetermined)
+            }
+        }
+        guard isUndetermined else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+                continuation.resume()
+            }
         }
     }
 
@@ -677,8 +760,9 @@ private struct FirstWinCelebration: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The star arrives where the header left it (step 14 of 15) and fills to full on the win.
-    @State private var starCharge: Double = 14.0 / 15.0
+    /// The star arrives where the running countdown left it and fills to full on the win.
+    /// 0.9 = `Screen14FirstWin.runningStarEnd`.
+    @State private var starCharge: Double = 0.9
     @State private var shownStreak = 0
     @State private var showText = false
     @State private var showBurst = false

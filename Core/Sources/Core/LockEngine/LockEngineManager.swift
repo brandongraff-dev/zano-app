@@ -87,6 +87,8 @@ public enum LockEngineError: Error, Sendable, LocalizedError {
     case noSignedInUser
     /// A Time Bank spend needs an active Earn Mode lock (full-mode locks can't be bought out).
     case noActiveEarnLock
+    /// A Time Bank borrow needs a running lock (any mode).
+    case noActiveLock
     /// A schedule/auto lock was refused because a health pause is on (spec §24).
     case healthPauseActive
     /// `DeviceActivityCenter.startMonitoring` threw for a schedule-triggered lock. The lock and
@@ -112,6 +114,8 @@ public enum LockEngineError: Error, Sendable, LocalizedError {
             "No local User row exists yet."
         case .noActiveEarnLock:
             "No active Earn Mode lock to spend Time Bank minutes on."
+        case .noActiveLock:
+            "No active lock to borrow Time Bank minutes for."
         case .healthPauseActive:
             "A health pause is on, so scheduled locks don't start."
         case .deviceActivitySchedulingFailed(let reason):
@@ -400,11 +404,22 @@ public final class LockEngineManager {
         return session.id
     }
 
+    /// The running lock's id (any mode), else `nil`.
+    public func activeSessionID() -> UUID? {
+        (try? fetchActiveSession())?.id
+    }
+
+    /// The running lock's mode, else `nil` (a lock with no stored mode reads as `.full`).
+    public func activeSessionMode() -> LockMode? {
+        guard let session = try? fetchActiveSession() else { return nil }
+        return session.mode ?? .full
+    }
+
     /// Lifts the shield for `minutes` (Time Bank spending — call through
-    /// `TimeBankEngine.spendToUnlock(minutes:)`, which debits the bank first). Re-shielding is
-    /// done by whichever notices first: the `ZANOMonitor` callback of a DeviceActivity schedule
-    /// registered here, an in-process timer while the app is alive, or `LockScheduler.reconcile`
-    /// on the next foreground. A spend during an open window extends it.
+    /// `TimeBankEngine.spendToUnlock(minutes:)`, which debits the bank first). Earn Mode only.
+    /// Re-shielding is done by whichever notices first: the `ZANOMonitor` callback of a
+    /// DeviceActivity schedule registered here, an in-process timer while the app is alive, or
+    /// `LockScheduler.reconcile` on the next foreground. A spend during an open window extends it.
     ///
     /// Limits: DeviceActivity intervals are at least 15 minutes, so a shorter spend registers a
     /// 15-minute interval whose end *warning* fires at the real end (`warningTime`); callbacks can
@@ -415,11 +430,30 @@ public final class LockEngineManager {
     public func beginSpendWindow(minutes: Int, now: Date = .now) throws -> Date {
         guard minutes > 0 else { throw TimeBankEngineError.invalidMinutes(minutes) }
         guard let sessionID = activeEarnSessionID() else { throw LockEngineError.noActiveEarnLock }
+        return openSpendWindow(sessionID: sessionID, minutes: minutes, now: now)
+    }
 
-        let base = LockEngineSharedState.spendWindow.map { max($0.endsAt, now) } ?? now
-        let endsAt = base.addingTimeInterval(TimeInterval(minutes * 60))
-        let startedAt = LockEngineSharedState.spendWindow?.startedAt ?? now
-        LockEngineSharedState.spendWindow = SpendWindow(sessionID: sessionID, startedAt: startedAt, endsAt: endsAt)
+    /// The same window for a Time Bank *borrow* ("5 minutes now"), which works on any running lock,
+    /// full or earn — call through `TimeBankEngine.borrowToUnlock(minutes:)`, which debits the bank
+    /// first and caps the amount. The lock itself is untouched: same session, same goals, same
+    /// emergency unlock; the shield simply comes back when the window ends (same re-shield paths
+    /// as `beginSpendWindow`).
+    @discardableResult
+    public func beginBorrowWindow(minutes: Int, now: Date = .now) throws -> Date {
+        guard minutes > 0 else { throw TimeBankEngineError.invalidMinutes(minutes) }
+        guard let sessionID = activeSessionID() else { throw LockEngineError.noActiveLock }
+        return openSpendWindow(sessionID: sessionID, minutes: minutes, now: now)
+    }
+
+    private func openSpendWindow(sessionID: UUID, minutes: Int, now: Date) -> Date {
+        let window = SpendWindow.opening(
+            existing: LockEngineSharedState.spendWindow,
+            sessionID: sessionID,
+            minutes: minutes,
+            now: now
+        )
+        let endsAt = window.endsAt
+        LockEngineSharedState.spendWindow = window
         store.clearAllSettings()   // keeps `intendedShieldSelection` for the re-shield
 
         activityCenter.stopMonitoring([LockScheduleActivity.spend])
@@ -454,6 +488,23 @@ public final class LockEngineManager {
         guard let window = LockEngineSharedState.spendWindow, now >= window.endsAt else { return }
         ScheduledLockMonitor.spendWindowDidEnd(now: now)
         activityCenter.stopMonitoring([LockScheduleActivity.spend])
+    }
+
+    /// Puts the running lock's intended shield back (the "Fix it" in `LockHealthCheck`, and after
+    /// Screen Time access comes back). No-op with no running lock or while a Time Bank window is
+    /// open (the window's end re-shields).
+    ///
+    /// - Returns: `true` if a shield was applied.
+    @discardableResult
+    public func reapplyIntendedShield(now: Date = .now) -> Bool {
+        guard (try? fetchActiveSession()) != nil else { return false }
+        if let window = LockEngineSharedState.spendWindow, window.endsAt > now { return false }
+        guard let blob = LockEngineSharedState.intendedShieldSelection,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: blob)
+        else { return false }
+        store.applyZanoShield(selection)
+        logger.notice("Re-applied the intended shield for the running lock.")
+        return true
     }
 
     // MARK: - Reconciliation helpers (called by `LockScheduler.reconcile`)

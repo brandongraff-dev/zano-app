@@ -36,6 +36,12 @@
 // Every animation is gated on Reduce Motion; the ambient light and washes drop under Reduce
 // Transparency. User-facing strings live in `Copy.today` (`Core/Sources/Core/Copy/TodayCopy.swift`);
 // `beginLockStandardTitle` and `lockStatusLine` are matched by the UI tests.
+//
+// Lock trust pass (2026-10-02): under the hero's status pill, one line says what the lock is doing
+// ("Blocking 12 apps · ends when your goals are done", or "Apps open until 3:45 PM · locks again
+// after" during a Time Bank borrow), and a calm `LockHealthCard` (Features/Lock) appears under the
+// hero when `LockHealthCheck` finds Screen Time access off or the shield empty. Both are appended
+// after the existing status text, so the UI tests' "Locked ·" prefix is unchanged.
 
 import Foundation
 import SwiftUI
@@ -161,12 +167,29 @@ struct TodayView: View {
     /// Today vs. "Ghost You" (spec §5.4). `nil` until the first load completes.
     @State private var ghostComparison: GhostMode.GhostComparison?
 
+    /// Lock trust pass: the blocking line's facts, the self-check, and a tick that re-reads both
+    /// on foreground / reappear.
+    @State private var blockingSummary: LockBlockingSummary?
+    @State private var lockHealth: LockHealthStatus = .ok
+    @State private var isFixingLockHealth = false
+    @State private var lockHealthMessage: String?
+    @State private var lockTrustTick = 0
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     header
                     heroCard
+                    if ScreenshotMode.screen == nil && lockHealth.needsAttention {
+                        LockHealthCard(
+                            status: lockHealth,
+                            message: lockHealthMessage,
+                            isFixing: isFixingLockHealth,
+                            onFix: fixLockHealth
+                        )
+                        .transition(.opacity)
+                    }
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist
@@ -270,9 +293,14 @@ struct TodayView: View {
                 guard !Task.isCancelled, pendingUndo?.id == undo.id else { return }
                 withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
             }
+            .task(id: LockTrustKey(sessionID: activeLockSession?.id, completed: completedGoalCount, tick: lockTrustTick)) {
+                await trackLockTrust()
+            }
+            .onAppear { lockTrustTick += 1 }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 refreshScreenTimeStatus()
+                lockTrustTick += 1
                 // Foreground: re-read Health (and check for a finished workout), tags and widgets.
                 healthRefreshTick += 1
                 setupStatusTick += 1
@@ -440,6 +468,14 @@ struct TodayView: View {
 
             ZanoStatusCapsule(dotColor: heroStatusColor, text: heroStatusLine, showsChevron: true)
 
+            if let blockingLine {
+                Text(blockingLine)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if let chip = bankChipText {
                 Text(chip)
                     .font(Theme.Typography.captionEmphasized)
@@ -586,7 +622,8 @@ struct TodayView: View {
             let parts: [String?] = [
                 Copy.today.lockStatusLine(isLocked: true, goalsRemaining: remaining),
                 CoachVoiceTone.goalsRemainingClause(voice, remaining: remaining),
-                bankChipText
+                bankChipText,
+                blockingLine
             ]
             return parts.compactMap { $0 }.joined(separator: ". ")
         case .unlocked(let done, let total):
@@ -594,6 +631,65 @@ struct TodayView: View {
                 Copy.today.lockStatusLine(isLocked: false, goalsRemaining: 0),
                 Copy.today.heroFractionDoneSpoken(done: done, total: total)
             ].joined(separator: ". ")
+        }
+    }
+
+    // MARK: - Lock trust (blocking line + Screen Time self-check)
+
+    private struct LockTrustKey: Hashable {
+        let sessionID: UUID?
+        let completed: Int
+        let tick: Int
+    }
+
+    /// "Blocking 12 apps · ends when your goals are done" while a lock runs (or is releasing).
+    private var blockingLine: String? {
+        guard isLocked, let blockingSummary else { return nil }
+        return Copy.today.blockingLine(blockingSummary)
+    }
+
+    /// Re-reads the blocking facts and the self-check; while a Time Bank window is open, wakes at
+    /// its end so the line flips back to "Blocking ..." without a foreground.
+    private func trackLockTrust() async {
+        while !Task.isCancelled {
+            lockHealth = LockHealthCheck.status(isLockActive: isLocked)
+            if !lockHealth.needsAttention { lockHealthMessage = nil }
+            guard let session = activeLockSession else {
+                blockingSummary = nil
+                return
+            }
+            let summary = LockBlockingSummary.current(
+                sessionID: session.id,
+                lockSetSelectionBlob: activeLockSet?.appTokensBlob,
+                requiredGoalCount: session.requiredGoalIDs.count
+            )
+            blockingSummary = summary
+            guard let end = summary.openUntil else { return }
+            try? await Task.sleep(for: .seconds(max(1, end.timeIntervalSinceNow + 1)))
+        }
+    }
+
+    private func fixLockHealth() {
+        guard !isFixingLockHealth else { return }
+        isFixingLockHealth = true
+        lockHealthMessage = nil
+        Analytics.shared.capture(event: "lock_health_fix_tapped", properties: ["screen": "today", "issue": String(describing: lockHealth)])
+        Task {
+            defer { isFixingLockHealth = false }
+            let result: LockHealthStatus
+            switch lockHealth {
+            case .screenTimeAccessOff:
+                result = await LockHealthCheck.requestScreenTimeAccess(isLockActive: isLocked)
+                refreshScreenTimeStatus()
+            case .shieldMissing:
+                result = LockHealthCheck.repairShield(isLockActive: isLocked)
+            case .ok:
+                result = .ok
+            }
+            lockHealth = result
+            let message = result.needsAttention ? Copy.lockStatus.healthFixFailed : Copy.lockStatus.healthFixed
+            lockHealthMessage = result.needsAttention ? message : nil
+            AccessibilityNotification.Announcement(message).post()
         }
     }
 

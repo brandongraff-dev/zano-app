@@ -400,4 +400,9 @@ extension Copy.today {
 
     // Meal prep row
     public static let actionAddPhoto = "Add photo"
+
+    // Lock trust pass (2026-10-02): the hero's blocking line, same words as the Lock tab.
+    public static func blockingLine(_ summary: LockBlockingSummary) -> String {
+        Copy.lockStatus.blockingLine(summary)
+    }
 }

@@ -23,7 +23,7 @@
 //   CTA block   "✓ No payment due now", one white button, the full terms paragraph, then Terms ·
 //               Privacy · Restore purchases (spec §24).
 //
-// `context`: `.onboarding` (screen 13) or `.lapsed` (the app shell, after a subscription or trial
+// `context`: `.onboarding` (step 6 of 7 since the short flow, right after the plan's hold to commit) or `.lapsed` (the app shell, after a subscription or trial
 // ran out). Lapsed swaps the first headline line for "Welcome back." and sends no onboarding
 // analytics and never advances the onboarding flow.
 //
@@ -40,14 +40,14 @@
 import SwiftUI
 import Core
 
-/// Screen 13 of 15 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
+/// Step 6 of 7 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
 /// `PaywallViewModel` with the annual plan selected (spec §21). The only ways forward are to start
 /// the trial, subscribe, or restore an existing purchase.
 struct PaywallView: View {
     /// Where the paywall is shown. Changes the first headline line and whether onboarding
     /// analytics and `flowState.advance()` run.
     enum Context: Sendable, Equatable {
-        /// Screen 13 of onboarding.
+        /// Step 6 of onboarding (after the commitment, before the first win).
         case onboarding
         /// Shown by the app shell after a subscription or trial lapsed.
         case lapsed
@@ -153,7 +153,7 @@ struct PaywallView: View {
                 if isOnboarding {
                     Analytics.shared.capture(
                         event: "onboarding_screen_viewed",
-                        properties: ["screen": "paywall", "screen_number": 13]
+                        properties: OnboardingStep.paywall.viewedProperties
                     )
                 }
             }

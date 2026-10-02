@@ -1,179 +1,173 @@
 // OnboardingFlowState.swift
 // App / Features / Onboarding
 //
-// Owned by: this session (Onboarding screens 1-8 + this file). Sole owner of this file — sibling
-// session "onboarding-2" (screens 9-14: Wake-up moment, Plan reveal, Commitment, Permission
-// priming, Paywall, First win) calls this type's public/internal API from its own screen files,
-// but never edits this file (CLAUDE.md "stay strictly inside your assigned file list").
+// The shared, transient state of the onboarding flow (docs/spec.md §7).
 //
-// docs/spec.md §7 "Onboarding Flow (screen by screen)": 14 screens total, numbered 1-14 below
-// exactly as spec numbers them, so `currentScreen` doubles as a direct cross-reference into that
-// section for whoever reads either side of this flow.
+// SHORT FLOW (founder decision 2026-10-02: "first real win within ~3 minutes"). The flow was 15
+// screens; it is now 7 steps. Nothing good was thrown away: screens were merged, and the optional
+// setup topics moved to Today's "Finish setup" card (`App/ZANO/Features/Today/FinishSetupCard.swift`).
 //
-//   1  Hook                                  <- Screen1Hook.swift            (this session)
-//   2  Social proof strip                    <- Screen2SocialProof.swift     (this session)
-//   3  Q1 Main goal                          <- Screen3MainGoal.swift        (this session)
-//   4  Q2 Which apps steal your time         <- Screen4AppSelection.swift    (this session)
-//   5  Q3 Daily phone time                   <- Screen5PhoneTime.swift       (this session)
-//   6  Q4 Current vs target workouts/week    <- Screen6Workouts.swift        (this session)
-//   7  Q5 When do you usually fall off       <- Screen7FallOff.swift         (this session)
-//   8  Q6 Coach voice                        <- Screen8CoachVoice.swift      (this session)
-//   9  ZANO tags ("Tap to prove it")         <- Screen9NFCTags.swift (added 2026-09-24)
-//   10 Wake-up moment                        <- Screen9WakeUp.swift
-//   11 Plan reveal                           <- Screen10PlanReveal.swift
-//   12 Commitment (hold to commit)           <- Screen11Commitment.swift
-//   13 Paywall (hard; PaywallView.swift)
-//   14 Permission priming (notifications)    <- Screen12PermissionPriming.swift
-//   15 First win                             <- Screen14FirstWin.swift
-//   (Order per decision 2026-09-23: nothing sits between Commitment and the paywall. Wired in
-//   `OnboardingContainerView.screen(for:)`; numbers are the CI `-ZANOScreen onboarding-N` ids.)
-//   The NFC tag screen (founder request 2026-09-24: tags are "a huge part" of ZANO) made the flow
-//   15 screens, one over spec §7's "10-14" target, and shifted every later screen up by one. The
-//   file names keep their old numbers; the numbers in this table are the real positions.
+//   step  name            file                          was (old screen numbers)
+//   1     hook            Screen1Hook.swift             1 Hook + 2 Social proof (claims now under the headline)
+//   2     main_goal       Screen3MainGoal.swift         3 Q1 Main goal
+//   3     your_why        ScreenYourWhy.swift           5 Q3 Phone time + 7 Q5 Fall-off + 10 Wake-up math
+//   4     app_selection   Screen4AppSelection.swift     4 Q2 Apps (Screen Time permission + picker)
+//   5     plan            Screen10PlanReveal.swift      11 Plan reveal + 6 Q4 workout target + 12 Commitment
+//   6     paywall         PaywallView.swift             13 Paywall (hard; still directly after the commitment)
+//   7     first_win       Screen14FirstWin.swift        14 Notification priming (folded into Start) + 15 First win
 //
-// Scope note: only `currentScreen`, the six Q1-Q6 answer properties, and `committedAt` (screen 11
-// explicitly "Records committed_at" per spec §7.11, and nothing else in the flow can hold that
-// timestamp) are modeled here. Anything screens 9-13 need that's purely local to their own screen
-// (e.g. "did the user tap Allow on the notification prompt") belongs in that screen's own `@State`,
-// not here — CLAUDE.md: "Don't add abstractions... beyond what the current session's scope
-// requires." If a later screen turns out to need a new shared field, that's a follow-up patch to
-// this file, not a reason for onboarding-2 to work around it.
+// Moved to the Today "Finish setup" card: 8 Coach voice (default Hype), 9 ZANO tags, gym setup,
+// Sunrise alarm (wake time stays unset), squads. Q4's "current workouts" answer is gone; the target
+// is a stepper on the plan card (default 3/week).
 //
-// Persistence: this type is transient, in-memory UI state for the ~3-minute onboarding flow only
-// (spec §7: "under 3 minutes"). Nothing here is a SwiftData `@Model` and nothing here writes a
-// `Goal` / `User` / `GoalEvent` / `LockSet` row directly — turning these answers into real `Goal`
-// rows (e.g. a workout goal from Q1/Q4), a `User.coachVoice` (from Q6), and a default `LockSet`
-// (from Q2's `selectedApps`, via `LockSetManager.createLockSet(name:selection:)`) is Plan Reveal's
-// job (screen 10, spec §7.10 "Your Lock-In Plan"), owned by onboarding-2 — this file only collects
-// the raw answers.
+// The order keeps spec §7's two placement rules: nothing sits between the commitment and the hard
+// paywall, and the paywall comes before the first win. Step numbers are the CI
+// `-ZANOScreen onboarding-N` ids (`ScreenshotGallery.swift`) and the "Step N of 7" accessibility label
+// the UI tests wait on.
 //
-// TODO(cross-module, future session): §9.2 Slip Prediction reads "historical miss pattern from
-// onboarding Q5" as a cold-start ML feature, and §13's data model is meant to mirror whatever the
-// client persists. That implies `MainGoal`/`FallOffPattern` below may eventually belong in `Core`
-// so the Sync module and backend can share their raw values instead of Plan Reveal re-deriving
-// equivalent Core-side types from these. Not done here: Core cannot import an App-target file, and
-// moving these enums into Core is out of this session's owned file list — flagged for whichever
-// session builds Sync's outbox payload for onboarding answers (spec §17 row 7).
+// Persistence: this type is transient, in-memory UI state for the onboarding flow only. Nothing here
+// is a SwiftData `@Model`. The plan step turns the answers into real `Goal` rows and the default
+// `LockSet` at the moment the user commits.
 
 import Foundation
 import Observation
 import FamilyControls
 import Core
 
-/// The full 14-screen onboarding flow's shared state machine (spec §7). A single instance is
-/// expected to be created once per onboarding attempt (by whatever root/coordinator view hosts
-/// the flow — outside this session's owned files) and threaded to every screen via `@Bindable`.
+/// The seven onboarding steps, in order. `rawValue` is the 1-based step number.
+enum OnboardingStep: Int, CaseIterable, Sendable {
+    case hook = 1
+    case mainGoal
+    case yourWhy
+    case appSelection
+    case plan
+    case paywall
+    case firstWin
+
+    /// The `screen` property of every onboarding analytics event (identifiers, not copy).
+    var analyticsName: String {
+        switch self {
+        case .hook: "hook"
+        case .mainGoal: "main_goal"
+        case .yourWhy: "your_why"
+        case .appSelection: "app_selection"
+        case .plan: "plan"
+        case .paywall: "paywall"
+        case .firstWin: "first_win"
+        }
+    }
+
+    /// The analytics properties for "this step was viewed": its name, its number and the flow length.
+    var viewedProperties: [String: Any] {
+        ["screen": analyticsName, "screen_number": rawValue, "screen_count": OnboardingStep.allCases.count]
+    }
+}
+
+/// The onboarding flow's shared state machine. Created once per onboarding attempt by
+/// `OnboardingContainerView` and threaded to every step via `@Bindable`.
 @MainActor
 @Observable
 final class OnboardingFlowState {
 
-    /// Spec §7's first screen number (Hook).
-    static let firstScreen = 1
-    /// The last screen number (First win). 15 since the NFC tag screen was added at 9.
-    static let lastScreen = 15
+    static let firstScreen = OnboardingStep.hook.rawValue
+    /// The last step number (First win).
+    static let lastScreen = OnboardingStep.firstWin.rawValue
 
-    /// 1-indexed, matching spec §7's own screen numbering exactly (see file header table).
+    /// 1-indexed step number (see the file header table).
     var currentScreen: Int = 1
 
-    // MARK: - Q1-Q6 answers (spec §7.3-§7.8)
+    /// `currentScreen` as a step, clamped into range.
+    var currentStep: OnboardingStep {
+        OnboardingStep(rawValue: min(max(currentScreen, Self.firstScreen), Self.lastScreen)) ?? .hook
+    }
 
-    /// Q1 (screen 3): "Get consistent at the gym / Hit my protein / Stop doomscrolling / Lock in
-    /// on work-school / All of it" (spec §7.3). `nil` until the user picks one.
+    // MARK: - Answers
+
+    /// Step 2: "Get consistent at the gym / Hit my protein / Stop doomscrolling / Lock in on
+    /// work-school / All of it". `nil` until the user picks one.
     var mainGoal: MainGoal?
 
-    /// Q2 (screen 4): the FamilyControls selection from the onboarding-embedded
-    /// `FamilyActivityPicker` (spec §7.4). Device-local only, same rule as
-    /// `LockSet.appTokensBlob` (`Core/Sources/Core/Models/LockSet.swift`) — never synced, never
-    /// logged. Plan Reveal (screen 10) is expected to hand this straight to
-    /// `LockSetManager.createLockSet(name:selection:)` to become the user's default lock set.
+    /// Step 4: the FamilyControls selection. Device-local only, same rule as
+    /// `LockSet.appTokensBlob` — never synced, never logged. Empty when Screen Time access was
+    /// refused and the user continued without locking (the first win then runs as a plain timer).
     var selectedApps = FamilyActivitySelection()
 
-    /// Q3 (screen 5): daily phone time in hours, slider range 1...10 (spec §7.5).
+    /// Step 3: daily phone time in hours, slider range 1...10.
     var dailyPhoneTimeHours: Double = 5
 
-    /// Q4 (screen 6), first stepper: current workouts/week (spec §7.6).
-    var currentWorkoutsPerWeek: Int = 0
-
-    /// Q4 (screen 6), second stepper: target workouts/week (spec §7.6). Additive-goals-only
-    /// (spec §3, §24) — always >= 1; there is no "0" target because a workout goal that asks for
-    /// zero workouts isn't a goal.
+    /// Step 5 (plan card stepper): target workouts/week. Always >= 1: an additive-goals-only product
+    /// has no "0 workouts" goal. Only shown when the plan contains a workout goal.
     var targetWorkoutsPerWeek: Int = 3
 
-    /// Q5 (screen 7): "Weekends / Evenings / When stressed / After a few good days / Travel"
-    /// (spec §7.7). Feeds §9.2 Slip Prediction's cold start. `nil` until the user picks one.
+    /// Step 3 (optional chip): when the routine usually slips. Feeds slip prediction's cold start.
+    /// `nil` when the user didn't pick one.
     var fallOffPattern: FallOffPattern?
 
-    /// Q6 (screen 8): coach voice (spec §5.13, §7.8). Defaults to `.hype`, matching
-    /// `SharedDefaults.coachVoice`'s and `User.coachVoice`'s own documented defaults.
+    /// No longer asked in onboarding (moved to the Finish setup card). Stays the documented default,
+    /// matching `SharedDefaults.coachVoice` and `User.coachVoice`.
     var coachVoice: CoachVoice = .hype
 
-    // MARK: - Screen 9: ZANO tags (spec §6, §25.1)
+    /// The user refused Screen Time access on step 4 and chose to continue without locking.
+    var continuedWithoutScreenTime = false
 
-    /// "Do you have ZANO tags?" (screen 9): have tags / get tags / skip. `nil` until answered.
-    /// Plan Reveal reads it to say how a protein goal is verified. Transient like every answer here;
-    /// screen 9 also sends it as an analytics event, the only record of tag interest today.
-    var nfcTagAnswer: NFCTagAnswer?
-
-    // MARK: - Screen 12: Commitment (spec §7.11)
-
-    /// "Records `committed_at`" (spec §7.11) — the moment the user completed the 2-second
-    /// hold-to-commit gesture. `nil` until screen 11 (onboarding-2) sets it via
-    /// `recordCommitment()`. Nothing before screen 11 should set this.
+    /// Set when the user completes the hold-to-commit on the plan step.
     private(set) var committedAt: Date?
 
     init() {}
 
     // MARK: - Navigation
 
-    /// Moves to the next screen, clamped at `lastScreen`. Screens are responsible for their own
-    /// per-screen validation (e.g. disabling their Continue button while `mainGoal == nil`)
-    /// before calling this — this method intentionally does not re-validate, so it stays a plain,
-    /// unconditional "go forward one" that works the same for every screen, including the ones
-    /// this file doesn't otherwise know about (screens 9-14).
+    /// Moves to the next step, clamped at `lastScreen`. Steps validate themselves before calling.
     func advance() {
         guard currentScreen < Self.lastScreen else { return }
         currentScreen += 1
     }
 
-    /// Moves to the previous screen, clamped at `firstScreen`.
+    /// Moves to the previous step, clamped at `firstScreen`.
     func goBack() {
         guard currentScreen > Self.firstScreen else { return }
         currentScreen -= 1
     }
 
-    /// `currentScreen` as a 0...1 fraction of the full flow, for any shared progress chrome
-    /// (e.g. a progress bar in the container that hosts every screen).
+    /// `currentScreen` as a 0...1 fraction of the flow (progress bar, header star charge).
     var progressFraction: Double {
         Double(currentScreen) / Double(Self.lastScreen)
     }
 
-    /// Records the commitment timestamp (spec §7.11). Calling it again overwrites with the
-    /// latest hold, which only matters if a screen ever re-presents itself after the fact (e.g.
-    /// the user backs up and re-commits) — the most recent real hold always wins, never a stale
-    /// one.
+    /// Records the commitment timestamp. The most recent real hold wins.
     func recordCommitment(at date: Date = .now) {
         committedAt = date
     }
 
-    // MARK: - Derived (screen 9: Wake-up moment, spec §7.9)
+    // MARK: - Derived
 
-    /// Spec §7.9's own worked example: "At 5h/day, that's ~76 days a year on your phone." —
-    /// `dailyPhoneTimeHours * 365 / 24`, exposed here so onboarding-2 doesn't have to re-derive
-    /// the same arithmetic from a raw stored hour value.
+    /// Whether step 4 produced anything to lock.
+    var hasAppSelection: Bool {
+        !selectedApps.applicationTokens.isEmpty
+            || !selectedApps.categoryTokens.isEmpty
+            || !selectedApps.webDomainTokens.isEmpty
+    }
+
+    /// "At 5h/day, that's ~76 days a year on your phone": `dailyPhoneTimeHours * 365 / 24`.
     var estimatedDaysPerYearOnPhone: Double {
         dailyPhoneTimeHours * 365 / 24
     }
+
+    /// The reclaim half of the math: earning back up to 2 hours a day, in days a year.
+    var reclaimHours: Double {
+        min(dailyPhoneTimeHours, 2)
+    }
+
+    var reclaimDaysPerYear: Int {
+        Int((reclaimHours * 365 / 24).rounded())
+    }
 }
 
-// MARK: - MainGoal (Q1, spec §7.3)
+// MARK: - MainGoal (step 2)
 
-/// Copy note: this file (App target) cannot route these option labels through
-/// `Core/Sources/Core/Copy` the way every other user-facing string in this session's screens does
-/// — `Copy` lives in the `Core` package, which `App` depends on, not the reverse, so Core cannot
-/// reference an App-only type like this enum. `displayLabel` below is a deliberate, narrow
-/// exception to CLAUDE.md's "no hardcoded strings outside Copy" rule, scoped to exactly these two
-/// onboarding-only enums (see `FallOffPattern` below), and reproduces spec §7.3's option list
-/// verbatim.
+/// Copy note: this App-target enum's labels can't live in Core's `Copy` (Core cannot see App types),
+/// so `displayLabel` is a narrow, documented exception to the "copy lives in Copy" rule. The labels
+/// are spec §7.3's option list verbatim.
 enum MainGoal: String, CaseIterable, Sendable, Hashable {
     case gymConsistency
     case protein
@@ -181,7 +175,6 @@ enum MainGoal: String, CaseIterable, Sendable, Hashable {
     case lockInWorkSchool
     case allOfIt
 
-    /// Verbatim option labels from spec §7.3.
     var displayLabel: String {
         switch self {
         case .gymConsistency: "Get consistent at the gym"
@@ -193,10 +186,9 @@ enum MainGoal: String, CaseIterable, Sendable, Hashable {
     }
 }
 
-// MARK: - FallOffPattern (Q5, spec §7.7)
+// MARK: - FallOffPattern (step 3)
 
-/// See `MainGoal`'s doc comment above for why `displayLabel` is inline here rather than routed
-/// through `Core/Sources/Core/Copy`.
+/// See `MainGoal` for why `displayLabel` is inline here. Spec §7.7's option list verbatim.
 enum FallOffPattern: String, CaseIterable, Sendable, Hashable {
     case weekends
     case evenings
@@ -204,7 +196,6 @@ enum FallOffPattern: String, CaseIterable, Sendable, Hashable {
     case afterGoodDays
     case travel
 
-    /// Verbatim option labels from spec §7.7.
     var displayLabel: String {
         switch self {
         case .weekends: "Weekends"

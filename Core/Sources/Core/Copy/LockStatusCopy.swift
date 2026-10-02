@@ -154,3 +154,63 @@ extension Copy.lockStatus {
     public static let spendExtendHint = "Spending more adds to the time."
     public static let spendNoEarnLock = "No Earn Mode lock is running."
 }
+
+// MARK: - Lock trust pass (2026-10-02): blocking line, Screen Time self-check, Time Bank borrow
+
+extension Copy.lockStatus {
+    /// What's blocked, counts only: `"12 apps"`, `"2 categories + 5 apps"`, `"1 website"`. Token
+    /// contents are never shown. `nil` counts (couldn't read the selection) or all zero read as
+    /// "your apps".
+    public static func blockingWhat(apps: Int?, categories: Int?, websites: Int?) -> String {
+        var parts: [String] = []
+        if let categories, categories > 0 { parts.append(categories == 1 ? "1 category" : "\(categories) categories") }
+        if let apps, apps > 0 { parts.append(apps == 1 ? "1 app" : "\(apps) apps") }
+        if let websites, websites > 0 { parts.append(websites == 1 ? "1 website" : "\(websites) websites") }
+        return parts.isEmpty ? "your apps" : parts.joined(separator: " + ")
+    }
+
+    /// The one honest line under the hero while a lock runs:
+    /// `"Blocking 12 apps · ends when your goals are done"`, `"Blocking 5 apps · ends at 9:00 PM"`,
+    /// or during a Time Bank window `"Apps open until 3:45 PM · locks again after"`.
+    public static func blockingLine(_ summary: LockBlockingSummary) -> String {
+        if let open = summary.openUntil {
+            return "Apps open until \(open.formatted(date: .omitted, time: .shortened)) · locks again after"
+        }
+        let what = blockingWhat(apps: summary.appCount, categories: summary.categoryCount, websites: summary.webDomainCount)
+        let ending: String
+        switch summary.ending {
+        case .whenGoalsDone: ending = "ends when your goals are done"
+        case .at(let date): ending = "ends at \(date.formatted(date: .omitted, time: .shortened))"
+        case .whenEnded: ending = "on until you end it"
+        }
+        return "Blocking \(what) · \(ending)"
+    }
+
+    // Screen Time self-check (`LockHealthCheck`)
+    public static let healthAccessOffTitle = "Screen Time access is off — ZANO can't block apps"
+    public static let healthAccessOffDetail = "Your lock is still on in ZANO, but iOS isn't letting it block anything. Turn access back on to fix it."
+    public static let healthShieldMissingTitle = "Your lock isn't blocking right now"
+    public static let healthShieldMissingDetail = "The lock is running but no apps are shielded. Fix it to put the block back."
+    public static let healthFixButton = "Fix it"
+    public static let healthFixFailed = "Still off. Open Settings, then Screen Time, and allow ZANO."
+    public static let healthFixed = "Fixed. ZANO is blocking again."
+
+    // Time Bank borrow ("5 minutes now, from your Time Bank") — any lock mode
+    public static let borrowSectionTitle = "Need a few minutes?"
+    public static let borrowSectionDetail = "Borrow from your Time Bank. Your lock comes back on its own."
+    /// The main action: `"Borrow 5 min from your Time Bank"`.
+    public static func borrowButtonLabel(minutes: Int) -> String { "Borrow \(minutes) min from your Time Bank" }
+    /// A chip: `"10 min"`.
+    public static func borrowChip(minutes: Int) -> String { "\(minutes) min" }
+    public static func borrowChipSpoken(minutes: Int) -> String { "Borrow \(minutes) minutes" }
+    /// `"45 min in your bank"`.
+    public static func borrowBalance(minutes: Int) -> String { "\(minutes) min in your bank" }
+    /// Empty bank during an Earn Mode lock (goals add minutes there).
+    public static let borrowEmptyEarn = "Your Time Bank is empty — finish a goal to earn minutes"
+    /// Empty bank during a full lock: goals end the lock rather than adding minutes, so say that.
+    public static let borrowEmptyFull = "Your Time Bank is empty — finishing your goals ends this lock"
+    public static func borrowNotEnough(remaining: Int) -> String { "Only \(remaining) min in your bank." }
+    public static let borrowNoLock = "No lock is running."
+    public static let borrowFailed = "Couldn't open your apps. Try again."
+    public static let borrowExtendHint = "Borrowing more adds to the time. Your lock comes back after."
+}

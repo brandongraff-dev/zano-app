@@ -59,6 +59,18 @@
 // `TimeBankEngine.spendToUnlock`), which shows "Apps open until 3:45 PM" with a live countdown while
 // a spend window runs. The emergency unlock bar below is unchanged and stays visible throughout.
 // The idle start uses `LockPreferences.defaultMode`.
+//
+// Lock trust pass (2026-10-02):
+// - Under the hero, one honest line says what the lock is doing: "Blocking 12 apps · ends when your
+//   goals are done" (or "· ends at 9:00 PM" for a timed schedule), and during a Time Bank window
+//   "Apps open until 3:45 PM · locks again after". Counts only (`LockBlockingSummary`, Core).
+// - A calm "Fix it" card (`LockHealthCard`, below) when `LockHealthCheck` finds Screen Time access
+//   off while a lock runs or is scheduled, or the shield empty while a lock should be blocking.
+//   Checked on appear, on every foreground and when the lock changes. Hidden in screenshot mode.
+// - A full lock gets "Need a few minutes?": borrow 5/10/15 min from the Time Bank
+//   (`TimeBankEngine.borrowToUnlock`); the lock comes back on its own when the window ends. An
+//   Earn Mode lock keeps its existing "Spend minutes" card, which already does this. The emergency
+//   unlock bar is unchanged and stays visible in every state.
 
 import Foundation
 import SwiftUI
@@ -89,6 +101,7 @@ struct LockStatusView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.scenePhase) private var scenePhase
 
     // MARK: - Local state
 
@@ -104,6 +117,16 @@ struct LockStatusView: View {
     /// End of the running spend window for this lock, from `LockEngineSharedState.spendWindow`.
     @State private var spendWindowEndsAt: Date?
 
+    /// Time Bank borrow on a full lock (trust pass).
+    @State private var borrowMinutes = TimeBankBorrow.chipMinutes[0]
+    @State private var isBorrowing = false
+    @State private var borrowMessage: String?
+
+    /// Screen Time self-check (trust pass).
+    @State private var lockHealth: LockHealthStatus = .ok
+    @State private var isFixingHealth = false
+    @State private var healthMessage: String?
+
     /// `TimeBankBar`'s own suggested "low" line ("e.g. `remainingMinutes <= 5`").
     private static let lowBankThreshold = 5
 
@@ -115,12 +138,30 @@ struct LockStatusView: View {
                 }
                 heroCard
 
+                if let line = blockingLine {
+                    blockingLineRow(line)
+                }
+
+                if showsHealthCard {
+                    LockHealthCard(
+                        status: lockHealth,
+                        message: healthMessage,
+                        isFixing: isFixingHealth,
+                        onFix: fixLockHealth
+                    )
+                    .transition(.opacity)
+                }
+
                 if activeSession?.mode == .earn {
                     spendSection
                 }
 
                 if !requiredGoals.isEmpty {
                     goalsSection
+                }
+
+                if let session = activeSession, session.mode != .earn {
+                    borrowSection
                 }
 
                 contextSection
@@ -153,6 +194,12 @@ struct LockStatusView: View {
         }
         .task(id: activeSession?.id) {
             refreshSpendWindow()
+            refreshLockHealth()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            refreshSpendWindow()
+            refreshLockHealth()
         }
         .task(id: spendWindowEndsAt) {
             // Re-read once the window should have closed: it may have been extended, or ended.
@@ -788,7 +835,7 @@ struct LockStatusView: View {
                         .foregroundStyle(Theme.Colors.muted)
                 }
             } else {
-                Text(remaining > 0 ? Copy.lockStatus.spendSectionDetail : Copy.lockStatus.spendNotEnough(remaining: 0))
+                Text(remaining > 0 ? Copy.lockStatus.spendSectionDetail : Copy.lockStatus.borrowEmptyEarn)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -883,6 +930,203 @@ struct LockStatusView: View {
         spendWindowEndsAt = window.endsAt
     }
 
+    // MARK: - Blocking line (trust pass)
+
+    /// "Blocking 12 apps · ends when your goals are done" / "Apps open until 3:45 PM · locks again
+    /// after". `nil` while nothing runs. The window end comes from view state so the line flips back
+    /// the moment the window closes.
+    private var blockingLine: String? {
+        guard let session = activeSession else { return nil }
+        var summary = LockBlockingSummary.current(
+            sessionID: session.id,
+            lockSetSelectionBlob: shownLockSet?.appTokensBlob,
+            requiredGoalCount: session.requiredGoalIDs.count
+        )
+        summary.openUntil = activeSpendWindowEnd
+        return Copy.lockStatus.blockingLine(summary)
+    }
+
+    private func blockingLineRow(_ line: String) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: activeSpendWindowEnd == nil ? "lock.shield.fill" : "lock.open.fill")
+                .font(Theme.Typography.icon(.xsmall))
+                .foregroundStyle(activeSpendWindowEnd == nil ? Theme.Colors.textSecondary : Theme.Colors.accent)
+                .accessibilityHidden(true)
+            Text(line)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.Spacing.xxs)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Screen Time self-check (trust pass)
+
+    private var showsHealthCard: Bool {
+        ScreenshotMode.screen == nil && lockHealth.needsAttention
+    }
+
+    private func refreshLockHealth() {
+        lockHealth = LockHealthCheck.status(isLockActive: activeSession != nil)
+        if !lockHealth.needsAttention { healthMessage = nil }
+    }
+
+    private func fixLockHealth() {
+        guard !isFixingHealth else { return }
+        isFixingHealth = true
+        healthMessage = nil
+        Analytics.shared.capture(event: "lock_health_fix_tapped", properties: ["screen": "lock", "issue": String(describing: lockHealth)])
+        Task {
+            defer { isFixingHealth = false }
+            let isActive = activeSession != nil
+            let result: LockHealthStatus
+            switch lockHealth {
+            case .screenTimeAccessOff:
+                result = await LockHealthCheck.requestScreenTimeAccess(isLockActive: isActive)
+            case .shieldMissing:
+                result = LockHealthCheck.repairShield(isLockActive: isActive)
+            case .ok:
+                result = .ok
+            }
+            lockHealth = result
+            let message = result.needsAttention ? Copy.lockStatus.healthFixFailed : Copy.lockStatus.healthFixed
+            healthMessage = result.needsAttention ? message : nil
+            AccessibilityNotification.Announcement(message).post()
+        }
+    }
+
+    // MARK: - Borrow from the Time Bank (full locks; Earn Mode uses the spend card above)
+
+    private var borrowSection: some View {
+        let remaining = displayedRemainingMinutes
+        let choices = TimeBankBorrow.choices(remaining: remaining)
+        let selected = choices.contains(borrowMinutes) ? borrowMinutes : (choices.first ?? 0)
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.lockStatus.borrowSectionTitle)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .accessibilityAddTraits(.isHeader)
+
+            if let end = activeSpendWindowEnd {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: "lock.open.fill")
+                        .font(Theme.Typography.icon(.small))
+                        .foregroundStyle(Theme.Colors.accent)
+                        .accessibilityHidden(true)
+                    Text(Copy.lockStatus.spendUnlockedUntil(end.formatted(date: .omitted, time: .shortened)))
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.xs)
+                    Text(timerInterval: min(Date.now, end)...end, countsDown: true)
+                        .font(Theme.Typography.numeralSmall())
+                        .foregroundStyle(Theme.Colors.accent)
+                        .monospacedDigit()
+                }
+                .accessibilityElement(children: .combine)
+                if !choices.isEmpty {
+                    Text(Copy.lockStatus.borrowExtendHint)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else if choices.isEmpty {
+                Text(Copy.lockStatus.borrowEmptyFull)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(Copy.lockStatus.borrowSectionDetail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(Copy.lockStatus.borrowBalance(minutes: remaining))
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+
+            if !choices.isEmpty {
+                if choices.count > 1 {
+                    HStack(spacing: Theme.Spacing.xs) {
+                        ForEach(choices, id: \.self) { minutes in
+                            borrowChip(minutes: minutes, isSelected: minutes == selected)
+                        }
+                    }
+                }
+                PrimaryButton(
+                    title: Copy.lockStatus.borrowButtonLabel(minutes: selected),
+                    systemImage: "hourglass",
+                    style: .secondary,
+                    isEnabled: !isBorrowing
+                ) {
+                    borrow(minutes: selected)
+                }
+            }
+
+            if let borrowMessage {
+                Text(borrowMessage)
+                    .font(Theme.Typography.caption)
+                    // `warning`: red is reserved for the emergency control.
+                    .foregroundStyle(Theme.Colors.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .zanoCard()
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: spendWindowEndsAt)
+    }
+
+    private func borrowChip(minutes: Int, isSelected: Bool) -> some View {
+        Button {
+            borrowMinutes = minutes
+        } label: {
+            Text(Copy.lockStatus.borrowChip(minutes: minutes))
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
+                .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface2, in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(isSelected ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+                }
+        }
+        .buttonStyle(.pressable(scale: 0.96))
+        .accessibilityLabel(Copy.lockStatus.borrowChipSpoken(minutes: minutes))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func borrow(minutes: Int) {
+        guard minutes > 0, !isBorrowing else { return }
+        borrowMessage = nil
+        isBorrowing = true
+        Analytics.shared.capture(event: "lock_borrow_tapped", properties: ["minutes": minutes])
+        Task {
+            defer { isBorrowing = false }
+            do {
+                switch try await TimeBankEngine.shared.borrowToUnlock(minutes: minutes) {
+                case .unlocked(let until):
+                    spendWindowEndsAt = until
+                    AccessibilityNotification.Announcement(
+                        Copy.lockStatus.spendUnlockedUntil(until.formatted(date: .omitted, time: .shortened))
+                    ).post()
+                case .insufficientMinutes(let remaining):
+                    borrowMessage = remaining == 0
+                        ? Copy.lockStatus.borrowEmptyFull
+                        : Copy.lockStatus.borrowNotEnough(remaining: remaining)
+                case .noActiveLock:
+                    borrowMessage = Copy.lockStatus.borrowNoLock
+                }
+            } catch {
+                borrowMessage = Copy.lockStatus.borrowFailed
+            }
+            timeBankRemainingMinutes = await TimeBankEngine.shared.remainingMinutes(for: .now)
+        }
+    }
+
     // MARK: - Emergency unlock (CLAUDE.md: every lock keeps a way out — no exceptions)
 
     /// Pinned, so "always available" is also "always visible". Also carries `actionError`.
@@ -959,5 +1203,61 @@ struct LockStatusView: View {
                 User.self, Goal.self, DailyPlan.self, GoalEvent.self,
                 LockSet.self, LockSession.self, TimeBank.self
             ], inMemory: true)
+    }
+}
+
+// MARK: - LockHealthCard (shared with Today)
+
+/// The calm "Fix it" card for `LockHealthCheck`: a warning-tinted (never red) note that ZANO can't
+/// block right now, with one button. Used by the Lock tab and Today's hero. Never touches the
+/// emergency unlock.
+struct LockHealthCard: View {
+    let status: LockHealthStatus
+    let message: String?
+    let isFixing: Bool
+    let onFix: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(Theme.Colors.warning)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(title)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(detail)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            PrimaryButton(
+                title: Copy.lockStatus.healthFixButton,
+                systemImage: "wrench.and.screwdriver.fill",
+                style: .secondary,
+                isEnabled: !isFixing,
+                action: onFix
+            )
+            if let message {
+                Text(message)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .zanoCard()
+    }
+
+    private var title: String {
+        status == .shieldMissing ? Copy.lockStatus.healthShieldMissingTitle : Copy.lockStatus.healthAccessOffTitle
+    }
+
+    private var detail: String {
+        status == .shieldMissing ? Copy.lockStatus.healthShieldMissingDetail : Copy.lockStatus.healthAccessOffDetail
     }
 }

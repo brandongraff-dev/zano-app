@@ -80,6 +80,7 @@ struct ContentView: View {
         .onChange(of: LockEngineManager.shared.lastUnlockedSessionID) { _, sessionID in
             guard let sessionID else { return }
             router.handleUnlock(sessionID: sessionID)
+            MilestonePresenter.shared.handleUnlock(sessionID: sessionID)
         }
         // Tag-tap confirmations ("+25 g protein logged") over every screen (Wave 1B).
         .zanoTagTapToast()
@@ -125,6 +126,7 @@ struct ContentView: View {
         await entitlement.refresh()
         await router.beginAlarmIfDue()
         await router.reconcileAlarmIfNeeded()
+        MilestonePresenter.shared.checkForNewMilestones()
 
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(5))
@@ -217,6 +219,9 @@ private struct MainTabView: View {
             )
             .preferredColorScheme(.dark)
         }
+        // Milestone share moments (streaks, hours locked in, earned unlocks, monthly story): at most
+        // one per session, never over the unlock celebration or the alarm.
+        .zanoMilestoneMoments()
         // A tapped tag with no mapping yet: map it right here, over whatever tab is showing
         // (Wave 1B). Held back while the alarm rings, like the celebration above.
         .sheet(item: Binding(

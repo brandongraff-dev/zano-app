@@ -130,7 +130,7 @@ extension Copy {
         public static let spendingLabel = "Spending minutes"
         public static let spendingBody = "During an Earn lock, spend minutes from the Lock tab to open your locked apps for that long. They lock again when the time's up."
         public static let expiryBody = "Unused minutes expire at midnight. No saving up."
-        public static let fullLockNote = "Full locks can't be bought out with minutes. Emergency unlock always works on both."
+        public static let fullLockNote = "Full locks only open for a few borrowed minutes at a time. Emergency unlock always works on both."
         public static let todayBankLabel = "In your bank today"
         public static func todayBankValue(minutes: Int) -> String { "\(minutes) min" }
 

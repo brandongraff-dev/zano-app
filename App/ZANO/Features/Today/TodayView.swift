@@ -344,7 +344,7 @@ struct TodayView: View {
             guard isTabSelected else { return }
             showUnlockCelebration = true
         }
-        .fullScreenCover(isPresented: $showUnlockCelebration) {
+        .fullScreenCover(isPresented: $showUnlockCelebration, onDismiss: { MilestonePresenter.shared.celebrationDidFinish() }) {
             UnlockCelebrationView(
                 goalName: unlockCelebrationGoalName,
                 timeBankRemainingMinutes: todaysTimeBank?.remainingMin ?? 0,

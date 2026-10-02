@@ -348,6 +348,7 @@ public final class LockEngineManager {
             !isGoalVerified(goalID: $0, coveringDayOf: session.startedAt)
         }
         SharedDefaults.goalsRemainingForActiveLock = remaining.count
+        WidgetRefresh.reloadAll()
         if !remaining.isEmpty {
             applyPartialTiers(for: session, remainingGoalIDs: Set(remaining))
         }
@@ -520,6 +521,7 @@ public final class LockEngineManager {
         SharedDefaults.activeLockMode = nil
         SharedDefaults.goalsRemainingForActiveLock = 0
         LockEngineSharedState.spendWindow = nil
+        WidgetRefresh.reloadAll()
     }
 
     /// Starts (or re-adopts, e.g. after the 8-hour Live Activity limit) the Earn Meter for an
@@ -679,6 +681,7 @@ public final class LockEngineManager {
         SharedDefaults.activeLockSetID = session.lockSetID
         SharedDefaults.activeLockMode = session.mode
         SharedDefaults.goalsRemainingForActiveLock = session.requiredGoalIDs.count
+        WidgetRefresh.reloadAll()
     }
 
     private func clearActiveLockMirror(endedSessionID: UUID) {
@@ -687,5 +690,6 @@ public final class LockEngineManager {
         SharedDefaults.activeLockSetID = nil
         SharedDefaults.activeLockMode = nil
         SharedDefaults.goalsRemainingForActiveLock = 0
+        WidgetRefresh.reloadAll()
     }
 }

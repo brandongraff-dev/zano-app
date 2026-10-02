@@ -401,7 +401,7 @@ Screen Time / Live Activity.
 - **Lock trust:** blocking status line on Today and Lock, Screen Time self-check card with Fix it,
   borrow 5/10/15 min from the Time Bank on any lock (window re-locks automatically; emergency
   unlock unchanged).
-- **CI fixes:** LockStatusView body split (type-checker time limit); MilestoneTests now relates rows
+- **CI:** run 36955361425 green (build, all Core tests, UI-test compile, crash-free screenshot tour). Fixes: LockStatusView body split (type-checker time limit); MilestoneTests now relates rows
   to a user fetched in the same context.
 
 **Open decision:** full-mode locks don't pay Time Bank minutes, so borrowing during a full lock

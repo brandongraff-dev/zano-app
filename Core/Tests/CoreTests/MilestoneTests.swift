@@ -212,8 +212,12 @@ struct MilestoneTests {
     // MARK: Early bird (store)
 
     @Test func earlyBirdNeedsAGymCompletionBeforeSeven() throws {
-        let (engine, container, user) = try makeSubject()
+        let (engine, container, subjectUser) = try makeSubject()
         let context = ModelContext(container)
+        // The user row must belong to this context: relating rows to an object from another
+        // context isn't reliable in SwiftData.
+        let userID = subjectUser.id
+        let user = try #require(try context.fetch(FetchDescriptor<User>(predicate: #Predicate<User> { $0.id == userID })).first)
         let gym = Goal(type: .workoutGym, title: "Gym session", verificationTier: .a, user: user)
         let water = Goal(type: .water, title: "Water", verificationTier: .b, user: user)
         context.insert(gym)

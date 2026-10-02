@@ -382,3 +382,28 @@ per wave.
 **Still device-only / unverified:** whether `CLLocationManager().location` is populated for travel
 detection; shield-extension app names; notification delivery timing; everything NFC / geofence /
 Screen Time / Live Activity.
+
+### 2026-10-02 — "Make people want to use it" pass (founder-approved)
+
+- **Onboarding 15 → 7 steps:** hook (with how-it-works), main goal, your why (phone time,
+  days-a-year math, optional slip chips), pick apps, plan (workout target stepper, hold to commit;
+  the plan is saved on commit), paywall, first win (a real 2-minute focus lock under the charging
+  star; falls back to a plain timer without Screen Time access; "Do it later" always). Removed
+  setup moved to Today's Finish setup card (coach voice, Sunrise alarm, squad + existing tags, gym,
+  Health, widget). Spec §7/§17 updated to 7 steps.
+- **Widgets:** Lock Screen (circular/rectangular/inline goals-left + lock state), StandBy-tuned
+  home widgets with Start lock restored, start-only Control Center lock control (it can no longer
+  end a lock), one `StartLockIntent` everywhere, now a `LiveActivityIntent` so it runs in the app's
+  process (which holds the Family Controls entitlement). `WidgetRefresh.reloadAll()` after goal
+  events, streak changes and lock mirror writes.
+- **Milestones:** streak 7–365, hours locked in 10–500, earned unlocks 1/10/50/100, early bird,
+  monthly story; once each, highest rung only, never over the celebration; 9:16 share cards.
+- **Lock trust:** blocking status line on Today and Lock, Screen Time self-check card with Fix it,
+  borrow 5/10/15 min from the Time Bank on any lock (window re-locks automatically; emergency
+  unlock unchanged).
+- **CI fixes:** LockStatusView body split (type-checker time limit); MilestoneTests now relates rows
+  to a user fetched in the same context.
+
+**Open decision:** full-mode locks don't pay Time Bank minutes, so borrowing during a full lock
+usually finds an empty bank. **Unverified on device:** Control Center control behaviour, widget
+intents running in-app, shield read-back for the "not blocking" check, StandBy rendering.

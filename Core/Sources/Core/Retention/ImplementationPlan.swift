@@ -16,6 +16,7 @@
 // holds goal types, weekdays and a minute of the day — nothing sensitive, and no Screen Time token.
 
 import Foundation
+import SwiftData
 
 /// The user's "when will you do it?" answers, one entry per planned goal.
 public struct ImplementationPlan: Codable, Sendable, Equatable {
@@ -131,7 +132,7 @@ extension LockSchedule {
     public static let planLeadMinutes = 60
 
     /// The schedule seeded for the default lock set on the first foreground after onboarding.
-    /// Replaces `morningDefault` there (see the hook in this file's caller list): same "until your
+    /// Replaces `morningDefault` there (through `seededDefault(lockSetID:)`, below): same "until your
     /// goals are done" window, but shaped by the if-then plan so it doesn't fight it:
     ///   - Days: every day, unless the only planned goal is the gym on specific days — then just
     ///     those days. A rest day the user never planned to train is not a locked day.
@@ -167,5 +168,30 @@ extension LockSchedule {
         }
         if schedule.validate() != nil { return morningDefault(lockSetID: lockSetID, mode: mode) }
         return schedule
+    }
+}
+
+extension LockSchedule {
+    /// `planAwareDefault` for the saved plan and the local user's active daily goals — what the
+    /// app seeds once, on the first foreground after onboarding (the `ContentView` hook). Reads
+    /// SwiftData in its own context; types are compared in Swift, never in a predicate.
+    @MainActor
+    public static func seededDefault(
+        lockSetID: UUID,
+        plan: ImplementationPlan? = ImplementationPlan.current,
+        modelContainer: ModelContainer = .appGroup
+    ) -> LockSchedule {
+        let context = ModelContext(modelContainer)
+        var userDescriptor = FetchDescriptor<User>()
+        userDescriptor.fetchLimit = 1
+        var types: Set<GoalType>?
+        if let userID = (try? context.fetch(userDescriptor))?.first?.id,
+           let goals = try? context.fetch(FetchDescriptor<Goal>(predicate: #Predicate<Goal> { $0.active == true })) {
+            let daily = goals
+                .filter { $0.user?.id == userID }
+                .filter { !($0.cadence?.lowercased().contains("week") ?? false) }
+            if !daily.isEmpty { types = Set(daily.map(\.type)) }
+        }
+        return planAwareDefault(lockSetID: lockSetID, plan: plan, activeGoalTypes: types)
     }
 }

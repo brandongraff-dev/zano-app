@@ -403,7 +403,11 @@ public final class NudgeScheduler {
     /// Stable per (install, local day, kind).
     nonisolated static func drawSeed(_ seed: UInt64, day: Date, kind: NudgeKind, calendar: Calendar) -> UInt64 {
         let parts = calendar.dateComponents([.year, .month, .day], from: day)
-        let dayNumber = UInt64(max(0, (parts.year ?? 0) * 10_000 + (parts.month ?? 0) * 100 + (parts.day ?? 0)))
+        let year: Int = parts.year ?? 0
+        let month: Int = parts.month ?? 0
+        let dayOfMonth: Int = parts.day ?? 0
+        let yyyymmdd: Int = year * 10_000 + month * 100 + dayOfMonth
+        let dayNumber = UInt64(max(0, yyyymmdd))
         let kindIndex = UInt64(NudgeKind.allCases.firstIndex(of: kind) ?? 0)
         return seed ^ (dayNumber &* 0x9E37_79B9_7F4A_7C15) ^ (kindIndex &* 0xBF58_476D_1CE4_E5B9)
     }
@@ -675,11 +679,11 @@ public final class NudgeScheduler {
         }
 
         // If-then plan: earliest planned minute today and tomorrow.
-        let plan = ImplementationPlan.current
+        let ifThenPlan = ImplementationPlan.current
         var plannedMinutes: [Date: Int] = [:]
         for offset in 0...1 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: start),
-                  let minute = plan?.earliestMinute(on: day, calendar: calendar) else { continue }
+                  let minute = ifThenPlan?.earliestMinute(on: day, calendar: calendar) else { continue }
             plannedMinutes[day] = minute
         }
 
@@ -721,7 +725,7 @@ public final class NudgeScheduler {
             tone: tone,
             dailyGoalTitles: dailyGoals.map(\.title),
             proteinUnit: proteinUnit,
-            plan: plan
+            plan: ifThenPlan
         )
     }
 }

@@ -117,7 +117,7 @@ struct ContentView: View {
            !UserDefaults.standard.bool(forKey: "zano.morningScheduleCreated.v1"),
            let lockSetID = LockEngineSharedState.defaultLockSetID {
             if LockScheduler.shared.schedule(for: lockSetID) == nil {
-                try? LockScheduler.shared.save(.morningDefault(lockSetID: lockSetID))
+                try? LockScheduler.shared.save(.seededDefault(lockSetID: lockSetID))
             }
             UserDefaults.standard.set(true, forKey: "zano.morningScheduleCreated.v1")
         }

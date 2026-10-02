@@ -282,7 +282,7 @@ public final class WeeklyRecapBuilder {
             .filter { (summary.rings[$0.id.uuidString] ?? 0) < 1 }
             .min { (summary.rings[$0.id.uuidString] ?? 0) < (summary.rings[$1.id.uuidString] ?? 0) }
         let suggestion: Copy.weeklyRecap.Suggestion
-        if let open, !plannedGoalTypes.contains(open.type) {
+        if let open, timedGoalTypes.contains(open.type), !plannedGoalTypes.contains(open.type) {
             suggestion = .planGoal(title: open.title)
         } else if open != nil, let bestDayName {
             suggestion = .repeatBestDay(bestDayName)
@@ -295,6 +295,10 @@ public final class WeeklyRecapBuilder {
         }
         return Copy.weeklyRecap.coachLine(voice: voice, win: win, suggestion: suggestion)
     }
+
+    /// Goals done at a time of day, where "give it a set time" is good advice (protein or water
+    /// are logged through the day, so they get the best-day suggestion instead).
+    nonisolated static let timedGoalTypes: Set<GoalType> = [.workoutGym, .workoutHomeOutdoor, .focusSession, .reading, .stretchMobility]
 
     /// Maps the summary onto the synced `RecapStats` shape.
     public nonisolated static func stats(for summary: WeeklyRecapSummary, calendar: Calendar) -> RecapStats {

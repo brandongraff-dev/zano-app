@@ -253,7 +253,7 @@ public enum ShieldCopy {
         public static let closeApp = "Close app"
         /// The secondary action: opens ZANO's Lock tab, where the Time Bank borrow/spend card AND
         /// the emergency unlock both live, so the way out stays one tap from the shield.
-        public static let useTimeBank = "Use Time Bank"
+        public static let useTimeBank = "Time Bank or emergency"
     }
 
     // MARK: - Deep links (docs/spec.md §27: shields can't open the app directly)

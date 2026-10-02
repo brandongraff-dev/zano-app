@@ -1721,7 +1721,7 @@ struct TodayView: View {
     }
 
     /// Plan B's offer starts at 5 PM: late enough that a half-done goal is really at risk.
-    private static let planBOfferHour = 17
+
     /// The manual "I'm traveling" ask waits until midday with the gym goal still open.
     private static let travelManualOfferHour = 12
 
@@ -1740,7 +1740,7 @@ struct TodayView: View {
         if let goal = sortedByPriority(activeGoals).first(where: { accepted.contains($0.id) && !isGoalDoneToday($0) }) {
             return planBState(for: goal, accepted: true)
         }
-        guard Calendar.current.component(.hour, from: .now) >= Self.planBOfferHour else { return nil }
+        guard Calendar.current.component(.hour, from: .now) >= SlipRisk.planBOfferHour(on: .now) else { return nil }
         let pool = isLocked ? requiredGoals : activeGoals
         let atRisk = openFirst(pool).first { goal in
             Self.supportsPlanB(goal.type) && !isGoalDoneToday(goal) && planBProgressFraction(goal) < 0.5

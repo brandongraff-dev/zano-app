@@ -242,9 +242,9 @@ public struct ShieldPreview: View {
         glyph: ShieldPreviewGlyph(systemImage: "play.tv.fill", caption: "TikTok"),
         headline: "TikTok unlocks after your workout",
         subline: "1 goal left · Streak 14",
-        primaryActionTitle: ShieldCopy.Buttons.showGoals,
+        primaryActionTitle: ShieldCopy.Buttons.closeApp,
         primaryAction: {},
-        emergencyActionTitle: ShieldCopy.Buttons.emergency,
+        emergencyActionTitle: ShieldCopy.Buttons.useTimeBank,
         emergencyAction: {}
     )
     .preferredColorScheme(.dark)

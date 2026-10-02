@@ -249,6 +249,7 @@ public enum SlipRisk {
         let p = score(for: now, calendar: calendar)
         do {
             if let existing = try context.fetch(descriptor).first {
+                guard existing.pMiss != p || existing.modelVersion != modelVersion else { return }
                 existing.pMiss = p
                 existing.modelVersion = modelVersion
             } else {

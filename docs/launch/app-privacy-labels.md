@@ -61,7 +61,7 @@ the app.
 | Tracking? | — | No |
 | Purposes | — | App Functionality |
 
-Evidence: HealthKit reads (step count, workouts, heart rate, sleep analysis) are in
+Evidence: HealthKit reads (step count, workouts, heart rate; sleep was dropped 2026-10-02) are in
 `Core/Sources/Core/Verification/HealthAuthorization.swift`, `StepsVerifier.swift`,
 `HomeWorkoutVerifier.swift`, `GymVerifier.swift` and `GymAutoDetect.swift`. They're all evaluated on
 device. Once sync is live, `goal_events` rows with `source = 'healthkit'`, `value`, and `meta`
@@ -279,7 +279,7 @@ clean).
 |---|---|---|---|
 | `NSLocationWhenInUseUsageDescription` | "ZANO uses your location to verify gym visits so you can earn your apps back." | `GymLocationServices.swift`, `LocationPermissionPrimer.swift` | OK. Optional improvement: "…verify visits to gyms you save. Your location stays on your iPhone." (Also used by Travel Mode and nearby food search through the cached fix, which should be mentioned for completeness.) |
 | `NSLocationAlwaysAndWhenInUseUsageDescription` | "ZANO uses background location to verify gym visits even when the app isn't open." | `requestAlways()` in `GymLocationServices.swift`; `UIBackgroundModes: location` | OK. Suggested: "Allow 'Always' so ZANO can notice when you arrive at a gym you saved and check you in automatically, even when the app is closed. You can check in manually instead." Reviewers look for the benefit and the alternative |
-| `NSHealthShareUsageDescription` | "ZANO reads your steps, workouts, heart rate, and sleep to verify goals automatically…" | `HealthAuthorization.swift` | **Fix needed.** Sleep **is requested** (for `.sleepOnTime`), but **no code ever queries sleep samples** (grep `sleepAnalysis` hits only the authorization set). Requesting Health types you don't use is a common 5.1.1 rejection. Either implement the sleep read or drop sleep from `readTypes` and from this string. Also the `project.yml` comment above the key ("Nothing reads sleep, so it is not mentioned") contradicts the string. Fix it as well |
+| `NSHealthShareUsageDescription` | "ZANO reads your steps, workouts, and heart rate to verify goals automatically…" | `HealthAuthorization.swift` | **Fixed 2026-10-02:** sleep is no longer requested or mentioned. |
 | `NSHealthUpdateUsageDescription` | "ZANO may save workouts you start from inside the app." | Nothing on iPhone (every request uses `toShare: []`) | Acceptable (never shown). Remove it if a reviewer asks; it's inaccurate for the iPhone app |
 | `NFCReaderUsageDescription` | "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock." | `NFCReader.swift`, `NFCWriter.swift` | OK. It also **writes** tags (`NFCWriter`). Consider "reads and sets up ZANO tags…" |
 | `NSCameraUsageDescription` | "ZANO uses the camera to scan food barcodes and photograph meals to log protein." | `MealPhotoCapture.swift`, VisionKit scanner in `FuelView.swift` | OK today. When meal vision goes live, add: "Meal photos you choose to analyze are sent securely to estimate protein." |

@@ -407,3 +407,6 @@ Screen Time / Live Activity.
 **Open decision:** full-mode locks don't pay Time Bank minutes, so borrowing during a full lock
 usually finds an empty bank. **Unverified on device:** Control Center control behaviour, widget
 intents running in-app, shield read-back for the "not blocking" check, StandBy rendering.
+- **Decision (founder, 2026-10-02):** goals pay Time Bank minutes during any running lock (full or
+  Earn Mode; same rates, Plan B half; no lock → nothing), so borrowing works in full locks.
+  CI run 36959520396 green.

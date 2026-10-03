@@ -86,7 +86,7 @@ public final class EmergencyUnlock {
     /// a stalled CI machine can't "finish" a 60-second hold between two assertions.
     @ObservationIgnored private let now: @MainActor () -> Date
 
-    public init(sessionID: UUID, appliesStreakPenalty: Bool = true) {
+    public convenience init(sessionID: UUID, appliesStreakPenalty: Bool = true) {
         self.init(sessionID: sessionID, appliesStreakPenalty: appliesStreakPenalty, now: { Date.now })
     }
 

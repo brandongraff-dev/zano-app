@@ -21,6 +21,10 @@
 // record. Re-adding a type reactivates the most recent inactive goal of that type
 // (`GoalCreation.add`).
 
+// Visual pass 2 (2026-10-03): each goal card is glass washed in its own goal colour, the target is
+// a score numeral that rolls (`numericText`) between goal-coloured +/- buttons, the section head is
+// a rounded title and the "smaller is fine" footer moved into its (i).
+
 import SwiftUI
 import SwiftData
 import Core
@@ -131,11 +135,7 @@ struct GoalsEditorView: View {
 
     private var goalList: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(Copy.settings.goalsYourGoalsSectionTitle)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
-                .padding(.horizontal, Theme.Spacing.xs)
-                .accessibilityAddTraits(.isHeader)
+            SettingsSectionTitle(title: Copy.settings.goalsYourGoalsSectionTitle, info: Copy.settings.goalsFooter)
 
             VStack(spacing: Theme.Spacing.sm) {
                 ForEach(activeGoals) { goal in
@@ -143,12 +143,6 @@ struct GoalsEditorView: View {
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
-
-            Text(Copy.settings.goalsFooter)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Theme.Spacing.xs)
         }
     }
 
@@ -197,7 +191,7 @@ struct GoalsEditorView: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoGlass(in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.Ring.color(for: goal.type))
     }
 
     /// How the goal is verified, plus a "Set up" button when its setup step isn't done. A required
@@ -251,26 +245,28 @@ struct GoalsEditorView: View {
     /// Minus / value / plus on glass. One VoiceOver element with an adjustable action, so the
     /// target is changed by swiping up/down instead of hunting for two small buttons.
     private func targetStepper(goal: Goal, value: Int, rule: GoalTargetRule) -> some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            stepButton(systemImage: "minus", isEnabled: value > rule.range.lowerBound) {
+        let tint = Theme.Colors.Ring.color(for: goal.type)
+        return HStack(spacing: Theme.Spacing.sm) {
+            stepButton(systemImage: "minus", tint: tint, isEnabled: value > rule.range.lowerBound) {
                 setTarget(goal, to: value - rule.step, rule: rule)
             }
             .accessibilityLabel(Copy.settings.goalTargetDecreaseLabel(title: goal.title))
 
             Text("\(value)")
-                .font(Theme.Typography.numeralSmall())
+                .font(Theme.Typography.score(size: 24))
                 .foregroundStyle(Theme.Colors.text)
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(value)))
                 .frame(maxWidth: .infinity)
 
-            stepButton(systemImage: "plus", isEnabled: value < rule.range.upperBound) {
+            stepButton(systemImage: "plus", tint: tint, isEnabled: value < rule.range.upperBound) {
                 setTarget(goal, to: value + rule.step, rule: rule)
             }
             .accessibilityLabel(Copy.settings.goalTargetIncreaseLabel(title: goal.title))
         }
         .padding(Theme.Spacing.xxs)
-        .background(Theme.Colors.surface2, in: Capsule(style: .continuous))
+        .background(Theme.Colors.glassFill, in: Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(goal.title)
         .accessibilityValue(summary(for: goal, value: value))
@@ -283,16 +279,16 @@ struct GoalsEditorView: View {
         }
     }
 
-    private func stepButton(systemImage: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+    private func stepButton(systemImage: String, tint: Color, isEnabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(isEnabled ? Theme.Colors.text : Theme.Colors.muted)
+                .font(Theme.Typography.icon(.medium, weight: .heavy))
+                .foregroundStyle(isEnabled ? Theme.Colors.background : Theme.Colors.muted)
                 .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
-                .zanoGlass(in: Circle())
+                .background(Circle().fill(isEnabled ? tint : Theme.Colors.surface2))
                 .contentShape(Circle())
         }
-        .buttonStyle(.pressable(scale: 0.92))
+        .buttonStyle(.pressable(scale: 0.88))
         .disabled(!isEnabled)
     }
 

@@ -5,7 +5,7 @@
 // pixel-art buddies replace the ZANO star as the app's character; this screen picks one. It is shown
 // twice: as onboarding step 2 (right after the hook) and from Settings > Buddy.
 //
-// Layout, on the app's ink canvas: a hero glass stage (`zanoHero`) with the selected buddy big, a
+// Layout, on the app's ink canvas: a hero glass stage (`zanoHero`) with the selected buddy (96pt) beside its name, a
 // soft radial glow in its signature colour behind it (the screen's one glow) and an elliptical shadow
 // under its feet; its name in big rounded heavy type, what it is and its world under that; a 3x3 grid
 // of glass tiles (sprite + name), the selected one with a 2pt rim in the buddy's colour over an ~18%
@@ -14,7 +14,8 @@
 // The choice is stored on every tap (`@AppStorage(Buddy.storageKey, store: SharedDefaults.store)`,
 // the App Group, so widgets and the Screen Time report draw the same buddy), with a light haptic and
 // a little hop of the hero (none under Reduce Motion). "Team up" only moves on: the next onboarding
-// step, or back out of Settings. Sprites are drawn at 64 and 128pt (2x and 4x their 32px grid).
+// step, or back out of Settings. Sprites are drawn at 64 and 96pt (2x and 3x their 32px grid); the
+// compact hero keeps all nine tiles above the button on a 6.1" phone.
 
 import SwiftUI
 import Core
@@ -36,7 +37,7 @@ struct BuddyPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var hopTick = 0
 
-    private static let heroSize: CGFloat = 128
+    private static let heroSize: CGFloat = 96
     private static let tileSpriteSize: CGFloat = 64
 
     var body: some View {
@@ -155,30 +156,33 @@ private struct BuddyHeroStage: View {
     }
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.xs) {
+        HStack(spacing: Theme.Spacing.md) {
             stage
-            Text(Copy.buddy.name(buddy))
-                .font(Theme.Typography.display.weight(.heavy))
-                .foregroundStyle(Theme.Colors.text)
-                .contentTransition(.opacity)
-            Text(Copy.buddy.kind(buddy))
-                .font(Theme.Typography.headline)
-                .foregroundStyle(kindColor)
-            worldChip
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(Copy.buddy.name(buddy))
+                    .font(Theme.Typography.display.weight(.heavy))
+                    .foregroundStyle(Theme.Colors.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentTransition(.opacity)
+                Text(Copy.buddy.kind(buddy))
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(kindColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                worldChip
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity)
         .padding(Theme.Spacing.md)
         .zanoHero()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.buddy.heroLabel(buddy))
     }
 
+    /// The sprite on its floor shadow. The glow sits in the background so its size never pushes the
+    /// sprite around.
     private var stage: some View {
         ZStack(alignment: .bottom) {
-            if !reduceTransparency {
-                glow
-            }
             Ellipse()
                 .fill(Theme.Colors.shadow)
                 .frame(width: size * 0.62, height: size * 0.1)
@@ -186,7 +190,12 @@ private struct BuddyHeroStage: View {
             BuddySprite(buddy, pose: .happy, size: size)
                 .modifier(BuddyHop(trigger: hopTick, height: size * 0.16))
         }
-        .frame(width: size * 1.8, height: size + Theme.Spacing.md)
+        .frame(width: size + Theme.Spacing.md, height: size + Theme.Spacing.sm)
+        .background {
+            if !reduceTransparency {
+                glow
+            }
+        }
     }
 
     private var glow: some View {
@@ -197,7 +206,6 @@ private struct BuddyHeroStage: View {
             endRadius: size * 0.9
         )
         .frame(width: size * 1.8, height: size * 1.8)
-        .offset(y: size * 0.35)
         .allowsHitTesting(false)
     }
 
@@ -234,7 +242,7 @@ private struct BuddyHop: ViewModifier {
 // MARK: - Tile
 
 /// One glass tile: the sprite over its name. Selected: a 2pt rim in the buddy's colour over an ~18%
-/// tint of it. At least 96pt tall (well past the 44pt target).
+/// tint of it. At least 88pt tall (well past the 44pt target).
 private struct BuddyTile: View {
     let buddy: Buddy
     let isSelected: Bool
@@ -254,8 +262,8 @@ private struct BuddyTile: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .padding(.vertical, Theme.Spacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 96)
+            .padding(.vertical, Theme.Spacing.xs)
+            .frame(maxWidth: .infinity, minHeight: 88)
             .background { shape.fill(isSelected ? buddy.color.opacity(0.18) : Theme.Colors.glassFill) }
             .overlay { rim(shape) }
             .contentShape(shape)

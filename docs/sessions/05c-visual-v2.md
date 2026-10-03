@@ -164,3 +164,22 @@ inherit the new tokens/components here; their own layout passes are listed in th
   pose/buddy change written by the app (cross-process `@AppStorage` refresh), widget rendering modes,
   haptics. Shield copy and the Lock Screen widget glyph still speak of the star.
 - **Status:** Scaffolded — Unverified.
+
+### Buddies: first screenshot review fixes (2026-10-03)
+
+CI run 37147073060 (commit 7de3476) was green end to end (build, Core tests incl. BuddyTests, UI-test
+compile, screenshot tour). Reviewing the shots found four issues, fixed here:
+
+- **Picker: name drawn over the sprite.** The glow (1.8x the sprite) was a ZStack child, so it grew
+  the stage and pushed the bottom-aligned sprite down onto the name. The glow is now a background.
+- **Picker: last row (Tank, Volt, Howl) hidden under "Team up".** The hero is now compact and side by
+  side (96pt sprite left; name, kind and world chip right), tiles 88pt min, so all nine fit above the
+  button on a 6.1" phone (still a ScrollView for SE).
+- **Today: buddy leaning ~12° and the 72% sticker over its belly.** The mascot motion's lean/sway/wiggle
+  were star-era rotations; rotated pixel art goes jagged. Moods now use bob, breath and squash only
+  (the tap spin stays, it is brief). The charge sticker sits beside the screen-time total under the
+  buddy instead of on it.
+- **`light-buddy-picker` came out as the launch screen.** Timing: the light pass now waits 7s per shot.
+
+Files: `App/ZANO/Features/Buddy/BuddyPickerView.swift`, `Core/Sources/Core/UI/Components/ZanoMascot.swift`,
+`Core/Sources/Core/UI/Components/ZanoLivingMark.swift`, `.github/workflows/ci.yml`.

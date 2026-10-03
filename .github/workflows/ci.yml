@@ -172,7 +172,7 @@ jobs:
           for SCREEN in $SCREENS_LIGHT; do
             xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
             xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" -ZANOAppearance light || echo "LIGHT LAUNCH FAILED: $SCREEN"
-            sleep 5
+            sleep 7
             xcrun simctl io "$SIM_ID" screenshot "shots/light-$SCREEN.png"
           done
 

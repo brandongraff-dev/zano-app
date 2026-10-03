@@ -201,19 +201,21 @@ public struct ScreenTimeChargeView: View {
         VStack(spacing: Theme.Spacing.xs) {
             // Decorative: the sticker and the total speak the numbers.
             BuddySprite(buddy, pose: pose ?? sharedPose, size: height)
-                .overlay(alignment: .bottomTrailing) { chargeSticker }
-            // The founder asked for today's screen-time total right under the hero; it stays,
-            // as a quiet sticker.
+            // Under the buddy, never on it: the charge, and today's screen-time total (the founder
+            // asked for the total right under the hero; it stays, as a quiet sticker).
             if let total {
-                ZanoSticker(
-                    Copy.screenTime.duration(total),
-                    systemImage: "iphone",
-                    color: Theme.Colors.muted,
-                    style: .tinted,
-                    size: .small
-                )
-                .fixedSize()
-                .accessibilityLabel(Copy.screenTime.spokenDuration(total))
+                HStack(spacing: Theme.Spacing.xxs) {
+                    chargeSticker
+                    ZanoSticker(
+                        Copy.screenTime.duration(total),
+                        systemImage: "iphone",
+                        color: Theme.Colors.muted,
+                        style: .tinted,
+                        size: .small
+                    )
+                    .fixedSize()
+                    .accessibilityLabel(Copy.screenTime.spokenDuration(total))
+                }
             }
             if total == nil {
                 Text(Copy.screenTime.chargeHint)
@@ -231,8 +233,8 @@ public struct ScreenTimeChargeView: View {
         .zanoAppAppearance()
     }
 
-    /// "72%" with a bolt on the hero's corner, once there is a charge to show. It carries the
-    /// spoken charge (the star used to).
+    /// "72%" with a bolt under the hero, once there is a charge to show. It carries the spoken
+    /// charge (the star used to).
     @ViewBuilder
     private var chargeSticker: some View {
         if total != nil {
@@ -244,7 +246,6 @@ public struct ScreenTimeChargeView: View {
                 size: .small
             )
             .fixedSize()
-            .offset(x: Theme.Spacing.sm, y: Theme.Spacing.xs)
             .accessibilityLabel(Copy.screenTime.chargeSpoken(percent: percent))
         }
     }

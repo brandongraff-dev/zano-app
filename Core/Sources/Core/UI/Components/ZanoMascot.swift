@@ -2,7 +2,7 @@
 // Core / UI / Components
 //
 // Pass 2 "playful" (docs/design/visual-direction-v2.md, "Pass 2: playful"): the ZANO star is a
-// character. It has no face; it acts through its body: tilt, squash and stretch, glow, and sparks
+// character. It has no face; it acts through its body: squash and stretch (no lean since the pixel-art buddies, 2026-10-03), glow, and sparks
 // that orbit it. Four moods, one per state of the day:
 //
 //   * `.sleepy`  — locked and nothing done yet: droops 12° to the side, breathes slowly (a gentle
@@ -25,7 +25,7 @@
 // apply the same either way. `ZanoLivingMark(mood:)` additionally dims/brightens its own metal when
 // it is drawn in-process.
 //
-// Reduce Motion: no hop, wiggle, jump or spin; the mood still shows as a still pose (the sleepy tilt
+// Reduce Motion: no hop, wiggle, jump or spin; the mood still shows as a still pose (the sleepy dip
 // and dimness, the glow, sparks parked in place). Everything pauses when the scene is not active.
 // Decorative: the sparks and glow are hidden from VoiceOver and never take touches.
 
@@ -223,7 +223,7 @@ struct MascotPose: ViewModifier {
     /// The Reduce Motion pose: the mood as a still.
     static func still(mood: ZanoMascotMood, size: CGFloat) -> Pose {
         switch mood {
-        case .sleepy: Pose(tilt: -12, lift: -size * 0.04, opacity: 0.78)
+        case .sleepy: Pose(lift: -size * 0.04, opacity: 0.78)
         case .idle, .perky: Pose()
         case .charged: Pose(scaleX: 1.03, scaleY: 1.03)
         }
@@ -232,27 +232,30 @@ struct MascotPose: ViewModifier {
     static func at(time t: Double, mood: ZanoMascotMood, size: CGFloat) -> Pose {
         switch mood {
         case .sleepy:
-            // Slow breathing: a 4.5s vertical squash, a lazy sway around a 12° droop.
+            // Slow breathing: a 4.5s vertical squash. No lean: the buddies are pixel art, and a
+            // rotated pixel grid goes jagged; the sleepy face carries the droop.
             let breath: Double = 0.5 + 0.5 * sin(t * 2 * .pi / 4.5)
-            let sway: Double = sin(t * 2 * .pi / 6) * 2
             return Pose(
-                tilt: -12 + sway,
                 scaleX: CGFloat(1 + 0.015 * breath),
                 scaleY: CGFloat(1 - 0.035 * breath),
                 lift: -size * 0.04,
                 opacity: 0.78
             )
         case .idle:
-            return Pose(tilt: sin(t * 2 * .pi / 5) * 3)
+            // A slow bob instead of a sway (no rotation on pixel art).
+            return Pose(lift: size * 0.02 * CGFloat(0.5 + 0.5 * sin(t * 2 * .pi / 3.5)))
         case .perky:
-            return hop(time: t, period: Theme.Motion.mascotHopPeriod, height: size * 0.07, tilt: sin(t * 2 * .pi / 3) * 4)
+            return hop(time: t, period: Theme.Motion.mascotHopPeriod, height: size * 0.07, tilt: 0)
         case .charged:
             var pose = hop(time: t, period: Theme.Motion.mascotHopPeriod * 0.75, height: size * 0.09, tilt: 0)
-            // A happy wiggle for the first 0.6s of every period, decaying.
+            // A happy double-bounce for the first 0.6s of every period, decaying (a squash, not a
+            // rotation, so the pixel art stays crisp).
             let w: Double = t.truncatingRemainder(dividingBy: Theme.Motion.mascotWigglePeriod)
             if w < 0.6 {
                 let decay: Double = 1 - w / 0.6
-                pose.tilt = sin(w / 0.6 * .pi * 4) * 9 * decay
+                let squash = CGFloat(abs(sin(w / 0.6 * .pi * 2)) * 0.05 * decay)
+                pose.scaleX *= 1 + squash
+                pose.scaleY *= 1 - squash
             }
             pose.scaleX *= 1.03
             pose.scaleY *= 1.03

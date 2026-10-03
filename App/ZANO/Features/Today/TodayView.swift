@@ -117,6 +117,8 @@ struct TodayView: View {
     @State private var screenTimeStatus: AuthorizationStatus
     /// The undo toast after a quick-log. Cleared after `undoDuration` or on undo.
     @State private var pendingUndo: QuickLogUndo?
+    /// Gear the buddy just put on (buddy growth); shown as a toast for a few seconds.
+    @State private var newBuddyGear: BuddyGear?
     /// An honor-system goal waiting on its one confirmation before it's logged.
     @State private var confirmingLogGoal: Goal?
 
@@ -683,8 +685,12 @@ struct TodayView: View {
     /// streak) the buddy puts it on, once. Screenshot runs keep the buddy bare.
     private func adoptNewBuddyGear() {
         guard ScreenshotMode.screen == nil else { return }
-        if BuddyProgress.adoptNewGear(BuddyProgress.load(from: modelContext)) != nil {
-            WidgetRefresh.reloadAll()
+        guard let gear = BuddyProgress.adoptNewGear(BuddyProgress.load(from: modelContext)) else { return }
+        WidgetRefresh.reloadAll()
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { newBuddyGear = gear }
+        Task {
+            try? await Task.sleep(for: .seconds(6))
+            withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { newBuddyGear = nil }
         }
     }
 
@@ -1443,9 +1449,13 @@ struct TodayView: View {
 
     @ViewBuilder
     private var bottomBar: some View {
-        if barState != .none || actionError != nil || pendingUndo != nil {
+        if barState != .none || actionError != nil || pendingUndo != nil || newBuddyGear != nil {
             StickyActionBar(extendsToBottomEdge: false) {
                 VStack(spacing: Theme.Spacing.xs) {
+                    if let newBuddyGear {
+                        BuddyGearToast(gear: newBuddyGear)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                     if let pendingUndo {
                         UndoToast(message: pendingUndo.message) { undo(pendingUndo) }
                             .transition(.move(edge: .bottom).combined(with: .opacity))

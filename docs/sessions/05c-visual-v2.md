@@ -296,3 +296,5 @@ earned only, which keeps it clear of the purchasable cosmetics in `CosmeticsStor
   requirement). Not in onboarding (nothing earned yet).
 - CI: new `buddy-gear` screenshot (demo progress Lv 4, hat + shades unlocked). Tests:
   `levelFollowsEarnedUnlocks`, `gearUnlocksFromPlay`, `newGearIsPutOnOnce`, `everyBuddyHasEveryGearOverlay`.
+- **Reward beat:** when `adoptNewGear` puts something on, Today shows `BuddyGearToast` above its
+  action bar for 6s: the buddy (ecstatic, wearing it) and "Stash put on the shades! 7-day streak."

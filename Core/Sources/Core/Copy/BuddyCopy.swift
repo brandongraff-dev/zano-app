@@ -137,5 +137,9 @@ extension Copy {
             if !unlocked { return "\(gearName(gear)), locked. Unlocks at \(gearRequirement(gear))." }
             return wearing ? "\(gearName(gear)), wearing" : gearName(gear)
         }
+        /// Today's toast when new gear goes on: "Stash put on the shades! 7-day streak."
+        public static func gearAdopted(_ buddy: Buddy, gear: BuddyGear) -> String {
+            "\(name(buddy)) put on the \(gearName(gear).lowercased())! \(gearRequirement(gear))."
+        }
     }
 }

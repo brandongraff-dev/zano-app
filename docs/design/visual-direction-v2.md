@@ -359,3 +359,71 @@ score numerals, rolling numbers, the glass tab bar, the celebration) and takes t
 
 All accessibility labels, UI-test labels and behaviour are unchanged; Reduce Motion / Reduce
 Transparency paths are as in pass 2. Unverified until the next CI screenshot tour.
+
+## 10. Light mode (2026-10-03)
+
+**Why:** the founder: "A light mode for the app would be nice." The app was dark-only (fixed tokens,
+`.preferredColorScheme(.dark)` on ~90 screens). It now follows the system appearance, with a
+Settings > Appearance override (System / Light / Dark, default System).
+
+### How it works
+
+- Every colour token is a light/dark pair (`ZanoTone` in `Theme.Tones`); `Theme.Colors.<name>` is the
+  dynamic `Color` built from it (a `UIColor` dynamic provider, no asset catalog). Token names and call
+  sites are unchanged, so every screen adapts. Tokens stay `static let`s on non-actor enums (safe in
+  widgets).
+- The choice lives in the App Group defaults (`ZanoAppearance.storageKey`), is applied once at the app
+  root (`ZANOApp`: `.preferredColorScheme` plus the window's `overrideUserInterfaceStyle`, so sheets
+  follow and "System" really releases), and by `.zanoAppAppearance()` in the Home widget and the Screen
+  Time report views (extensions the root can't reach).
+
+### Light palette
+
+| Token | Light | Dark (unchanged) | Note |
+| --- | --- | --- | --- |
+| `background` | `#F5F6FB` | `#0B0E24` | cool soft white, faint lavender (not cream, not pure white) |
+| `backgroundDeep` | `#E8EAF4` | `#06081A` | |
+| `surface` / `surfaceHero` | `#FFFFFF` | `#161A3A` / `#1D2248` | |
+| `surface2` | `#ECEEF6` | `#1F2450` | |
+| `text` | `#13142B` | `#F4F3FF` | 16.7:1 |
+| `textSecondary` | `#3B3D5E` | `#D2D0EA` | 9.7:1 |
+| `muted` | `#5C5E7E` | `#A6A4C8` | 5.8:1 |
+| `accent` | `#2A62E6` | `#3F7BFF` | same brand blue a step deeper: 4.9:1, still usable as text |
+| `accentFill` | `#2A62E6` | `#2A62E6` | white label 5.3:1 |
+| `accentWash` / `accentDim` | `#DFE7FF` / `#A9BFF5` | `#15255E` / `#24408C` | |
+| `ember` | `#B34A06` | `#FF8A3D` | 5.0:1 |
+| `danger` / `warning` | `#C42F3F` / `#9A5F00` | `#F0606E` / `#F5B54A` | 5.1 / 4.9:1 |
+| `hairline` / `hairlineStrong` / `track` | ink 10% / 18% / 10% | white 12% / 20% / 16% | |
+| glass card fill | white 86% → 66% + soft indigo shadow (`glassShadow`, 10%, r14 y6) | white 9% → 4% | |
+| glass rim (`glassEdge`) | white top highlight over an ink 7–12% hairline | white 35% → 4% → 12% | |
+| chrome tint (tab bar) | white 45% over the light material | ink 35% over the dark material | |
+| `shadow` | `#2A2D5C` 18% | black 55% | |
+| aurora blue / violet / ember | `#5B8CFF` / `#A57BFF` / `#FF9A55` | `#3F7BFF` / `#8F5BFF` / ember | same low opacities: faint pastel tints |
+| `metallic` (logo metal) | steel `#8C91A6` → `#666B80` → `#44485C` | pearl → silver | the silver star vanished on white |
+| star graphite (`markGraphite*`) | ink 16% → 8%, edge ink 30% | white 11% → 3.5% | |
+
+Goal colours in light are deeper twins of the same hues, each ≥4.5:1 on the light canvas (so they
+work as text, as graphics, and as fills under an `onFill` label, which is the light canvas colour in
+light mode): workout `#4F7300`, protein `#B8520A`, focus `#6A48E0`, water `#00749E`, steps `#0E7A43`,
+creatine `#C22F72`, sunrise `#946600`, sleep `#4652D8`, reading `#9A5A22`, meal prep `#00776A`, stretch
+`#9A3FD0`, cold/sauna `#0F6E8C`. Confetti uses the same tokens. Stickers (white die-cut rim, vinyl
+highlight) are physical objects and look the same in both. The §9 restraint rules apply unchanged.
+
+### Deliberately dark in both appearances
+
+- **Alarm ringing** (`AlarmRingingView`): it rings in a dark bedroom.
+- **Unlock celebration** (`UnlockCelebrationView`): the star's light sweep and burst are additive
+  light on ink and wash out on white.
+- **Share posters and moments** (`SharePoster` render, `ShareCard`, milestone moments, monthly story,
+  locked-out moment, weekly recap story): posters are rendered dark for social feeds, and the moment
+  shows the poster it shares.
+- **The shield** (`ZANOShieldConfig`) and the in-app `ShieldPreview` of it: `ShieldConfiguration` is a
+  static value drawn by the system in another process; its colours are the dark tones resolved
+  explicitly. A dark block screen works over any app in either appearance.
+
+### Unverified
+
+Dynamic `UIColor`-backed `Color`s resolving against `.environment(\.colorScheme, …)` inside
+`ImageRenderer` and in the widget's container background; `preferredColorScheme(.dark)` on a
+full-screen cover not leaking to the window; the report extension honouring an explicit choice;
+everything until the CI light pass (`shots/light-*.png`) has been looked at.

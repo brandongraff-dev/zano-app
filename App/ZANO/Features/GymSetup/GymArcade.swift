@@ -176,7 +176,6 @@ struct GymMapPreview: View {
             )
         }
         .allowsHitTesting(false)
-        .environment(\.colorScheme, .dark)
         .accessibilityHidden(true)
     }
 }

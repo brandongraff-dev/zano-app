@@ -14,12 +14,18 @@
 //
 // StandBy and the accented/vibrant rendering modes strip or desaturate colour themselves
 // (`.widgetAccentable()` marks what stays lit), so nothing here needs a StandBy variant.
+//
+// Light mode (2026-10-03): every `Theme` token is now a light/dark pair, so these adapt with no
+// change here: the Home Screen widgets draw the light canvas, ink text and the deeper light goal
+// colours in light appearance. The Home widget applies `.zanoAppAppearance()` so an explicit
+// Settings > Appearance choice wins over the Home Screen's. StandBy night mode tints everything red
+// itself and is unaffected.
 
 import SwiftUI
 import Core
 
 enum ZANOWidgetColor {
-    /// `#0B0E24` indigo ink (was near-black `#050506`).
+    /// Indigo ink `#0B0E24` (dark) / cool soft white `#F5F6FB` (light).
     static let background = Theme.Colors.background
     static let backgroundDeep = Theme.Colors.backgroundDeep
     static let surface = Theme.Colors.surface

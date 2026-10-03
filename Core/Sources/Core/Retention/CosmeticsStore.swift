@@ -265,9 +265,8 @@ public final class CosmeticsStore {
     /// this task's `decisions`. Whoever implements `Copy.cosmetics.*` needs display copy for
     /// every key below; `CosmeticsShopView.swift`'s header lists them all explicitly for that.
     public static let catalog: [CosmeticItem] = [
-        // Themes — an accent/skin variant layered on Theme.swift's fixed dark palette (that
-        // file's own header: "a single, fixed dark palette, not a light/dark adaptive theme" —
-        // a purchased theme re-skins within that constraint, it doesn't add a light mode).
+        // Themes — an accent/skin variant layered on Theme.swift's palette. Light/dark is the
+        // user's Settings > Appearance choice (light mode, 2026-10-03), not a purchasable theme.
         CosmeticItem(key: "theme_classic", category: .theme, priceCoins: 0, isDefault: true),
         CosmeticItem(key: "theme_electric_blue", category: .theme, priceCoins: 250),
         CosmeticItem(key: "theme_magenta_pulse", category: .theme, priceCoins: 250),

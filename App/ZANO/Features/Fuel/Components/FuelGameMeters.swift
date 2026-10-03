@@ -86,7 +86,7 @@ struct FuelSegmentMeter: View {
                 fill(width: proxy.size.width)
                 notches
                 Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                    .strokeBorder(Theme.Colors.text.opacity(0.18), lineWidth: 1)
             }
             .clipShape(Capsule(style: .continuous))
         }
@@ -143,7 +143,7 @@ struct FuelWaterTank: View {
                 .clipShape(shape)
             marks
             // Pass 3 (restraint): a flat glass rim.
-            shape.strokeBorder(Color.white.opacity(0.25), lineWidth: 2)
+            shape.strokeBorder(Theme.Colors.text.opacity(0.25), lineWidth: 2)
             // Glass glint down the left side.
             Capsule()
                 .fill(Color.white.opacity(0.22))

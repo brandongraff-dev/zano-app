@@ -170,8 +170,9 @@ struct ZANOChargedStar: View {
 
     private var clampedCharge: Double { min(max(charge, 0), 1) }
 
+    // Light mode: the uncharged metal is translucent white on dark, translucent ink on light.
     private static let graphite = LinearGradient(
-        colors: [Color.white.opacity(0.11), Color.white.opacity(0.035)],
+        colors: [Theme.Colors.markGraphiteTop, Theme.Colors.markGraphiteBottom],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -194,7 +195,10 @@ struct ZANOChargedStar: View {
                 .fill(Self.graphite, style: FillStyle(eoFill: true))
                 .overlay(
                     ZanoMarkShape()
-                        .stroke(Color.white.opacity(renderingMode == .fullColor ? 0.12 : 0.35), lineWidth: 0.75)
+                        .stroke(
+                            renderingMode == .fullColor ? Theme.Colors.markGraphiteEdge.opacity(0.75) : Color.white.opacity(0.35),
+                            lineWidth: 0.75
+                        )
                 )
 
             // Charged metal, filled left to right.
@@ -261,6 +265,9 @@ struct ZANOWidgetBackground: View {
                 endRadius: glowRadius
             )
         }
+        // The container background is drawn apart from the content; apply the Settings >
+        // Appearance choice here too so canvas and content always agree (light mode, 2026-10-03).
+        .zanoAppAppearance()
     }
 }
 

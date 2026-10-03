@@ -4,6 +4,7 @@
 # missing screen must not mask the build result.
 #   SCREENS     space-separated -ZANOScreen names (default: the main screens)
 #   SE_SCREENS  the same, for the iPhone SE pass (default: tab-today)
+#   SCREENS_LIGHT  the same, rendered with -ZANOAppearance light, saved as light-<name>.png
 set +e
 mkdir -p shots
 APP=$(find build/DerivedData/Build/Products -maxdepth 3 -name "ZANO.app" | head -1)
@@ -31,13 +32,15 @@ for k in sorted((k for k in data if 'iOS' in k), key=ver, reverse=True):
 
 tour() {
   local SIM=$1 PREFIX=$2; shift 2
+  local EXTRA=()
+  [ "$PREFIX" = "light-" ] && EXTRA=(-ZANOAppearance light)
   xcrun simctl boot "$SIM"
   xcrun simctl bootstatus "$SIM" -b
   xcrun simctl status_bar "$SIM" override --time "9:41" --batteryState charged --batteryLevel 100
   xcrun simctl install "$SIM" "$APP"
   for SCREEN in "$@"; do
     xcrun simctl terminate "$SIM" com.zano.app 2>/dev/null
-    xcrun simctl launch "$SIM" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"
+    xcrun simctl launch "$SIM" com.zano.app -ZANOScreen "$SCREEN" "${EXTRA[@]}" || echo "LAUNCH FAILED: $SCREEN"
     sleep 5
     xcrun simctl io "$SIM" screenshot "shots/$PREFIX$SCREEN.png"
   done
@@ -45,12 +48,18 @@ tour() {
 
 SCREENS=${SCREENS:-"onboarding-1 onboarding-3 onboarding-5 onboarding-7 paywall tab-today tab-lock tab-fuel tab-progress tab-settings celebration recap"}
 SE_SCREENS=${SE_SCREENS:-"tab-today"}
+SCREENS_LIGHT=${SCREENS_LIGHT:-"tab-today tab-lock tab-fuel tab-progress tab-settings onboarding-1 paywall celebration"}
 
 SIM_ID=$(pick_sim pro)
 echo "Simulator: $SIM_ID"
 tour "$SIM_ID" "" $SCREENS
 xcrun simctl spawn "$SIM_ID" log show --style compact --last 3m --predicate 'process == "ZANO"' > shots/app.log 2>&1
 cp ~/Library/Logs/DiagnosticReports/ZANO* shots/ 2>/dev/null
+
+# Light-mode pass on the same simulator (already booted; boot/install just no-op or reinstall).
+if [ -n "$SCREENS_LIGHT" ]; then
+  tour "$SIM_ID" "light-" $SCREENS_LIGHT
+fi
 
 SE_ID=$(pick_sim se)
 if [ -n "$SE_ID" ] && [ -n "$SE_SCREENS" ]; then

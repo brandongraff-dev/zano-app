@@ -84,3 +84,30 @@ inherit the new tokens/components here; their own layout passes are listed in th
   under the star. EmergencyUnlock takes an injectable clock so hold tests don't depend on wall time.
 - **Status:** Scaffolded — Unverified until the CI build + screenshot tour for this commit is green;
   all device-only behaviour still unverified.
+
+## 2026-10-03 — Light mode
+
+- **What changed:** every `Theme` colour token is now a light/dark pair (`ZanoTone`, `Theme.Tones`);
+  the ~90 `.preferredColorScheme(.dark)` calls in App/ and Core UI are gone (previews keep theirs);
+  Settings > Appearance (System / Light / Dark, default System) in App Group defaults, applied at the
+  root in `ZANOApp`; nav bar titles use the dynamic `text` colour; chrome glass follows the scheme;
+  light cards get a soft shadow; star graphite and logo metal adapt; Home widget + Screen Time report
+  honour an explicit choice; CI screenshots gain a light pass (`-ZANOAppearance light`,
+  `shots/light-<name>.png`). Palette and kept-dark surfaces: docs/design/visual-direction-v2.md §10.
+- **Files:** `Core/Sources/Core/UI/Theme.swift`, `Core/Sources/Core/UI/ZanoAppearance.swift` (new),
+  `Core/Sources/Core/Copy/SettingsCopy.swift`, `Core/Sources/Core/UI/Components/{ZanoGlass,
+  ZanoSurface,ZanoLivingMark,ScreenTimeSummaryView,ShieldPreview}.swift`,
+  `Core/Sources/Core/Retention/CosmeticsStore.swift` (comment), `App/ZANO/ZANOApp.swift`,
+  `App/ZANO/ContentView.swift`, `App/ZANO/ScreenshotGallery.swift`,
+  `App/ZANO/Features/Settings/SettingsView.swift` (Appearance row only), ~45 feature screens (forced
+  dark removed; a few white-overlay tracks moved to `text.opacity`), `Extensions/ZANOShieldConfig/
+  ShieldConfigurationExtension.swift`, `Extensions/ZANOReport/ZANOReportExtension.swift` (comment),
+  `Extensions/ZANOWidgets/{HomeWidget/ZANOHomeWidget,Support/ZANOWidgetColor,
+  Support/ZANOWidgetComponents}.swift`, `.github/workflows/ci.yml`, `scripts/ci/screenshots.sh`.
+- **Decisions:** the shield stays dark (static cross-process value; dynamic colours unverified there);
+  alarm, unlock celebration and share posters/moments stay dark on purpose; light goal colours are
+  ≥4.5:1 so `onFill` labels on them still pass; main CI tour stays dark (screenshot runs default to
+  dark unless `-ZANOAppearance light`).
+- **Status:** Scaffolded — Unverified. Parse-checked only (`swiftc -frontend -parse`); needs the CI
+  build and a look at the light screenshots, then a device for widgets, the report extension and
+  the shield.

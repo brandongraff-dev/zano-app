@@ -163,6 +163,18 @@ jobs:
           else
             echo "No iPhone SE simulator available on this runner; skipping the small-screen pass."
           fi
+
+          # Light-mode pass (2026-10-03) on the main simulator: `-ZANOAppearance light` makes
+          # ScreenshotGallery/ZANOApp render light (every other run defaults to dark, so the main
+          # tour above stays comparable). Saved as shots/light-<name>.png. `celebration` is
+          # deliberately dark in both appearances; it is here to prove that.
+          SCREENS_LIGHT="tab-today tab-lock tab-fuel tab-progress tab-settings onboarding-1 paywall celebration"
+          for SCREEN in $SCREENS_LIGHT; do
+            xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
+            xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" -ZANOAppearance light || echo "LIGHT LAUNCH FAILED: $SCREEN"
+            sleep 5
+            xcrun simctl io "$SIM_ID" screenshot "shots/light-$SCREEN.png"
+          done
           ls -la shots
 
       # The simulator build itself, for interactive use (e.g. upload the zip to Appetize.io and click

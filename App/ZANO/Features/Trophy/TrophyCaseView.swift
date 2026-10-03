@@ -495,9 +495,9 @@ private struct TrophyStand: View {
     var body: some View {
         ZStack {
             Ellipse()
-                .fill(Color.white.opacity(0.12))
+                .fill(Theme.Colors.text.opacity(0.12))
             Ellipse()
-                .strokeBorder(isLit ? tint.opacity(0.7) : Color.white.opacity(0.3), lineWidth: 1)
+                .strokeBorder(isLit ? tint.opacity(0.7) : Theme.Colors.text.opacity(0.3), lineWidth: 1)
         }
         .frame(width: TrophyBadgeDisc.defaultDiameter * 1.25, height: 16)
         .offset(y: 4)

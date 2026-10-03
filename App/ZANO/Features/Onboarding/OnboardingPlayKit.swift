@@ -116,7 +116,7 @@ struct OnboardingGuideStar: View {
             .background {
                 GuideBubbleShape()
                     .fill(Theme.Colors.glassFillTop)
-                    .background(GuideBubbleShape().fill(.ultraThinMaterial).environment(\.colorScheme, .dark))
+                    .background(GuideBubbleShape().fill(.ultraThinMaterial))
             }
             .overlay {
                 GuideBubbleShape(includesTail: false)
@@ -254,7 +254,7 @@ struct OnboardingChargeButton: View {
                 .foregroundStyle(isEnabled ? Theme.Colors.text : Theme.Colors.muted)
                 .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? 0 : tick)
                 .frame(width: 36, height: 36)
-                .background(Circle().fill(Color.white.opacity(0.10 + 0.12 * progress)))
+                .background(Circle().fill(Theme.Colors.text.opacity(0.10 + 0.12 * progress)))
             Text(isHolding ? chargingTitle : title)
                 .font(Theme.Typography.headline.weight(.heavy))
                 .foregroundStyle(isEnabled ? Theme.Colors.text : Theme.Colors.muted)

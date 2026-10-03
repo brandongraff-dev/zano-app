@@ -309,8 +309,8 @@ struct ProgressTrophyShelf: View {
     /// The glass plank the badges stand on: a lit top edge, a soft shadow under it.
     private var plank: some View {
         RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(Color.white.opacity(0.18))
+            .fill(Theme.Colors.text.opacity(0.18))
             .frame(height: 10)
-            .shadow(color: Color.black.opacity(0.45), radius: 6, y: 6)
+            .shadow(color: Theme.Colors.shadow.opacity(0.8), radius: 6, y: 6)
     }
 }

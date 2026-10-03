@@ -85,6 +85,14 @@ struct ZANOHomeWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
+        content
+            // Light mode (2026-10-03): follows the Home Screen's appearance, unless the user picked
+            // Light or Dark in Settings > Appearance (App Group defaults), so it matches the app.
+            .zanoAppAppearance()
+    }
+
+    @ViewBuilder
+    private var content: some View {
         let charge = entry.snapshot.charge
         switch family {
         case .systemMedium:

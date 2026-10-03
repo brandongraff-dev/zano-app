@@ -17,12 +17,12 @@ import Foundation
 struct BuddyTests {
 
     /// The palette keys, in index order (`BuddyPixels`' own table is private).
-    private static let keys = Array("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    private static let keys = Array("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,-/:;<=>?@[]^_`{|}~")
 
     // MARK: - Sprite data
 
     @Test(arguments: Buddy.allCases)
-    func everyPoseIs32By32(_ buddy: Buddy) {
+    func everyPoseIsSquare(_ buddy: Buddy) {
         for pose in BuddyPose.allCases {
             let pixels = buddy.pixels(pose)
             #expect(pixels.rows.count == BuddyPixels.size, "\(buddy) \(pose): \(pixels.rows.count) rows")
@@ -91,17 +91,17 @@ struct BuddyTests {
     @Test func poseFollowsMood() {
         #expect(BuddyPose(.sleepy) == .sleepy)
         #expect(BuddyPose(.idle) == .idle)
-        #expect(BuddyPose(.perky) == .idle)
-        #expect(BuddyPose(.charged) == .happy)
+        #expect(BuddyPose(.perky) == .happy)
+        #expect(BuddyPose(.charged) == .ecstatic)
     }
 
     @Test func poseFollowsTheDay() {
-        // Locked with nothing done: sleepy. Everything done: happy. Otherwise idle.
+        // Locked with nothing done: sleepy. Some done: happy. Everything done: ecstatic.
         #expect(BuddyPose(ZanoMascotMood(done: 0, total: 3, isLocked: true)) == .sleepy)
         #expect(BuddyPose(ZanoMascotMood(done: 0, total: 3, isLocked: false)) == .idle)
-        #expect(BuddyPose(ZanoMascotMood(done: 1, total: 3, isLocked: true)) == .idle)
-        #expect(BuddyPose(ZanoMascotMood(done: 3, total: 3, isLocked: true)) == .happy)
-        #expect(BuddyPose(ZanoMascotMood(done: 3, total: 3, isLocked: false)) == .happy)
+        #expect(BuddyPose(ZanoMascotMood(done: 1, total: 3, isLocked: true)) == .happy)
+        #expect(BuddyPose(ZanoMascotMood(done: 3, total: 3, isLocked: true)) == .ecstatic)
+        #expect(BuddyPose(ZanoMascotMood(done: 3, total: 3, isLocked: false)) == .ecstatic)
         #expect(BuddyPose(ZanoMascotMood(done: 0, total: 0, isLocked: false)) == .idle)
     }
 
@@ -112,21 +112,25 @@ struct BuddyTests {
     }
 
     @Test func faceFollowsTheCharge() {
-        #expect(BuddyPose(charge: 0) == .tired)
-        #expect(BuddyPose(charge: 0.19) == .tired)
-        #expect(BuddyPose(charge: 0.2) == .meh)
-        #expect(BuddyPose(charge: 0.44) == .meh)
+        #expect(BuddyPose(charge: 0) == .drained)
+        #expect(BuddyPose(charge: 0.14) == .drained)
+        #expect(BuddyPose(charge: 0.15) == .sad)
+        #expect(BuddyPose(charge: 0.3) == .meh)
         #expect(BuddyPose(charge: 0.45) == .idle)
-        #expect(BuddyPose(charge: 0.69) == .idle)
-        #expect(BuddyPose(charge: 0.7) == .grin)
-        #expect(BuddyPose(charge: 0.89) == .grin)
-        #expect(BuddyPose(charge: 0.9) == .happy)
-        #expect(BuddyPose(charge: 1) == .happy)
+        #expect(BuddyPose(charge: 0.6) == .happy)
+        #expect(BuddyPose(charge: 0.75) == .excited)
+        #expect(BuddyPose(charge: 0.89) == .excited)
+        #expect(BuddyPose(charge: 0.9) == .ecstatic)
+        #expect(BuddyPose(charge: 1) == .ecstatic)
     }
 
-    @Test func heroBeamsWhenTheDayIsDoneWhateverTheCharge() {
-        #expect(BuddyPose.hero(charge: 0.05, mood: .happy) == .happy)
-        #expect(BuddyPose.hero(charge: 0.05, mood: .sleepy) == .tired)
-        #expect(BuddyPose.hero(charge: 0.72, mood: .idle) == .grin)
+    @Test func heroIsEcstaticWhenTheDayIsDoneWhateverTheCharge() {
+        #expect(BuddyPose.hero(charge: 0.05, mood: .ecstatic) == .ecstatic)
+        #expect(BuddyPose.hero(charge: 0.05, mood: .sleepy) == .drained)
+        #expect(BuddyPose.hero(charge: 0.72, mood: .idle) == .happy)
+    }
+
+    @Test func spritesAre48Pixels() {
+        #expect(BuddyPixels.size == 48)
     }
 }

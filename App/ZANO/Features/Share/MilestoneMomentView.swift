@@ -106,7 +106,7 @@ struct MilestoneMomentView: View {
     @ViewBuilder
     private var burst: some View {
         if !reduceMotion {
-            BuddySprite(buddy, pose: .happy, size: 96)
+            BuddySprite(buddy, pose: .ecstatic, size: 96)
                 .background {
                     RadialGradient(
                         colors: [content.hue.color.opacity(0.8), content.hue.color.opacity(0)],

@@ -839,7 +839,7 @@ private struct FirstWinCelebration: View {
             }
 
             // The buddy (the star until 2026-10-03), happy once the win lands.
-            BuddySprite(buddy, pose: charge >= 1 ? .happy : .idle, size: Self.starHeight)
+            BuddySprite(buddy, pose: charge >= 1 ? .ecstatic : .idle, size: Self.starHeight)
                 .scaleEffect(showBurst && !reduceMotion ? 1.04 : 1)
                 .animation(reduceMotion ? nil : Theme.Motion.springCelebration, value: showBurst)
                 .accessibilityHidden(true)

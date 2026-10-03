@@ -197,3 +197,26 @@ as before). Motion (hop, breathing) still follows the goal mood. Widgets have no
 keep the goal-mood faces. Volt's resting face became a closed smile so his toothy grin means something.
 Tests: `faceFollowsTheCharge`, `heroBeamsWhenTheDayIsDoneWhateverTheCharge` in BuddyTests.
 Unverified until CI/device: the faces in the running app (demo charge is 72%, so screenshots show the grin).
+
+### Buddies v4: cuter, distinct, eight obvious faces (2026-10-03)
+
+Founder feedback on v3: "needs more variations and more obvious, the animals need to be cuter, they
+seem copy and paste and boring". Redrawn from scratch (`scripts/buddies/`: `engine.py`, `face.py`,
+`buddies.py`; the old `eng.py`/`chars.py` are gone):
+
+- **48x48** (was 32): room for big eyes and readable faces. `BuddyPixels.size = 48`; any multiple of
+  16pt draws evenly on 3x screens.
+- **Distinct silhouettes**, not one template: Stash pear body + giant ringed tail and a phone; Zib a
+  single mochi blob with long ears, star antenna and a blue bow; Lox slim with a bushy tail and a
+  padlock locket; Pip an egg-shaped owl with gold ring eyes and pink gill fronds; Moko peeking from
+  its egg with a shell cap; Brick wide and stocky (flexes when ecstatic); Tank chunky rhino in a Z
+  jersey; Volt a torpedo shark with a bolt fin and teeth; Howl a wolf in a hoodie with cheek tufts.
+  Each has its own eye shape/size/iris.
+- **Eight faces** (`BuddyPose`): drained (> < eyes, tears, rain cloud, washed-out colours, ears down,
+  arms hanging), sad (worried brows, tear, frown), meh (heavy lids, flat mouth, sweat drop), content
+  (`idle`), happy, excited (sparkle eyes, big grin, one arm waving), ecstatic (^ ^ eyes, biggest grin,
+  arms up, hearts), sleepy (closed eyes, snot bubble). Body language changes with the face.
+- Charge → face: <15% drained, <30% sad, <45% meh, <60% content, <75% happy, <90% excited, else
+  ecstatic; all goals done is always ecstatic. Mood → face: sleepy / content / happy (some done) /
+  ecstatic (all done). Celebrations and milestone posters use ecstatic.
+- App icon regenerated (Stash, happy, 48px).

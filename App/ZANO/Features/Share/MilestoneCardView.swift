@@ -123,7 +123,7 @@ struct MilestoneCardView: View {
         ZStack {
             Circle().fill(Theme.Colors.backgroundDeep)
             Circle().strokeBorder(Color.white, lineWidth: PosterMetrics.stickerRim)
-            BuddySprite(buddy, pose: .happy, size: 64)
+            BuddySprite(buddy, pose: .ecstatic, size: 64)
         }
         .frame(width: 84, height: 84)
         .shadow(color: Color.black.opacity(0.5), radius: 0, x: 3, y: 5)

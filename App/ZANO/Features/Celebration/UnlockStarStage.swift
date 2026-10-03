@@ -18,7 +18,7 @@
 // what CI screenshots capture; nothing in it moves.
 //
 // Buddies (2026-10-03): the character on the stage is the user's buddy (`BuddySprite`, `.idle` while
-// it winds up, `.happy` from the flash on), not the star; it leaps, bursts and lands exactly as the
+// it winds up, `.ecstatic` from the flash on), not the star; it leaps, bursts and lands exactly as the
 // star did. The bloom behind it is the buddy's signature colour (the per-buddy theme); the rest of
 // the stage (goal-colour rays, sun marquee, blue shockwave and halo) is unchanged.
 
@@ -59,7 +59,7 @@ struct UnlockStarStage: View {
     // MARK: - Pieces
 
     private var star: some View {
-        BuddySprite(buddy, pose: flash > 0 ? .happy : .idle, size: StageMetrics.starHeight)
+        BuddySprite(buddy, pose: flash > 0 ? .ecstatic : .idle, size: StageMetrics.starHeight)
             .scaleEffect(x: starStretch.x, y: starStretch.y, anchor: .bottom)
             .offset(y: starLift)
     }

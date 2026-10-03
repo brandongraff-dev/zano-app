@@ -40,61 +40,77 @@ public enum Buddy: String, CaseIterable, Sendable, Identifiable {
     public var tertiaryColor: Color { Theme.BuddyColors.colors(for: self).third }
 }
 
-/// Which face the buddy is pulling. Map the day's mood with `init(_:)`, screen-time charge with
-/// `init(charge:)`, and Today's hero (both) with `hero(charge:mood:)`.
+/// Which face the buddy is pulling (eight faces, 2026-10-03). Map the day's mood with `init(_:)`,
+/// screen-time charge with `init(charge:)`, and Today's hero (both) with `hero(charge:mood:)`.
 public enum BuddyPose: String, Sendable, CaseIterable {
-    case idle, sleepy, happy
-    /// Charge faces (2026-10-03): drained (heavy lids, panting, a sweat drop), meh (half-lidded,
-    /// flat mouth) and grinning (big toothy smile). `idle` and `happy` are the middle and top.
-    case tired, meh, grin
+    /// Content: the resting face.
+    case idle
+    /// Eyes closed, a snot bubble: locked with nothing done yet.
+    case sleepy
+    /// Smiling eyes, open smile.
+    case happy
+    /// Squeezed > < eyes, tears, a rain cloud, washed-out colours, arms hanging, ears down.
+    case drained
+    /// Worried brows, a tear, a frown, ears down.
+    case sad
+    /// Heavy lids, flat mouth, a sweat drop.
+    case meh
+    /// Sparkle eyes, a big open grin, one arm waving.
+    case excited
+    /// ^ ^ eyes, the biggest grin, both arms up, hearts.
+    case ecstatic
 
     /// The App Group defaults key for the pose Today's hero is in. Today writes it as the day's
     /// mood changes; the `ZANOReport` extension (which draws Today's hero on a device, but knows
     /// nothing about goals) reads it, so the buddy pulls the same face in both processes.
     public static let heroStorageKey = "shared.buddyHeroPose"
 
-    /// Sleepy while locked with nothing done, happy once everything is done, otherwise idle (the
-    /// motion layer adds the hop for "some done").
+    /// Sleepy while locked with nothing done, happy with some done, ecstatic once everything is
+    /// done, otherwise content.
     public init(_ mood: ZanoMascotMood) {
         switch mood {
         case .sleepy: self = .sleepy
-        case .idle, .perky: self = .idle
-        case .charged: self = .happy
+        case .idle: self = .idle
+        case .perky: self = .happy
+        case .charged: self = .ecstatic
         }
     }
 
-    /// The face for a screen-time charge (0...1, the share of the waking day spent off the phone):
-    /// drained under 20%, meh under 45%, content under 70%, grinning under 90%, beaming above.
+    /// The face for a screen-time charge (0...1, the share of the waking day spent off the phone),
+    /// in seven steps from drained to ecstatic.
     public init(charge: Double) {
         switch charge {
-        case ..<0.2: self = .tired
+        case ..<0.15: self = .drained
+        case ..<0.3: self = .sad
         case ..<0.45: self = .meh
-        case ..<0.7: self = .idle
-        case ..<0.9: self = .grin
-        default: self = .happy
+        case ..<0.6: self = .idle
+        case ..<0.75: self = .happy
+        case ..<0.9: self = .excited
+        default: self = .ecstatic
         }
     }
 
-    /// Today's hero: once every goal is done (`mood` is `.happy`) the buddy beams whatever the
-    /// charge; otherwise its face follows the charge.
+    /// Today's hero: once every goal is done (`mood` is `.ecstatic`) the buddy is ecstatic
+    /// whatever the charge; otherwise its face follows the charge.
     public static func hero(charge: Double, mood: BuddyPose) -> BuddyPose {
-        mood == .happy ? .happy : BuddyPose(charge: charge)
+        mood == .ecstatic ? .ecstatic : BuddyPose(charge: charge)
     }
 }
 
-/// One pose's pixels: 32 rows of 32 characters; "." is transparent, any other character indexes
-/// `palette` (0xRRGGBB).
+/// One pose's pixels: 48 rows of 48 characters; "." is transparent, any other character indexes
+/// `palette` (0xRRGGBB) through `keys`. Sizes that are multiples of 16pt draw every pixel the same
+/// width on a 3x screen.
 public struct BuddyPixels: Sendable {
-    public static let size = 32
+    public static let size = 48
     let palette: [UInt32]
     let rows: [String]
 
     private static let keys: [Character: Int] = {
-        let chars = Array("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        let chars = Array("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,-/:;<=>?@[]^_`{|}~")
         return Dictionary(uniqueKeysWithValues: chars.enumerated().map { ($1, $0) })
     }()
 
-    /// A 32x32 RGBA image (nearest-neighbour scaling keeps it crisp).
+    /// A 48x48 RGBA image (nearest-neighbour scaling keeps it crisp).
     public func cgImage() -> CGImage? {
         let n = Self.size
         var bytes = [UInt8](repeating: 0, count: n * n * 4)

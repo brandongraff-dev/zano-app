@@ -8,9 +8,9 @@
 //   * `OnboardingGuideStar`   the living star as a guide character: it says one short line in a
 //                             glass speech bubble and reacts (a charge burst, a little pop, a soft
 //                             haptic) every time its line changes, i.e. every time you answer.
-//   * `OnboardingChargeMeter` the header's progress: seven chunky power cells that light up one per
-//                             step, ending in the star, which charges with them. Replaces the thin
-//                             progress line. Keeps the "Step N of 7" accessibility element.
+//   * `OnboardingChargeMeter` the header's progress: chunky power cells that light up one per
+//                             step, ending in the buddy (the star until 2026-10-03). Replaces the thin
+//                             progress line. Keeps the "Step N of 8" accessibility element.
 //   * `OnboardingChargeButton` the hold-to-commit as a charging button: a tall glass capsule that
 //                             fills blue-to-violet while held, a bolt that bounces on each tenth,
 //                             a glow that grows with the charge, and a burst when it lands.
@@ -20,7 +20,10 @@
 //                             icon and a check sticker when picked.
 //   * `OnboardingSticker`     a point-sized front for Core's `ZanoSticker` (icon-only, filled).
 //
-// Nothing here edits Core/UI; it only composes `ZanoLivingMark`, `zanoMascot`, `zanoChargeBurst`,
+// Buddies (2026-10-03): the guide and the meter's end are the user's buddy (`BuddySprite`, read from
+// the App Group with `@AppStorage`), picked on step 2, instead of the star. Stash until then.
+//
+// Nothing here edits Core/UI; it only composes `BuddySprite`, `zanoMascot`, `zanoChargeBurst`,
 // `ZanoSticker`, `zanoCard`, `zanoGlass` and `Theme` tokens. Every motion is gated on Reduce Motion (the star is still, the
 // bubble cross-fades, nothing scales). One orchestrated moment per screen is the caller's job.
 
@@ -63,23 +66,26 @@ struct OnboardingSticker: View {
 
 // MARK: - Guide star
 
-/// The star with a speech bubble. `line` is what it says; whenever it changes the star reacts.
-/// `charge` is how full it is (callers raise it as the user answers).
+/// The user's buddy with a speech bubble (the star until 2026-10-03; the name stayed). `line` is
+/// what it says; whenever it changes the buddy reacts. `charge` brightens the bloom behind it
+/// (callers raise it as the user answers).
 struct OnboardingGuideStar: View {
     let line: String
     var charge: Double = 0.5
-    var starHeight: CGFloat = 52
+    /// The buddy's size: a multiple of its 32px grid so the pixels stay crisp.
+    var starHeight: CGFloat = 64
     /// The bubble's accent edge (a goal colour once one is picked).
     var tint: Color = Theme.Colors.accent
     /// `.idle` while it waits for an answer, `.perky` once it has one.
     var mood: ZanoMascotMood = .idle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     @State private var reactTick = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.xs) {
-            ZanoLivingMark(charge: charge, height: starHeight)
+            BuddySprite(buddy, pose: .idle, size: starHeight)
                 .background {
                     OnboardingKit.StarBloom(diameter: starHeight * 3)
                         .opacity(0.35 + 0.5 * charge)
@@ -130,7 +136,7 @@ struct OnboardingGuideStar: View {
     }
 }
 
-/// A rounded speech bubble with a small tail on its leading edge, pointing at the star.
+/// A rounded speech bubble with a small tail on its leading edge, pointing at the buddy.
 private struct GuideBubbleShape: Shape {
     /// The rim is drawn without the tail, so the outline never cuts across the tail's base.
     var includesTail = true
@@ -151,23 +157,22 @@ private struct GuideBubbleShape: Shape {
 
 // MARK: - Charge meter (header progress)
 
-/// Seven power cells, lit up to the current step, ending in the star. Pass 3 (restraint): every lit
-/// cell is the one accent blue, no glow; the newest one pops in. The star at the end charges with them.
+/// One power cell per step, lit up to the current step, ending in the user's buddy (the star until
+/// 2026-10-03). Pass 3 (restraint): every lit cell is the one accent blue, no glow; the newest one
+/// pops in, and the buddy at the end gives a little burst.
 struct OnboardingChargeMeter: View {
     let step: Int
     let total: Int
     let accessibilityText: String
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var fraction: Double { Double(step) / Double(max(total, 1)) }
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
             cells
-            ZanoLivingMark(charge: fraction, height: 26)
+            BuddySprite(buddy, pose: .idle, size: 32)
                 .zanoChargeBurst(trigger: step, color: Theme.Colors.Aurora.violet)
-                .accessibilityHidden(true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)

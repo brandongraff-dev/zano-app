@@ -7,11 +7,12 @@
 //
 // SHORT FLOW (founder decision 2026-10-02): 7 steps, down from 15, so a new user reaches a real
 // earned win in about 3 minutes. Hook -> main goal -> your why -> apps -> plan + hold to commit ->
-// paywall -> first win. See `OnboardingFlowState.swift` for the old-to-new map; the optional setup
+// paywall -> first win. Buddies (2026-10-03, approved): a "Pick your buddy" step after the hook
+// (`BuddyPickerView`, Features/Buddy) makes it 8. See `OnboardingFlowState.swift` for the old-to-new map; the optional setup
 // topics live on Today's Finish setup card.
 //
 // `OnboardingFlowState` (`OnboardingFlowState.swift`, read here, never edited) is the shared state:
-// `currentScreen` (1...7), the answers, `advance()`/`goBack()`, `progressFraction`,
+// `currentScreen` (1...8), the answers, `advance()`/`goBack()`, `progressFraction`,
 // `recordCommitment(at:)`. Every screen takes `@Bindable var flowState: OnboardingFlowState` and
 // advances itself via `flowState.advance()`; this container never drives navigation from the
 // outside beyond the back button.
@@ -22,7 +23,7 @@
 //     (better-layout 7.6) and the back target is 44pt (better-ui HIT-01).
 //   - The header is hidden on screen 1 (the full-bleed hook, spec §7.1) and on the last screen (the live
 //     first-win lock: a Back there used to return to the paywall mid-session — better-layout 7.6).
-//     The "Step N of 7" accessibility element is NOT hidden with it: on those two screens it is
+//     The "Step N of 8" accessibility element is NOT hidden with it: on those two screens it is
 //     kept as a 1pt invisible marker, so VoiceOver still announces where the user is and the UI-test
 //     harness (`ZANOUITests`, which detects onboarding and waits on steps 1 and 7 through that
 //     label) keeps working.
@@ -42,11 +43,11 @@
 // charges while you're off your phone") played out while the user answers. The scaffold paints one
 // continuous ambient (`OnboardingKit.Ambient`): deep navy from above that warms toward ZANO Blue as
 // the steps advance, so screens no longer paint their own flat `zanoAmbient(.neutral)`. The progress
-// fill is blue with a soft glow, and advancing a step ticks a soft haptic. The "Step N of 7"
+// fill is blue with a soft glow, and advancing a step ticks a soft haptic. The "Step N of 8"
 // element is unchanged (the star is hidden from VoiceOver so it adds no second element).
 //
 // Visual pass 2 (2026-10-03, founder: "make it more playful"): the flow plays like a game's
-// character select. The header is a charge meter (seven power cells ending in the star), the
+// character select. The header is a charge meter (one power cell per step, ending in the buddy since 2026-10-03), the
 // backdrop is the shared aurora, and the star is a guide character with a speech bubble on the
 // question steps (`OnboardingPlayKit.swift`). Flow, steps, analytics and plan saving are unchanged.
 //
@@ -58,7 +59,7 @@ import SwiftUI
 import SwiftData
 import Core
 
-/// Root of the 7-step onboarding flow (docs/spec.md §7). Owns the one shared
+/// Root of the 8-step onboarding flow (docs/spec.md §7). Owns the one shared
 /// `OnboardingFlowState` for the whole flow and renders whichever screen
 /// `flowState.currentScreen` names, wrapped in `OnboardingScaffold`'s chrome.
 ///
@@ -74,7 +75,7 @@ struct OnboardingContainerView: View {
     @State private var flowState: OnboardingFlowState
 
     /// `initialScreen` exists so the CI screenshot gallery (`ScreenshotGallery.swift`) can photograph
-    /// any of the 7 steps directly; every real caller leaves it at the first screen.
+    /// any of the 8 steps directly; every real caller leaves it at the first screen.
     init(onFinished: @escaping () -> Void = {}, initialScreen: Int = OnboardingFlowState.firstScreen) {
         self.onFinished = onFinished
         let state = OnboardingFlowState()
@@ -99,6 +100,7 @@ struct OnboardingContainerView: View {
     private func screen(for step: OnboardingStep) -> some View {
         switch step {
         case .hook: Screen1Hook(flowState: flowState)
+        case .buddy: buddyStep
         case .mainGoal: Screen3MainGoal(flowState: flowState)
         case .yourWhy: ScreenYourWhy(flowState: flowState)
         case .appSelection: Screen4AppSelection(flowState: flowState)
@@ -106,6 +108,17 @@ struct OnboardingContainerView: View {
         case .paywall: PaywallView(flowState: flowState)
         case .firstWin: Screen14FirstWin(flowState: flowState, onFinished: onFinished)
         }
+    }
+
+    /// Step 2 (Buddies, 2026-10-03): the shared picker; its "Team up" button advances.
+    private var buddyStep: some View {
+        BuddyPickerView(context: .onboarding) { flowState.advance() }
+            .onAppear {
+                Analytics.shared.capture(
+                    event: "onboarding_screen_viewed",
+                    properties: OnboardingStep.buddy.viewedProperties
+                )
+            }
     }
 
     /// Enter from the trailing edge; leave softly (fade plus a small drift) so the outgoing screen
@@ -156,7 +169,7 @@ struct OnboardingScaffold<Content: View>: View {
         }
         .overlay(alignment: .top) {
             if !showsChrome {
-                // The header is gone; its "Step N of 7" element is not. 1pt, invisible, no layout.
+                // The header is gone; its "Step N of 8" element is not. 1pt, invisible, no layout.
                 Color.clear
                     .frame(width: 1, height: 1)
                     .accessibilityElement(children: .ignore)
@@ -175,9 +188,9 @@ struct OnboardingScaffold<Content: View>: View {
         }
     }
 
-    /// [back 44pt][charge meter: seven power cells ending in the star]. Visual pass 2 (2026-10-03):
+    /// [back 44pt][charge meter: one power cell per step, ending in the buddy]. Visual pass 2 (2026-10-03):
     /// the thin progress line became the charge meter (`OnboardingPlayKit.swift`), which carries
-    /// the same "Step N of 7" accessibility element the UI tests wait on.
+    /// the same "Step N of 8" accessibility element the UI tests wait on.
     private var header: some View {
         HStack(spacing: Theme.Spacing.xxs) {
             Button {

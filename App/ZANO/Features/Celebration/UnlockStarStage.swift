@@ -16,15 +16,22 @@
 // its own curve from them, so `UnlockCelebrationView` only advances two numbers per frame from a
 // `TimelineView`. The resting frame (`flash == 1`, `charge == 1`) is what Reduce Motion shows and
 // what CI screenshots capture; nothing in it moves.
+//
+// Buddies (2026-10-03): the character on the stage is the user's buddy (`BuddySprite`, `.idle` while
+// it winds up, `.happy` from the flash on), not the star; it leaps, bursts and lands exactly as the
+// star did. The bloom behind it is the buddy's signature colour (the per-buddy theme); the rest of
+// the stage (goal-colour rays, sun marquee, blue shockwave and halo) is unchanged.
 
 import SwiftUI
 import Core
 
 struct UnlockStarStage: View {
-    /// The star's silver fill, 0...1.
+    /// How wound-up the leap is, 0...1 (it was the star's silver fill).
     let charge: Double
     /// Progress through the flash, 0 (before) ... 1 (settled).
     let flash: Double
+
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     /// The confetti and ray colours: the goal palette, so the win looks like *your* goals.
     static let goalPalette: [Color] = [
@@ -52,7 +59,7 @@ struct UnlockStarStage: View {
     // MARK: - Pieces
 
     private var star: some View {
-        ZanoLivingMark(charge: charge, height: StageMetrics.starHeight)
+        BuddySprite(buddy, pose: flash > 0 ? .happy : .idle, size: StageMetrics.starHeight)
             .scaleEffect(x: starStretch.x, y: starStretch.y, anchor: .bottom)
             .offset(y: starLift)
     }
@@ -74,9 +81,9 @@ struct UnlockStarStage: View {
     private var bloom: some View {
         RadialGradient(
             colors: [
-                Theme.Colors.accent.opacity(0.85),
-                Theme.Colors.Aurora.violet.opacity(0.30),
-                Theme.Colors.accent.opacity(0),
+                buddy.color.opacity(0.85),
+                buddy.color.opacity(0.30),
+                buddy.color.opacity(0),
             ],
             center: .center,
             startRadius: 0,
@@ -244,8 +251,8 @@ private struct SunburstRays: Shape {
 
 /// Sizes for the stage artwork, which has no `Theme.Metrics` home.
 enum StageMetrics {
-    /// The star's height; width follows `ZanoMark.aspectRatio`.
-    static let starHeight: CGFloat = 112
+    /// The buddy's size (square): 4x its 32px grid, so the pixels stay crisp.
+    static let starHeight: CGFloat = 128
     /// The stage's layout height. The bloom and rays may draw past it.
     static let stageHeight: CGFloat = 260
     /// How high the star leaps before it bursts.

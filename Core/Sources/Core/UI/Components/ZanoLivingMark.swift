@@ -14,6 +14,10 @@
 // Because real screen-time numbers exist only inside the `ZANOReport` extension (spec §27), Today
 // embeds `ScreenTimeChargeView` through `DeviceActivityReport(.zanoMark, ...)`; the extension
 // computes the summary and draws this view. CI screenshots draw it from demo data.
+//
+// Buddies (2026-10-03): the app's character is now the buddy the user picks (`Buddy`), so Today's
+// hero (`ScreenTimeChargeView`, below) draws the buddy. `ZanoLivingMark` stays as the brand star for
+// the places that are about the brand rather than the character (and for previews).
 
 import SwiftUI
 
@@ -151,62 +155,54 @@ public struct ZanoLivingMark: View {
     }
 }
 
-/// The living star with today's charge stuck on it. Sized for Today's hero. This is the view the
-/// `ZANOReport` extension draws for the `.zanoMark` context, so its type must stay concrete.
+/// Today's hero: the user's buddy with today's charge stuck on it. This is the view the `ZANOReport`
+/// extension draws for the `.zanoMark` context, so its type must stay concrete.
 ///
-/// v2 (visual direction v2): one quiet row of glass chips under the star.
+/// Pass 2 (playful, 2026-10-03): the charge is a small sticker stuck on the hero's corner ("72%" with
+/// a bolt, filled ZANO Blue once it is worth bragging about). It moves with the hero, which is the
+/// point: it is the character's own badge. The day's screen-time total sits under it as a quiet
+/// sticker (the founder asked for it; it stays). The default height (96) is the compact hero's, and
+/// it is what the report extension draws with (it passes no height), so the app and extension agree.
 ///
-/// Pass 2 (playful, 2026-10-03): the hero is compact now (the star sits beside the score, so the goal
-/// tiles start above the fold), so the charge is a small sticker stuck on the star's corner ("72%"
-/// with a bolt, filled ZANO Blue once it is worth bragging about) instead of a chip row under it. It
-/// moves with the star, which is the point: it is the star's own badge. The day's screen-time total
-/// also sits under the star as a quiet sticker. The default height (96) is the compact hero's star, and it is
-/// what the report extension draws with (it passes no height), so the app and extension agree.
+/// Buddies (2026-10-03): the hero is the buddy the user picked (`Buddy.stored`), not the star. Both
+/// it and its pose come from the App Group defaults, because the report extension can't be handed
+/// either: the buddy is `Buddy.storageKey`; the pose is `BuddyPose.heroStorageKey`, which Today
+/// writes from the day's mood (the extension knows nothing about goals). In-app callers may pass
+/// `pose` directly. The charge, which the star used to show as a fill, is the sticker's number.
 public struct ScreenTimeChargeView: View {
     private let charge: Double
     private let total: TimeInterval?
     private let height: CGFloat
+    private let pose: BuddyPose?
 
-    public init(summary: ScreenTimeSummary, height: CGFloat = 96) {
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store)
+    private var buddy: Buddy = .default
+    @AppStorage(BuddyPose.heroStorageKey, store: SharedDefaults.store)
+    private var sharedPose: BuddyPose = .idle
+
+    public init(summary: ScreenTimeSummary, height: CGFloat = 96, pose: BuddyPose? = nil) {
         self.charge = summary.charge
         self.total = summary.total
         self.height = height
+        self.pose = pose
     }
 
-    /// Before Screen Time access: an uncharged star and a hint instead of numbers.
-    public init(height: CGFloat = 96) {
+    /// Before Screen Time access: the buddy and a hint instead of numbers.
+    public init(height: CGFloat = 96, pose: BuddyPose? = nil) {
         self.charge = 0
         self.total = nil
         self.height = height
+        self.pose = pose
     }
 
     private var percent: Int { Int((charge * 100).rounded()) }
 
     public var body: some View {
         VStack(spacing: Theme.Spacing.xs) {
-            // Before access there is no charge to speak, so the star stays decorative and the
-            // hint below carries the meaning.
-            ZanoLivingMark(
-                charge: charge,
-                height: height,
-                accessibilityValue: total == nil ? nil : Copy.screenTime.chargeSpoken(percent: percent)
-            )
-            .overlay(alignment: .bottomTrailing) {
-                if total != nil {
-                    ZanoSticker(
-                        Copy.screenTime.chargeSticker(percent: percent),
-                        systemImage: "bolt.fill",
-                        color: charge >= 0.35 ? Theme.Colors.accent : Theme.Colors.muted,
-                        style: charge >= 0.35 ? .filled : .tinted,
-                        size: .small
-                    )
-                    .fixedSize()
-                    .offset(x: Theme.Spacing.xxs, y: Theme.Spacing.xs)
-                    // The star already speaks the charge (`chargeSpoken`).
-                    .accessibilityHidden(true)
-                }
-            }
-            // The founder asked for today's screen-time total right under the star; it stays,
+            // Decorative: the sticker and the total speak the numbers.
+            BuddySprite(buddy, pose: pose ?? sharedPose, size: height)
+                .overlay(alignment: .bottomTrailing) { chargeSticker }
+            // The founder asked for today's screen-time total right under the hero; it stays,
             // as a quiet sticker.
             if let total {
                 ZanoSticker(
@@ -233,6 +229,24 @@ public struct ScreenTimeChargeView: View {
         // Drawn by the `ZANOReport` extension, which the app's root scheme can't reach: honour an
         // explicit Settings > Appearance choice (light mode, 2026-10-03).
         .zanoAppAppearance()
+    }
+
+    /// "72%" with a bolt on the hero's corner, once there is a charge to show. It carries the
+    /// spoken charge (the star used to).
+    @ViewBuilder
+    private var chargeSticker: some View {
+        if total != nil {
+            ZanoSticker(
+                Copy.screenTime.chargeSticker(percent: percent),
+                systemImage: "bolt.fill",
+                color: charge >= 0.35 ? Theme.Colors.accent : Theme.Colors.muted,
+                style: charge >= 0.35 ? .filled : .tinted,
+                size: .small
+            )
+            .fixedSize()
+            .offset(x: Theme.Spacing.sm, y: Theme.Spacing.xs)
+            .accessibilityLabel(Copy.screenTime.chargeSpoken(percent: percent))
+        }
     }
 }
 

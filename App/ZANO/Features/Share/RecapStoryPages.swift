@@ -11,7 +11,7 @@
 // split highs/lows, concentric rings, poster). The backdrop is one shared near-black canvas whose
 // big soft blue/navy glow moves to a different spot per page, so page changes feel like one
 // continuous surface. Entrances are springs staggered by element; Reduce Motion gets fades only,
-// and the living star holds still on its own (`ZanoLivingMark` handles that).
+// and the buddy on the intro is a still sprite (it was the living star until 2026-10-03).
 
 import SwiftUI
 import Core
@@ -205,13 +205,14 @@ private enum StoryType {
 struct RecapIntroPage: View {
     let data: RecapStoryData
     @State private var appeared = false
+    /// Buddies (2026-10-03): the intro's hero is the user's buddy (the living star until then).
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer(minLength: 0)
 
-            ZanoLivingMark(charge: max(0.25, data.completion), height: 150)
-                .accessibilityHidden(true)
+            BuddySprite(buddy, pose: data.completion >= 0.5 ? .happy : .idle, size: 160)
                 .storyReveal(appeared, delay: 0, distance: 0)
                 .padding(.bottom, Theme.Spacing.md)
 

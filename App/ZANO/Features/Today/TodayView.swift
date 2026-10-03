@@ -184,6 +184,9 @@ struct TodayView: View {
     @State private var mascotLineIndex = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.zanoTabIsSelected) private var isTabSelected
+    /// Buddies (2026-10-03): the user's buddy, the hero's character (App Group defaults, shared with
+    /// the report extension that draws the hero on a device). Its colour tints the hero's glow.
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     /// Today vs. "Ghost You" (spec §5.4). `nil` until the first load completes.
     @State private var ghostComparison: GhostMode.GhostComparison?
 
@@ -466,6 +469,11 @@ struct TodayView: View {
         }
         .frame(maxWidth: .infinity)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
+        // The report extension draws the hero on a device but can't see goals: hand it the
+        // buddy's pose through the App Group (`BuddyPose.heroStorageKey`).
+        .onChange(of: mascotMood, initial: true) { _, mood in
+            SharedDefaults.store.set(BuddyPose(mood).rawValue, forKey: BuddyPose.heroStorageKey)
+        }
     }
 
     private var heroScoreButton: some View {
@@ -515,7 +523,7 @@ struct TodayView: View {
         }
     }
 
-    /// The star on its stage. Tapping it spins it and shows a line from the coach; a completed goal
+    /// The buddy on its stage (the star until 2026-10-03). Tapping it spins it and shows a line from the coach; a completed goal
     /// makes it jump and throws a burst in the goal's colour.
     private var heroStage: some View {
         heroStar
@@ -525,7 +533,8 @@ struct TodayView: View {
                 spin: mascotSpinTick,
                 sparkColors: doneGoalColors,
                 size: Self.heroMarkHeight,
-                showsGlow: !reduceTransparency
+                showsGlow: !reduceTransparency,
+                glowColor: buddy.color
             )
             .zanoChargeBurst(trigger: heroBurstTick, color: heroBurstColor)
             .frame(width: Self.heroStageWidth, height: Self.heroStageHeight)
@@ -534,8 +543,8 @@ struct TodayView: View {
             .contentShape(Rectangle())
             .onTapGesture(perform: pokeMascot)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Copy.today.mascotSpoken(mascotMood))
-            .accessibilityHint(Copy.today.mascotHint)
+            .accessibilityLabel(Copy.buddy.heroSpoken(buddy, mood: mascotMood))
+            .accessibilityHint(Copy.buddy.heroHint)
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(.default, pokeMascot)
             .sensoryFeedback(.impact(weight: .light), trigger: mascotSpinTick)
@@ -650,13 +659,13 @@ struct TodayView: View {
     @ViewBuilder
     private var heroStar: some View {
         if ScreenshotMode.screen != nil {
-            ScreenTimeChargeView(summary: DemoData.screenTime, height: Self.heroMarkHeight)
+            ScreenTimeChargeView(summary: DemoData.screenTime, height: Self.heroMarkHeight, pose: BuddyPose(mascotMood))
         } else if screenTimeStatus == .approved {
             DeviceActivityReport(.zanoMark, filter: Self.todayFilter)
                 .frame(height: Self.heroStageHeight)
                 .allowsHitTesting(false)
         } else {
-            ScreenTimeChargeView(height: Self.heroMarkHeight)
+            ScreenTimeChargeView(height: Self.heroMarkHeight, pose: BuddyPose(mascotMood))
         }
     }
 
@@ -664,7 +673,8 @@ struct TodayView: View {
     /// on-device (report extension) paths, so all three lay out the same. `heroMarkHeight` matches
     /// `ScreenTimeChargeView`'s default, which the report extension draws with.
     private static let heroStageHeight: CGFloat = 176
-    // Wider than the mark (≈150pt at 96pt tall) so its lean and hop never reach the screen edge.
+    // Wider than the hero (the 96pt buddy plus its charge sticker) so its lean and hop never reach
+    // the screen edge. 96 is a multiple of the buddy's 32px grid, so its pixels stay crisp.
     private static let heroStageWidth: CGFloat = 168
     private static let heroMarkHeight: CGFloat = 96
 
@@ -1319,13 +1329,12 @@ struct TodayView: View {
         return DeviceActivityFilter(segment: .hourly(during: day))
     }
 
-    /// Before Screen Time access: the same star, uncharged, beside what granting access buys.
+    /// Before Screen Time access: the user's buddy, small, beside what granting access buys.
     private var screenTimeAccessCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             HStack(alignment: .top, spacing: Theme.Spacing.md) {
-                ZanoLivingMark(charge: 0, height: 34)
+                BuddySprite(buddy, pose: .idle, size: 32)
                     .padding(.top, Theme.Spacing.xxs)
-                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(Copy.screenTime.accessTitle)
                         .font(Theme.Typography.headline)

@@ -15,7 +15,7 @@
 //                                   selection; visible 12% hairline otherwise)
 //   - the hand-rolled pinned bar -> `zanoActionBar` (`StickyActionBar`)
 // What is still hosted here for the question steps to share: `View.onboardingPinnedContinue`
-// (pass 2 retired `OnboardingSingleChoiceList`). (Short flow, 2026-10-02: this is step 2 of 7.)
+// (pass 2 retired `OnboardingSingleChoiceList`). (Short flow, 2026-10-02: this is step 3 of 8.)
 //
 // Pacing (docs/design/competitive-research.md §3.5, "every input triggers a visible consequence"; Cal
 // AI, Opal, Duolingo): Q1 used to be five text rows and nothing happened when you tapped one. Now a
@@ -40,7 +40,7 @@
 import SwiftUI
 import Core
 
-/// Step 2 of 7 (spec §7.3) - Q1, single-select main goal.
+/// Step 3 of 8 (spec §7.3) - Q1, single-select main goal.
 struct Screen3MainGoal: View {
     @Bindable var flowState: OnboardingFlowState
 

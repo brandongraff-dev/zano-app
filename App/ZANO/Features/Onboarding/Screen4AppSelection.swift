@@ -54,7 +54,7 @@ import ManagedSettings
 import ManagedSettingsUI
 import Core
 
-/// Step 4 of 7 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
+/// Step 5 of 8 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
 /// FamilyControls authorization request (spec §7.4's parenthetical), primed with one sentence
 /// (`Copy.onboarding.q2Subtitle`) before the system picker/permission sheet appears.
 struct Screen4AppSelection: View {

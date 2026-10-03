@@ -41,8 +41,13 @@ public enum Buddy: String, CaseIterable, Sendable, Identifiable {
 }
 
 /// Which face the buddy is pulling. Map the day's mood with `init(_:)`.
-public enum BuddyPose: Sendable, CaseIterable {
+public enum BuddyPose: String, Sendable, CaseIterable {
     case idle, sleepy, happy
+
+    /// The App Group defaults key for the pose Today's hero is in. Today writes it as the day's
+    /// mood changes; the `ZANOReport` extension (which draws Today's hero on a device, but knows
+    /// nothing about goals) reads it, so the buddy pulls the same face in both processes.
+    public static let heroStorageKey = "shared.buddyHeroPose"
 
     /// Sleepy while locked with nothing done, happy once everything is done, otherwise idle (the
     /// motion layer adds the hop for "some done").

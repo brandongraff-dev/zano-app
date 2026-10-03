@@ -80,5 +80,26 @@ extension Copy {
         /// VoiceOver for a picker tile: "Stash, phone-hoarding raccoon".
         public static func tileLabel(_ buddy: Buddy) -> String { "\(name(buddy)), \(kind(buddy))" }
         public static let selectedHint = "Selected"
+
+        // MARK: - Today's hero (the buddy replaced the star, 2026-10-03)
+
+        /// The hero's VoiceOver label on Today: the buddy's name and how it feels.
+        public static func heroSpoken(_ buddy: Buddy, mood: ZanoMascotMood) -> String {
+            let buddyName = name(buddy)
+            return switch mood {
+            case .sleepy: "\(buddyName), napping until a goal is done"
+            case .idle: buddyName
+            case .perky: "\(buddyName), warming up"
+            case .charged: "\(buddyName), all done and happy"
+            }
+        }
+
+        /// The hero's VoiceOver hint: what poking it does.
+        public static let heroHint = "Makes your buddy spin"
+
+        /// The picker's hero, spoken: "Stash. Phone-hoarding raccoon. The Den."
+        public static func heroLabel(_ buddy: Buddy) -> String {
+            "\(name(buddy)). \(kind(buddy)). \(world(buddy))."
+        }
     }
 }

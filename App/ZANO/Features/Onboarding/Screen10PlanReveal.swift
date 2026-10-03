@@ -56,13 +56,13 @@
 // Liveliness pass (2026-09-24): the build beat's hero is the living star (`ZanoLivingMark`) instead
 // of a white ring: it takes on charge as each of the user's answers checks off, over a ZANO Blue
 // bloom that brightens with it, so "building your plan" reads as the star being built. The revealed
-// plan carries a small star above its title, charged to where the flow is (5 of 7 since the short flow). The backdrop
+// plan carries a small star above its title, charged to where the flow is (6 of 8 since the buddy step). The backdrop
 // is the scaffold's flow ambient, not a flat `zanoAmbient(.neutral)`.
 //
 // NFC pass (2026-09-24), superseded by the short flow: the tags question left onboarding, so a
 // protein goal row now always says "meal photo or barcode" (`verificationLine(for:)`).
 //
-// SHORT FLOW (founder decision 2026-10-02): this is step 5 of 7, and it absorbed two old screens.
+// SHORT FLOW (founder decision 2026-10-02): this is step 6 of 8, and it absorbed two old screens.
 //   - Q4's workout target: when the plan has a workout goal, its row carries a -/+ stepper (1...7 a
 //     week, default 3). The old "current workouts" question is gone; the starting value stays ~70%
 //     of the target.
@@ -114,6 +114,7 @@ struct Screen10PlanReveal: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     private enum Phase: Equatable {
         case building
@@ -212,13 +213,10 @@ struct Screen10PlanReveal: View {
         return Double(builtRows) / Double(total)
     }
 
-    private static let buildStarHeight: CGFloat = 88
-    private static let revealStarHeight: CGFloat = 44
-
-    /// The build beat's star: 0.1 before anything checks off, 0.75 when every answer has.
-    private var buildStarCharge: Double {
-        0.1 + 0.65 * buildProgress
-    }
+    // Buddies (2026-10-03): the build beat's hero and the plan's guide are the user's buddy, sized
+    // on its 32px grid.
+    private static let buildStarHeight: CGFloat = 96
+    private static let revealStarHeight: CGFloat = 64
 
     /// Where the revealed plan's star sits: the flow's own progress at this screen.
     private var revealStarCharge: Double {
@@ -229,9 +227,10 @@ struct Screen10PlanReveal: View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer(minLength: Theme.Spacing.lg)
 
-            // The star charges as the answers check off: from a glimmer to where the plan will
-            // leave it. It eases each step itself; the bloom brightens with it.
-            ZanoLivingMark(charge: buildStarCharge, height: Self.buildStarHeight)
+            // The buddy watches the answers check off; the bloom behind it brightens with them
+            // (the star charged here until 2026-10-03). It perks up once everything has.
+            BuddySprite(buddy, pose: buildProgress >= 1 ? .happy : .idle, size: Self.buildStarHeight)
+                .zanoMascot(mood: buildProgress >= 1 ? .perky : .idle, size: Self.buildStarHeight, showsGlow: false)
                 .background {
                     OnboardingKit.StarBloom(diameter: Self.buildStarHeight * 3.2)
                         .opacity(0.25 + 0.75 * buildProgress)

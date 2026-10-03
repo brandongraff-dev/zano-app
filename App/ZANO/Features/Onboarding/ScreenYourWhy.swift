@@ -1,7 +1,7 @@
 // ScreenYourWhy.swift
 // App / Features / Onboarding
 //
-// Step 3 of 7, "Your why" (short flow, founder decision 2026-10-02). Three old screens in one:
+// Step 4 of 8, "Your why" (short flow, founder decision 2026-10-02). Three old screens in one:
 //   - Q3 daily phone time (spec §7.5): the slider, with the hours as the hero numeral;
 //   - the wake-up math (spec §7.9): "~N days a year on your phone", then the reclaim half,
 //     "earn 2h a day back: N days a year back", both updating live as the slider moves;

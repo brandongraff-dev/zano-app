@@ -30,6 +30,7 @@ struct MilestoneMomentView: View {
     @State private var burstStarted = false
     @State private var cardAppeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     init(milestone: Milestone, onDismiss: @escaping () -> Void) {
         self.milestone = milestone
@@ -100,12 +101,12 @@ struct MilestoneMomentView: View {
 
     // MARK: - Reveal
 
-    /// The star blooms out of the dark and fades as the card rises into its place. Reduce Motion:
-    /// no burst, the card simply fades in.
+    /// The user's buddy (the star until 2026-10-03) blooms out of the dark and fades as the card
+    /// rises into its place. Reduce Motion: no burst, the card simply fades in.
     @ViewBuilder
     private var burst: some View {
         if !reduceMotion {
-            ZanoMark(height: 72, style: .brand)
+            BuddySprite(buddy, pose: .happy, size: 96)
                 .background {
                     RadialGradient(
                         colors: [content.hue.color.opacity(0.8), content.hue.color.opacity(0)],

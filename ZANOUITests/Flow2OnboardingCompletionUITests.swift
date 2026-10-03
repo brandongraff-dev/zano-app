@@ -1,20 +1,20 @@
 // Flow2OnboardingCompletionUITests.swift
 // ZANOUITests -- scenario 1: complete onboarding end to end and land on the Today tab.
 //
-// docs/spec.md §7 (7 steps since the short flow of 2026-10-02: hook -> main goal -> your why -> apps
-// -> plan + hold to commit -> paywall -> first win) and §2 (core loop). Step 7 IS the core loop run
+// docs/spec.md §7 (8 steps since the buddy step of 2026-10-03: hook -> buddy -> main goal -> your why
+// -> apps -> plan + hold to commit -> paywall -> first win) and §2 (core loop). Step 8 IS the core loop run
 // once inside onboarding: lock -> 2-minute focus goal -> verified -> unlock + streak Day 1
 // (spec §7.14, §8 rule 11).
 //
 // Two tests, split by what they need:
-//   test1_  steps 1-4 only, NO FamilyControls. Runs on the Simulator. Checks the step chain, the
-//           Continue gates (step 2 needs a goal, step 4 needs picked apps) and the Back button.
+//   test1_  steps 1-5 only, NO FamilyControls. Runs on the Simulator. Checks the step chain, the
+//           Continue gates (step 3 needs a goal, step 5 needs picked apps) and the Back button.
 //   test2_  the whole flow through the first win to Today. DEVICE ONLY, ~4 minutes. Launched with
 //           `-ZANOSkipPaywall YES` (DEBUG only), since a test cannot buy the hard paywall's trial.
 //
 // Both need a fresh install (there is no in-app reset hook) and the app shell that hosts
 // `OnboardingContainerView` then a tab UI (`ContentView`, wired) -- see ZANOUIScenarioSupport.swift
-// preconditions. test1_ leaves the install un-onboarded (it never gets past step 4), so test2_ can
+// preconditions. test1_ leaves the install un-onboarded (it never gets past step 5), so test2_ can
 // follow it.
 //
 // The first win is a real 2-minute `FocusSessionVerifier` session. Its exits while running are a
@@ -37,7 +37,7 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
     /// 2-minute focus timer + notification prompt + start/finish overhead + slack.
     private static let firstWinTimeout: TimeInterval = 5 * 60
 
-    // MARK: - Steps 1-4 (Simulator-safe)
+    // MARK: - Steps 1-5 (Simulator-safe)
 
     @MainActor
     func test1_EarlyScreensAdvanceAndGateContinue() throws {
@@ -47,10 +47,11 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
         let S = ZANOUILabel.Step.self
         let continueButton = app.button(labelContaining: L.continueButton)
 
-        // 1 Hook -> 2 Main goal
+        // 1 Hook -> 2 Buddy -> 3 Main goal
         advance(app, from: S.hook, tapping: app.button(labelContaining: L.hookCTA))
+        advance(app, from: S.buddy, tapping: app.button(labelContaining: L.buddyTeamUp))
 
-        // 2 Main goal: Continue is disabled until a goal is chosen (Screen3MainGoal).
+        // 3 Main goal: Continue is disabled until a goal is chosen (Screen3MainGoal).
         XCTAssertTrue(waitForOnboardingStep(S.mainGoal, in: app), "Expected onboarding step \(S.mainGoal).")
         XCTAssertTrue(continueButton.waitForExistence(timeout: 10), "Step \(S.mainGoal): Continue button not found.")
         XCTAssertFalse(continueButton.isEnabled, "Step \(S.mainGoal): Continue must be disabled until a main goal is picked.")
@@ -60,10 +61,10 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
         XCTAssertTrue(poll(timeout: 5) { continueButton.isEnabled }, "Step \(S.mainGoal): Continue did not enable after picking a goal.")
         advance(app, from: S.mainGoal, tapping: continueButton)
 
-        // 3 Your why: never gated.
+        // 4 Your why: never gated.
         advance(app, from: S.yourWhy, tapping: continueButton)
 
-        // 4 Apps: Continue stays disabled with nothing picked (Screen4AppSelection).
+        // 5 Apps: Continue stays disabled with nothing picked (Screen4AppSelection).
         XCTAssertTrue(waitForOnboardingStep(S.appSelection, in: app), "Expected onboarding step \(S.appSelection).")
         XCTAssertTrue(
             app.button(labelContaining: L.appPickerButton).waitForExistence(timeout: 10),
@@ -72,7 +73,7 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
         XCTAssertTrue(continueButton.exists, "Step \(S.appSelection): Continue button not found.")
         XCTAssertFalse(continueButton.isEnabled, "Step \(S.appSelection): Continue must be disabled until apps are picked (spec §7.4).")
 
-        // Back twice returns to step 2 and the earlier answer survived (flowState is shared).
+        // Back twice returns to the main-goal step and the earlier answer survived (flowState is shared).
         let back = app.button(labelContaining: L.backButton)
         XCTAssertTrue(back.waitForExistence(timeout: 5), "Step \(S.appSelection): Back button not found.")
         back.tap()
@@ -95,10 +96,10 @@ final class Flow2OnboardingCompletionUITests: ZANOScenarioTestCase {
         let app = launchApp(skipPaywall: true)
         try requireFreshOnboarding(app)
 
-        // Steps 1-5; the DEBUG-only paywall skip carries the flow straight on to step 7.
+        // Steps 1-6; the DEBUG-only paywall skip carries the flow straight on to step 8.
         try driveOnboardingToPaywall(app, expectPaywall: false)
 
-        // 7 First win: the core loop, once.
+        // 8 First win: the core loop, once.
         completeFirstWin(app)
 
         // Landed on Today...

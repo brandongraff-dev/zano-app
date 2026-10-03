@@ -8,6 +8,12 @@
 // `ZanoLivingMark` (Core/UI) is the in-app version, but it animates through `TimelineView`,
 // which widgets can't run, so the star here is a still frame of the same idea.
 //
+// Buddies (2026-10-03): the Home Screen widgets show the user's buddy (`ZANOWidgetBuddy`, below:
+// the picked buddy from the App Group via `@AppStorage`, in the pose the day's goals put it in, over
+// a soft glow in its colour). The pixel art is full colour, so wherever the system renders a widget
+// accented or vibrant (tinted Home Screen, StandBy at night) it falls back to the charged star, which
+// was built for those modes. The Lock Screen accessory widgets (always vibrant) keep the star glyph.
+//
 // Charge is GOAL progress, not Screen Time: WidgetKit extensions cannot read DeviceActivity usage
 // numbers (only the DeviceActivityReport extension can), so everything below comes from
 // `ZANOWidgetSnapshot` (App Group reads only).
@@ -157,9 +163,50 @@ enum ZANOWidgetLink {
     static let fuel = URL(string: "zano://fuel")!
 }
 
+// MARK: - Buddy
+
+/// The user's buddy for the Home Screen widgets: sleepy while locked with nothing done, happy once
+/// everything is, idle otherwise (the app's `BuddyPose(ZanoMascotMood)` mapping). Full-colour
+/// rendering only; accented/vibrant rendering draws the charged star instead (a pixel sprite there
+/// turns into a flat tinted block). `size` is the sprite's side; keep it a multiple of 32 where it
+/// fits, for crisp pixels. Decorative: callers label the element.
+struct ZANOWidgetBuddy: View {
+    let charge: ZANOWidgetCharge
+    let size: CGFloat
+    var showsGlow: Bool = true
+
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
+    private var pose: BuddyPose {
+        BuddyPose(ZanoMascotMood(done: charge.done, total: charge.total, isLocked: charge.isLocked))
+    }
+
+    var body: some View {
+        if renderingMode == .fullColor {
+            BuddySprite(buddy, pose: pose, size: size)
+                .background {
+                    if showsGlow {
+                        // A still radial glow (widgets can't animate or blur cheaply).
+                        RadialGradient(
+                            colors: [buddy.color.opacity(0.4), buddy.color.opacity(0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: size * 0.8
+                        )
+                        .frame(width: size * 1.6, height: size * 1.6)
+                    }
+                }
+        } else {
+            ZANOChargedStar(charge: charge.fraction, showsGlow: false)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
 // MARK: - Charged star
 
-/// The static charged star. Size it with `.frame`; it keeps the mark's aspect ratio.
+/// The static charged star (accented/vibrant fallback for the buddy since 2026-10-03). Size it with `.frame`; it keeps the mark's aspect ratio.
 struct ZANOChargedStar: View {
     let charge: Double
     /// The blue glow behind the star (full-color rendering only).

@@ -22,11 +22,15 @@
 // SHORT FLOW (2026-10-02): the social-proof screen is gone and its three product claims sit here,
 // under the headline, as a quiet "How it works" strip (`Copy.onboarding.socialProofQuotes`, same
 // entries, same rule: claims, never invented testimonials). They fade in after the headline and
-// never gate the CTA. Step 1 of 7.
+// never gate the CTA. Step 1 of 8.
 //
 // Handoff (not editable here): spec §7.1 calls this screen full-bleed and `OnboardingContainerView`
 // already hides its header on screen 1. The straight apostrophes in the stored headline
 // ("Let's") belong to the Copy owner (typography audit T9).
+
+// BUDDIES (2026-10-03): the hero is the user's buddy (Stash, the default and the app icon, until
+// the next step lets them pick), over the same bloom. It no longer charges; the bloom still
+// brightens on the intro and the haptic still lands as it settles.
 
 // VISUAL PASS 2 (2026-10-03, "make it more playful"): the three-sentence "How it works" card is now
 // the game loop as three stickers, Lock it -> Earn it -> Get it back, each a colour sticker with
@@ -37,7 +41,7 @@
 import SwiftUI
 import Core
 
-/// Step 1 of 7 (spec §7.1, plus §7.2's proof strip). Full-bleed hero: headline + single CTA that advances the flow.
+/// Step 1 of 8 (spec §7.1, plus §7.2's proof strip). Full-bleed hero: headline + single CTA that advances the flow.
 /// No FamilyControls/HealthKit/etc. here - this screen only ever mutates `flowState.currentScreen`
 /// (via `advance()`).
 struct Screen1Hook: View {
@@ -55,8 +59,9 @@ struct Screen1Hook: View {
     private static let introCharge = 0.85
     /// `ZanoLivingMark` eases a charge change over 1.2s; the haptic lands as it settles.
     private static let chargeMilliseconds = 1200
-    /// The loop row is shorter than the old proof card, so the star can be the hero again.
-    private static let starHeight: CGFloat = 132
+    /// The loop row is shorter than the old proof card, so the hero can be big. 128 = 4x the
+    /// buddy's 32px grid (crisp pixels).
+    private static let starHeight: CGFloat = 128
 
     private var isShown: Bool { revealed || reduceMotion }
     private var loopShown: Bool { loopRevealed || reduceMotion }
@@ -214,16 +219,19 @@ private struct HookLoopRow: View {
     }
 }
 
-/// The hero: the living star over a blue bloom that brightens with its charge. The bloom only ever
-/// changes opacity (never an animated blur or radius). Decorative; the headline carries the meaning.
+/// The hero: the user's buddy (the living star until 2026-10-03) over a blue bloom that brightens
+/// with the intro's charge. The bloom only ever changes opacity (never an animated blur or radius).
+/// Decorative; the headline carries the meaning.
 private struct HookStar: View {
     let charge: Double
     let height: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     var body: some View {
-        ZanoLivingMark(charge: charge, height: height)
+        BuddySprite(buddy, pose: charge >= 0.8 ? .happy : .idle, size: height)
+            .zanoMascot(mood: .idle, size: height, showsGlow: false)
             .background {
                 // Bigger than the star on purpose; a `background` never affects layout.
                 OnboardingKit.StarBloom(diameter: height * 3)

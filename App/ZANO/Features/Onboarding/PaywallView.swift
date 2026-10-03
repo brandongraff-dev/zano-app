@@ -23,7 +23,7 @@
 //   CTA block   "✓ No payment due now", one white button, the full terms paragraph, then Terms ·
 //               Privacy · Restore purchases (spec §24).
 //
-// `context`: `.onboarding` (step 6 of 7 since the short flow, right after the plan's hold to commit) or `.lapsed` (the app shell, after a subscription or trial
+// `context`: `.onboarding` (step 7 of 8 since the short flow, right after the plan's hold to commit) or `.lapsed` (the app shell, after a subscription or trial
 // ran out). Lapsed swaps the first headline line for "Welcome back." and sends no onboarding
 // analytics and never advances the onboarding flow.
 //
@@ -67,7 +67,7 @@
 import SwiftUI
 import Core
 
-/// Step 6 of 7 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
+/// Step 7 of 8 (spec §7.12) — the hard paywall. Presents RevenueCat offerings via
 /// `PaywallViewModel` with the annual plan selected (spec §21). The only ways forward are to start
 /// the trial, subscribe, or restore an existing purchase.
 struct PaywallView: View {
@@ -619,20 +619,21 @@ struct PaywallView: View {
 
 // MARK: - Unlock hero
 
-/// The star "unlocking": part-charged with a padlock sticker on its shoulder, then (once, ~0.5s in)
-/// it charges to full, the padlock morphs open, a burst rings out and a success haptic lands. The
-/// bloom behind only changes opacity. Reduce Motion: drawn open and full from the first frame.
+/// The user's buddy "unlocking" (the star until 2026-10-03): a padlock sticker on its shoulder, then
+/// (once, ~0.5s in) the padlock morphs open, the buddy turns happy, a burst rings out and a success
+/// haptic lands. The bloom behind only changes opacity. Reduce Motion: drawn open from the first frame.
 private struct PaywallUnlockHero: View {
     let height: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     @State private var isUnlocked = false
     @State private var burst = 0
 
     private var open: Bool { isUnlocked || reduceMotion }
 
     var body: some View {
-        ZanoLivingMark(charge: open ? 1 : 0.55, height: height)
+        BuddySprite(buddy, pose: open ? .happy : .idle, size: height)
             .background {
                 OnboardingKit.StarBloom(diameter: height * 3.5)
                     .opacity(open ? 1 : 0.45)

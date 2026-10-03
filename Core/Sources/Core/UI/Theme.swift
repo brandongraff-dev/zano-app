@@ -822,6 +822,10 @@ extension Theme {
             }
         }
 
+        /// The label on a solid buddy-colour fill (the picker's "Team up" button): dark ink in both
+        /// appearances, because every signature colour is a mid-to-bright hue (4.4:1 or better).
+        public static let onSignature = Color(zanoHex: 0x13142B)
+
         public static func colors(for buddy: Buddy) -> Trio {
             switch buddy {
             case .stash: Trio(0x2BB5A0, 0x3B3F5C, 0x3F7BFF)

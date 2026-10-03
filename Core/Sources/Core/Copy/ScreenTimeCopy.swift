@@ -21,14 +21,14 @@ extension Copy {
         /// An app the system reports without a display name.
         public static let unnamedApp = "App"
         public static let accessTitle = "See your screen time here"
-        public static let accessDetail = "Allow Screen Time access and your ZANO star charges with every hour you spend off your phone. Usage, pickups and time in locked apps never leave your phone."
+        public static let accessDetail = "Allow Screen Time access and your charge builds with every hour you spend off your phone. Usage, pickups and time in locked apps never leave your phone."
         public static let accessButton = "Allow access"
         /// Under the living star on Today: how charged it is.
         public static func chargeLine(percent: Int) -> String { "Star \(percent)% charged · time off your phone" }
         /// Pass 2: the charge sticker stuck on the star's corner on Today (`72%`).
         public static func chargeSticker(percent: Int) -> String { "\(percent)%" }
-        /// Under the star before Screen Time access.
-        public static let chargeHint = "Your star charges while you're off your phone"
+        /// Under Today's hero (the buddy) before Screen Time access.
+        public static let chargeHint = "Your charge builds while you're off your phone"
 
         /// `2h 30m`, `45m`, `0m`. Minutes are floored; under a minute reads `<1m`.
         public static func duration(_ seconds: TimeInterval) -> String {
@@ -51,9 +51,9 @@ extension Copy {
             return date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)))
         }
 
-        /// VoiceOver value for the living star on Today.
+        /// VoiceOver for the charge sticker on Today's hero (the buddy since 2026-10-03).
         public static func chargeSpoken(percent: Int) -> String {
-            "Star \(percent) percent charged from time off your phone"
+            "\(percent) percent charged from time off your phone"
         }
 
         /// A duration for VoiceOver, spelled out ("2 hours, 30 minutes") instead of `2h 30m`, which

@@ -19,7 +19,7 @@
 // screens DO expose:
 //   * accessibility LABELS -- SwiftUI derives them from the visible Text of a Button, plus the
 //     explicit `.accessibilityLabel(...)` on the onboarding Back button, the hold-to-commit
-//     `PrimaryButton`, and the onboarding progress bar ("Step N of 7");
+//     `PrimaryButton`, and the onboarding progress bar ("Step N of 8");
 //   * system control types (`sliders`, `tabBars`, `navigationBars`, `alerts`).
 // Labels are matched with `CONTAINS`, never `==`, because a `Button` that also holds an
 // `Image(systemName:)` can carry the symbol's auto-generated name in its label.
@@ -44,7 +44,7 @@
 // PRECONDITIONS THE SCENARIOS ASSUME (each is checked at runtime and skipped, not silently faked)
 // ============================================================================================
 //  1. The app shell is wired: a fresh launch shows `OnboardingContainerView` (progress label
-//     "Step 1 of 7"), and a launch after onboarding shows a tab bar with a "Today" tab.
+//     "Step 1 of 8"), and a launch after onboarding shows a tab bar with a "Today" tab.
 //     `App/ZANO/ContentView.swift` now does this (gates on `AppRouter.hasCompletedOnboarding`,
 //     persisted in `UserDefaults.standard`, then hosts a six-tab `TabView`: Today / Lock / Fuel /
 //     Squad / Progress / Settings, driven by the custom `ZanoTabBar`). NOT run yet -- if a first
@@ -70,25 +70,29 @@ import XCTest
 /// Test-side lookup strings. NOT app copy. Each entry names the `Copy` key it mirrors.
 enum ZANOUILabel {
 
-    /// `OnboardingFlowState.lastScreen`: 7 since the short flow (founder decision 2026-10-02):
-    /// 1 hook, 2 main goal, 3 your why, 4 apps, 5 plan + hold to commit, 6 paywall, 7 first win.
-    static let onboardingScreenCount = 7
+    /// `OnboardingFlowState.lastScreen`: 8 since the buddy step (2026-10-03; 7 in the short flow of
+    /// 2026-10-02): 1 hook, 2 buddy, 3 main goal, 4 your why, 5 apps, 6 plan + hold to commit,
+    /// 7 paywall, 8 first win.
+    static let onboardingScreenCount = 8
 
     /// Step numbers (`OnboardingStep.rawValue`), so the scenarios read by name.
     enum Step {
         static let hook = 1
-        static let mainGoal = 2
-        static let yourWhy = 3
-        static let appSelection = 4
-        static let plan = 5
-        static let paywall = 6
-        static let firstWin = 7
+        static let buddy = 2
+        static let mainGoal = 3
+        static let yourWhy = 4
+        static let appSelection = 5
+        static let plan = 6
+        static let paywall = 7
+        static let firstWin = 8
     }
 
     enum Onboarding {
         /// Copy.onboarding.hookCTA. Spec §7.1 quotes it as "I'm ready." WITH a trailing period, but
         /// the shipped constant has none -- and lookups are `CONTAINS`, so the period must not be here.
         static let hookCTA = "I'm ready"
+        /// Copy.buddy.teamUp(_:) prefix ("Team up with Stash"); the default buddy is kept.
+        static let buddyTeamUp = "Team up with"
         /// Copy.common.continueButtonLabel.
         static let continueButton = "Continue"
         /// MainGoal.gymConsistency.displayLabel -- spec §7.3 verbatim.
@@ -191,7 +195,7 @@ enum ZANOUILabel {
 // MARK: - Launch state
 
 enum ZANOLaunchState {
-    /// `OnboardingContainerView` is showing ("Step N of 7" progress label present).
+    /// `OnboardingContainerView` is showing ("Step N of 8" progress label present).
     case onboarding
     /// A tab bar is showing (onboarding already completed).
     case main
@@ -219,7 +223,7 @@ extension XCUIApplication {
 
     /// The onboarding chrome's progress element for `step`. `OnboardingScaffold` gives its
     /// progress bar `.accessibilityLabel(Copy.onboarding.progressAccessibilityLabel(screen:total:))`
-    /// = "Step N of 7"; type-agnostic because the element has no button/text trait.
+    /// = "Step N of 8"; type-agnostic because the element has no button/text trait.
     func onboardingStep(_ step: Int) -> XCUIElement {
         let label = "Step \(step) of \(ZANOUILabel.onboardingScreenCount)"
         return descendants(matching: .any)
@@ -422,7 +426,7 @@ class ZANOScenarioTestCase: XCTestCase {
 
     /// Drives a fresh install from onboarding step 1 to the hard paywall (step 6, directly after the
     /// plan step's hold to commit). Device-only: step 4 needs a real FamilyControls selection to
-    /// enable Continue. Leaves the app on step 6 (or, launched with `skipPaywall`, on step 7).
+    /// enable Continue. Leaves the app on step 7 (or, launched with `skipPaywall`, on step 8).
     @MainActor
     func driveOnboardingToPaywall(_ app: XCUIApplication, expectPaywall: Bool = true) throws {
         let L = ZANOUILabel.Onboarding.self
@@ -432,14 +436,17 @@ class ZANOScenarioTestCase: XCTestCase {
         // 1 Hook (with the "How it works" strip)
         advance(app, from: S.hook, tapping: app.button(labelContaining: L.hookCTA))
 
-        // 2 Main goal: Continue is gated on picking one.
+        // 2 Buddy: keep the default and team up.
+        advance(app, from: S.buddy, tapping: app.button(labelContaining: L.buddyTeamUp))
+
+        // 3 Main goal: Continue is gated on picking one.
         XCTAssertTrue(waitForOnboardingStep(S.mainGoal, in: app), "Expected onboarding step \(S.mainGoal).")
         let goalOption = app.button(labelContaining: L.mainGoalGym)
         XCTAssertTrue(goalOption.waitForExistence(timeout: 10), "Step \(S.mainGoal): main-goal option not found.")
         goalOption.tap()
         advance(app, from: S.mainGoal, tapping: continueButton)
 
-        // 3 Your why: phone-time slider (moved off the 5h default so the math runs on a new value)
+        // 4 Your why: phone-time slider (moved off the 5h default so the math runs on a new value)
         // and the optional "when does it slip" chip. Continue is never gated here.
         XCTAssertTrue(waitForOnboardingStep(S.yourWhy, in: app), "Expected onboarding step \(S.yourWhy).")
         let slider = app.sliders.firstMatch
@@ -452,14 +459,14 @@ class ZANOScenarioTestCase: XCTestCase {
         }
         advance(app, from: S.yourWhy, tapping: continueButton)
 
-        // 4 Apps: FamilyActivityPicker (device only). Continue is gated on a non-empty selection.
+        // 5 Apps: FamilyActivityPicker (device only). Continue is gated on a non-empty selection.
         XCTAssertTrue(waitForOnboardingStep(S.appSelection, in: app), "Expected onboarding step \(S.appSelection).")
         let pickerOpener = app.button(labelContaining: L.appPickerButton)
         XCTAssertTrue(pickerOpener.waitForExistence(timeout: 10), "Step \(S.appSelection): 'Choose apps' button not found.")
         try chooseAppsWithFamilyActivityPicker(app, opener: pickerOpener)
         advance(app, from: S.appSelection, tapping: continueButton)
 
-        // 5 Plan: the build beat plays (~2-3s, tap skips), then the plan card with the hold-to-commit
+        // 6 Plan: the build beat plays (~2-3s, tap skips), then the plan card with the hold-to-commit
         // CTA. A 2-second hold, not a tap; it saves the plan and the paywall follows directly.
         XCTAssertTrue(waitForOnboardingStep(S.plan, in: app), "Expected onboarding step \(S.plan).")
         let commit = app.button(labelContaining: L.holdToCommit)

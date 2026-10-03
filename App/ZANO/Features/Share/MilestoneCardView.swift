@@ -13,6 +13,9 @@
 // it), which is also why the star is the static `ZanoMark`, not `ZanoLivingMark`. The reveal
 // animation lives in `MilestoneMomentView`.
 //
+// Buddies (2026-10-03): the round sticker carries the user's buddy (happy, a still sprite read once
+// from `Buddy.stored`, so the render has nothing to wait on) instead of the silver star.
+//
 // Copy: `Copy.milestone.*` (`Core/Sources/Core/Copy/MilestoneCopy.swift`). This file composes no
 // user-facing string of its own.
 
@@ -62,6 +65,8 @@ struct MilestoneCardContent: Equatable, Sendable {
 /// `SharePosterPreview` for on-screen display and hand it to `SharePosterRenderer` for export.
 struct MilestoneCardView: View {
     let content: MilestoneCardContent
+    /// Read once at init (not `@AppStorage`): the poster is a still render.
+    let buddy = Buddy.stored
 
     var body: some View {
         PosterChassis(eyebrow: content.eyebrow, footerLabel: Copy.share.footerWordmark, hue: content.hue) {
@@ -112,12 +117,13 @@ struct MilestoneCardView: View {
             )
     }
 
-    /// The silver star on a round ink sticker. Static artwork, safe to rasterize.
+    /// The user's buddy on a round ink sticker (the silver star until 2026-10-03). Static artwork,
+    /// safe to rasterize.
     private var starSticker: some View {
         ZStack {
             Circle().fill(Theme.Colors.backgroundDeep)
             Circle().strokeBorder(Color.white, lineWidth: PosterMetrics.stickerRim)
-            ZanoMark(height: 34, style: .brand)
+            BuddySprite(buddy, pose: .happy, size: 64)
         }
         .frame(width: 84, height: 84)
         .shadow(color: Color.black.opacity(0.5), radius: 0, x: 3, y: 5)

@@ -92,7 +92,7 @@
 // streak numeral now sits under the star instead of inside a ring. The intro's backdrop is the
 // scaffold's flow ambient (brightest late in the flow) instead of a flat `zanoAmbient(.neutral)`.
 //
-// SHORT FLOW (founder decision 2026-10-02: "first real win within ~3 minutes"). Step 7 of 7.
+// SHORT FLOW (founder decision 2026-10-02: "first real win within ~3 minutes"). Step 8 of 8.
 //   - Notification priming no longer has its own screen: the intro carries spec §7.12's one line
 //     ("We'll only nudge when it matters") and tapping Start asks for notification permission once
 //     (only while undetermined), then starts the session whatever the answer.
@@ -140,6 +140,7 @@ struct Screen14FirstWin: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     @State private var phase: Phase = .intro
     @State private var focusSessionID: UUID?
     @State private var lockSessionID: UUID?
@@ -254,16 +255,8 @@ struct Screen14FirstWin: View {
 
     // MARK: - Running
 
-    /// The star while the session runs: from a glimmer to nearly full, so the celebration still has
-    /// the last stretch to fill as the session verifies.
-    private var runningStarCharge: Double {
-        Self.runningStarStart + (Self.runningStarEnd - Self.runningStarStart) * progressFraction
-    }
-
-    /// Keep `runningStarEnd` in step with `FirstWinCelebration`'s starting charge.
-    private static let runningStarStart = 0.1
-    private static let runningStarEnd = 0.9
-    private static let runningStarHeight: CGFloat = 150
+    /// The buddy's size while the session runs (the star's until 2026-10-03): 4x its 32px grid.
+    private static let runningStarHeight: CGFloat = 128
 
     private var runningView: some View {
         OnboardingKit.CenteredScroll {
@@ -273,12 +266,15 @@ struct Screen14FirstWin: View {
                     .foregroundStyle(Theme.Colors.text)
                     .accessibilityAddTraits(.isHeader)
 
-                // The living star charging while the user stays off their phone: the product line,
-                // played for real. It eases each change itself; the bloom only changes opacity.
-                ZanoLivingMark(
-                    charge: runningStarCharge,
-                    height: Self.runningStarHeight,
-                    accessibilityValue: Copy.onboarding.firstWinStarAccessibilityValue(
+                // The buddy keeping the user company while they stay off their phone (the star
+                // charged here until 2026-10-03); the bloom behind it brightens with the session,
+                // opacity only. The buddy is decorative; the charge is spoken on this element.
+                BuddySprite(buddy, pose: .idle, size: Self.runningStarHeight)
+                .zanoMascot(mood: .perky, size: Self.runningStarHeight, showsGlow: false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Copy.buddy.name(buddy))
+                .accessibilityValue(
+                    Copy.onboarding.firstWinStarAccessibilityValue(
                         percent: Int((progressFraction * 100).rounded())
                     )
                 )
@@ -583,6 +579,7 @@ private struct FirstWinIntroRing: View {
     let minutes: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     @State private var appeared = false
 
     /// Shared with the running phase's ring, so the promise and the timer are one object.
@@ -600,8 +597,9 @@ private struct FirstWinIntroRing: View {
             center: .none
         )
         .overlay {
-            // Visual pass 2: the star waits inside the ring it is about to fill, nearly charged.
-            ZanoLivingMark(charge: 0.85, height: Self.diameter * 0.32)
+            // Visual pass 2: the hero waits inside the ring it is about to fill. Since 2026-10-03
+            // it is the user's buddy (64 = 2x its pixel grid; the star was ~0.32 of the ring).
+            BuddySprite(buddy, pose: .idle, size: 64)
         }
         .overlay(alignment: .bottom) {
             // The session length as a sticker on the ring's rim: "2 min".
@@ -762,8 +760,9 @@ private struct FirstWinCelebration: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     /// The star arrives where the running countdown left it and fills to full on the win.
-    /// 0.9 = `Screen14FirstWin.runningStarEnd`.
+    /// (Buddies: `charge` reaching 1 is when the buddy turns happy.)
     @State private var starCharge: Double = 0.9
     @State private var shownStreak = 0
     @State private var showText = false
@@ -773,7 +772,7 @@ private struct FirstWinCelebration: View {
 
     /// Where the particles radiate from: a frame centred on the star, bigger than it.
     private static let burstFrame: CGFloat = 320
-    private static let starHeight: CGFloat = 132
+    private static let starHeight: CGFloat = 128
     /// `ZanoLivingMark` eases a charge change over 1.2s; the burst fires as the fill lands.
     private static let fillLandMilliseconds = 850
 
@@ -839,7 +838,8 @@ private struct FirstWinCelebration: View {
                     .frame(width: Self.burstFrame, height: Self.burstFrame)
             }
 
-            ZanoLivingMark(charge: charge, height: Self.starHeight)
+            // The buddy (the star until 2026-10-03), happy once the win lands.
+            BuddySprite(buddy, pose: charge >= 1 ? .happy : .idle, size: Self.starHeight)
                 .scaleEffect(showBurst && !reduceMotion ? 1.04 : 1)
                 .animation(reduceMotion ? nil : Theme.Motion.springCelebration, value: showBurst)
                 .accessibilityHidden(true)

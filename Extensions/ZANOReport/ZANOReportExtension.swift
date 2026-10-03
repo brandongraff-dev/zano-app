@@ -26,7 +26,11 @@ struct ZANOReportExtension: DeviceActivityReportExtension {
         TodayScreenTimeReport { summary in
             ScreenTimeSummaryView(summary: summary)
         }
-        // The living ZANO star on Today's hero, charged by the same numbers.
+        // Today's hero, charged by the same numbers. Since 2026-10-03 it is the user's buddy, not
+        // the star: `ScreenTimeChargeView` reads the buddy (`Buddy.storageKey`) and the pose Today
+        // last wrote (`BuddyPose.heroStorageKey`) from the App Group with `@AppStorage`, so this
+        // process needs no goal state. The sprite is a 32x32 bitmap built in memory: no assets, no
+        // networking, tiny next to the summary this scene already computes.
         ChargeMarkReport { summary in
             ScreenTimeChargeView(summary: summary)
         }

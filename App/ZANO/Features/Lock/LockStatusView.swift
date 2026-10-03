@@ -112,6 +112,8 @@ struct LockStatusView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.scenePhase) private var scenePhase
+    /// The user's buddy (App Group defaults), drawn on the idle hero.
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     // MARK: - Local state
 
@@ -341,7 +343,7 @@ struct LockStatusView: View {
 
     // MARK: - Idle (nothing locked)
 
-    /// Nothing running: the ZANO star at rest (uncharged: the Lock tab can't read screen time, and
+    /// Nothing running: the user's buddy at rest (was the ZANO star, uncharged: the Lock tab can't read screen time, and
     /// "at rest" is the point), an "Unlocked" status pill, "No lock running", then either the next
     /// scheduled lock as a numeral or a line saying what to do. The start action sits in the bottom
     /// bar (`emergencyBar`), where the emergency hold lives while locked, so the bar never jumps
@@ -359,8 +361,9 @@ struct LockStatusView: View {
                         )
                     )
                     .frame(width: 240, height: 240)
-                ZanoLivingMark(charge: 0, height: 84)
-                    .zanoMascot(mood: .idle, size: 84, showsGlow: false)
+                // Buddies (2026-10-03): the user's buddy at rest, where the star used to stand.
+                BuddySprite(buddy, pose: .idle, size: 96)
+                    .zanoMascot(mood: .idle, size: 96, showsGlow: false)
             }
             .frame(height: 190)
 

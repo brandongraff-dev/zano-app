@@ -113,18 +113,8 @@ extension Copy {
 
         // MARK: - Pass 2: playful (2026-10-03)
 
-        /// The star's VoiceOver label on Today: the brand name and its mood.
-        public static func mascotSpoken(_ mood: ZanoMascotMood) -> String {
-            switch mood {
-            case .sleepy: "ZANO star, napping until a goal is done"
-            case .idle: "ZANO star"
-            case .perky: "ZANO star, charging up"
-            case .charged: "ZANO star, fully charged"
-            }
-        }
-
-        /// The star's VoiceOver hint: what poking it does.
-        public static let mascotHint = "Spins the star"
+        // The hero's VoiceOver label and hint moved to `Copy.buddy.heroSpoken` / `heroHint` when the
+        // buddy replaced the star (2026-10-03).
 
         /// Today's lock capsule when the lock set has no name.
         public static let heroLockedCapsuleFallback = "Locked"

@@ -9,20 +9,24 @@
 //
 //   step  name            file                          was (old screen numbers)
 //   1     hook            Screen1Hook.swift             1 Hook + 2 Social proof (claims now under the headline)
-//   2     main_goal       Screen3MainGoal.swift         3 Q1 Main goal
-//   3     your_why        ScreenYourWhy.swift           5 Q3 Phone time + 7 Q5 Fall-off + 10 Wake-up math
-//   4     app_selection   Screen4AppSelection.swift     4 Q2 Apps (Screen Time permission + picker)
-//   5     plan            Screen10PlanReveal.swift      11 Plan reveal + 6 Q4 workout target + 12 Commitment
-//   6     paywall         PaywallView.swift             13 Paywall (hard; still directly after the commitment)
-//   7     first_win       Screen14FirstWin.swift        14 Notification priming (folded into Start) + 15 First win
+//   2     buddy           Features/Buddy/BuddyPickerView.swift   new (2026-10-03): pick your buddy
+//   3     main_goal       Screen3MainGoal.swift         3 Q1 Main goal
+//   4     your_why        ScreenYourWhy.swift           5 Q3 Phone time + 7 Q5 Fall-off + 10 Wake-up math
+//   5     app_selection   Screen4AppSelection.swift     4 Q2 Apps (Screen Time permission + picker)
+//   6     plan            Screen10PlanReveal.swift      11 Plan reveal + 6 Q4 workout target + 12 Commitment
+//   7     paywall         PaywallView.swift             13 Paywall (hard; still directly after the commitment)
+//   8     first_win       Screen14FirstWin.swift        14 Notification priming (folded into Start) + 15 First win
 //
+// Buddies (founder-approved, 2026-10-03): step 2 picks the buddy that replaces the star as the
+// app's character (stored in the App Group, `Buddy.storageKey`; default Stash). It adds one step,
+// so the flow is 8 steps; every later step number moved up by one.//
 // Moved to the Today "Finish setup" card: 8 Coach voice (default Hype), 9 ZANO tags, gym setup,
 // Sunrise alarm (wake time stays unset), squads. Q4's "current workouts" answer is gone; the target
 // is a stepper on the plan card (default 3/week).
 //
 // The order keeps spec §7's two placement rules: nothing sits between the commitment and the hard
 // paywall, and the paywall comes before the first win. Step numbers are the CI
-// `-ZANOScreen onboarding-N` ids (`ScreenshotGallery.swift`) and the "Step N of 7" accessibility label
+// `-ZANOScreen onboarding-N` ids (`ScreenshotGallery.swift`) and the "Step N of 8" accessibility label
 // the UI tests wait on.
 //
 // Persistence: this type is transient, in-memory UI state for the onboarding flow only. Nothing here
@@ -34,9 +38,10 @@ import Observation
 import FamilyControls
 import Core
 
-/// The seven onboarding steps, in order. `rawValue` is the 1-based step number.
+/// The eight onboarding steps, in order. `rawValue` is the 1-based step number.
 enum OnboardingStep: Int, CaseIterable, Sendable {
     case hook = 1
+    case buddy
     case mainGoal
     case yourWhy
     case appSelection
@@ -48,6 +53,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     var analyticsName: String {
         switch self {
         case .hook: "hook"
+        case .buddy: "buddy"
         case .mainGoal: "main_goal"
         case .yourWhy: "your_why"
         case .appSelection: "app_selection"
@@ -83,23 +89,23 @@ final class OnboardingFlowState {
 
     // MARK: - Answers
 
-    /// Step 2: "Get consistent at the gym / Hit my protein / Stop doomscrolling / Lock in on
+    /// Step 3: "Get consistent at the gym / Hit my protein / Stop doomscrolling / Lock in on
     /// work-school / All of it". `nil` until the user picks one.
     var mainGoal: MainGoal?
 
-    /// Step 4: the FamilyControls selection. Device-local only, same rule as
+    /// Step 5: the FamilyControls selection. Device-local only, same rule as
     /// `LockSet.appTokensBlob` — never synced, never logged. Empty when Screen Time access was
     /// refused and the user continued without locking (the first win then runs as a plain timer).
     var selectedApps = FamilyActivitySelection()
 
-    /// Step 3: daily phone time in hours, slider range 1...10.
+    /// Step 4: daily phone time in hours, slider range 1...10.
     var dailyPhoneTimeHours: Double = 5
 
-    /// Step 5 (plan card stepper): target workouts/week. Always >= 1: an additive-goals-only product
+    /// Step 6 (plan card stepper): target workouts/week. Always >= 1: an additive-goals-only product
     /// has no "0 workouts" goal. Only shown when the plan contains a workout goal.
     var targetWorkoutsPerWeek: Int = 3
 
-    /// Step 3 (optional chip): when the routine usually slips. Feeds slip prediction's cold start.
+    /// Step 4 (optional chip): when the routine usually slips. Feeds slip prediction's cold start.
     /// `nil` when the user didn't pick one.
     var fallOffPattern: FallOffPattern?
 
@@ -138,7 +144,7 @@ final class OnboardingFlowState {
 
     // MARK: - Derived
 
-    /// Whether step 4 produced anything to lock.
+    /// Whether step 5 produced anything to lock.
     var hasAppSelection: Bool {
         !selectedApps.applicationTokens.isEmpty
             || !selectedApps.categoryTokens.isEmpty
@@ -160,7 +166,7 @@ final class OnboardingFlowState {
     }
 }
 
-// MARK: - MainGoal (step 2)
+// MARK: - MainGoal (step 3)
 
 /// Copy note: this App-target enum's labels can't live in Core's `Copy` (Core cannot see App types),
 /// so `displayLabel` is a narrow, documented exception to the "copy lives in Copy" rule. The labels
@@ -183,7 +189,7 @@ enum MainGoal: String, CaseIterable, Sendable, Hashable {
     }
 }
 
-// MARK: - FallOffPattern (step 3)
+// MARK: - FallOffPattern (step 4)
 
 /// See `MainGoal` for why `displayLabel` is inline here. Spec §7.7's option list verbatim.
 enum FallOffPattern: String, CaseIterable, Sendable, Hashable {

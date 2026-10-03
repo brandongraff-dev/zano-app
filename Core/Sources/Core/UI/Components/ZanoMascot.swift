@@ -79,13 +79,16 @@ extension View {
     ///     `Theme.Colors.confetti`.
     ///   - size: The star's height in points (scales the hop, the orbit and the glow).
     ///   - showsGlow: Draw the mood's halo behind the star. Defaults to `true`.
+    ///   - glowColor: The halo's colour. `nil` (the default) picks it from the mood; a buddy hero
+    ///     passes its buddy's signature colour (the per-buddy theme, 2026-10-03).
     public func zanoMascot(
         mood: ZanoMascotMood,
         jump: Int = 0,
         spin: Int = 0,
         sparkColors: [Color] = [],
         size: CGFloat,
-        showsGlow: Bool = true
+        showsGlow: Bool = true,
+        glowColor: Color? = nil
     ) -> some View {
         modifier(ZanoMascotModifier(
             mood: mood,
@@ -93,7 +96,8 @@ extension View {
             spin: spin,
             sparkColors: sparkColors.isEmpty ? Theme.Colors.confetti : sparkColors,
             size: size,
-            showsGlow: showsGlow
+            showsGlow: showsGlow,
+            glowTint: glowColor
         ))
     }
 }
@@ -113,6 +117,8 @@ struct ZanoMascotModifier: ViewModifier {
     let sparkColors: [Color]
     let size: CGFloat
     let showsGlow: Bool
+    /// Overrides the mood's halo colour (a buddy's signature colour).
+    var glowTint: Color? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -173,7 +179,8 @@ struct ZanoMascotModifier: ViewModifier {
     }
 
     private var glowColor: Color {
-        switch mood {
+        if let glowTint { return glowTint }
+        return switch mood {
         case .sleepy: Theme.Colors.lockedAmbient
         case .idle: Theme.Colors.Aurora.violet
         case .perky: sparkColors.first ?? Theme.Colors.Aurora.violet

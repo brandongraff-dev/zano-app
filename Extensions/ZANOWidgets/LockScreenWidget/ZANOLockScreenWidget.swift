@@ -14,6 +14,10 @@
 // Accessory widgets can't run buttons, so a tap opens the app through `widgetURL`: Today for
 // everything, Fuel for the protein stat.
 //
+// Buddies (2026-10-03): these keep the star glyph. Accessory widgets always render vibrant, where
+// the buddies' full-colour pixel art would collapse into a tinted block; the star is the legible
+// mark at this size. The Home Screen widgets show the buddy.
+//
 // One `Widget` covering all three accessory families (iOS 16+, below this project's iOS 17
 // minimum). Accessory widgets render in vibrant (or accented) mode, so everything here is drawn
 // in `.primary` with translucency for the "not yet" parts, and the earned parts are

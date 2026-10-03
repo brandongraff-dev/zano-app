@@ -305,7 +305,7 @@ All actions are **App Intents** (§14). Build each once, reuse everywhere.
 
 ## 7. Onboarding Flow (screen by screen)
 
-Target: 7 steps (cut from 15 on 2026-10-02, founder-approved), under 3 minutes, paywall at peak motivation, ending in a real first earned unlock. Setup that isn't needed for the first win (tags, gym, Sunrise alarm, coach voice, squads) lives on Today's "Finish setup" card. Every screen has one job.
+Target: 7 steps (cut from 15 on 2026-10-02, founder-approved), under 3 minutes, paywall at peak motivation, ending in a real first earned unlock. **Buddy step (2026-10-03, founder-approved):** right after the Hook, "Pick your buddy" picks one of 9 pixel-art mascots (default Stash) that replaces the ZANO star as the app's character, making the flow 8 steps (changeable later in Settings; see `docs/design/visual-direction-v2.md` §11). Setup that isn't needed for the first win (tags, gym, Sunrise alarm, coach voice, squads) lives on Today's "Finish setup" card. Every screen has one job.
 
 1. **Hook** — Full-bleed. "Your phone is fighting your goals. Let's flip that." CTA: "I'm ready."
 2. **Social proof strip** — 3 rotating quotes (real ones once you have them; placeholder copy marked clearly until then).

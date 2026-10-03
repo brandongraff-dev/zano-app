@@ -16,6 +16,10 @@
 //
 // The star's charge is goal progress (`ZANOWidgetCharge`): widgets can't read Screen Time.
 //
+// Buddies (2026-10-03): in full-colour rendering the star is replaced by the user's buddy
+// (`ZANOWidgetBuddy`), posed by the same goal progress; accented/vibrant rendering (tinted Home
+// Screen, StandBy at night) keeps the charged star.
+//
 // One `Widget`/`TimelineProvider` for all three families; the entry view switches on
 // `@Environment(\.widgetFamily)` and sets the matching container background (the glow sits
 // behind wherever the star is).
@@ -229,7 +233,7 @@ private struct ZANOHomeSmallView: View {
     }
 
     private var star: some View {
-        ZANOChargedStar(charge: charge.fraction, glowRadius: showsBackground ? 12 : 16)
+        ZANOWidgetBuddy(charge: charge, size: showsBackground ? (snapshot.canStartLock ? 48 : 64) : 64)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
     }
@@ -238,7 +242,6 @@ private struct ZANOHomeSmallView: View {
         VStack(spacing: 8) {
             Spacer(minLength: 0)
             star
-                .frame(height: snapshot.canStartLock ? 48 : 56)
             if charge.isLocked && charge.remaining > 0 {
                 ZANOGoalsLeftNumeral(remaining: charge.remaining, size: 28)
             } else {
@@ -267,7 +270,6 @@ private struct ZANOHomeSmallView: View {
         VStack(spacing: 6) {
             Spacer(minLength: 0)
             star
-                .frame(height: 64)
             if charge.isLocked && charge.remaining > 0 {
                 ZANOGoalsLeftNumeral(remaining: charge.remaining, size: 40)
             } else {
@@ -325,7 +327,7 @@ private struct ZANOHomeMediumView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            ZANOChargedStar(charge: charge.fraction, glowRadius: 16)
+            ZANOWidgetBuddy(charge: charge, size: 96)
                 .frame(width: 104)
                 .frame(maxHeight: .infinity)
                 .accessibilityElement(children: .ignore)
@@ -366,8 +368,8 @@ private struct ZANOHomeLargeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 14) {
-                ZANOChargedStar(charge: charge.fraction, glowRadius: 14)
-                    .frame(width: 92)
+                ZANOWidgetBuddy(charge: charge, size: 96)
+                    .frame(width: 96)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(WidgetCopy.chargeAccessibility(done: charge.done, total: charge.total))
                 VStack(alignment: .leading, spacing: 4) {

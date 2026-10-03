@@ -5,7 +5,7 @@
 // more, so this scenario no longer taps through it. (The file keeps its old name so the scenario
 // order Flow1 -> Flow2 -> Flow3 is unchanged.) What it guards now, from
 // App/ZANO/Features/Onboarding/PaywallView.swift:
-//   1. Onboarding reaches the paywall as step 6 of 7, straight after the plan step's hold to commit
+//   1. Onboarding reaches the paywall as step 7 of 8 (since the buddy step, 2026-10-03), straight after the plan step's hold to commit
 //      (short flow, founder decision 2026-10-02; it was screen 13 of 15).
 //   2. The headline ("Earn your phone back") renders.
 //   3. Restore purchases is on screen without scrolling (App Review, and "restore purchases
@@ -19,7 +19,7 @@
 // It never buys anything and stops on the paywall, so the install stays un-onboarded for the next
 // scenario (no `onFinished`, no lock started).
 //
-// DEVICE-ONLY: reaching step 6 passes step 4's FamilyActivityPicker. It uses the shared
+// DEVICE-ONLY: reaching step 7 passes step 5's FamilyActivityPicker. It uses the shared
 // `driveOnboardingToPaywall` in ZANOUIScenarioSupport.swift.
 //
 // UNVERIFIED -- see ZANOUIScenarioSupport.swift header. Lookups are label-based.
@@ -28,7 +28,7 @@ import XCTest
 
 final class Flow1PaywallFreePathUITests: ZANOScenarioTestCase {
 
-    /// Paywall step number (`OnboardingStep.paywall`): 6 of 7 since the short flow.
+    /// Paywall step number (`OnboardingStep.paywall`): 7 of 8 since the buddy step.
     private static let paywallStep = ZANOUILabel.Step.paywall
 
     /// Test-side lookups for strings `ZANOUILabel.Paywall` does not mirror yet (NOT app copy).

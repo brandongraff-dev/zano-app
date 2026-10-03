@@ -57,6 +57,7 @@ enum ScreenshotMode {
     @MainActor
     static func prepare(screen name: String) {
         DemoData.seed()
+        applyBuddyArgument()
 
         if name.hasPrefix("tab-") {
             AppRouter.shared.completeOnboarding()
@@ -68,6 +69,18 @@ enum ScreenshotMode {
             case "tab-settings": AppRouter.shared.selectedTab = .settings
             default: AppRouter.shared.selectedTab = .today
             }
+        }
+    }
+
+    /// `-ZANOBuddy <rawValue>` (e.g. `brick`) stores that buddy before the first render, so CI can
+    /// shoot any screen with any buddy (`buddy-brick-today`). Without it (or with an unknown name)
+    /// the stored choice is cleared, so every other shot shows the default (Stash) whatever an
+    /// earlier launch left behind. DEBUG screenshot runs only.
+    private static func applyBuddyArgument() {
+        if let raw = UserDefaults.standard.string(forKey: "ZANOBuddy"), let buddy = Buddy(rawValue: raw) {
+            SharedDefaults.store.set(buddy.rawValue, forKey: Buddy.storageKey)
+        } else {
+            SharedDefaults.store.removeObject(forKey: Buddy.storageKey)
         }
     }
     #endif
@@ -92,7 +105,8 @@ struct ScreenshotHost: View {
     @ViewBuilder
     private var content: some View {
         if name.hasPrefix("onboarding-"), let n = Int(name.dropFirst("onboarding-".count)) {
-            // onboarding-1 ... onboarding-7 (the short flow's steps; see OnboardingFlowState.swift).
+            // onboarding-1 ... onboarding-8 (the flow's steps; see OnboardingFlowState.swift).
+            // onboarding-2 is the buddy step.
             // Out-of-range numbers are clamped by the container.
             OnboardingContainerView(initialScreen: n)
         } else if name.hasPrefix("tab-") {
@@ -107,6 +121,9 @@ struct ScreenshotHost: View {
         switch name {
         case "paywall":
             PaywallView(flowState: OnboardingFlowState())
+        case "buddy-picker":
+            // As pushed from Settings > Buddy (onboarding-2 shows it inside the flow's chrome).
+            NavigationStack { BuddyPickerView(context: .settings) }
         case "locksetup":
             NavigationStack { LockSetupView() }
         case "trophy":

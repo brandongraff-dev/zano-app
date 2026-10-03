@@ -168,6 +168,9 @@ struct SettingsView: View {
     /// Settings > Appearance (light mode). App Group defaults so widgets match; `ZANOApp` applies it.
     @AppStorage(ZanoAppearance.storageKey, store: SharedDefaults.store)
     private var appearance: ZanoAppearance = .system
+    /// Buddies (2026-10-03): the user's buddy, shown on the Buddy row (App Group defaults).
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store)
+    private var buddy: Buddy = .default
 
     /// The sign-off at the bottom of Settings: the wordmark, the tagline and the build, the way
     /// premium apps close their settings (docs/brand/brand-kit.md). The version line is plain
@@ -204,6 +207,7 @@ struct SettingsView: View {
                 FinishTrialBanner()
                 planCard
                 verificationSetupSection
+                buddySection
                 coachVoiceSection
                 appearanceSection
                 dailyRhythmSection
@@ -426,6 +430,23 @@ struct SettingsView: View {
                 ) {
                     NFCTagsView()
                 }
+            }
+        }
+    }
+
+    // MARK: - Buddy (2026-10-03)
+
+    /// One row: the buddy's small sprite, "Buddy", its name, a chevron. Pushes the picker, which
+    /// saves on every tap; its "Team up" button pops back.
+    private var buddySection: some View {
+        SettingsSection {
+            SettingsGroupCard {
+                NavigationLink {
+                    BuddyPickerView(context: .settings)
+                } label: {
+                    SettingsBuddyRowLabel(buddy: buddy)
+                }
+                .buttonStyle(SettingsRowButtonStyle())
             }
         }
     }
@@ -1123,6 +1144,34 @@ private struct SettingsRowLabel: View {
                 EmptyView()
             }
         }
+    }
+}
+
+/// The Buddy row's label: the buddy's 32pt sprite where other rows have their badge, the row title,
+/// the buddy's name as the trailing value, and a chevron. Same metrics as `SettingsRowLabel`.
+private struct SettingsBuddyRowLabel: View {
+    let buddy: Buddy
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            BuddySprite(buddy, pose: .idle, size: 32)
+            Text(Copy.buddy.settingsRow)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(Copy.buddy.name(buddy))
+                .font(Theme.Typography.body)
+                .foregroundStyle(Theme.Colors.muted)
+            Image(systemName: "chevron.forward")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(minHeight: Theme.Metrics.minTapTarget)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 

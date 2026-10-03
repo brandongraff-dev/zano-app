@@ -105,24 +105,31 @@ public struct BuddyPixels: Sendable {
     let palette: [UInt32]
     let rows: [String]
 
-    private static let keys: [Character: Int] = {
+    static let keys: [Character: Int] = {
         let chars = Array("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,-/:;<=>?@[]^_`{|}~")
         return Dictionary(uniqueKeysWithValues: chars.enumerated().map { ($1, $0) })
     }()
 
     /// A 48x48 RGBA image (nearest-neighbour scaling keeps it crisp).
     public func cgImage() -> CGImage? {
-        let n = Self.size
+        Self.image(layers: [self])
+    }
+
+    /// The layers drawn bottom to top into one 48x48 image (a face, then its gear).
+    public static func image(layers: [BuddyPixels]) -> CGImage? {
+        let n = size
         var bytes = [UInt8](repeating: 0, count: n * n * 4)
-        for (y, row) in rows.enumerated() where y < n {
-            for (x, ch) in row.enumerated() where x < n {
-                guard let i = Self.keys[ch], i < palette.count else { continue }
-                let c = palette[i]
-                let o = (y * n + x) * 4
-                bytes[o] = UInt8((c >> 16) & 0xFF)
-                bytes[o + 1] = UInt8((c >> 8) & 0xFF)
-                bytes[o + 2] = UInt8(c & 0xFF)
-                bytes[o + 3] = 0xFF
+        for layer in layers {
+            for (y, row) in layer.rows.enumerated() where y < n {
+                for (x, ch) in row.enumerated() where x < n {
+                    guard let i = keys[ch], i < layer.palette.count else { continue }
+                    let c = layer.palette[i]
+                    let o = (y * n + x) * 4
+                    bytes[o] = UInt8((c >> 16) & 0xFF)
+                    bytes[o + 1] = UInt8((c >> 8) & 0xFF)
+                    bytes[o + 2] = UInt8(c & 0xFF)
+                    bytes[o + 3] = 0xFF
+                }
             }
         }
         guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
@@ -135,22 +142,36 @@ public struct BuddyPixels: Sendable {
     }
 }
 
+extension Buddy {
+    /// The buddy in `pose` wearing `gear`, as one image (UIKit callers such as the shield).
+    public func image(pose: BuddyPose, gear: BuddyGear = .bare) -> CGImage? {
+        let slumped = pose == .drained || pose == .sad
+        let layers = [pixels(pose)] + [gearPixels(gear, slumped: slumped)].compactMap { $0 }
+        return BuddyPixels.image(layers: layers)
+    }
+}
+
 /// Draws a buddy, pixel-crisp, as a square `size` points wide. Decorative: callers label the
 /// surrounding element (the buddy's name is in `Copy.buddy`).
 public struct BuddySprite: View {
     let buddy: Buddy
     let pose: BuddyPose
     let size: CGFloat
+    /// nil: whatever the user is wearing (`BuddyGear.storageKey`); otherwise exactly this.
+    let gearOverride: BuddyGear?
 
-    public init(_ buddy: Buddy, pose: BuddyPose = .idle, size: CGFloat = 96) {
+    @AppStorage(BuddyGear.storageKey, store: SharedDefaults.store) private var storedGear: BuddyGear = .bare
+
+    public init(_ buddy: Buddy, pose: BuddyPose = .idle, size: CGFloat = 96, gear: BuddyGear? = nil) {
         self.buddy = buddy
         self.pose = pose
         self.size = size
+        self.gearOverride = gear
     }
 
     public var body: some View {
         Group {
-            if let image = buddy.pixels(pose).cgImage() {
+            if let image = buddy.image(pose: pose, gear: gearOverride ?? storedGear) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.none)

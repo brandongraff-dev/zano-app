@@ -275,3 +275,24 @@ Unverified (parse-checked only): everything until CI compiles it. Needs a device
 launch screen. `UIGraphicsImageRenderer` in the shield extension under Swift 6 isolation is assumed
 nonisolated (true in the iOS 18 SDK as far as known).
 
+
+### Buddy growth: levels and earned gear (2026-10-03)
+
+Founder: "yes, start on buddy growth and accessories". Kept small on purpose (no shop, no coins:
+earned only, which keeps it clear of the purchasable cosmetics in `CosmeticsStore`).
+
+- **Level** from lifetime earned unlocks (`BuddyProgress.levelThresholds`: 0, 1, 3, 7, 15, 30, 50,
+  75, 100, 150, 200, 300 → Lv 1–12).
+- **Gear** (`BuddyGear`): party hat (first earned unlock), shades (7-day best streak), beanie (14),
+  crown (30). Pixel overlays per buddy (`scripts/buddies/gear.py`, anchors per head; Moko's head
+  drops in the slumped faces so it has a second variant), generated into BuddySprites.swift as
+  `Buddy.gearPixels(_:slumped:)`. `Buddy.image(pose:gear:)` composes face + gear into one bitmap.
+- **Worn item** in the App Group (`shared.buddyGear`): `BuddySprite` wears it by default
+  (`gear:` overrides), so Today, widgets, posters and the shield all show it.
+- **First unlock of each item puts it on once** (`BuddyProgress.adoptNewGear`, fire-once ledger
+  `shared.buddyGearSeen`), run from Today when the completed-goal count changes. Taking it off sticks.
+- **Settings > Buddy** shows a growth card under the grid: Lv chip + bar + "N more earned unlocks to
+  Lv X", and four gear tiles (the buddy wearing each; tap to wear/take off; locked ones show the
+  requirement). Not in onboarding (nothing earned yet).
+- CI: new `buddy-gear` screenshot (demo progress Lv 4, hat + shades unlocked). Tests:
+  `levelFollowsEarnedUnlocks`, `gearUnlocksFromPlay`, `newGearIsPutOnOnce`, `everyBuddyHasEveryGearOverlay`.

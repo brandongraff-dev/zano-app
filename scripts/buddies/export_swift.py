@@ -53,7 +53,28 @@ for name in ORDER:
         p = ', '.join('0x%02X%02X%02X' % c for c in pal)
         r = ',\n            '.join(swift_string(row) for row in rows)
         defs.append(f'    static let {ident} = BuddyPixels(\n        palette: [{p}],\n        rows: [\n            {r},\n        ]\n    )')
-out += ['        }', '    }', '}', '', 'enum BuddySpriteData {']
+out += ['        }', '    }', '']
+# Gear overlays: one per buddy and item, plus a slumped-face variant where the head moves (Moko).
+import gear as gearlib
+out += ['    /// The overlay for `gear`, drawn over any face; `slumped` is the drained/sad head position.',
+        '    public func gearPixels(_ gear: BuddyGear, slumped: Bool) -> BuddyPixels? {',
+        '        switch (self, gear, slumped) {']
+for name in ORDER:
+    for g in gearlib.GEAR:
+        normal = gearlib.overlay(name.capitalize(), g).render()
+        low = gearlib.overlay(name.capitalize(), g, low=True).render()
+        # The slumped variant first: its `true` case must precede the catch-all `_` case.
+        for variant, img in (('Low', low), ('', normal)):
+            if variant and img == normal:
+                continue
+            pal, rows = encode(img)
+            ident = f'{name}Gear{g[0].upper()}{g[1:]}{variant}'
+            p = ', '.join('0x%02X%02X%02X' % c for c in pal)
+            r = ',\n            '.join(swift_string(row) for row in rows)
+            defs.append(f'    static let {ident} = BuddyPixels(\n        palette: [{p}],\n        rows: [\n            {r},\n        ]\n    )')
+            cond = 'true' if variant else '_'
+            out.append(f'        case (.{name}, .{g}, {cond}): BuddySpriteData.{ident}')
+out += ['        case (_, .bare, _): nil', '        }', '    }', '}', '', 'enum BuddySpriteData {']
 out.append('\n\n'.join(defs))
 out += ['}', '']
 open(OUT, 'w').write('\n'.join(out))

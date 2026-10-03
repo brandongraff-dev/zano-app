@@ -133,4 +133,52 @@ struct BuddyTests {
     @Test func spritesAre48Pixels() {
         #expect(BuddyPixels.size == 48)
     }
+
+    // MARK: - Growth (levels and gear)
+
+    @Test func levelFollowsEarnedUnlocks() {
+        #expect(BuddyProgress(earnedUnlocks: 0, bestStreak: 0).level == 1)
+        #expect(BuddyProgress(earnedUnlocks: 1, bestStreak: 0).level == 2)
+        #expect(BuddyProgress(earnedUnlocks: 2, bestStreak: 0).level == 2)
+        #expect(BuddyProgress(earnedUnlocks: 3, bestStreak: 0).level == 3)
+        #expect(BuddyProgress(earnedUnlocks: 12, bestStreak: 0).level == 4)
+        #expect(BuddyProgress(earnedUnlocks: 12, bestStreak: 0).unlocksToNextLevel == 3)
+        #expect(BuddyProgress(earnedUnlocks: 999, bestStreak: 0).isMaxLevel)
+        #expect(BuddyProgress(earnedUnlocks: 999, bestStreak: 0).unlocksToNextLevel == nil)
+        let mid = BuddyProgress(earnedUnlocks: 11, bestStreak: 0).levelFraction
+        #expect(mid > 0.49 && mid < 0.51)
+    }
+
+    @Test func gearUnlocksFromPlay() {
+        #expect(BuddyProgress(earnedUnlocks: 0, bestStreak: 0).unlockedGear.isEmpty)
+        #expect(BuddyProgress(earnedUnlocks: 1, bestStreak: 0).unlockedGear == [.partyHat])
+        #expect(BuddyProgress(earnedUnlocks: 1, bestStreak: 7).unlockedGear == [.partyHat, .shades])
+        #expect(BuddyProgress(earnedUnlocks: 30, bestStreak: 30).unlockedGear == BuddyGear.wearable)
+    }
+
+    @Test func newGearIsPutOnOnce() throws {
+        let defaults = try #require(UserDefaults(suiteName: "BuddyTests.gear.\(UUID().uuidString)"))
+        #expect(BuddyProgress.adoptNewGear(BuddyProgress(earnedUnlocks: 0, bestStreak: 0), defaults: defaults) == nil)
+        #expect(BuddyProgress.adoptNewGear(BuddyProgress(earnedUnlocks: 1, bestStreak: 0), defaults: defaults) == .partyHat)
+        #expect(defaults.string(forKey: BuddyGear.storageKey) == BuddyGear.partyHat.rawValue)
+        // Already celebrated: nothing new, and taking it off sticks.
+        defaults.set(BuddyGear.bare.rawValue, forKey: BuddyGear.storageKey)
+        #expect(BuddyProgress.adoptNewGear(BuddyProgress(earnedUnlocks: 2, bestStreak: 3), defaults: defaults) == nil)
+        #expect(defaults.string(forKey: BuddyGear.storageKey) == BuddyGear.bare.rawValue)
+        // Two at once: the newest goes on.
+        #expect(BuddyProgress.adoptNewGear(BuddyProgress(earnedUnlocks: 2, bestStreak: 14), defaults: defaults) == .beanie)
+    }
+
+    @Test(arguments: Buddy.allCases)
+    func everyBuddyHasEveryGearOverlay(_ buddy: Buddy) {
+        for gear in BuddyGear.wearable {
+            for slumped in [false, true] {
+                let overlay = buddy.gearPixels(gear, slumped: slumped)
+                #expect(overlay != nil, "\(buddy) \(gear) slumped=\(slumped)")
+                #expect(overlay?.rows.count == BuddyPixels.size)
+            }
+        }
+        #expect(buddy.gearPixels(.bare, slumped: false) == nil)
+        #expect(buddy.image(pose: .happy, gear: .crown) != nil)
+    }
 }

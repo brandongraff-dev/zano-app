@@ -119,7 +119,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     /// work and the user can swap buddies at any time. `nil` if the sprite can't be built, in
     /// which case the caller falls back to the star.
     private static var buddyIcon: UIImage? {
-        guard let sprite = Buddy.stored.pixels(.sleepy).cgImage() else { return nil }
+        guard let sprite = Buddy.stored.image(pose: .sleepy, gear: BuddyGear.stored) else { return nil }
         let side: CGFloat = 96
         let format = UIGraphicsImageRendererFormat()
         format.scale = 3

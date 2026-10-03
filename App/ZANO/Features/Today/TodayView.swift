@@ -314,6 +314,7 @@ struct TodayView: View {
             }
             .task(id: completedGoalCount) {
                 ghostComparison = await GhostMode.shared.ghostComparison(for: .now)
+                adoptNewBuddyGear()
             }
             .task {
                 // spec §23: "every screen view... (count only, on device → aggregate)".
@@ -677,6 +678,15 @@ struct TodayView: View {
     // the screen edge. 96 is a multiple of the buddy's 32px grid, so its pixels stay crisp.
     private static let heroStageWidth: CGFloat = 168
     private static let heroMarkHeight: CGFloat = 96
+
+    /// Buddy growth: the first time a gear item unlocks (first earned unlock, 7/14/30-day best
+    /// streak) the buddy puts it on, once. Screenshot runs keep the buddy bare.
+    private func adoptNewBuddyGear() {
+        guard ScreenshotMode.screen == nil else { return }
+        if BuddyProgress.adoptNewGear(BuddyProgress.load(from: modelContext)) != nil {
+            WidgetRefresh.reloadAll()
+        }
+    }
 
     private func refreshScreenTimeStatus() {
         screenTimeStatus = AuthorizationCenter.shared.authorizationStatus

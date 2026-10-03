@@ -48,7 +48,7 @@ tour() {
   done
 }
 
-SCREENS=${SCREENS:-"onboarding-1 onboarding-2 onboarding-4 onboarding-6 onboarding-8 buddy-picker paywall tab-today tab-lock tab-fuel tab-progress tab-settings celebration recap"}
+SCREENS=${SCREENS:-"onboarding-1 onboarding-2 onboarding-4 onboarding-6 onboarding-8 buddy-picker buddy-gear paywall tab-today tab-lock tab-fuel tab-progress tab-settings celebration recap"}
 SE_SCREENS=${SE_SCREENS:-"tab-today"}
 BUDDY_SHOTS=${BUDDY_SHOTS:-"brick:tab-today"}
 SCREENS_LIGHT=${SCREENS_LIGHT:-"tab-today tab-lock tab-fuel tab-progress tab-settings onboarding-1 buddy-picker paywall celebration"}

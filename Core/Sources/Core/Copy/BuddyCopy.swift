@@ -101,5 +101,41 @@ extension Copy {
         public static func heroLabel(_ buddy: Buddy) -> String {
             "\(name(buddy)). \(kind(buddy)). \(world(buddy))."
         }
+
+        // MARK: - Growth: level and gear (2026-10-03)
+
+        public static func level(_ level: Int) -> String { "Lv \(level)" }
+        public static func levelSpoken(_ level: Int) -> String { "Level \(level)" }
+        /// "3 more earned unlocks to Lv 6".
+        public static func toNextLevel(_ remaining: Int, next: Int) -> String {
+            remaining == 1 ? "1 more earned unlock to Lv \(next)" : "\(remaining) more earned unlocks to Lv \(next)"
+        }
+        public static let maxLevel = "Max level. Legend status."
+        public static let gearTitle = "Gear"
+        public static let gearSubtitle = "Earned, never bought. Tap to wear."
+        public static func gearName(_ gear: BuddyGear) -> String {
+            switch gear {
+            case .bare: "Nothing"
+            case .partyHat: "Party hat"
+            case .shades: "Shades"
+            case .beanie: "Beanie"
+            case .crown: "Crown"
+            }
+        }
+        /// How to unlock it: "7-day streak".
+        public static func gearRequirement(_ gear: BuddyGear) -> String {
+            switch gear.requirement {
+            case .none: ""
+            case .earnedUnlocks(let count): count == 1 ? "First earned unlock" : "\(count) earned unlocks"
+            case .bestStreak(let days): "\(days)-day streak"
+            }
+        }
+        public static let gearWearing = "Wearing"
+        public static let gearTapToWear = "Tap to wear"
+        /// VoiceOver for a gear tile.
+        public static func gearTileLabel(_ gear: BuddyGear, unlocked: Bool, wearing: Bool) -> String {
+            if !unlocked { return "\(gearName(gear)), locked. Unlocks at \(gearRequirement(gear))." }
+            return wearing ? "\(gearName(gear)), wearing" : gearName(gear)
+        }
     }
 }

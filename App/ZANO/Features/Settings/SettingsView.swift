@@ -308,9 +308,9 @@ struct SettingsView: View {
     private var planCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-                // Visual pass 2: the fully charged star is the plan's badge.
-                ZanoLivingMark(charge: 1, height: 34)
-                    .accessibilityHidden(true)
+                // The plan's badge: your buddy, beaming, in whatever gear it has earned (buddies,
+                // 2026-10-03). Never the crown by default: gear is earned, not bought.
+                StoredBuddySprite(pose: .happy, size: 64)
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     HStack(spacing: Theme.Spacing.xxs) {
                         Text(Copy.settings.planProLabel)

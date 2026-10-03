@@ -191,15 +191,18 @@ public struct BuddySprite: View {
 public struct StoredBuddySprite: View {
     let pose: BuddyPose
     let size: CGFloat
+    let gear: BuddyGear?
 
     @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
-    public init(pose: BuddyPose = .idle, size: CGFloat = 64) {
+    /// - Parameter gear: nil wears whatever the user picked; set it to dress the buddy for the spot.
+    public init(pose: BuddyPose = .idle, size: CGFloat = 64, gear: BuddyGear? = nil) {
         self.pose = pose
         self.size = size
+        self.gear = gear
     }
 
     public var body: some View {
-        BuddySprite(buddy, pose: pose, size: size)
+        BuddySprite(buddy, pose: pose, size: size, gear: gear)
     }
 }

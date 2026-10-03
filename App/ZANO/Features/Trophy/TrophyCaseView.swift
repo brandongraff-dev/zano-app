@@ -111,6 +111,10 @@ public struct TrophyCaseView: View {
 
     public init() {}
 
+    /// v1 (founder decision, 2026-10-02, the same one that hides the Settings row): the Cosmetics
+    /// Shop is hidden — purchases don't change anything yet. Flip to bring the row back.
+    private static let shopLive = false
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
@@ -119,7 +123,9 @@ public struct TrophyCaseView: View {
                 if !otherEarnedBadges.isEmpty {
                     otherAchievementsSection
                 }
-                shopLink
+                if Self.shopLive {
+                    shopLink
+                }
             }
             .padding(Theme.Spacing.md)
         }
@@ -194,6 +200,9 @@ public struct TrophyCaseView: View {
 
     /// Three equal columns, six tiles, two rows: no adaptive-minimum guesswork, and every tile is
     /// the same size whether its title wraps to one line or two (the title reserves two lines).
+    ///
+    /// Pass 2 (2026-10-03): the grid sits in a glass cabinet, each badge on its own little glass
+    /// stand, earned ones as coloured collectible stickers (`TrophyBadgeDisc(badgeKey:)`).
     private var milestonesSection: some View {
         LazyVGrid(
             columns: Array(
@@ -206,6 +215,9 @@ public struct TrophyCaseView: View {
                 TrophyTile(milestone: milestone, badge: badges.first { $0.key == milestone.key })
             }
         }
+        .padding(.vertical, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .zanoCard(radius: Theme.Radius.large, tint: Theme.Colors.Aurora.violet)
     }
 
     // MARK: - Other achievements (per-occurrence badges outside the fixed six, e.g. "comeback_*")
@@ -247,8 +259,8 @@ public struct TrophyCaseView: View {
                     HStack(spacing: Theme.Spacing.sm) {
                         TrophyBadgeDisc(
                             isEarned: true,
-                            glyph: .forKey(badge.key),
-                            diameter: Theme.Metrics.iconBadgeSmall
+                            badgeKey: badge.key,
+                            diameter: Theme.Metrics.iconBadgeSmall + 4
                         )
                         VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                             Text(Copy.badges.title(forKey: badge.key))
@@ -311,6 +323,11 @@ struct TrophyMilestone: Identifiable {
     let key: String
     var id: String { key }
     var glyph: TrophyBadgeGlyph { .forKey(key) }
+    /// A slight, fixed tilt per badge so the shelf looks collected, not printed.
+    var tilt: Double {
+        let tilts: [Double] = [-6, 4, -3, 6, -5, 3]
+        return tilts[(Self.milestoneKeys.firstIndex(of: key) ?? 0) % tilts.count]
+    }
 
     /// Spec §5.17's six milestones, in spec order. Also drives the not-yet-earned tiles in the
     /// Progress trophy strip, so the two screens list the same set.
@@ -412,11 +429,12 @@ private struct TrophyTile: View {
     /// this screen's one-shot earn moment: an expanding accent ring and a burst.
     private var badgeDisc: some View {
         ZStack {
-            TrophyBadgeDisc(isEarned: isEarned, glyph: milestone.glyph)
+            TrophyBadgeDisc(isEarned: isEarned, badgeKey: milestone.key)
+                .rotationEffect(.degrees(isEarned && !reduceMotion ? milestone.tilt : 0))
 
             if let ringProgress {
                 Circle()
-                    .stroke(Theme.Colors.accent, lineWidth: 2)
+                    .stroke(TrophyBadgeGlyph.tint(forKey: milestone.key), lineWidth: 2)
                     .scaleEffect(1 + 0.6 * ringProgress)
                     .opacity(0.6 * (1 - ringProgress))
                     .allowsHitTesting(false)
@@ -424,11 +442,17 @@ private struct TrophyTile: View {
             }
 
             if hasCelebrated {
-                CelebrationBurst(trigger: celebrationTick, particleCount: 14)
+                CelebrationBurst(
+                    trigger: celebrationTick,
+                    colors: [TrophyBadgeGlyph.tint(forKey: milestone.key), Theme.Colors.text, Theme.Colors.Ring.sunriseAlarm],
+                    particleCount: 18
+                )
                     .frame(width: TrophyBadgeDisc.defaultDiameter * 1.4, height: TrophyBadgeDisc.defaultDiameter * 1.4)
             }
         }
         .frame(width: TrophyBadgeDisc.defaultDiameter, height: TrophyBadgeDisc.defaultDiameter)
+        .padding(.bottom, TrophyStand.lift)
+        .background(alignment: .bottom) { TrophyStand(isLit: isEarned, tint: TrophyBadgeGlyph.tint(forKey: milestone.key)) }
         .animation(
             reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springCelebration,
             value: isEarned
@@ -463,6 +487,34 @@ private struct TrophyTile: View {
     }
 }
 
+/// The little glass stand a badge sits on: a flat frosted ellipse with a top highlight, glowing in
+/// the badge's colour once it's earned.
+private struct TrophyStand: View {
+    let isLit: Bool
+    let tint: Color
+
+    static let lift: CGFloat = 8
+
+    var body: some View {
+        ZStack {
+            Ellipse()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            Ellipse()
+                .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+        }
+        .frame(width: TrophyBadgeDisc.defaultDiameter * 1.25, height: 16)
+        .shadow(color: isLit ? tint.opacity(0.55) : .clear, radius: 10)
+        .offset(y: 4)
+        .accessibilityHidden(true)
+    }
+}
+
 /// One segment per milestone, in grid order: accent when earned, `track` when not. A trophy shelf
 /// at a glance, so the hero does not need a second rendering of the count (the old ring).
 private struct TrophyShelf: View {
@@ -470,11 +522,12 @@ private struct TrophyShelf: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xxs) {
-            ForEach(Array(earnedFlags.enumerated()), id: \.offset) { _, earned in
+            ForEach(Array(earnedFlags.enumerated()), id: \.offset) { index, earned in
+                let tint = TrophyBadgeGlyph.tint(forKey: TrophyMilestone.milestoneKeys[index % TrophyMilestone.milestoneKeys.count])
                 Capsule()
-                    .fill(earned ? Theme.Colors.accent : Theme.Colors.track)
-                    .frame(height: 6)
-                    .shadow(color: earned ? Theme.Colors.accent.opacity(0.35) : Color.clear, radius: 4)
+                    .fill(earned ? tint : Theme.Colors.track)
+                    .frame(height: 8)
+                    .shadow(color: earned ? tint.opacity(0.45) : Color.clear, radius: 4)
             }
         }
         .accessibilityHidden(true)

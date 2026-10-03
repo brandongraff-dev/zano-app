@@ -299,17 +299,26 @@ struct SettingsView: View {
     private var planCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                // Visual pass 2: the fully charged star is the plan's badge.
+                ZanoLivingMark(charge: 1, height: 34)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    SettingsEyebrow(text: Copy.settings.planLabel)
-                    Text(Copy.settings.planProLabel)
-                        .zanoText(.titleLarge)
-                        .foregroundStyle(Theme.Colors.text)
+                    HStack(spacing: Theme.Spacing.xxs) {
+                        Text(Copy.settings.planProLabel)
+                            .zanoText(.titleLarge)
+                            .foregroundStyle(Theme.Colors.text)
+                        // The Apple-billing sentence lives here now instead of under the card.
+                        ZanoInfoButton(
+                            Copy.settings.planManagedByAppleNote,
+                            accessibilityLabel: Copy.settings.sectionInfoLabel(Copy.settings.planProLabel)
+                        )
+                    }
                     ZanoStatusCapsule(
-                        dotColor: Theme.Colors.accent,
-                        text: isOnTrial ? Copy.settings.planStatusTrial : Copy.settings.planStatusActive
+                        dotColor: Theme.Colors.Ring.steps,
+                        text: isOnTrial ? Copy.settings.planStatusTrial : Copy.settings.planStatusActive,
+                        systemImage: "checkmark.seal.fill"
                     )
                 }
-                .accessibilityElement(children: .combine)
 
                 Spacer(minLength: Theme.Spacing.sm)
 
@@ -340,11 +349,6 @@ struct SettingsView: View {
                 .accessibilityElement(children: .combine)
             }
 
-            Text(Copy.settings.planManagedByAppleNote)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .fixedSize(horizontal: false, vertical: true)
-
             PrimaryButton(
                 title: Copy.settings.manageSubscriptionButtonLabel,
                 systemImage: "arrow.up.right",
@@ -355,7 +359,7 @@ struct SettingsView: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(radius: Theme.Radius.large)
+        .zanoHero(radius: Theme.Radius.large, tint: Theme.Colors.Aurora.violet)
     }
 
     // MARK: - Setup: goals, lock sets, gyms, tags (spec §3, §6, §9.4, §25.1)
@@ -927,23 +931,7 @@ private struct SettingsIconBadge: View {
     }
 }
 
-/// Small-caps section label. `isHeader` adds the VoiceOver heading trait (only true section
-/// headers set it; the "Plan" label inside the hero card does not).
-private struct SettingsEyebrow: View {
-    let text: String
-    var isHeader = false
-
-    var body: some View {
-        // `zanoText(.eyebrow)`: footnote semibold, uppercased, +0.8 pt tracking (T5) — SF only
-        // auto-tracks mixed-case runs, so caps need it by hand, and `Font` cannot carry it.
-        Text(text)
-            .zanoText(.eyebrow)
-            .foregroundStyle(Theme.Colors.muted)
-            .accessibilityAddTraits(isHeader ? .isHeader : [])
-    }
-}
-
-/// Eyebrow header + content + optional caption footer. Gap within the group is `Spacing.xs`; the
+/// Rounded title (+ optional (i)) + content + optional caption footer. Gap within the group is `Spacing.xs`; the
 /// gap between groups (set by the parent stack) is `Spacing.lg` — 3x, past the 2x proximity rule.
 private struct SettingsSection<Content: View>: View {
     let title: String?
@@ -1194,6 +1182,7 @@ private struct SettingsActionRow: View {
 private struct SettingsChoiceTile: View {
     let title: String
     let systemImage: String
+    var tint: Color = Theme.Colors.accent
     let isSelected: Bool
     let action: () -> Void
 
@@ -1205,9 +1194,15 @@ private struct SettingsChoiceTile: View {
         Button(action: action) {
             VStack(spacing: Theme.Spacing.xxs) {
                 Image(systemName: systemImage)
-                    .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected && isEnabled ? Theme.Colors.accent : Theme.Colors.muted)
-                    .frame(height: 24)
+                    .font(Theme.Typography.icon(.large, weight: .bold))
+                    .foregroundStyle(isSelected && isEnabled ? Theme.Colors.background : Theme.Colors.muted)
+                    .symbolEffect(.bounce, options: .nonRepeating, value: isSelected && !reduceMotion)
+                    .frame(width: 36, height: 30)
+                    .background {
+                        if isSelected && isEnabled {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint)
+                        }
+                    }
                 Text(title)
                     .font(Theme.Typography.captionEmphasized)
                     .foregroundStyle(isSelected && isEnabled ? Theme.Colors.text : Theme.Colors.muted)
@@ -1219,15 +1214,21 @@ private struct SettingsChoiceTile: View {
             .frame(maxWidth: .infinity, minHeight: SettingsMetrics.choiceTileHeight)
             // Unselected: a plain `surface2` tile, no border. Selected: the accent stroke at
             // `Metrics.selectedStroke` (strokeBorder, so no layout shift). Polish pass 2026-09-24.
-            .background(Theme.Colors.surface2, in: shape)
+            .background {
+                if isSelected && isEnabled {
+                    shape.fill(Theme.Colors.wash(tint))
+                } else {
+                    shape.fill(Theme.Colors.glassFill)
+                }
+            }
             .overlay {
                 if isSelected {
-                    shape.strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke)
+                    shape.strokeBorder(tint, lineWidth: Theme.Metrics.selectedStroke)
                 }
             }
             .contentShape(shape)
         }
-        .buttonStyle(.pressable(scale: 0.96))
+        .buttonStyle(.pressable(scale: 0.94))
         .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -1299,6 +1300,7 @@ private struct CoachVoiceCard: View {
                     SettingsChoiceTile(
                         title: voice.displayName,
                         systemImage: voice.settingsSymbol,
+                        tint: voice.settingsTint,
                         isSelected: selected == voice
                     ) {
                         onSelect(voice)
@@ -1323,10 +1325,15 @@ private struct CoachVoiceCard: View {
         // footnote. Height is held at two lines' worth (2 x 22 + 2 x 12 = 68 -> 72) so switching
         // between a one-line and a two-line voice doesn't jolt the layout below; it still grows
         // if Dynamic Type needs a third line.
-        Text("\u{201C}\(voice.sampleLine)\u{201D}")
-            .font(Theme.Typography.headline)
-            .foregroundStyle(Theme.Colors.text)
-            .contentTransition(.opacity)
+        HStack(alignment: .top, spacing: Theme.Spacing.xs) {
+            Image(systemName: "quote.opening")
+                .font(Theme.Typography.icon(.small, weight: .heavy))
+                .foregroundStyle(voice.settingsTint)
+            Text(voice.sampleLine)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .contentTransition(.opacity)
+        }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.sm)
@@ -1343,10 +1350,20 @@ private extension CoachVoice {
     /// wherever it appears (better-ui ICO-03).
     var settingsSymbol: String {
         switch self {
-        case .hype: "megaphone"
-        case .toughLove: "flame"
-        case .chill: "leaf"
-        case .data: "chart.bar"
+        case .hype: "megaphone.fill"
+        case .toughLove: "flame.fill"
+        case .chill: "leaf.fill"
+        case .data: "chart.bar.fill"
+        }
+    }
+
+    /// Each voice's colour when picked (visual pass 2).
+    var settingsTint: Color {
+        switch self {
+        case .hype: Theme.Colors.Ring.protein
+        case .toughLove: Theme.Colors.ember
+        case .chill: Theme.Colors.Ring.steps
+        case .data: Theme.Colors.Ring.water
         }
     }
 }

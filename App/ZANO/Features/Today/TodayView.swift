@@ -49,6 +49,11 @@
 // after" during a Time Bank borrow), and a calm `LockHealthCard` (Features/Lock) appears under the
 // hero when `LockHealthCheck` finds Screen Time access off or the shield empty. Both are appended
 // after the existing status text, so the UI tests' "Locked ·" prefix is unchanged.
+//
+// Pass 2 "playful" (2026-10-03, docs/design/visual-direction-v2.md "Pass 2: playful"): the hero is a
+// compact stage (star beside the score) so the first row of goal tiles is above the fold on a 6.1"
+// phone; the star is a character with moods (`zanoMascot`) that jumps on each completed goal and
+// spins when poked; goal tiles fill with their colour; the aurora warms toward ember with the streak.
 
 import Foundation
 import SwiftUI
@@ -173,6 +178,11 @@ struct TodayView: View {
     @State private var showUnlockCelebration = false
     /// Bumps each time a goal completes: the star's charge burst (v2).
     @State private var heroBurstTick = 0
+    /// Pass 2: the star's spin on a poke, the speech bubble it shows, and which line is next.
+    @State private var mascotSpinTick = 0
+    @State private var mascotBubble: String?
+    @State private var mascotLineIndex = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.zanoTabIsSelected) private var isTabSelected
     /// Today vs. "Ghost You" (spec §5.4). `nil` until the first load completes.
     @State private var ghostComparison: GhostMode.GhostComparison?
@@ -227,6 +237,8 @@ struct TodayView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .zanoAmbient(reduceTransparency ? .neutral : ambientState)
+            // Pass 2: the room warms toward ember as the streak grows.
+            .zanoAuroraWarmth(ZanoAuroraWarmth.forStreak(days: streak?.current ?? 0))
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: ambientState)
             // Today draws its own header; no empty navigation-bar band above it.
             .toolbar(.hidden, for: .navigationBar)
@@ -430,89 +442,169 @@ struct TodayView: View {
         }
     }
 
+    /// Pass 2 (playful, docs/design/visual-direction-v2.md "Pass 2: playful"): a compact stage. The
+    /// pass-1 hero stacked a 300pt star stage over the score and pushed every goal tile below the
+    /// fold. Now the star and the score stand side by side (stacked again at accessibility text
+    /// sizes), about 190pt tall, so the first row of goal tiles shows on a 6.1" phone.
+    ///
+    ///   * Left, the star: the mascot, acting out the day (`zanoMascot`: sleepy while locked with
+    ///     nothing done, perky with sparks in the done goals' colours, charged when it's all done). It
+    ///     jumps and throws a burst on every completed goal, and spins with a speech-bubble line
+    ///     (`CoachVoiceTone.mascotLines`) when poked.
+    ///   * Right, the score: the number, its words, the goal segments and the lock capsule. This is the
+    ///     button into Lock, and its VoiceOver label still starts with "Locked ·" for the UI tests.
     private var heroCard: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Spacing.md))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Theme.Spacing.sm))
+        return layout {
+            heroStage
+            heroScoreButton
+        }
+        .frame(maxWidth: .infinity)
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
+    }
+
+    private var heroScoreButton: some View {
         Button {
             Analytics.shared.capture(event: "today_lock_status_tapped")
             showLockDetail = true
         } label: {
-            vault
-                .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
-                // One announcement for the whole card.
+            heroScore
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                // One announcement for the whole score.
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(heroAccessibilityLabel)
         }
-        .buttonStyle(.pressable)
+        .buttonStyle(.pressable(scale: 0.96))
     }
 
-    /// The hero is an object, not a card (Opal's gem): the living ZANO star, charged by today's time
-    /// off the phone, floating in a halo whose light follows the lock state. Under it the one big
-    /// number, a segment per goal, and the lock status. Tapping it opens Lock.
-    ///
-    /// v2 (docs/design/visual-direction-v2.md §5): the star is the mascot — bigger, bobbing, on the
-    /// aurora with a soft halo in the state's light, and it bursts each time a goal completes. Under
-    /// it only the score ("2" / "goals to unlock"), the goal segments and one glass capsule. The goal
-    /// names, the "since" time and the "Blocking …" line moved out (the tiles and Lock say them; the
-    /// VoiceOver label still carries all of it).
-    private var vault: some View {
-        VStack(spacing: Theme.Spacing.md) {
-            heroStage
-
+    /// The number, its words, the goal segments and one glass capsule (the lock set's name, a chevron
+    /// into Lock), plus Earn Mode's banked minutes as a sticker.
+    private var heroScore: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             heroNumber
-
             if !heroSegments.isEmpty {
                 VaultSegmentBar(segments: heroSegments)
-                    .frame(width: min(64 * CGFloat(heroSegments.count), 220))
+                    .frame(maxWidth: min(48 * CGFloat(heroSegments.count), 200))
+                    .padding(.vertical, Theme.Spacing.xxs)
             }
-
-            HStack(spacing: Theme.Spacing.xs) {
-                ZanoStatusCapsule(
-                    dotColor: heroStatusColor,
-                    text: heroStatusLine,
-                    systemImage: heroStatusSymbol,
-                    showsChevron: true
-                )
-                if let chip = bankChipText {
-                    ZanoGlassChip(chip, systemImage: "hourglass", tint: Theme.Colors.accent)
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.xs) { heroCapsules }
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) { heroCapsules }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, Theme.Spacing.md)
-        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
     }
 
-    /// The star on its halo. The halo is the state's light (cool while locked, blue once earned)
-    /// and is dropped under Reduce Transparency; the burst fires on every completed goal.
+    @ViewBuilder
+    private var heroCapsules: some View {
+        ZanoStatusCapsule(
+            dotColor: heroStatusColor,
+            text: heroStatusLine,
+            systemImage: heroStatusSymbol,
+            showsChevron: true
+        )
+        .fixedSize()
+        if let chip = bankChipText {
+            ZanoSticker(chip, systemImage: "hourglass", color: Theme.Colors.accent, size: .small)
+                .fixedSize()
+        }
+    }
+
+    /// The star on its stage. Tapping it spins it and shows a line from the coach; a completed goal
+    /// makes it jump and throws a burst in the goal's colour.
     private var heroStage: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [heroHalo.opacity(reduceTransparency ? 0 : 0.38), heroHalo.opacity(0)],
-                        center: .center,
-                        startRadius: 20,
-                        endRadius: 160
-                    )
-                )
-                // Capped at 320 but never wider than the screen (an SE is 320 wide).
-                .frame(maxWidth: 320, maxHeight: 320)
-                .aspectRatio(1, contentMode: .fit)
-            heroStar
+        heroStar
+            .zanoMascot(
+                mood: mascotMood,
+                jump: heroBurstTick,
+                spin: mascotSpinTick,
+                sparkColors: doneGoalColors,
+                size: Self.heroMarkHeight,
+                showsGlow: !reduceTransparency
+            )
+            .zanoChargeBurst(trigger: heroBurstTick, color: heroBurstColor)
+            .frame(width: Self.heroStageWidth, height: Self.heroStageHeight)
+            .overlay(alignment: .topLeading) { mascotBubbleView }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: pokeMascot)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.today.mascotSpoken(mascotMood))
+            .accessibilityHint(Copy.today.mascotHint)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, pokeMascot)
+            .sensoryFeedback(.impact(weight: .light), trigger: mascotSpinTick)
+            // Only a goal *completing* charges the star; an undo is quiet.
+            .onChange(of: completedGoalCount) { oldValue, newValue in
+                if newValue > oldValue { heroBurstTick += 1 }
+            }
+            .task(id: mascotSpinTick) {
+                guard mascotBubble != nil else { return }
+                try? await Task.sleep(for: .seconds(voiceOverEnabled ? 4 : 2.4))
+                guard !Task.isCancelled else { return }
+                withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { mascotBubble = nil }
+            }
+    }
+
+    /// The star's speech bubble, over the top of the stage, for a couple of seconds after a poke.
+    @ViewBuilder
+    private var mascotBubbleView: some View {
+        if let line = mascotBubble {
+            Text(line)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 200, alignment: .leading)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background(ZanoGlass(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)))
+                .fixedSize()
+                .offset(x: Theme.Spacing.xs, y: -Theme.Spacing.xs)
+                .transition(.scale(scale: 0.6, anchor: .bottomLeading).combined(with: .opacity))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.heroStageHeight)
-        .zanoChargeBurst(trigger: heroBurstTick, color: heroIsEarned ? Theme.Colors.accent : Theme.Colors.Aurora.violet)
-        // Only a goal *completing* charges the star; an undo is quiet.
-        .onChange(of: completedGoalCount) { oldValue, newValue in
-            if newValue > oldValue { heroBurstTick += 1 }
+    }
+
+    private func pokeMascot() {
+        let lines = CoachVoiceTone.mascotLines(voice, mood: mascotMood)
+        guard !lines.isEmpty else { return }
+        let line = lines[mascotLineIndex % lines.count]
+        mascotLineIndex += 1
+        withAnimation(reduceMotion ? nil : Theme.Motion.springPop) { mascotBubble = line }
+        mascotSpinTick += 1
+        AccessibilityNotification.Announcement(line).post()
+        Analytics.shared.capture(event: "today_mascot_poked")
+    }
+
+    /// The star's mood, from the same state the hero shows.
+    private var mascotMood: ZanoMascotMood {
+        switch heroState {
+        case .setup: .idle
+        case .unlocking: .charged
+        case .locked(let remaining, let total): ZanoMascotMood(done: total - remaining, total: total, isLocked: true)
+        case .unlocked(let done, let total): ZanoMascotMood(done: done, total: total, isLocked: false)
         }
+    }
+
+    /// The colours the star has collected: one per done goal, in the segments' order.
+    private var doneGoalColors: [Color] {
+        heroSegments.filter(\.isDone).map(\.color)
+    }
+
+    /// The burst is the accent once the day is earned, otherwise the newest-looking done colour.
+    private var heroBurstColor: Color {
+        if heroIsEarned { return Theme.Colors.accent }
+        return doneGoalColors.last ?? Theme.Colors.Aurora.violet
     }
 
     @ViewBuilder
     private var heroNumber: some View {
         switch heroState {
         case .setup:
-            VStack(spacing: Theme.Spacing.xxs) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(Copy.today.setupIncompleteTitle)
                     .font(Theme.Typography.titleLarge)
                     .foregroundStyle(Theme.Colors.text)
@@ -520,35 +612,37 @@ struct TodayView: View {
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.muted)
             }
-            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
         case .unlocking:
             Text(Copy.today.allDoneTitle)
                 .font(Theme.Typography.titleLarge)
                 .foregroundStyle(Theme.Colors.accent)
-                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         case .locked(let remaining, _):
-            centredNumeral(Copy.today.heroGoalsToUnlockLine(count: remaining), earned: false, changeKey: remaining)
+            scoreNumeral(Copy.today.heroGoalsToUnlockLine(count: remaining), earned: false, changeKey: remaining)
         case .unlocked(let done, let total):
-            centredNumeral(Copy.today.heroFractionDone(done: done, total: total), earned: heroIsEarned, changeKey: done)
+            scoreNumeral(Copy.today.heroFractionDone(done: done, total: total), earned: heroIsEarned, changeKey: done)
         }
     }
 
-    /// "2" at poster size with its words under it, centred.
-    private func centredNumeral(_ line: String, earned: Bool, changeKey: Int) -> some View {
-        VStack(spacing: 0) {
+    /// "2" at poster size with its words under it, leading-aligned beside the star.
+    private func scoreNumeral(_ line: String, earned: Bool, changeKey: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             NumeralText(line, size: .hero, color: earned ? Theme.Colors.accent : Theme.Colors.text, remainder: .hidden)
                 .shadow(color: (earned ? Theme.Colors.accent : Theme.Colors.Aurora.violet).opacity(reduceTransparency ? 0 : 0.35), radius: 18)
                 .animation(reduceMotion ? nil : Theme.Motion.springPop, value: changeKey)
             Text(NumeralText.remainder(of: line))
                 .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .multilineTextAlignment(.center)
     }
 
     /// The star's charge is screen time, which only the `ZANOReport` extension can read (spec §27),
-    /// so on a device the star is that extension's view. It can't take taps, so the card's button
-    /// still gets them. Screenshots use demo data; without access the star is uncharged.
+    /// so on a device the star is that extension's view. It can't take taps; the stage's tap gesture
+    /// sits over it. Screenshots use demo data; without access the star is uncharged.
     @ViewBuilder
     private var heroStar: some View {
         if ScreenshotMode.screen != nil {
@@ -562,10 +656,12 @@ struct TodayView: View {
         }
     }
 
-    /// The hero's stage (halo + star) and the star itself. One pair of constants for the screenshot,
-    /// no-access and on-device (report extension) paths, so all three lay out the same.
-    private static let heroStageHeight: CGFloat = 300
-    private static let heroMarkHeight: CGFloat = 150
+    /// The compact stage and the star in it. One set of constants for the screenshot, no-access and
+    /// on-device (report extension) paths, so all three lay out the same. `heroMarkHeight` matches
+    /// `ScreenTimeChargeView`'s default, which the report extension draws with.
+    private static let heroStageHeight: CGFloat = 176
+    private static let heroStageWidth: CGFloat = 156
+    private static let heroMarkHeight: CGFloat = 96
 
     private func refreshScreenTimeStatus() {
         screenTimeStatus = AuthorizationCenter.shared.authorizationStatus
@@ -576,15 +672,6 @@ struct TodayView: View {
         case .setup: []
         case .locked, .unlocking: segments(for: requiredGoals)
         case .unlocked: segments(for: activeGoals)
-        }
-    }
-
-    /// Cold steel while locked, the accent once earned, a faint neutral otherwise.
-    private var heroHalo: Color {
-        if heroIsEarned { return Theme.Colors.accent }
-        switch heroState {
-        case .locked: return Theme.Colors.lockedAmbient
-        default: return Theme.Colors.textSecondary.opacity(0.4)
         }
     }
 

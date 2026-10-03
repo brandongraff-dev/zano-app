@@ -38,6 +38,24 @@ enum TrophyBadgeGlyph: Equatable {
             return .symbol("rosette")
         }
     }
+
+    /// The collectible colour for a `Badge.key` (pass 2): each badge family earns in its own hue,
+    /// the way stickers in a set differ. Streaks are ember, the big streaks pink and sun, fuel is
+    /// apricot, the gym is volt, the first unlock is ZANO Blue, comebacks are violet.
+    static func tint(forKey key: String) -> Color {
+        if key.hasPrefix("comeback") { return Theme.Colors.Ring.focus }
+        switch key {
+        case "first_earned_unlock": return Theme.Colors.accent
+        case "streak_7", "streak_14": return Theme.Colors.ember
+        case "streak_30": return Theme.Colors.Ring.creatine
+        case "streak_100", "streak_365": return Theme.Colors.Ring.sunriseAlarm
+        case "protein_1000g_week": return Theme.Colors.Ring.protein
+        case "gym_50_sessions": return Theme.Colors.Ring.workout
+        default:
+            if key.hasPrefix("streak_") { return Theme.Colors.ember }
+            return Theme.Colors.Ring.water
+        }
+    }
 }
 
 /// A round badge, earned or not. Decorative: callers put the title and status next to it and own
@@ -46,6 +64,10 @@ struct TrophyBadgeDisc: View {
     let isEarned: Bool
     let glyph: TrophyBadgeGlyph
     var diameter: CGFloat = TrophyBadgeDisc.defaultDiameter
+    /// Pass 2: when set, an earned disc is a collectible sticker in this colour (gradient fill,
+    /// white die-cut rim, hard printed shadow) instead of brushed silver. `nil` keeps the silver
+    /// disc, so callers that don't opt in look exactly as before.
+    var tint: Color? = nil
 
     static let defaultDiameter: CGFloat = 60
 
@@ -55,10 +77,16 @@ struct TrophyBadgeDisc: View {
         self.diameter = diameter
     }
 
-    init(isEarned: Bool, glyph: TrophyBadgeGlyph, diameter: CGFloat = TrophyBadgeDisc.defaultDiameter) {
+    init(isEarned: Bool, glyph: TrophyBadgeGlyph, diameter: CGFloat = TrophyBadgeDisc.defaultDiameter, tint: Color? = nil) {
         self.isEarned = isEarned
         self.glyph = glyph
         self.diameter = diameter
+        self.tint = tint
+    }
+
+    /// The collectible disc for a `Badge.key`: its glyph and its colour.
+    init(isEarned: Bool, badgeKey: String, diameter: CGFloat = TrophyBadgeDisc.defaultDiameter) {
+        self.init(isEarned: isEarned, glyph: .forKey(badgeKey), diameter: diameter, tint: TrophyBadgeGlyph.tint(forKey: badgeKey))
     }
 
     /// Theme icon sizes, picked by disc size. Capped at xxLarge Dynamic Type below: the disc is a
@@ -70,7 +98,18 @@ struct TrophyBadgeDisc: View {
 
     var body: some View {
         ZStack {
-            if isEarned {
+            if isEarned, let tint {
+                Circle().fill(
+                    LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                Circle().strokeBorder(Color.white, lineWidth: max(2, diameter * 0.05))
+                // A shine streak across the top-left, like a foil sticker.
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(width: diameter * 0.12, height: diameter * 0.42)
+                    .rotationEffect(.degrees(40))
+                    .offset(x: -diameter * 0.22, y: -diameter * 0.16)
+            } else if isEarned {
                 Circle().fill(Theme.Colors.metallic)
                 // Subtle specular: a top-lit rim, brighter at the top than the bottom.
                 Circle().strokeBorder(
@@ -101,6 +140,7 @@ struct TrophyBadgeDisc: View {
             }
         }
         .frame(width: diameter, height: diameter)
+        .shadow(color: isEarned && tint != nil ? Color.black.opacity(0.45) : .clear, radius: 0, x: 2, y: 4)
         .accessibilityHidden(true)
     }
 

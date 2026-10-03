@@ -7,7 +7,11 @@
 // configurable. Everything persists to `SharedDefaults` through `NudgePreferences.current`, which
 // `NudgeSender` reads on every send (it also suppresses everything during a health pause).
 //
-// All copy is `Copy.settings.nudges*`. Monochrome glass cards; the accent is only the switches.
+// All copy is `Copy.settings.nudges*`.
+//
+// Visual pass 2 (2026-10-03): rows carry colour stickers (one per nudge kind), switches wear the
+// nudges pink, section heads are rounded titles, the 2-a-day cap is a glass chip, and the quiet-hours
+// explanation moved into an (i) beside its title.
 
 import SwiftUI
 import Core
@@ -25,23 +29,30 @@ struct NudgeSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if isHealthPaused {
-                    NudgeNote(systemImage: "heart", text: Copy.settings.nudgesPausedNote)
+                    NudgeNote(systemImage: "heart.fill", text: Copy.settings.nudgesPausedNote, tint: SettingsPalette.health)
                 }
 
                 NudgeCard {
-                    NudgeToggleRow(title: Copy.settings.nudgesToggleLabel, isOn: $prefs.enabled)
+                    NudgeToggleRow(
+                        title: Copy.settings.nudgesToggleLabel,
+                        systemImage: "bell.badge.fill",
+                        tint: SettingsPalette.nudges,
+                        isOn: $prefs.enabled
+                    )
                 }
 
-                NudgeNote(systemImage: "2.circle", text: Copy.settings.nudgesCapNote)
+                NudgeNote(systemImage: "2.circle.fill", text: Copy.settings.nudgesCapNote, tint: SettingsPalette.nudges)
 
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    NudgeSectionHeader(Copy.settings.nudgesTypesSectionTitle)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    SettingsSectionTitle(title: Copy.settings.nudgesTypesSectionTitle)
                     NudgeCard {
                         ForEach(Array(NudgeKind.allCases.enumerated()), id: \.element) { index, kind in
                             if index > 0 { NudgeDivider() }
                             NudgeToggleRow(
                                 title: title(for: kind),
                                 detail: detail(for: kind),
+                                systemImage: symbol(for: kind),
+                                tint: tint(for: kind),
                                 isOn: kindBinding(kind)
                             )
                         }
@@ -49,10 +60,15 @@ struct NudgeSettingsView: View {
                     .disabled(!prefs.enabled)
                 }
 
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    NudgeSectionHeader(Copy.settings.nudgesQuietSectionTitle)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    SettingsSectionTitle(title: Copy.settings.nudgesQuietSectionTitle, info: Copy.settings.nudgesQuietFooter)
                     NudgeCard {
-                        NudgeToggleRow(title: Copy.settings.nudgesQuietToggleLabel, isOn: $prefs.quietHoursEnabled)
+                        NudgeToggleRow(
+                            title: Copy.settings.nudgesQuietToggleLabel,
+                            systemImage: "moon.zzz.fill",
+                            tint: SettingsPalette.sleep,
+                            isOn: $prefs.quietHoursEnabled
+                        )
                         if prefs.quietHoursEnabled {
                             NudgeDivider()
                             NudgeTimeRow(label: Copy.settings.nudgesQuietStartLabel, minutes: $prefs.quietStartMinutes)
@@ -61,7 +77,6 @@ struct NudgeSettingsView: View {
                         }
                     }
                     .disabled(!prefs.enabled)
-                    NudgeFooter(Copy.settings.nudgesQuietFooter)
                 }
 
                 NudgeFooter(Copy.settings.nudgesSystemFooter)
@@ -70,7 +85,7 @@ struct NudgeSettingsView: View {
         }
         .zanoBackdrop()
         .preferredColorScheme(.dark)
-        .tint(Theme.Colors.accent)
+        .tint(SettingsPalette.nudges)
         .navigationTitle(Copy.settings.nudgesTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -101,6 +116,25 @@ struct NudgeSettingsView: View {
         }
     }
 
+    /// SF Symbol identifiers and sticker colours per kind (not copy).
+    private func symbol(for kind: NudgeKind) -> String {
+        switch kind {
+        case .morningPlan: "sunrise.fill"
+        case .proteinLastMile: "fork.knife"
+        case .streakAtRisk: "flame.fill"
+        case .weeklyRecap: "chart.bar.fill"
+        }
+    }
+
+    private func tint(for kind: NudgeKind) -> Color {
+        switch kind {
+        case .morningPlan: Theme.Colors.Ring.sunriseAlarm
+        case .proteinLastMile: Theme.Colors.Ring.protein
+        case .streakAtRisk: Theme.Colors.ember
+        case .weeklyRecap: Theme.Colors.Ring.water
+        }
+    }
+
     private func detail(for kind: NudgeKind) -> String {
         switch kind {
         case .morningPlan: Copy.settings.nudgeKindMorningPlanDetail
@@ -127,26 +161,38 @@ private struct NudgeCard<Content: View>: View {
 private struct NudgeToggleRow: View {
     let title: String
     var detail: String? = nil
+    var systemImage: String? = nil
+    var tint: Color = SettingsPalette.nudges
     @Binding var isOn: Bool
 
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Toggle(isOn: $isOn) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                Text(title)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(isEnabled ? Theme.Colors.text : Theme.Colors.muted)
-                if let detail {
-                    Text(detail)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Theme.Spacing.sm) {
+                if let systemImage {
+                    SettingsSticker(systemImage: systemImage, tint: tint)
                 }
+                labels
             }
         }
+        .tint(tint)
         .padding(.vertical, Theme.Spacing.sm)
         .frame(minHeight: Theme.Metrics.minTapTarget)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            Text(title)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(isEnabled ? Theme.Colors.text : Theme.Colors.muted)
+            if let detail {
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
@@ -180,35 +226,22 @@ private struct NudgeTimeRow: View {
     }
 }
 
+/// A fact on its own line: a small colour sticker and a sentence.
 private struct NudgeNote: View {
     let systemImage: String
     let text: String
+    var tint: Color = SettingsPalette.nudges
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
-            Image(systemName: systemImage)
-                .font(Theme.Typography.icon(.small))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .accessibilityHidden(true)
+        HStack(spacing: Theme.Spacing.sm) {
+            SettingsSticker(systemImage: systemImage, tint: tint, baseSize: 26)
             Text(text)
-                .font(Theme.Typography.body)
+                .font(Theme.Typography.captionEmphasized)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, Theme.Spacing.xs)
-    }
-}
-
-private struct NudgeSectionHeader: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text)
-            .zanoText(.eyebrow)
-            .foregroundStyle(Theme.Colors.muted)
-            .accessibilityAddTraits(.isHeader)
-            .padding(.horizontal, Theme.Spacing.xs)
+        .accessibilityElement(children: .combine)
     }
 }
 

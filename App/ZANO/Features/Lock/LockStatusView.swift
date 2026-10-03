@@ -76,6 +76,11 @@
 //   (`TimeBankEngine.borrowToUnlock`); the lock comes back on its own when the window ends. An
 //   Earn Mode lock keeps its existing "Spend minutes" card, which already does this. The emergency
 //   unlock bar is unchanged and stays visible in every state.
+//
+// Pass 2 "playful" (2026-10-03, docs/design/visual-direction-v2.md "Pass 2: playful"): the vault's
+// rings light up per goal around a little padlock character (`LockVaultCard`); the blocking facts
+// lead with stickers; the borrow card's amounts are minute "coins" (chunky stickers) and its balance
+// is a sticker; the idle star sways (`zanoMascot(.idle)`). Emergency unlock: unchanged, still pinned.
 
 import Foundation
 import SwiftUI
@@ -356,6 +361,7 @@ struct LockStatusView: View {
                     )
                     .frame(width: 240, height: 240)
                 ZanoLivingMark(charge: 0, height: 84)
+                    .zanoMascot(mood: .idle, size: 84, showsGlow: false)
             }
             .frame(height: 190)
 
@@ -957,10 +963,8 @@ struct LockStatusView: View {
     }
 
     private func blockingFact(icon: String, tint: Color, text: String) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Image(systemName: icon)
-                .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(tint)
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            ZanoSticker(systemImage: icon, color: tint, size: .regular, tilt: -6)
             Text(text)
                 .font(Theme.Typography.label)
                 .foregroundStyle(Theme.Colors.text)
@@ -1045,7 +1049,8 @@ struct LockStatusView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 // The "lock comes back on its own" explanation moved behind the (i).
-                ZanoGlassChip(Copy.lockStatus.borrowBalance(minutes: remaining), systemImage: "hourglass", tint: Theme.Colors.accent)
+                ZanoSticker(Copy.lockStatus.borrowBalance(minutes: remaining), systemImage: "hourglass", color: Theme.Colors.accent, size: .small, bounceTrigger: remaining)
+                    .fixedSize()
             }
 
             if !choices.isEmpty {
@@ -1092,33 +1097,55 @@ struct LockStatusView: View {
         }
     }
 
+    /// Pass 2: each amount is a minute "coin": a chunky sticker with an hourglass, filled ZANO Blue
+    /// when picked (ink label, 5.3:1), tinted glass otherwise. The coin glyph bounces when picked.
     private func borrowChip(minutes: Int, isSelected: Bool) -> some View {
         Button {
             borrowMinutes = minutes
         } label: {
-            Text(Copy.lockStatus.borrowChip(minutes: minutes))
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .padding(.horizontal, Theme.Spacing.sm)
-                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-                .background {
-                    if isSelected {
-                        Capsule().fill(Theme.Colors.accentWash)
-                    } else {
-                        ZanoGlass(Capsule(style: .continuous))
-                    }
-                }
-                .overlay {
-                    if isSelected {
-                        Capsule().strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke)
-                    }
-                }
+            HStack(spacing: Theme.Spacing.xxs + 1) {
+                Image(systemName: "hourglass.circle.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .font(Theme.Typography.icon(.small, weight: .heavy))
+                    .symbolEffect(.bounce, value: reduceMotion ? false : isSelected)
+                    .accessibilityHidden(true)
+                Text(Copy.lockStatus.borrowChip(minutes: minutes))
+                    .font(Theme.Typography.label.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(isSelected ? Theme.Colors.onFill : Theme.Colors.text)
+            .padding(.horizontal, Theme.Spacing.sm)
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
+            .background { coinFace(isSelected: isSelected) }
         }
-        .buttonStyle(.pressable(scale: 0.96))
+        .buttonStyle(.pressable(scale: 0.92))
         .accessibilityLabel(Copy.lockStatus.borrowChipSpoken(minutes: minutes))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .animation(reduceMotion ? nil : Theme.Motion.springPop, value: isSelected)
+    }
+
+    private func coinFace(isSelected: Bool) -> some View {
+        let shape = Capsule(style: .continuous)
+        return ZStack {
+            if isSelected {
+                shape.fill(Theme.Colors.accent)
+            } else {
+                ZanoGlass(shape)
+            }
+            shape.fill(
+                LinearGradient(
+                    colors: [Theme.Colors.stickerHighlight.opacity(isSelected ? 1 : 0.4), .clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            )
+            shape.strokeBorder(
+                LinearGradient(colors: [.clear, Theme.Colors.stickerShade], startPoint: .center, endPoint: .bottom),
+                lineWidth: 2
+            )
+        }
+        .shadow(color: isSelected ? Theme.Colors.accent.opacity(0.45) : .clear, radius: 10, y: 4)
     }
 
     private func borrow(minutes: Int) {

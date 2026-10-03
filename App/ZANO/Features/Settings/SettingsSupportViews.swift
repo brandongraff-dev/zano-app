@@ -15,7 +15,11 @@
 //     renders nothing when no pause is active and re-renders on any pause write (`@AppStorage` on
 //     `SharedDefaults.healthPauseRevisionKey`).
 //
-// All copy is `Copy.settings.*`. Monochrome, glass rows; one blue fill per screen.
+// All copy is `Copy.settings.*`.
+//
+// Visual pass 2 (2026-10-03): colour stickers instead of grey glyph discs, rounded section titles,
+// the pause switch in the health pink, and the "picking a new length restarts it" hint behind an
+// (i). The pause message itself stays on screen in full: it is the safety copy (spec §24).
 
 import SwiftUI
 import Core
@@ -33,15 +37,18 @@ struct HelpFeedbackView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(Copy.settings.helpEmailLabel)
-                        .zanoText(.eyebrow)
-                        .foregroundStyle(Theme.Colors.muted)
-                    // Selectable so it can be copied into any mail app, not just the default one.
-                    Text(Copy.settings.supportEmail)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                        .textSelection(.enabled)
+                HStack(spacing: Theme.Spacing.sm) {
+                    SettingsSticker(systemImage: "envelope.fill", tint: SettingsPalette.help)
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                        Text(Copy.settings.helpEmailLabel)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.muted)
+                        // Selectable so it can be copied into any mail app, not just the default one.
+                        Text(Copy.settings.supportEmail)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                            .textSelection(.enabled)
+                    }
                 }
                 .padding(Theme.Spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,6 +85,8 @@ struct PauseForHealthView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    SettingsSticker(systemImage: "heart.fill", tint: SettingsPalette.health, baseSize: 44)
+                        .padding(.bottom, Theme.Spacing.xxs)
                     Text(Copy.settings.pauseHeadline)
                         .zanoText(.title)
                         .foregroundStyle(Theme.Colors.text)
@@ -104,7 +113,8 @@ struct PauseForHealthView: View {
                     }
 
                     PauseOptionCard(
-                        systemImage: "envelope",
+                        systemImage: "envelope.fill",
+                        tint: SettingsPalette.help,
                         title: Copy.settings.pauseContactTitle,
                         message: Copy.settings.pauseContactMessage
                     ) {
@@ -119,7 +129,7 @@ struct PauseForHealthView: View {
         }
         .zanoBackdrop()
         .preferredColorScheme(.dark)
-        .tint(Theme.Colors.accent)
+        .tint(SettingsPalette.health)
         .navigationTitle(Copy.settings.pauseTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: refresh)
@@ -130,9 +140,12 @@ struct PauseForHealthView: View {
     private var pauseCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Toggle(isOn: Binding(get: { isPaused }, set: { setPaused($0) })) {
-                Text(Copy.settings.pauseToggleLabel)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.sm) {
+                    SettingsSticker(systemImage: isPaused ? "pause.fill" : "play.fill", tint: SettingsPalette.health)
+                    Text(Copy.settings.pauseToggleLabel)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                }
             }
             .disabled(isWorking)
             .frame(minHeight: Theme.Metrics.minTapTarget)
@@ -177,11 +190,11 @@ struct PauseForHealthView: View {
     // MARK: Length picker
 
     private var lengthCard: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(Copy.settings.pauseLengthTitle)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
-                .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            SettingsSectionTitle(
+                title: Copy.settings.pauseLengthTitle,
+                info: isPaused ? Copy.settings.pauseActiveExtendHint : nil
+            )
 
             VStack(spacing: 0) {
                 ForEach(HealthPause.Length.allCases) { option in
@@ -194,9 +207,10 @@ struct PauseForHealthView: View {
                                 .foregroundStyle(Theme.Colors.text)
                             Spacer()
                             if option == length {
-                                Image(systemName: "checkmark")
-                                    .font(Theme.Typography.icon(.small))
-                                    .foregroundStyle(Theme.Colors.accent)
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(Theme.Typography.icon(.medium, weight: .bold))
+                                    .foregroundStyle(SettingsPalette.health)
+                                    .transition(.scale.combined(with: .opacity))
                             }
                         }
                         .frame(minHeight: Theme.Metrics.minTapTarget)
@@ -209,13 +223,6 @@ struct PauseForHealthView: View {
             }
             .padding(.horizontal, Theme.Spacing.md)
             .zanoGlass(in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-
-            if isPaused {
-                Text(Copy.settings.pauseActiveExtendHint)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
@@ -235,9 +242,9 @@ struct PauseForHealthView: View {
             Text(Copy.settings.pauseWhatHappensTitle)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)
-            PauseFactRow(systemImage: "lock.open", text: Copy.settings.pauseWhatHappensLocks)
-            PauseFactRow(systemImage: "flame", text: Copy.settings.pauseWhatHappensStreak)
-            PauseFactRow(systemImage: "bell.slash", text: Copy.settings.pauseWhatHappensNudges)
+            PauseFactRow(systemImage: "lock.open.fill", tint: Theme.Colors.Ring.steps, text: Copy.settings.pauseWhatHappensLocks)
+            PauseFactRow(systemImage: "flame.fill", tint: Theme.Colors.ember, text: Copy.settings.pauseWhatHappensStreak)
+            PauseFactRow(systemImage: "bell.slash.fill", tint: Theme.Colors.Ring.sleepOnTime, text: Copy.settings.pauseWhatHappensNudges)
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -286,15 +293,12 @@ enum PauseDateText {
 /// One line of "while you're paused": a small monochrome glyph and a sentence.
 private struct PauseFactRow: View {
     let systemImage: String
+    var tint: Color = SettingsPalette.health
     let text: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
-            Image(systemName: systemImage)
-                .font(Theme.Typography.icon(.small))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .frame(width: 20)
-                .accessibilityHidden(true)
+        HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+            SettingsSticker(systemImage: systemImage, tint: tint, baseSize: 26)
             Text(text)
                 .font(Theme.Typography.body)
                 .foregroundStyle(Theme.Colors.textSecondary)
@@ -348,18 +352,14 @@ struct HealthPauseStatusCapsule: View {
 /// One exit: a monochrome glyph, a title, one line of explanation, and its action.
 private struct PauseOptionCard<Action: View>: View {
     let systemImage: String
+    var tint: Color = SettingsPalette.goals
     let title: String
     let message: String
     @ViewBuilder let action: () -> Action
 
     var body: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            Image(systemName: systemImage)
-                .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                .background(Theme.Colors.surface2, in: Circle())
-                .accessibilityHidden(true)
+            SettingsSticker(systemImage: systemImage, tint: tint)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(title)

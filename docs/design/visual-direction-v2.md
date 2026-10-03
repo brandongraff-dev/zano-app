@@ -173,3 +173,27 @@ popover. Emergency unlock is unchanged and pinned at the bottom in every locked 
   (expanded is ~35% wider than the compressed face they use today).
 - `numeral(size:)` deliberately keeps its old compressed face so unverified screens don't overflow;
   retire it screen by screen.
+
+## 7. Pass 2: moments and setup screens (2026-10-03, "make it more playful")
+
+Feature-local, no Core/UI changes. Unverified on a device or simulator (parse-checked only).
+
+- **Unlock celebration**: the star leaps while it charges, bursts at the apex (jackpot rays in the goal
+  palette, sun marquee bulbs, shockwave) and bounces back; confetti in the goal palette; "Apps unlocked"
+  glass chip; "Earned." is a tilted stamp (score face, double sun rim) that slams down with a heavy
+  haptic; the Time Bank rolls up in 12 steps with selection ticks; verification is two chips; the
+  surprise is a pink prize ticket ("Bonus round!"). Reduce Motion: resting frame, one success haptic.
+- **Share posters**: collectibles. `PosterHue` per poster (streak ember, hours violet, unlocks volt,
+  early bird sun, month sky, recap sky, locked-out pink); arcade-room background (hue blobs, sunburst,
+  halftone, fixed sprinkles); eyebrow as a tilted sticker pill; hero on a die-cut sticker (white rim,
+  hard offset shadow, tilt). Still 1080x1920 via `ImageRenderer`, static `ZanoMark`, no materials.
+  The one-accent rule for share cards is retired for posters.
+- **Sunrise alarm**: a striped retro sun rises behind the score-face clock; the tag prompt is a sun
+  sticker in breathing ripple rings; compact layout under 700pt container height; escape hatch label
+  shortened to "Emergency off" (still pinned, same hold + VoiceOver action).
+- **Gym**: dwell is a 10-segment charge meter in volt (`GymChargeMeter`); saved gyms are glass map cards
+  (`GymMapPreview`); empty states use the pin sticker.
+- **NFC**: "Your collection" is a two-column grid of tag stickers in action colours; the tap scene's tag is
+  a die-cut sticker, waves cycle goal colours, success pops confetti.
+- **Trophy case**: glass cabinet; earned badges are coloured foil stickers (`TrophyBadgeDisc(badgeKey:)`,
+  opt-in, so Progress's strip is unchanged) on glass stands; shop row hidden (v1 founder decision).

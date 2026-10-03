@@ -19,7 +19,6 @@ import Core
 
 /// Per-section sticker and toggle colours (goal palette). Calm: one family per section.
 enum SettingsPalette {
-    static let setup = Theme.Colors.Ring.workout
     static let goals = Theme.Colors.Ring.steps
     static let lockSets = Theme.Colors.Ring.focus
     static let gym = Theme.Colors.Ring.workout

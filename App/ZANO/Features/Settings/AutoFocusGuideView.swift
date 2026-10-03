@@ -15,6 +15,11 @@
 // intent to run from here. The honest test is to reopen ZANO; the card says how.
 //
 // Emergency unlock is untouched: Focus only changes notifications (the limits section says so).
+//
+// Visual pass 2 (2026-10-03): the long explainer paragraph moved behind an (i) beside the headline
+// (the headline says what this is; the steps say how). Step numbers are focus-violet stickers. The
+// four reference cards (NFC, turning it off, limits, troubleshooting) fold shut by default
+// (`DisclosureGroup`, so VoiceOver gets expanded/collapsed for free), each with a colour sticker.
 
 import SwiftUI
 import Core
@@ -39,10 +44,10 @@ struct AutoFocusGuideView: View {
                 header
                 stepsSection
                 actions
-                infoCard(title: Copy.settings.autoFocusNFCTitle, systemImage: "wave.3.right", paragraphs: [AutoFocusSetupInstructions.nfcTagAddOn])
-                infoCard(title: Copy.settings.autoFocusTurnOffTitle, systemImage: "moon", paragraphs: [AutoFocusSetupInstructions.turnOffExplainer])
-                infoCard(title: Copy.settings.autoFocusLimitsTitle, systemImage: "info.circle", paragraphs: AutoFocusSetupInstructions.limits)
-                infoCard(title: Copy.settings.autoFocusTroubleshootingTitle, systemImage: "wrench.and.screwdriver", paragraphs: AutoFocusSetupInstructions.troubleshooting)
+                AutoFocusFoldCard(title: Copy.settings.autoFocusNFCTitle, systemImage: "wave.3.right", tint: SettingsPalette.tags, paragraphs: [AutoFocusSetupInstructions.nfcTagAddOn])
+                AutoFocusFoldCard(title: Copy.settings.autoFocusTurnOffTitle, systemImage: "moon.fill", tint: SettingsPalette.sleep, paragraphs: [AutoFocusSetupInstructions.turnOffExplainer])
+                AutoFocusFoldCard(title: Copy.settings.autoFocusLimitsTitle, systemImage: "info", tint: SettingsPalette.sunrise, paragraphs: AutoFocusSetupInstructions.limits)
+                AutoFocusFoldCard(title: Copy.settings.autoFocusTroubleshootingTitle, systemImage: "wrench.and.screwdriver.fill", tint: SettingsPalette.gear, paragraphs: AutoFocusSetupInstructions.troubleshooting)
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.xs)
@@ -64,14 +69,18 @@ struct AutoFocusGuideView: View {
             if isSetUp {
                 ZanoStatusCapsule(dotColor: Theme.Colors.accent, text: Copy.settings.autoFocusMarkedDone)
             }
-            Text(Copy.settings.autoFocusHeadline)
-                .zanoText(.title)
-                .foregroundStyle(Theme.Colors.text)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(AutoFocusSetupInstructions.explainer)
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            SettingsSticker(systemImage: "moon.circle.fill", tint: SettingsPalette.focus, baseSize: 44)
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xxs) {
+                Text(Copy.settings.autoFocusHeadline)
+                    .zanoText(.title)
+                    .foregroundStyle(Theme.Colors.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                ZanoInfoButton(
+                    AutoFocusSetupInstructions.explainer,
+                    accessibilityLabel: Copy.settings.sectionInfoLabel(Copy.settings.autoFocusScreenTitle)
+                )
+            }
         }
     }
 
@@ -79,10 +88,7 @@ struct AutoFocusGuideView: View {
 
     private var stepsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(Copy.settings.autoFocusStepsTitle)
-                .zanoText(.headline)
-                .foregroundStyle(Theme.Colors.text)
-                .accessibilityAddTraits(.isHeader)
+            SettingsSectionTitle(title: Copy.settings.autoFocusStepsTitle)
 
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(steps) { step in
@@ -135,31 +141,6 @@ struct AutoFocusGuideView: View {
         }
     }
 
-    // MARK: - Info cards
-
-    private func infoCard(title: String, systemImage: String, paragraphs: [String]) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            HStack(spacing: Theme.Spacing.xs) {
-                Image(systemName: systemImage)
-                    .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(Theme.Colors.muted)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .zanoText(.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .accessibilityAddTraits(.isHeader)
-            }
-            ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                Text(paragraph)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(radius: Theme.Radius.medium)
-    }
 }
 
 /// One numbered step: a number disc, the title, the detail, and a hairline to the next step.
@@ -171,10 +152,13 @@ private struct StepRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
             Text(verbatim: "\(step.id)")
-                .font(Theme.Typography.numeral(size: 15, weight: .heavy))
-                .foregroundStyle(Theme.Colors.onAccent)
-                .frame(width: 28, height: 28)
-                .background(Theme.Colors.accentFill, in: Circle())
+                .font(Theme.Typography.score(size: 15, weight: .heavy))
+                .foregroundStyle(Theme.Colors.background)
+                .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(SettingsPalette.focus)
+                )
+                .rotationEffect(.degrees(step.id.isMultiple(of: 2) ? 3 : -3))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(step.title)
@@ -197,5 +181,43 @@ private struct StepRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(Copy.settings.autoFocusStepLabel(step.id, of: total)). \(step.title). \(step.detail)")
+    }
+}
+
+/// A reference card that folds shut: a colour sticker and a title; open, its paragraphs.
+private struct AutoFocusFoldCard: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let paragraphs: [String]
+
+    @State private var isOpen = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isOpen) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                    Text(paragraph)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.top, Theme.Spacing.sm)
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                SettingsSticker(systemImage: systemImage, tint: tint)
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+            }
+            .frame(minHeight: Theme.Metrics.minTapTarget)
+        }
+        .tint(Theme.Colors.muted)
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard(radius: Theme.Radius.medium)
     }
 }

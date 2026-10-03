@@ -116,18 +116,29 @@ struct ZANOApp: App {
         Self.configureNavigationBarTitles()
     }
 
-    /// Large navigation titles (Fuel, Progress, Settings, Lock sets…) in the same condensed heavy
-    /// face as `Theme.Typography.titleLarge`, so a tab with a system large title and a tab that
-    /// draws its own header (Today) read as one family. SwiftUI has no API for the navigation
-    /// bar's title font, so this is the one place the app reaches for UIKit appearance proxies.
+    /// Large navigation titles (Fuel, Progress, Settings, Lock sets…) in the app's voice face, so a
+    /// tab with a system large title and a tab that draws its own header (Today) read as one family.
+    /// SwiftUI has no API for the navigation bar's title font, so this is the one place the app
+    /// reaches for UIKit appearance proxies.
+    ///
+    /// Pass 2 "playful" (2026-10-03, docs/design/visual-direction-v2.md): SF Pro Rounded, heavy for
+    /// the large title and bold for the inline one (was condensed heavy), scaled with Dynamic Type.
     private static func configureNavigationBarTitles() {
         let appearance = UINavigationBar.appearance()
         appearance.largeTitleTextAttributes = [
-            .font: UIFont.systemFont(ofSize: 34, weight: .heavy, width: .condensed)
+            .font: roundedFont(size: 34, weight: .heavy, textStyle: .largeTitle)
         ]
         appearance.titleTextAttributes = [
-            .font: UIFont.systemFont(ofSize: 17, weight: .bold, width: .condensed)
+            .font: roundedFont(size: 17, weight: .bold, textStyle: .headline)
         ]
+    }
+
+    /// The system font at `size`/`weight` in its rounded design (plain system font if the rounded
+    /// design is unavailable), scaled for `textStyle` so large titles follow Dynamic Type.
+    private static func roundedFont(size: CGFloat, weight: UIFont.Weight, textStyle: UIFont.TextStyle) -> UIFont {
+        let base = UIFont.systemFont(ofSize: size, weight: weight)
+        let rounded = base.fontDescriptor.withDesign(.rounded).map { UIFont(descriptor: $0, size: size) } ?? base
+        return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: rounded)
     }
 
     @ViewBuilder

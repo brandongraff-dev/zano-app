@@ -87,19 +87,25 @@ struct GoalActionList: View {
 }
 
 /// One goal as a glass tile. `isWide`: the horizontal layout for a row of one.
+///
+/// Pass 2 (playful, docs/design/visual-direction-v2.md "Pass 2: playful"): the tile is the goal's
+/// colour (`zanoGoalTile`: tinted glass that fills up like a glass of juice as the day's progress
+/// rises), the goal's glyph is a chunky sticker, the progress line rolls, and a tile with an action is
+/// itself the button: the whole tile squishes on touch (`PressableStyle`), the sticker bounces on every
+/// log, and completing it pops the tile, throws a charge burst in its colour and flips the sticker
+/// to a filled check. Read-only tiles (Lock) are compact and not buttons.
 struct GoalTile: View {
-    static let ringSize: CGFloat = 46
-
     let item: GoalActionItem
     let isWide: Bool
     let isBusy: Bool
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// Bumps when the goal flips to done: the ring's burst and the tile's pop.
+    /// Bumps when the goal flips to done: the burst, the pop and the sticker bounce.
     @State private var doneTick = 0
+    /// Bumps when progress grows (a log landed): the sticker bounces.
+    @State private var progressTick = 0
 
     init(item: GoalActionItem, isWide: Bool, isBusy: Bool, action: @escaping () -> Void) {
         self.item = item
@@ -116,9 +122,36 @@ struct GoalTile: View {
         }
     }
 
+    /// Read-only tiles (Lock's, a status, nothing to do) don't need the board height.
+    private var minHeight: CGFloat? {
+        guard !isWide else { return nil }
+        switch item.trailing {
+        case .quickAdd, .start, .status: return Theme.Metrics.goalTileMinHeight
+        case .done, .none: return nil
+        }
+    }
+
     var body: some View {
+        if hasAction {
+            Button(action: action) {
+                face
+            }
+            .buttonStyle(.pressable(scale: 0.95))
+            .disabled(isBusy)
+            .accessibilityLabel(actionSpoken)
+            .accessibilityValue(spokenWords)
+        } else {
+            face
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(spokenWordsWithStatus)
+        }
+    }
+
+    // MARK: Surface
+
+    private var face: some View {
         // Captured as a plain value: the keyframe content closure is `@Sendable`.
-        let popScale: Double = reduceMotion ? 1 : 1.04
+        let popScale: Double = reduceMotion ? 1 : 1.06
         return Group {
             if isWide {
                 wideLayout
@@ -127,21 +160,21 @@ struct GoalTile: View {
             }
         }
         .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .zanoCard(
-            radius: Theme.Radius.medium,
-            tint: reduceTransparency ? nil : item.color,
-            active: isDone && !reduceTransparency
-        )
+        .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: .infinity, alignment: .topLeading)
+        .zanoGoalTile(color: item.color, progress: item.progress, isDone: isDone)
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         .keyframeAnimator(initialValue: 1.0, trigger: doneTick) { tile, scale in
             tile.scaleEffect(scale)
         } keyframes: { _ in
             SpringKeyframe(popScale, duration: 0.16, spring: .snappy)
-            SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
+            SpringKeyframe(1.0, duration: 0.5, spring: .bouncy)
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: item)
         .onChange(of: isDone) { wasDone, nowDone in
             if !wasDone && nowDone { doneTick += 1 }
+        }
+        .onChange(of: item.progress) { old, new in
+            if new > old { progressTick += 1 }
         }
     }
 
@@ -150,42 +183,50 @@ struct GoalTile: View {
     private var tileLayout: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(alignment: .top) {
-                ring
+                sticker
                 Spacer(minLength: Theme.Spacing.xs)
-                if isDone { doneBadge }
+                if isDone { doneSparkle }
             }
             words(showsSecondary: false)
             Spacer(minLength: 0)
-            if hasAction || !isDone {
-                trailing(fullWidth: true)
-            }
+            affordance(fullWidth: true)
         }
     }
 
     private var wideLayout: some View {
         HStack(spacing: Theme.Spacing.md) {
-            ring
+            sticker
             words(showsSecondary: true)
             Spacer(minLength: Theme.Spacing.xs)
             if isDone {
-                doneBadge
+                doneSparkle
             } else {
-                trailing(fullWidth: false)
+                affordance(fullWidth: false)
             }
         }
     }
 
     // MARK: Pieces
 
-    private var ring: some View {
-        GoalRing(
-            progress: item.progress,
+    /// The goal's glyph as a chunky sticker; a filled check once done. Tilted a little while open
+    /// (decoration: it carries no words), straight once done.
+    private var sticker: some View {
+        ZanoSticker(
+            systemImage: isDone ? "checkmark" : item.icon,
             color: item.color,
-            size: .custom(Self.ringSize),
-            center: .icon(systemName: isDone ? "checkmark" : item.icon)
+            style: isDone ? .filled : .tinted,
+            size: .large,
+            tilt: isDone ? 0 : -6,
+            bounceTrigger: progressTick + doneTick
         )
         .zanoChargeBurst(trigger: doneTick, color: item.color)
         .accessibilityHidden(true)
+    }
+
+    /// A small sparkle sticker in the corner of a done tile.
+    private var doneSparkle: some View {
+        ZanoSticker(systemImage: "sparkles", color: item.color, size: .small, tilt: 12, bounceTrigger: doneTick)
+            .accessibilityHidden(true)
     }
 
     private func words(showsSecondary: Bool) -> some View {
@@ -196,11 +237,11 @@ struct GoalTile: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             Text(item.primaryLine)
-                .font(Theme.Typography.label)
-                .foregroundStyle(isDone ? item.color : Theme.Colors.textSecondary)
+                .font(.system(.title3, design: .rounded, weight: .heavy))
+                .foregroundStyle(isDone ? Theme.Colors.text : Theme.Colors.textSecondary)
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                .minimumScaleFactor(0.85)
+                .minimumScaleFactor(0.7)
             if showsSecondary, let secondary = item.secondaryLine {
                 Text(secondary)
                     .font(Theme.Typography.caption)
@@ -209,8 +250,7 @@ struct GoalTile: View {
                     .contentTransition(reduceMotion ? .identity : .numericText())
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spokenWords)
+        .accessibilityHidden(true)
     }
 
     /// Title, progress and (always, even when not shown) the "to go" line.
@@ -218,55 +258,30 @@ struct GoalTile: View {
         [item.title, item.primaryLine, item.secondaryLine].compactMap { $0 }.joined(separator: ", ")
     }
 
-    private var doneBadge: some View {
-        Image(systemName: "checkmark")
-            .font(Theme.Typography.icon(.small, weight: .heavy))
-            .foregroundStyle(Theme.Colors.onFill)
-            .frame(width: 28, height: 28)
-            .background(item.color, in: Circle())
-            .shadow(color: item.color.opacity(0.55), radius: 8)
-            .accessibilityHidden(true)
+    private var spokenWordsWithStatus: String {
+        if case .status(let text, _) = item.trailing { return [spokenWords, text].joined(separator: ", ") }
+        return spokenWords
     }
 
-    @ViewBuilder
-    private func trailing(fullWidth: Bool) -> some View {
+    /// What the tile-as-button does, for VoiceOver ("Add 25 grams of protein", "Start Focus").
+    private var actionSpoken: String {
         switch item.trailing {
-        case .quickAdd(let label, let spoken):
-            Button(action: action) {
-                Text(label)
-                    .font(Theme.Typography.label.weight(.bold))
-                    .foregroundStyle(item.color)
-                    .lineLimit(1)
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 40)
-                    .background(Theme.Colors.wash(item.color), in: Capsule())
-                    .overlay(Capsule().strokeBorder(item.color.opacity(0.45), lineWidth: 1))
-                    .frame(minHeight: Theme.Metrics.minTapTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable(scale: 0.92))
-            .disabled(isBusy)
-            .accessibilityLabel(spoken)
+        case .quickAdd(_, let spoken): spoken
+        case .start(let label): Copy.today.startActionSpoken(label: label, goal: item.title)
+        case .status, .done, .none: item.title
+        }
+    }
 
+    /// The tile's action, drawn as a chunky capsule (the whole tile is the button): a quick-log in the
+    /// goal's own colour with an ink label, a start in ZANO Blue with a white label.
+    @ViewBuilder
+    private func affordance(fullWidth: Bool) -> some View {
+        switch item.trailing {
+        case .quickAdd(let label, _):
+            chunkyCapsule(label, systemImage: "plus", fill: item.color, labelColor: Theme.Colors.onFill, fullWidth: fullWidth)
         case .start(let label):
-            Button(action: action) {
-                Text(label)
-                    .font(Theme.Typography.label.weight(.bold))
-                    .foregroundStyle(Theme.Colors.onAccent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 40)
-                    // `accentFill`, not `accent`: the white label needs the deeper blue for AA.
-                    .background(Theme.Colors.accentFill, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Theme.Colors.glassEdge, lineWidth: 1))
-                    .frame(minHeight: Theme.Metrics.minTapTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable(scale: 0.92))
-            .disabled(isBusy)
-            .accessibilityLabel(Copy.today.startActionSpoken(label: label, goal: item.title))
-
+            // `accentFill`, not `accent`: the white label needs the deeper blue for AA.
+            chunkyCapsule(label, systemImage: "play.fill", fill: Theme.Colors.accentFill, labelColor: Theme.Colors.onAccent, fullWidth: fullWidth)
         case .status(let text, let isLive):
             HStack(spacing: Theme.Spacing.xxs + 2) {
                 if isLive {
@@ -279,13 +294,44 @@ struct GoalTile: View {
                 }
                 Text(text)
                     .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(isLive ? Theme.Colors.text : Theme.Colors.muted)
+                    .foregroundStyle(isLive ? Theme.Colors.text : Theme.Colors.textSecondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
         case .done, .none:
             EmptyView()
         }
+    }
+
+    private func chunkyCapsule(_ label: String, systemImage: String, fill: Color, labelColor: Color, fullWidth: Bool) -> some View {
+        let shape = Capsule(style: .continuous)
+        // The label already says "+25g"; the glyph only leads labels that don't start with a sign.
+        let showsGlyph = !(label.hasPrefix("+") || label.hasPrefix("-"))
+        return HStack(spacing: Theme.Spacing.xxs + 1) {
+            if showsGlyph {
+                Image(systemName: systemImage)
+                    .font(Theme.Typography.icon(.xsmall, weight: .heavy))
+                    .accessibilityHidden(true)
+            }
+            Text(label)
+                .font(Theme.Typography.label.weight(.heavy))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(labelColor)
+        .padding(.horizontal, Theme.Spacing.md)
+        .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: Theme.Metrics.minTapTarget)
+        .background {
+            ZStack {
+                shape.fill(fill)
+                shape.fill(LinearGradient(colors: [Theme.Colors.stickerHighlight, .clear], startPoint: .top, endPoint: .center))
+                shape.strokeBorder(
+                    LinearGradient(colors: [.clear, Theme.Colors.stickerShade], startPoint: .center, endPoint: .bottom),
+                    lineWidth: 2
+                )
+            }
+            .shadow(color: fill.opacity(0.45), radius: 10, y: 4)
+        }
+        .opacity(isBusy ? 0.6 : 1)
     }
 }

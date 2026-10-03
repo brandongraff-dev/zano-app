@@ -134,6 +134,8 @@ struct NFCTagsView: View {
             TagTapScene(phase: .idle)
                 .scaleEffect(0.8)
                 .frame(height: 150)
+                // Room for the phone, which floats above the scene's frame.
+                .padding(.top, Theme.Spacing.lg)
 
             VStack(spacing: Theme.Spacing.xs) {
                 Text(Copy.nfc.heroTitle)

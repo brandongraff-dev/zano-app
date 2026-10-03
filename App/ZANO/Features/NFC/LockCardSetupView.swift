@@ -59,11 +59,12 @@ struct LockCardSetupView: View {
 
     private var hero: some View {
         VStack(spacing: Theme.Spacing.md) {
+            // Top room: the phone in the scene floats above its own frame, and used to poke out
+            // of the card's top edge.
             TagTapScene(phase: cards.isEmpty ? .idle : .success, style: .card)
+                .padding(.top, Theme.Spacing.xl)
             VStack(spacing: Theme.Spacing.xs) {
-                Text(Copy.nfc.lockCardEyebrow)
-                    .zanoText(.eyebrow)
-                    .foregroundStyle(Theme.Colors.accent)
+                ZanoGlassChip(Copy.nfc.lockCardEyebrow, systemImage: "lock.fill", tint: Theme.Colors.Ring.focus)
                 Text(Copy.nfc.lockCardTitle)
                     .zanoText(.titleLarge)
                     .foregroundStyle(Theme.Colors.text)
@@ -77,7 +78,7 @@ struct LockCardSetupView: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity)
-        .zanoHero(tint: Theme.Colors.lockedAmbient)
+        .zanoHero(tint: Theme.Colors.Ring.focus)
     }
 
     private var ritual: some View {

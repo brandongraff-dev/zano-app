@@ -104,7 +104,7 @@ extension Copy.celebration {
     public static let surpriseEyebrow = "Bonus round!"
     /// "+50 coins".
     public static func surpriseCoinsTitle(_ coins: Int) -> String { "+\(coins) coins" }
-    public static let surpriseCoinsDetail = "For the Cosmetics Shop."
+    public static let surpriseCoinsDetail = "Banked. Spend them later."
     /// The one-time badge. Matches `Copy.badges.title(forKey: "lucky_unlock")`'s fallback.
     public static let surpriseBadgeTitle = "Lucky Unlock badge"
     public static let surpriseBadgeDetail = "It's in your Trophy Case."

@@ -17,6 +17,11 @@ import Core
 // leave ~92pt for the pill: an icon and up to "Settings" at 15pt rounded semibold, which may shrink to
 // 80% before truncating.
 //
+// Pass 2 "playful" (2026-10-03): the glyph of the tab you pick does a bounce (`symbolEffect(.bounce)`,
+// keyed per tab so only the newly selected one jumps), the pill's spring is squishier
+// (`Theme.Motion.tabPill`), and every item squishes on press (`PressableStyle`). The glyph keeps one
+// identity across selected/unselected so the bounce plays on the glyph you just picked.
+//
 // `.isTabBar` is not added to the container: its SwiftUI availability on the iOS 17 target is
 // unverified here, and a wrong trait would change what the UI tests' query sees.
 
@@ -27,6 +32,8 @@ struct ZanoTabBar: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var pill
+    /// Bumped for a tab each time it is picked: drives that tab's glyph bounce, and only that one.
+    @State private var bounces: [AppTab: Int] = [:]
 
     /// Space each tab reserves at the bottom so its content and bottom bars clear the capsule.
     static let reservedHeight: CGFloat = 80
@@ -67,13 +74,14 @@ struct ZanoTabBar: View {
         let showsLockDot = item.tab == .lock && isLockActive
         return Button {
             guard selection != item.tab else { return }
+            bounces[item.tab, default: 0] += 1
             withAnimation(reduceMotion ? nil : Theme.Motion.tabPill) {
                 selection = item.tab
             }
         } label: {
             itemLabel(item, isSelected: isSelected, showsLockDot: showsLockDot)
         }
-        .buttonStyle(.pressable(scale: 0.92))
+        .buttonStyle(.pressable(scale: 0.88))
         // Selected: as wide as its pill needs; unselected: share what's left.
         .layoutPriority(isSelected ? 1 : 0)
         .accessibilityLabel(item.title)
@@ -84,38 +92,40 @@ struct ZanoTabBar: View {
         }
     }
 
-    @ViewBuilder
+    /// One structure for both states, so the glyph keeps its identity (and its bounce) when the tab
+    /// is picked; the selected one grows its label and the sliding pill.
     private func itemLabel(_ item: Item, isSelected: Bool, showsLockDot: Bool) -> some View {
-        if isSelected {
-            HStack(spacing: Theme.Spacing.xs - 2) {
-                glyph(item, isSelected: true, showsLockDot: showsLockDot)
+        HStack(spacing: Theme.Spacing.xs - 2) {
+            glyph(item, isSelected: isSelected, showsLockDot: showsLockDot)
+            if isSelected {
                 Text(item.title)
                     .font(Theme.Typography.label)
                     .foregroundStyle(Theme.Colors.onAccent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
+                    .transition(.opacity.combined(with: .scale(scale: 0.6, anchor: .leading)))
             }
-            .padding(.horizontal, Theme.Spacing.md)
-            .frame(height: Theme.Metrics.tabBarItem)
-            .background {
+        }
+        .padding(.horizontal, isSelected ? Theme.Spacing.md : 0)
+        .frame(maxWidth: isSelected ? nil : .infinity)
+        .frame(minWidth: Theme.Metrics.minTapTarget)
+        .frame(height: Theme.Metrics.tabBarItem)
+        .background {
+            if isSelected {
                 selectionPill
                     .matchedGeometryEffect(id: "pill", in: pill)
             }
-            .contentShape(Capsule())
-        } else {
-            glyph(item, isSelected: false, showsLockDot: showsLockDot)
-                .frame(maxWidth: .infinity, minHeight: Theme.Metrics.tabBarItem)
-                .frame(minWidth: Theme.Metrics.minTapTarget)
-                .contentShape(Rectangle())
         }
+        .contentShape(Capsule())
     }
 
     private func glyph(_ item: Item, isSelected: Bool, showsLockDot: Bool) -> some View {
         Image(systemName: isSelected ? item.selectedSymbol : item.symbol)
+            .symbolRenderingMode(.hierarchical)
             .font(.system(size: 20, weight: isSelected ? .bold : .semibold))
             .foregroundStyle(isSelected ? Theme.Colors.onAccent : Theme.Colors.muted)
             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+            .symbolEffect(.bounce.up, options: .speed(1.1), value: reduceMotion ? 0 : bounces[item.tab, default: 0])
             .frame(width: 26, height: 26)
             .overlay(alignment: .topTrailing) {
                 if showsLockDot {

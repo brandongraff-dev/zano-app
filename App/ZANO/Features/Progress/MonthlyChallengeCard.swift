@@ -1,8 +1,8 @@
 // MonthlyChallengeCard.swift
 // App / Features / Progress
 //
-// docs/spec.md §5.9 ("Monthly challenges themed to fresh starts: 'January Lock-In,' 'Summer Shred
-// Consistency,' 'No-Skip November.'") and §8 rules 2 and 6 (progress is always partly filled;
+// docs/spec.md §5.9 ("Monthly challenges themed to fresh starts: 'January Lock-In,' 'Summer Strong,'
+// 'No-Skip November.'") and §8 rules 2 and 6 (progress is always partly filled;
 // fresh-start timing). Wave 3J.
 //
 // Data: `SeasonsAndRanks.monthlyChallengeProgress(asOf:)`, computed locally. The target is prorated

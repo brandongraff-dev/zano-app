@@ -4,7 +4,7 @@
 //   "- Ranks: Bronze → Silver → Gold → Platinum → Diamond based on 4-week consistency (not
 //   volume, so a 3x/week person can hit Diamond).
 //   - Seasons (quarterly) reset rank with a 'season badge' kept forever.
-//   - Monthly challenges themed to fresh starts: 'January Lock-In,' 'Summer Shred Consistency,'
+//   - Monthly challenges themed to fresh starts: 'January Lock-In,' 'Summer Strong,'
 //   'No-Skip November.' Shareable challenge cards."
 // docs/spec.md §8 Retention Psychology Rules, rule 9 ("No shame"): "Copy never says 'you
 // failed.' Misses are 'slipped,' always followed by the next smallest step." — Bronze is a
@@ -456,7 +456,7 @@ public final class SeasonsAndRanks {
     }
 
     /// Spec §5.9 names exactly 3 example challenges out of 12 months: "January Lock-In," "Summer
-    /// Shred Consistency," "No-Skip November." January and November map directly. "Summer" isn't
+    /// Strong" (renamed 2026-10-03 from a fat-loss-slang title; additive goals only), "No-Skip November." January and November map directly. "Summer" isn't
     /// pinned to one month — this task places it at July (Northern-hemisphere midsummer, matching
     /// spec §1's target audience with no stated hemisphere qualifier), flagged as a placement
     /// choice, not spec text, in `decisions`. The remaining 9 months have no spec-given theme at
@@ -467,7 +467,7 @@ public final class SeasonsAndRanks {
     private static func themeKey(forMonth month: Int) -> String {
         switch month {
         case 1: return "january_lock_in"
-        case 7: return "summer_shred_consistency"
+        case 7: return "summer_strong"
         case 11: return "no_skip_november"
         default: return "monthly_lock_in_\(month)"
         }

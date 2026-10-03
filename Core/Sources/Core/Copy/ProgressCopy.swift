@@ -197,7 +197,7 @@ extension Copy.progress {
     public static func monthlyChallengeTitle(themeKey: String, month: Int) -> String {
         switch themeKey {
         case "january_lock_in": return "January Lock-In"
-        case "summer_shred_consistency": return "Summer Shred Consistency"
+        case "summer_strong": return "Summer Strong"
         case "no_skip_november": return "No-Skip November"
         default:
             let names = Calendar(identifier: .gregorian).monthSymbols

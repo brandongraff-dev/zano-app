@@ -197,7 +197,7 @@ Users who save the same gym form an anonymous leaderboard: "You're #4 most consi
 ### 5.9 Seasons, Ranks, Monthly Challenges
 - Ranks: Bronze → Silver → Gold → Platinum → Diamond based on 4-week consistency (not volume, so a 3x/week person can hit Diamond).
 - Seasons (quarterly) reset rank with a "season badge" kept forever.
-- Monthly challenges themed to fresh starts: "January Lock-In," "Summer Shred Consistency," "No-Skip November." Shareable challenge cards.
+- Monthly challenges themed to fresh starts: "January Lock-In," "Summer Strong," "No-Skip November." Shareable challenge cards.
 
 ### 5.10 ★ Bedtime Gate & Sunrise Alarm (tap-to-dismiss)
 

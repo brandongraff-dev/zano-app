@@ -805,6 +805,39 @@ extension View {
     }
 }
 
+// MARK: - Buddy colours
+
+extension Theme {
+    /// Each buddy's three world colours (`Buddy.color` and friends). Same in light and dark: they
+    /// are the characters' own colours, like the sticker hues.
+    public enum BuddyColors {
+        public struct Trio: Sendable {
+            public let signature: Color
+            public let second: Color
+            public let third: Color
+            init(_ a: UInt32, _ b: UInt32, _ c: UInt32) {
+                signature = Color(zanoHex: a)
+                second = Color(zanoHex: b)
+                third = Color(zanoHex: c)
+            }
+        }
+
+        public static func colors(for buddy: Buddy) -> Trio {
+            switch buddy {
+            case .stash: Trio(0x2BB5A0, 0x3B3F5C, 0x3F7BFF)
+            case .zib: Trio(0x3F7BFF, 0x9CCBFF, 0xFFD447)
+            case .lox: Trio(0xFF8A3D, 0x5B3B8C, 0xFFF1DC)
+            case .pip: Trio(0x8F5BFF, 0xFF9FC8, 0xFFC94A)
+            case .moko: Trio(0x2FB86B, 0xFFF6DE, 0xFF9FB2)
+            case .brick: Trio(0xE5484D, 0x2B2D42, 0xFFD447)
+            case .tank: Trio(0xC8F04A, 0x5C6378, 0xFF8A3D)
+            case .volt: Trio(0x1FA2FF, 0xFFD447, 0x0B2E59)
+            case .howl: Trio(0x5B7BFF, 0x2A3466, 0xFFC94A)
+            }
+        }
+    }
+}
+
 // MARK: - Hex color helper
 
 extension Color {

@@ -13,8 +13,9 @@
 //
 // The choice is stored on every tap (`@AppStorage(Buddy.storageKey, store: SharedDefaults.store)`,
 // the App Group, so widgets and the Screen Time report draw the same buddy), with a light haptic and
-// a little hop of the hero (none under Reduce Motion). "Team up" only moves on: the next onboarding
-// step, or back out of Settings. Sprites are drawn at 64 and 96pt (2x and 3x their 32px grid); the
+// a little hop of the hero (none under Reduce Motion). "Team up" also makes the buddy the Home Screen
+// icon (`BuddyAppIcon`), then moves on: the next onboarding step, or back out of Settings. Sprites
+// are drawn at 64 and 96pt (multiples of 16pt, so their 48px grid stays even on 3x screens); the
 // compact hero keeps all nine tiles above the button on a 6.1" phone.
 
 import SwiftUI
@@ -113,6 +114,7 @@ struct BuddyPickerView: View {
 
     private func teamUp() {
         Analytics.shared.capture(event: "buddy_picked", properties: ["buddy": buddy.rawValue])
+        BuddyAppIcon.apply(buddy)
         switch context {
         case .onboarding: onTeamUp()
         case .settings: dismiss()

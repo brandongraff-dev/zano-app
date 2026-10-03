@@ -60,22 +60,42 @@ open(OUT, 'w').write('\n'.join(out))
 print('wrote', os.path.relpath(OUT, ROOT))
 print('keys:', KEYS)
 
-# App icon: the default buddy (Stash), beaming, on the ink canvas with a soft teal glow.
+# App icons: one per buddy, each beaming on the ink canvas over a soft glow in its signature colour.
+# Stash (the default) is the primary `AppIcon`; the others are alternate icons `AppIcon-<Name>`
+# (listed in project.yml's ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES), switched by the app when
+# the user teams up with a buddy.
 try:
     from PIL import Image, ImageDraw, ImageFilter
 except ImportError:
     sys.exit(0)
-S = 1024
-glow = Image.new('RGB', (S, S), (11, 14, 36))
-ImageDraw.Draw(glow).ellipse((170, 190, 854, 874), fill=(26, 88, 92))
-icon = glow.filter(ImageFilter.GaussianBlur(130))
-img = buddies.B['Stash']('happy').render()
-cell = 18
-ox = (S - N * cell) // 2
-oy = (S - N * cell) // 2 + 10
-d = ImageDraw.Draw(icon)
-for (x, y), c in img.items():
-    d.rectangle((ox + x * cell, oy + y * cell, ox + (x + 1) * cell - 1, oy + (y + 1) * cell - 1), fill=c)
-ICON = os.path.join(ROOT, 'App/ZANO/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png')
-icon.save(ICON)
-print('wrote', os.path.relpath(ICON, ROOT))
+import json
+SIGNATURE = {'stash': (43, 181, 160), 'zib': (63, 123, 255), 'lox': (255, 138, 61), 'pip': (143, 91, 255),
+             'moko': (47, 184, 107), 'brick': (229, 72, 77), 'tank': (200, 240, 74), 'volt': (31, 162, 255),
+             'howl': (91, 123, 255)}
+ASSETS = os.path.join(ROOT, 'App/ZANO/Assets.xcassets')
+
+def icon_for(name):
+    S = 1024
+    ink = (11, 14, 36)
+    glow = Image.new('RGB', (S, S), ink)
+    sig = SIGNATURE[name]
+    tint = tuple(round(ink[i] * 0.55 + sig[i] * 0.45) for i in range(3))
+    ImageDraw.Draw(glow).ellipse((170, 190, 854, 874), fill=tint)
+    icon = glow.filter(ImageFilter.GaussianBlur(130))
+    img = buddies.B[name.capitalize()]('happy').render()
+    cell = 18
+    ox = (S - N * cell) // 2
+    oy = (S - N * cell) // 2 + 10
+    d = ImageDraw.Draw(icon)
+    for (x, y), c in img.items():
+        d.rectangle((ox + x * cell, oy + y * cell, ox + (x + 1) * cell - 1, oy + (y + 1) * cell - 1), fill=c)
+    return icon
+
+for name in ORDER:
+    folder = 'AppIcon' if name == 'stash' else f'AppIcon-{name.capitalize()}'
+    path = os.path.join(ASSETS, f'{folder}.appiconset')
+    os.makedirs(path, exist_ok=True)
+    icon_for(name).save(os.path.join(path, 'AppIcon-1024.png'))
+    json.dump({'images': [{'filename': 'AppIcon-1024.png', 'idiom': 'universal', 'platform': 'ios', 'size': '1024x1024'}],
+               'info': {'author': 'xcode', 'version': 1}}, open(os.path.join(path, 'Contents.json'), 'w'), indent=2)
+    print('wrote', os.path.relpath(path, ROOT))

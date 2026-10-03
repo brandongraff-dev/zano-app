@@ -149,7 +149,7 @@ extension Copy {
         public static func trialHeadline(days: Int) -> String { "Start your \(days)-day free trial." }
         public static let subscribeHeadline = "Subscribe to continue."
         public static let timelineTodayTitle = "Today"
-        public static let timelineTodayDetail = "Unlimited goals and lock sets, Earn Mode, the adaptive plan and the Sunrise Alarm."
+        public static let timelineTodayDetail = "Everything unlocked: unlimited goals, Earn Mode, Sunrise Alarm."
         public static func timelineReminderTitle(inDays days: Int) -> String { days == 1 ? "Reminder in 1 day" : "Reminder in \(days) days" }
         public static let timelineReminderDetail = "We'll remind you before your trial ends, if notifications are on."
         public static func timelineBillingTitle(inDays days: Int) -> String { days == 1 ? "Billing starts in 1 day" : "Billing starts in \(days) days" }

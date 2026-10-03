@@ -112,7 +112,7 @@ struct ScreenshotHost: View {
                                   timeBankRemainingMinutes: 130, timeBankTotalMinutes: 180)
         case "lockedout":
             LockedOutMomentView(
-                content: LockedOutMomentContent(appName: "TikTok", attemptCount: 4,
+                content: LockedOutMomentContent(appName: "Social", attemptCount: 4,
                                                 blockingGoalSummary: "hit the gym",
                                                 goalsRemaining: 2, streak: 14),
                 onDismiss: {}

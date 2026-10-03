@@ -258,6 +258,19 @@
 //   - Error alerts say what happened in `Copy`, never `error.localizedDescription`. Units are "25 g"
 //     / "500 mL" everywhere, from `Copy.fuel`.
 
+// PLAYFUL PASS (2026-10-03, visual direction v2 second pass; founder: "make it more playful").
+// Visual only — every intent, analytics event, sheet, undo path and data rule above is unchanged:
+//   - Protein and water are game meters (`Components/FuelMeterCards.swift`, `FuelGameMeters.swift`):
+//     protein = score numeral + a segmented power bar; water = a liquid tank that sloshes on each log.
+//     A log bounces the goal glyph, rolls the digits and floats a "+25 g" off the number; hitting the
+//     goal fires the charge burst. The rings are gone from this screen (the meters replace them).
+//   - Quick-add chips are chunky 48pt capsules in the goal's colour that pop with a light haptic;
+//     "Other" opens the custom amount. Camera and barcode are tilted sticker buttons.
+//   - The gap planner and kitchen staples are ONE calm "Top-ups" card: a "78 g to go" chip, the
+//     ranked ideas, then "Your staples". The subtitle and empty-state captions moved into an info
+//     button; option rows no longer carry a tier caption (the glyph + VoiceOver keep it).
+//   - The canvas is the aurora (`zanoAmbient`), warming with the mean of the two meters.
+
 import SwiftUI
 import SwiftData
 import CoreLocation
@@ -281,6 +294,7 @@ struct FuelView: View {
 
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     /// Only for `KitchenStaple` CRUD — see this file's header "INTEGRATION GAP" note for why this
     /// goes through a plain, `try?`-guarded `ModelContext` fetch/insert/delete rather than `@Query`.
     @Environment(\.modelContext) private var modelContext
@@ -335,12 +349,8 @@ struct FuelView: View {
                             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                     }
                     metricsSection
-                    if isGapPlannerEligible && !gapOptions.isEmpty {
-                        gapPlannerSection
-                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-                    }
                     if proteinGoal != nil {
-                        kitchenStaplesSection
+                        topUpsSection
                     }
                 }
             }
@@ -351,7 +361,7 @@ struct FuelView: View {
             .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: gapOptions.count)
             .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: kitchenStaples.count)
         }
-        .background(Theme.Colors.background)
+        .zanoAmbient(ambientState)
         .scrollContentBackground(.hidden)
         .overlay(alignment: .bottom) {
             if let undoItem {
@@ -520,85 +530,114 @@ struct FuelView: View {
 
     // MARK: - Metrics (protein hero + water)
 
-    /// One card per metric: ring, the number beside it, and that metric's own quick-add controls
-    /// inside the same surface (proximity ties "+25g" to the protein ring — better-layout 2.1).
-    /// Protein is the hero when both exist (spec §3: it's the Tier B goal with the richest logging
-    /// paths); water is the compact card. With only one goal, that goal is the hero.
+    /// One game-meter card per metric (`Components/FuelMeterCards.swift`): protein is a segmented
+    /// power bar with sticker buttons for the camera and barcode, water a liquid tank. Each card's
+    /// own quick-add chips sit inside it.
     private var metricsSection: some View {
         VStack(spacing: Theme.Spacing.md) {
             if proteinGoal != nil {
-                FuelMetricCard(
-                    style: .hero,
-                    title: Copy.fuel.proteinLabel,
-                    systemImage: "fork.knife",
-                    color: Theme.Colors.Ring.protein,
-                    current: proteinToday,
-                    target: proteinTarget,
-                    unit: Copy.fuel.gramsUnit
-                ) {
-                    FuelQuickAddRow(
-                        presets: FuelReferenceData.proteinPresetsGrams,
-                        unit: Copy.fuel.gramsUnit,
-                        color: Theme.Colors.Ring.protein,
-                        customLabel: Copy.fuel.logCustomButtonLabel,
-                        presetAccessibilityLabel: { Copy.fuel.quickAddProteinAccessibilityLabel(grams: $0) },
-                        onPreset: { grams in
-                            Task {
-                                await log(
-                                    goalType: .protein,
-                                    amount: Double(grams),
-                                    source: .manual,
-                                    undoMessage: Copy.fuel.undoToastProteinMessage(grams: grams)
-                                )
-                            }
-                        },
-                        onCustom: { activeSheet = FuelSheet(goalType: .protein) },
-                        photoLabel: Copy.fuel.mealPhoto.entryButtonLabel,
-                        onPhoto: {
-                            Analytics.shared.capture(event: "fuel_meal_photo_entry_tapped")
-                            isMealPhotoSheetPresented = true
-                        },
-                        trailingSystemImage: "barcode.viewfinder",
-                        trailingLabel: Copy.fuel.barcodeScanButtonLabel,
-                        onTrailing: {
-                            Analytics.shared.capture(event: "fuel_barcode_scan_opened")
-                            isBarcodeSheetPresented = true
-                        }
-                    )
-                }
+                proteinCard
             }
             if waterGoal != nil {
-                FuelMetricCard(
-                    style: proteinGoal == nil ? .hero : .compact,
-                    title: Copy.fuel.waterLabel,
-                    systemImage: "drop.fill",
-                    color: Theme.Colors.Ring.water,
-                    current: waterToday,
-                    target: waterTarget,
-                    unit: Copy.fuel.millilitersUnit
-                ) {
-                    FuelQuickAddRow(
-                        presets: FuelReferenceData.waterPresetsMl,
-                        unit: Copy.fuel.millilitersUnit,
-                        color: Theme.Colors.Ring.water,
-                        customLabel: Copy.fuel.logCustomButtonLabel,
-                        presetAccessibilityLabel: { Copy.fuel.quickAddWaterAccessibilityLabel(milliliters: $0) },
-                        onPreset: { ml in
-                            Task {
-                                await log(
-                                    goalType: .water,
-                                    amount: Double(ml),
-                                    source: .manual,
-                                    undoMessage: Copy.fuel.undoToastWaterMessage(milliliters: ml)
-                                )
-                            }
-                        },
-                        onCustom: { activeSheet = FuelSheet(goalType: .water) }
-                    )
-                }
+                waterCard
             }
         }
         .disabled(isLogging)
+    }
+
+    private var proteinCard: some View {
+        FuelMeterCard(
+            kind: .protein,
+            title: Copy.fuel.proteinLabel,
+            systemImage: "fork.knife",
+            color: Theme.Colors.Ring.protein,
+            current: proteinToday,
+            target: proteinTarget,
+            quickAdd: FuelQuickAddConfig(
+                presets: FuelReferenceData.proteinPresetsGrams,
+                unit: Copy.fuel.gramsUnit,
+                presetAccessibilityLabel: { Copy.fuel.quickAddProteinAccessibilityLabel(grams: $0) },
+                onPreset: { grams in
+                    Task {
+                        await log(
+                            goalType: .protein,
+                            amount: Double(grams),
+                            source: .manual,
+                            undoMessage: Copy.fuel.undoToastProteinMessage(grams: grams)
+                        )
+                    }
+                },
+                onCustom: { activeSheet = FuelSheet(goalType: .protein) }
+            ),
+            stickers: proteinStickers
+        )
+    }
+
+    /// Camera and barcode as stickers. Colours are playful accents (sun, mint), not goal meanings.
+    private var proteinStickers: [FuelStickerConfig] {
+        [
+            FuelStickerConfig(
+                id: "photo",
+                title: Copy.fuel.snapStickerLabel,
+                accessibilityLabel: Copy.fuel.mealPhoto.entryButtonLabel,
+                systemImage: "camera.fill",
+                color: Theme.Colors.Ring.sunriseAlarm,
+                tilt: -2.5,
+                action: {
+                    Analytics.shared.capture(event: "fuel_meal_photo_entry_tapped")
+                    isMealPhotoSheetPresented = true
+                }
+            ),
+            FuelStickerConfig(
+                id: "barcode",
+                title: Copy.fuel.scanStickerLabel,
+                accessibilityLabel: Copy.fuel.barcodeScanButtonLabel,
+                systemImage: "barcode.viewfinder",
+                color: Theme.Colors.Ring.steps,
+                tilt: 2,
+                action: {
+                    Analytics.shared.capture(event: "fuel_barcode_scan_opened")
+                    isBarcodeSheetPresented = true
+                }
+            ),
+        ]
+    }
+
+    private var waterCard: some View {
+        FuelMeterCard(
+            kind: .water,
+            title: Copy.fuel.waterLabel,
+            systemImage: "drop.fill",
+            color: Theme.Colors.Ring.water,
+            current: waterToday,
+            target: waterTarget,
+            quickAdd: FuelQuickAddConfig(
+                presets: FuelReferenceData.waterPresetsMl,
+                unit: Copy.fuel.millilitersUnit,
+                presetAccessibilityLabel: { Copy.fuel.quickAddWaterAccessibilityLabel(milliliters: $0) },
+                onPreset: { ml in
+                    Task {
+                        await log(
+                            goalType: .water,
+                            amount: Double(ml),
+                            source: .manual,
+                            undoMessage: Copy.fuel.undoToastWaterMessage(milliliters: ml)
+                        )
+                    }
+                },
+                onCustom: { activeSheet = FuelSheet(goalType: .water) }
+            )
+        )
+    }
+
+    /// The aurora warms with the day's fuel: the mean of the two meters (each capped at 100%).
+    private var ambientState: ZanoAmbientState {
+        var fractions: [Double] = []
+        if proteinGoal != nil, proteinTarget > 0 { fractions.append(min(1, proteinToday / proteinTarget)) }
+        if waterGoal != nil, waterTarget > 0 { fractions.append(min(1, waterToday / waterTarget)) }
+        let mean = fractions.isEmpty ? 0 : fractions.reduce(0, +) / Double(fractions.count)
+        guard !reduceTransparency, mean > 0 else { return .neutral }
+        return mean >= 1 ? .earned : .progress(mean)
     }
 
     // MARK: - Gap Planner (spec §5.20, via `ProteinGapPlanner` for Tier 1)
@@ -608,27 +647,50 @@ struct FuelView: View {
         return ProteinGapPlanner.isEligible(gapGrams: Double(proteinGapGrams))
     }
 
-    /// One grouped card (header + a row per option, hairlines only between rows — the "dense list"
-    /// case where lines beat five sibling cards, better-layout 2.2). The tier order from
-    /// `ProteinGapPlanner` already ranks the options, so the order alone carries "best first"; the
-    /// engine-internal "#rank" prefix the old rows showed is gone.
-    private var gapPlannerSection: some View {
+    /// The one calm section under the meters (playful pass): gap ideas and saved staples share a
+    /// single card instead of stacking two. Header = "Top-ups" + a "78 g to go" chip + an info
+    /// button that holds the explanation the old subtitle and empty-state captions carried.
+    private var topUpsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                FuelEyebrow(text: Copy.fuel.gapPlannerTitle, color: Theme.Colors.Ring.protein)
-                Text(Copy.fuel.gapPlannerSubtitle(gapGrams: proteinGapGrams))
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .fixedSize(horizontal: false, vertical: true)
+            topUpsHeader
+            if isGapPlannerEligible && !gapOptions.isEmpty {
+                gapOptionRows
+                    .transition(.opacity)
             }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.top, Theme.Spacing.md)
-            .padding(.bottom, Theme.Spacing.xs)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            staplesSubheader
+            staplesRows
+        }
+        .padding(.bottom, Theme.Spacing.xs)
+        .zanoCard(radius: Theme.Radius.medium)
+        .disabled(isLogging)
+    }
 
+    private var topUpsHeader: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Text(Copy.fuel.topUpsSectionTitle)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+            if isGapPlannerEligible && proteinGapGrams > 0 {
+                ZanoGlassChip(
+                    Copy.fuel.topUpsGapChip(gapGrams: proteinGapGrams),
+                    systemImage: "flag.checkered",
+                    tint: Theme.Colors.Ring.protein
+                )
+                .contentTransition(.numericText(value: Double(proteinGapGrams)))
+            }
+            Spacer(minLength: 0)
+            ZanoInfoButton(Copy.fuel.topUpsInfo, accessibilityLabel: Copy.fuel.topUpsInfoAccessibilityLabel)
+        }
+        .padding(.leading, Theme.Spacing.md)
+        .padding(.trailing, Theme.Spacing.xs)
+        .padding(.top, Theme.Spacing.sm)
+    }
+
+    private var gapOptionRows: some View {
+        VStack(spacing: 0) {
             ForEach(gapOptions) { option in
-                FuelHairline()
-                    .padding(.horizontal, Theme.Spacing.md)
                 FuelOptionRow(
                     title: gapOptionTitle(for: option),
                     detail: gapOptionDetail(for: option),
@@ -638,8 +700,45 @@ struct FuelView: View {
                 )
             }
         }
-        .zanoCard(radius: Theme.Radius.medium)
-        .disabled(isLogging)
+    }
+
+    private var staplesSubheader: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Text(Copy.fuel.topUpsStaplesHeading)
+                .font(Theme.Typography.label)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            FuelAddPill(title: Copy.fuel.kitchenStapleAddButtonLabel) {
+                openKitchenStapleAddSheet()
+            }
+            .disabled(currentUser == nil)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
+        .overlay(alignment: .top) {
+            FuelHairline().padding(.horizontal, Theme.Spacing.md)
+        }
+    }
+
+    @ViewBuilder
+    private var staplesRows: some View {
+        if kitchenStaples.isEmpty {
+            FuelEmptyStapleRow(title: Copy.fuel.kitchenStaplesEmptyTitle) {
+                openKitchenStapleAddSheet()
+            }
+            .disabled(currentUser == nil)
+        } else {
+            VStack(spacing: 0) {
+                ForEach(kitchenStaples, id: \.id) { staple in
+                    FuelKitchenStapleRow(
+                        staple: staple,
+                        onLog: { Task { await logKitchenStaple(staple) } },
+                        onDelete: { pendingStapleDeletion = staple }
+                    )
+                }
+            }
+        }
     }
 
     /// The answer to "what should I eat?" leads the row: a staple or snack is named ("Greek
@@ -775,15 +874,12 @@ struct FuelView: View {
             HStack(spacing: Theme.Spacing.sm) {
                 IconBadge(systemName: "arrow.counterclockwise", tint: Theme.Colors.Ring.protein)
 
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    FuelEyebrow(text: Copy.fuel.quickRepeatSectionTitle, color: Theme.Colors.Ring.protein)
-                    Text(prompt)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(prompt)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: Theme.Spacing.xs)
 
@@ -795,7 +891,7 @@ struct FuelView: View {
             .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
             // Surface lives INSIDE the label so the press feedback moves the whole card, not just
             // the text on a static slab (better-ui HIT-04 / MOT-02).
-            .zanoCard(radius: Theme.Radius.medium)
+            .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.Ring.protein)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         }
         .buttonStyle(PressableStyle())
@@ -839,49 +935,6 @@ struct FuelView: View {
     }
 
     // MARK: - Kitchen Staples (spec §10 — "user saves 10-20 staples once")
-
-    private var kitchenStaplesSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            HStack(spacing: Theme.Spacing.sm) {
-                Text(Copy.fuel.kitchenStaplesSectionTitle)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                Spacer(minLength: 0)
-                FuelAddPill(title: Copy.fuel.kitchenStapleAddButtonLabel) {
-                    openKitchenStapleAddSheet()
-                }
-                .disabled(currentUser == nil)
-            }
-
-            if kitchenStaples.isEmpty {
-                // An empty slot is just an "add" tile in the same grid (competitive-research 3.10):
-                // dashed outline + plus + the explanatory line, and the whole tile is the button.
-                FuelEmptyStapleTile(
-                    title: Copy.fuel.kitchenStaplesEmptyTitle,
-                    message: Copy.fuel.kitchenStaplesEmptyMessage
-                ) {
-                    openKitchenStapleAddSheet()
-                }
-                .disabled(currentUser == nil)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(kitchenStaples.enumerated()), id: \.element.id) { index, staple in
-                        if index > 0 {
-                            FuelHairline()
-                                .padding(.horizontal, Theme.Spacing.md)
-                        }
-                        FuelKitchenStapleRow(
-                            staple: staple,
-                            onLog: { Task { await logKitchenStaple(staple) } },
-                            onDelete: { pendingStapleDeletion = staple }
-                        )
-                    }
-                }
-                .zanoCard(radius: Theme.Radius.medium)
-            }
-        }
-        .disabled(isLogging)
-    }
 
     private func openKitchenStapleAddSheet() {
         Analytics.shared.capture(event: "fuel_kitchen_staple_add_opened")
@@ -1117,9 +1170,6 @@ private enum FuelReferenceData {
 
 /// Sizes that are container-driven on this screen rather than design-system tokens.
 private enum FuelMetrics {
-    /// Diameter of the protein (hero) ring. `GoalRing.Size.large` (148) leaves too little of a 329pt
-    /// card interior for a 64pt numeral beside it; `.medium` (88) is too small for a hero.
-    static let heroRingDiameter: CGFloat = 112
     /// The hero numeral. Roughly 5x the 13pt captions around it (trends doc: aim for >= 3:1).
     static let heroNumeralPoints: CGFloat = 64
     /// The compact-card numeral: `Theme.Typography.numeralLarge()`'s size, but scalable.
@@ -1224,175 +1274,6 @@ private struct FuelNumeral: View {
     }
 }
 
-/// One metric (protein or water): ring + number on top, that metric's own controls underneath, all
-/// on one surface. Hero = big ring and numeral; compact = the `.medium` ring. Both are `Radius.large`
-/// (two sibling metric cards with different corners read as a mistake).
-/// Padding is `Spacing.md`, so inside a `.large` card the concentric inner radius is exactly
-/// `Radius.small` (28 - 16 = 12). The card carries a faint wash of the metric's own hue (its
-/// identity) and, once the goal is met, the design system's earned glow.
-private struct FuelMetricCard<Actions: View>: View {
-    enum Style { case hero, compact }
-
-    let style: Style
-    let title: String
-    let systemImage: String
-    let color: Color
-    let current: Double
-    let target: Double
-    let unit: String
-    let actions: Actions
-
-    init(
-        style: Style,
-        title: String,
-        systemImage: String,
-        color: Color,
-        current: Double,
-        target: Double,
-        unit: String,
-        @ViewBuilder actions: () -> Actions
-    ) {
-        self.style = style
-        self.title = title
-        self.systemImage = systemImage
-        self.color = color
-        self.current = current
-        self.target = target
-        self.unit = unit
-        self.actions = actions()
-    }
-
-    private var isHero: Bool { style == .hero }
-    private var progress: Double { target > 0 ? current / target : 0 }
-    /// Same threshold `GoalRing` uses for its own completion pulse, so glow, check and pulse land
-    /// together.
-    private var isComplete: Bool { progress >= 1 }
-    private var currentInt: Int { Int(current.rounded()) }
-    private var suffix: String {
-        target > 0 ? "/ \(Int(target.rounded()).formatted(.number)) \(unit)" : unit
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            HStack(spacing: Theme.Spacing.md) {
-                // The ring carries the goal's glyph (glyph-first: never identify a goal by hue
-                // alone) and turns into a check when the goal is met. The number lives beside it,
-                // where it can be big enough to be the hero.
-                GoalRing(
-                    progress: progress,
-                    color: color,
-                    size: isHero ? .custom(FuelMetrics.heroRingDiameter) : .medium,
-                    center: .icon(systemName: isComplete ? "checkmark" : systemImage)
-                )
-
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    FuelEyebrow(text: title, color: color)
-                    FuelNumeral(value: currentInt, suffix: suffix, size: isHero ? .hero : .large)
-                }
-
-                Spacer(minLength: 0)
-            }
-            // The ring is decorative and the numeral/suffix are split across two Texts, so speak
-            // one coherent phrase instead — same "72/150g" shape the old ring cell announced.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(title)
-            .accessibilityValue(Copy.fuel.metricAccessibilityValue(
-                current: currentInt,
-                target: target > 0 ? Int(target.rounded()) : nil,
-                unit: unit
-            ))
-
-            actions
-        }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // Neutral until the goal is met: the ring already carries the goal's hue.
-        .zanoCard(
-            radius: Theme.Radius.large,
-            tint: isComplete ? color : nil,
-            active: isComplete
-        )
-    }
-}
-
-/// One row of quick-add controls: equal-width preset chips, then square icon buttons (custom
-/// amount, and — protein only — barcode scan). Everything is 44pt tall, so the barcode scan that
-/// used to sit off-screen at the end of a horizontal scroller is always visible. At accessibility
-/// text sizes (or whenever one row doesn't fit) the chips take a row of their own and the icon
-/// buttons sit under them.
-private struct FuelQuickAddRow: View {
-    let presets: [Int]
-    let unit: String
-    let color: Color
-    let customLabel: String
-    /// VoiceOver label for a preset chip ("Log 25 g of protein").
-    let presetAccessibilityLabel: (Int) -> String
-    let onPreset: (Int) -> Void
-    let onCustom: () -> Void
-    /// Protein only: the meal-photo camera button, placed just before the barcode button.
-    var photoLabel: String? = nil
-    var onPhoto: (() -> Void)? = nil
-    var trailingSystemImage: String? = nil
-    var trailingLabel: String? = nil
-    var onTrailing: (() -> Void)? = nil
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            twoRows
-        } else {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Theme.Spacing.xs) {
-                    presetChips
-                    iconButtons
-                }
-                twoRows
-            }
-        }
-    }
-
-    private var twoRows: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            HStack(spacing: Theme.Spacing.xs) { presetChips }
-            HStack(spacing: Theme.Spacing.xs) { iconButtons }
-        }
-    }
-
-    @ViewBuilder
-    private var presetChips: some View {
-        ForEach(presets, id: \.self) { preset in
-            Button {
-                onPreset(preset)
-            } label: {
-                FuelAmountPill(
-                    amount: "+\(preset)",
-                    unit: unit,
-                    color: color,
-                    minHeight: Theme.Metrics.minTapTarget,
-                    expands: true
-                )
-                .contentShape(Capsule())
-            }
-            .buttonStyle(PressableStyle(scale: 0.96))
-            .accessibilityLabel(presetAccessibilityLabel(preset))
-        }
-    }
-
-    @ViewBuilder
-    private var iconButtons: some View {
-        FuelIconButton(systemImage: "plus", accessibilityLabel: customLabel, action: onCustom)
-
-        if let photoLabel, let onPhoto {
-            FuelIconButton(systemImage: "camera", accessibilityLabel: photoLabel, action: onPhoto)
-        }
-
-        if let trailingSystemImage, let trailingLabel, let onTrailing {
-            FuelIconButton(systemImage: trailingSystemImage, accessibilityLabel: trailingLabel, action: onTrailing)
-        }
-    }
-}
-
 /// An amount capsule ("+25 g"): the number in pearl, the unit quieter, on the same dark glass as
 /// the tab bar. The goal's hue stays on its ring, so the controls read as one calm set instead of
 /// a row of colored slabs. Used as a chip label (44pt) and as a row's trailing "this is what
@@ -1419,26 +1300,6 @@ private struct FuelAmountPill: View {
         .padding(.horizontal, expands ? Theme.Spacing.xxs : Theme.Spacing.sm)
         .frame(maxWidth: expands ? CGFloat.infinity : nil, minHeight: minHeight)
         .background(ZanoGlass(Capsule(style: .continuous)))
-    }
-}
-
-/// 44x44 circular glass icon button (custom amount, barcode scan).
-private struct FuelIconButton: View {
-    let systemImage: String
-    let accessibilityLabel: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(Theme.Colors.text)
-                .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
-                .background(ZanoGlass(Circle()))
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressableStyle(scale: 0.96))
-        .accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -1486,17 +1347,14 @@ private struct FuelOptionRow: View {
             HStack(spacing: Theme.Spacing.sm) {
                 IconBadge(systemName: systemImage, tint: Theme.Colors.Ring.protein, size: .small)
 
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(title)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.text)
-                        .lineLimit(2)
-                    Text(detail)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // The tier ("Quick snack") is the badge glyph and the VoiceOver label; the row shows
+                // only the food (playful pass: no caption under every row).
+                Text(title)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 switch trailing {
                 case .logs(let grams):
@@ -1510,7 +1368,7 @@ private struct FuelOptionRow: View {
                 }
             }
             .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.sm)
+            .padding(.vertical, Theme.Spacing.xs)
             .frame(minHeight: FuelMetrics.rowMinHeight)
             .contentShape(Rectangle())
         }
@@ -1528,46 +1386,34 @@ private struct FuelOptionRow: View {
     }
 }
 
-/// Empty-staples slot: the whole tile is the "add" button. Empty-states pass (2026-09-24): it sits
-/// on the same dark glass as the Fuel chips (`ZanoGlass`) instead of a dashed outline, with the plus
-/// in a glass disc tinted by the protein hue (staples are protein), a one-line headline, and the
-/// "why" under it.
-private struct FuelEmptyStapleTile: View {
+/// Empty-staples row (playful pass): one tappable line inside the Top-ups card, a protein-tinted
+/// plus disc and a short headline. The "why" moved into the section's info button.
+private struct FuelEmptyStapleRow: View {
     let title: String
-    let message: String
     let action: () -> Void
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
         Button(action: action) {
-            HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+            HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "plus")
-                    .font(Theme.Typography.icon(.medium, weight: .bold))
+                    .font(Theme.Typography.icon(.small, weight: .bold))
                     .foregroundStyle(Theme.Colors.Ring.protein)
-                    .frame(width: Theme.Metrics.iconBadgeMedium, height: Theme.Metrics.iconBadgeMedium)
-                    .background(ZanoGlass(Circle()))
+                    .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+                    .background(Theme.Colors.Ring.protein.opacity(0.18), in: Circle())
                     .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(title)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                    Text(message)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(title)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.text)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-            .background(ZanoGlass(shape))
-            .contentShape(shape)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xs)
+            .frame(minHeight: FuelMetrics.rowMinHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Copy.fuel.kitchenStaplesEmptyMessage)
     }
 }
 

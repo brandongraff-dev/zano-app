@@ -48,9 +48,16 @@ extension Copy {
             return "\(goalsClause) · \(streak)-day streak"
         }
 
+        /// The poster's two fact chips (the highlight line split, so the poster carries no
+        /// middle-dot meta string). The streak chip is omitted by the caller at zero.
+        public static func goalsLeftChip(_ goalsRemaining: Int) -> String {
+            goalsRemaining == 1 ? "1 goal left" : "\(goalsRemaining) goals left"
+        }
+        public static func streakChip(_ streak: Int) -> String { "\(streak)-day streak" }
+
         /// Was "Turns friction into content. Might as well share it." — that leaked the growth
         /// strategy (spec §5.16's rationale) onto the screen the user sees at their most frustrated.
-        public static let acknowledgementLine = "Still locked. Share it and keep yourself honest."
+        public static let acknowledgementLine = "Still locked. Post the proof, then go earn it."
         public static let dismissButtonTitle = "Not now"
     }
 }

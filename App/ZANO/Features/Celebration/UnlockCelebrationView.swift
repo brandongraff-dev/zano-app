@@ -36,6 +36,18 @@
 // The resting frame is the full composition, so a still captured any time after ~1.2s (CI
 // screenshots capture at ~5s) is the finished design.
 //
+// PASS 2 (2026-10-03, "make it more playful"): winning an arcade round.
+//   * The star leaps as it charges, bursts at the apex (jackpot rays in the goal colours, marquee
+//     bulbs, shockwave) and drops back with a bounce (`UnlockStarStage`).
+//   * Confetti in the goal palette, not one blue.
+//   * "Apps unlocked" is a glass chip; "Earned." is a tilted stamp that slams down (score face,
+//     a double rim) with a heavy thud.
+//   * The Time Bank figure rolls up in steps like a score counter, a selection tick per step.
+//   * "Workout verified" and the detail are two chips (no middle-dot sentence).
+//   * Haptics: two light ticks while the star winds up, `.success` on the burst, a heavy impact on
+//     the stamp, selection ticks on the roll-up, a medium tap for a badge/surprise.
+// Reduce Motion: the resting frame, no leap/stamp/roll; one `.success` haptic.
+//
 // Presentation: `@Environment(\.dismiss)` for the Done button, which works for `.sheet`,
 // `.fullScreenCover` or a push. A full-screen cover has no swipe-to-dismiss, so this button is the
 // only way out and it never waits for the choreography.
@@ -77,7 +89,7 @@ public struct UnlockCelebrationBadge: Equatable, Sendable {
 /// rolls a surprise through `VariableReward`. Callers don't pass it: when `surprise` is `nil` this
 /// view claims the newest unrevealed grant (`VariableReward.consumePendingReveal`) at the moment the
 /// details land, so the reveal never races the roll, and exactly one celebration shows it. The
-/// reveal (a "Surprise!" eyebrow over a silver disc and one line) lands last, with its own haptic. See the file header for the design,
+/// reveal (a "Bonus round!" eyebrow over a silver disc and one line) lands last, with its own haptic. See the file header for the design,
 /// the timeline and the presentation contract.
 public struct UnlockCelebrationView: View {
     /// Caller-resolved display name for the goal that verified, e.g. `"Workout"`.
@@ -99,9 +111,9 @@ public struct UnlockCelebrationView: View {
     @Environment(\.requestReview) private var requestReview
 
     /// The headline's size. Compressed heavy numeral face; scales with Dynamic Type.
-    @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 76
+    @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 62
     /// The Time Bank figure's size.
-    @ScaledMetric(relativeTo: .title) private var figureSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .title) private var figureSize: CGFloat = 38
 
     /// When the stage's timeline started; `nil` before `onAppear`.
     @State private var stageStart: Date?
@@ -113,6 +125,11 @@ public struct UnlockCelebrationView: View {
     @State private var showBadge = false
     @State private var animatedRemainingMinutes = 0
     @State private var unlockHapticTick = 0
+    @State private var chargeHapticTick = 0
+    @State private var stampHapticTick = 0
+    @State private var countHapticTick = 0
+    /// The stamp has hit the page (drives its slam separately from the text block's fade).
+    @State private var stampLanded = false
     @State private var badgeHapticTick = 0
     @State private var hasPlayed = false
     @State private var playTask: Task<Void, Never>?
@@ -162,7 +179,7 @@ public struct UnlockCelebrationView: View {
             textBlock
                 .padding(.top, Theme.Spacing.sm)
                 .opacity(showHeadline ? 1 : 0)
-                .scaleEffect(showHeadline || reduceMotion ? 1 : 0.92)
+                .scaleEffect(showHeadline || reduceMotion ? 1 : 0.96)
                 .offset(y: showHeadline || reduceMotion ? 0 : CelebrationLayout.riseOffset)
 
             if hasTimeBank {
@@ -212,6 +229,9 @@ public struct UnlockCelebrationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .zanoAmbient(.earned)
         .sensoryFeedback(.success, trigger: unlockHapticTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: chargeHapticTick)
+        .sensoryFeedback(.impact(weight: .heavy), trigger: stampHapticTick)
+        .sensoryFeedback(.selection, trigger: countHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: badgeHapticTick)
         .sheet(isPresented: $isReferralPresented) {
             NavigationStack { ReferralView(showsDoneButton: true) }
@@ -276,8 +296,8 @@ public struct UnlockCelebrationView: View {
                 // Mounted at the flash so it fires once, from the star.
                 CelebrationBurst(
                     trigger: 0,
-                    colors: [Theme.Colors.accent, Theme.Colors.accent, Theme.Colors.text],
-                    particleCount: 24
+                    colors: UnlockStarStage.goalPalette + [Theme.Colors.accent, Theme.Colors.text],
+                    particleCount: 44
                 )
                 .frame(width: CelebrationLayout.burstFrame, height: CelebrationLayout.burstFrame)
                 .allowsHitTesting(false)
@@ -291,50 +311,93 @@ public struct UnlockCelebrationView: View {
     // MARK: - Text
 
     private var textBlock: some View {
-        VStack(spacing: Theme.Spacing.xxs) {
-            Text(Copy.celebration.appsUnlockedEyebrow)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.accent)
+        VStack(spacing: Theme.Spacing.sm) {
+            ZanoGlassChip(
+                Copy.celebration.appsUnlockedEyebrow,
+                systemImage: "lock.open.fill",
+                tint: Theme.Colors.accent
+            )
 
-            Text(Copy.celebration.headline)
-                .font(Theme.Typography.numeral(size: headlineSize, weight: .heavy))
-                .tracking(-0.5)
-                .foregroundStyle(Theme.Colors.metallic)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .accessibilityAddTraits(.isHeader)
+            stamp
 
             if timeBankRemainingMinutes > 0 {
-                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
-                    Text(
-                        Duration.seconds(animatedRemainingMinutes * 60),
-                        format: .units(allowed: [.hours, .minutes], width: .narrow)
-                    )
-                    .font(Theme.Typography.numeral(size: figureSize, weight: .heavy))
-                    .foregroundStyle(Theme.Colors.accent)
-                    .contentTransition(
-                        reduceMotion ? .opacity : .numericText(value: Double(animatedRemainingMinutes))
-                    )
-
-                    Text(Copy.celebration.timeBankFigureCaption)
-                        .font(Theme.Typography.unit)
-                        .foregroundStyle(Theme.Colors.muted)
-                }
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                // VoiceOver hears the final figure from the first frame, not the count-up.
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Copy.celebration.timeBankUnlockedLabel(minutes: timeBankRemainingMinutes))
+                timeBankFigure
             }
 
-            Text(Copy.celebration.subline(goalName: goalName, detail: verificationDetail))
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .padding(.top, Theme.Spacing.xxs)
+            verificationChips
         }
         .padding(.horizontal, Theme.Spacing.lg)
         .accessibilityElement(children: .combine)
+    }
+
+    /// "Earned." as a stamp: score face, tilted, inside a double rim, slammed down from above.
+    private var stamp: some View {
+        Text(Copy.celebration.headline)
+            .font(Theme.Typography.score(size: headlineSize))
+            .foregroundStyle(Theme.Colors.metallic)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xxs)
+            .background {
+                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                    .strokeBorder(Theme.Colors.Ring.sunriseAlarm, lineWidth: 3)
+                    .padding(-2)
+                RoundedRectangle(cornerRadius: Theme.Radius.small - 6, style: .continuous)
+                    .strokeBorder(Theme.Colors.Ring.sunriseAlarm.opacity(0.5), lineWidth: 1)
+                    .padding(5)
+            }
+            .shadow(color: Theme.Colors.Ring.sunriseAlarm.opacity(0.35), radius: 14)
+            .rotationEffect(.degrees(stampLanded || reduceMotion ? -5 : -14))
+            .scaleEffect(stampLanded || reduceMotion ? 1 : 1.9)
+            .opacity(stampLanded || reduceMotion ? 1 : 0)
+            .padding(.vertical, Theme.Spacing.xs)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var timeBankFigure: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+            Text(
+                Duration.seconds(animatedRemainingMinutes * 60),
+                format: .units(allowed: [.hours, .minutes], width: .narrow)
+            )
+            .font(Theme.Typography.score(size: figureSize))
+            .foregroundStyle(Theme.Colors.accent)
+            .contentTransition(
+                reduceMotion ? .opacity : .numericText(value: Double(animatedRemainingMinutes))
+            )
+
+            Text(Copy.celebration.timeBankFigureCaption)
+                .font(Theme.Typography.unit)
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.55)
+        // VoiceOver hears the final figure from the first frame, not the roll-up.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.celebration.timeBankUnlockedLabel(minutes: timeBankRemainingMinutes))
+    }
+
+    /// "Workout verified" and the detail as two chips; stacked when they don't fit side by side.
+    private var verificationChips: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.xs) { verificationChipContent }
+            VStack(spacing: Theme.Spacing.xs) { verificationChipContent }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.celebration.subline(goalName: goalName, detail: verificationDetail))
+    }
+
+    @ViewBuilder
+    private var verificationChipContent: some View {
+        ZanoGlassChip(
+            Copy.celebration.verifiedChip(goalName: goalName),
+            systemImage: "checkmark.seal.fill",
+            tint: Theme.Colors.Ring.workout
+        )
+        if let verificationDetail, !verificationDetail.isEmpty {
+            ZanoGlassChip(verificationDetail, systemImage: "bolt.fill", tint: Theme.Colors.Ring.sunriseAlarm)
+        }
     }
 
     private var timeBankCard: some View {
@@ -360,6 +423,9 @@ public struct UnlockCelebrationView: View {
         .padding(.vertical, Theme.Spacing.xs)
         // `accentFill`, the fill-safe blue (white on it is 5.27:1; on `accent` it is 3.87:1).
         .background(Theme.Colors.accentFill, in: Capsule())
+        // A sticker slapped on: a white die-cut rim and a slight tilt.
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.9), lineWidth: 2))
+        .rotationEffect(.degrees(reduceMotion ? 0 : 3))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.celebration.badgeRevealAccessibilityLabel(title: badge.title))
     }
@@ -379,39 +445,69 @@ public struct UnlockCelebrationView: View {
         playTask?.cancel()
         stageStart = Date()
         playTask = Task { @MainActor in
-            // 0.00: the stage's timeline charges the star (see `CelebrationTiming.charge(at:)`).
+            // 0.00: the stage's timeline charges the star and it winds up its leap. Two light
+            // ticks while it rises.
+            chargeHapticTick += 1
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.secondChargeTickMs))
+            guard !Task.isCancelled else { return }
+            chargeHapticTick += 1
 
-            // Flash: the stage's own timeline draws bloom, specular and shockwave; this adds the
-            // burst and the haptic on the same beat.
-            try? await Task.sleep(for: .milliseconds(CelebrationTiming.flashAtMs))
+            // Flash at the apex: the stage draws bloom, rays, shockwave; this adds the confetti
+            // and the success haptic on the same beat.
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.flashAtMs - CelebrationTiming.secondChargeTickMs))
             guard !Task.isCancelled else { return }
             showBurst = true
             unlockHapticTick += 1
 
-            // The words land.
+            // The words come in; the stamp slams down a beat later with a thud.
             try? await Task.sleep(for: .milliseconds(CelebrationTiming.headlineAfterFlashMs))
             guard !Task.isCancelled else { return }
             withAnimation(Theme.Motion.springCelebration) {
                 showHeadline = true
             }
-
-            // The figure counts up with the bar; the card and the badge follow.
-            try? await Task.sleep(for: .milliseconds(CelebrationTiming.detailsAfterHeadlineMs))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: CelebrationTiming.countUpDuration)) {
-                animatedRemainingMinutes = timeBankRemainingMinutes
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) {
+                stampLanded = true
             }
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.stampThudMs))
+            guard !Task.isCancelled else { return }
+            stampHapticTick += 1
+
+            // The card, badge and surprise land; the figure rolls up like a score counter.
             withAnimation(Theme.Motion.springCelebration) {
                 showDetails = true
                 showBadge = badge != nil
             }
             if badge != nil { badgeHapticTick += 1 }
             revealSurpriseIfAny()
+            await rollUpTimeBank()
+            guard !Task.isCancelled else { return }
 
             // Stop the stage's timeline once the flash has finished; the resting frame is static.
-            try? await Task.sleep(for: .milliseconds(CelebrationTiming.settleAfterDetailsMs))
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.settleAfterRollMs))
             guard !Task.isCancelled else { return }
             stageSettled = true
+        }
+    }
+
+    /// Rolls the figure (and the bar) up in `rollSteps` steps with a selection tick on every
+    /// other one, so it reads as a score counter rather than a fade.
+    private func rollUpTimeBank() async {
+        let target = timeBankRemainingMinutes
+        guard target > 0 else { return }
+        let steps = CelebrationTiming.rollSteps
+        for step in 1...steps {
+            let fraction = Double(step) / Double(steps)
+            // Ease-out: big jumps first, then it ticks into place.
+            let eased = 1 - pow(1 - fraction, 2)
+            withAnimation(.snappy(duration: CelebrationTiming.rollStepSeconds)) {
+                animatedRemainingMinutes = step == steps ? target : Int((Double(target) * eased).rounded())
+            }
+            if step.isMultiple(of: 2) || step == steps { countHapticTick += 1 }
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.rollStepMs))
+            if Task.isCancelled {
+                animatedRemainingMinutes = target
+                return
+            }
         }
     }
 
@@ -436,6 +532,7 @@ public struct UnlockCelebrationView: View {
         unlockHapticTick += 1
         withAnimation(.easeOut(duration: 0.2)) {
             showHeadline = true
+            stampLanded = true
             showDetails = true
             showBadge = badge != nil
             animatedRemainingMinutes = timeBankRemainingMinutes
@@ -455,18 +552,21 @@ public struct UnlockCelebrationView: View {
 
 // MARK: - Local constants
 
-/// The unlock timeline. Charge ends at 0.42s; the flash runs 0.40-1.15s; the words land at 0.52s;
-/// the count-up runs 0.66-1.16s. All inside `Theme.Motion.unlockCelebrationMaxDuration` (1.2s).
+/// The unlock timeline. Charge/leap 0-0.42s; flash 0.40-1.15s; words at 0.52s; stamp thud at
+/// ~0.66s; the figure rolls up 0.66-1.20s; the stage settles at ~1.3s (the resting frame).
 private enum CelebrationTiming {
     static let startCharge: Double = 0.7
     static let chargeDuration: TimeInterval = 0.42
+    static let secondChargeTickMs = 200
     static let flashAtMs = 400
     static let flashDuration: TimeInterval = 0.75
     static let headlineAfterFlashMs = 120
-    static let detailsAfterHeadlineMs = 140
-    static let countUpDuration: TimeInterval = 0.5
-    /// 0.40 + 0.12 + 0.14 + 0.55 = 1.21s: just after the flash ends (1.15s).
-    static let settleAfterDetailsMs = 550
+    /// The stamp's spring reaches the page about here; the heavy haptic fires on contact.
+    static let stampThudMs = 140
+    static let rollSteps = 12
+    static let rollStepMs = 45
+    static let rollStepSeconds: TimeInterval = 0.08
+    static let settleAfterRollMs = 120
     /// Reduce Motion lands everything at once, so it re-checks for a late surprise once.
     static let reducedMotionSurpriseRetryMs = 600
 
@@ -485,7 +585,7 @@ private enum CelebrationTiming {
     }
 }
 
-/// The variable-reward reveal: a "Surprise!" eyebrow in blue over a silver (earned-metal) disc and
+/// The variable-reward reveal: a "Bonus round!" eyebrow in blue over a silver (earned-metal) disc and
 /// one line. Tasteful by construction (spec §8 rule 4): one line, no second burst.
 private struct SurpriseReveal: View {
     let grant: VariableRewardGrant
@@ -524,7 +624,7 @@ private struct SurpriseReveal: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Copy.celebration.surpriseEyebrow)
                     .zanoText(.eyebrow)
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.Ring.creatine)
                 Text(title)
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
@@ -536,7 +636,16 @@ private struct SurpriseReveal: View {
             Spacer(minLength: 0)
         }
         .padding(Theme.Spacing.sm)
-        .zanoCard(radius: Theme.Radius.medium, active: true)
+        // A prize ticket: pink-washed glass with a perforated inner edge.
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                .strokeBorder(
+                    Theme.Colors.Ring.creatine.opacity(0.45),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 5])
+                )
+                .padding(Theme.Spacing.xxs)
+        }
+        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.Ring.creatine, active: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.celebration.surpriseAccessibilityLabel("\(title). \(detail)"))
     }
@@ -544,7 +653,7 @@ private struct SurpriseReveal: View {
 
 private enum CelebrationLayout {
     /// The burst's frame, centred on the star so particles radiate from it.
-    static let burstFrame: CGFloat = 320
+    static let burstFrame: CGFloat = 360
     /// Upward travel of text and card as they land. Skipped under Reduce Motion.
     static let riseOffset: CGFloat = 18
 }

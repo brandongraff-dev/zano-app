@@ -28,6 +28,12 @@
 // already hides its header on screen 1. The straight apostrophes in the stored headline
 // ("Let's") belong to the Copy owner (typography audit T9).
 
+// VISUAL PASS 2 (2026-10-03, "make it more playful"): the three-sentence "How it works" card is now
+// the game loop as three stickers, Lock it -> Earn it -> Get it back, each a colour sticker with
+// two to five words under it (`Copy.onboarding.hookLoop`). They pop in one after another as the
+// star finishes charging: the screen's one orchestrated moment. The offline / location claims
+// moved out of the first screen (they read as a spec sheet); the plan step and Today carry them.
+
 import SwiftUI
 import Core
 
@@ -42,15 +48,18 @@ struct Screen1Hook: View {
     @State private var revealed = false
     @State private var charge: Double = 0
     @State private var chargedTick = 0
+    /// The loop stickers pop in once the star has charged (Reduce Motion: shown from the start).
+    @State private var loopRevealed = false
 
     /// Where the intro leaves the star: nearly full, so there is still something left to earn.
     private static let introCharge = 0.85
     /// `ZanoLivingMark` eases a charge change over 1.2s; the haptic lands as it settles.
     private static let chargeMilliseconds = 1200
-    /// A little smaller than before (150) so the proof strip fits above the CTA on a small phone.
-    private static let starHeight: CGFloat = 120
+    /// The loop row is shorter than the old proof card, so the star can be the hero again.
+    private static let starHeight: CGFloat = 132
 
     private var isShown: Bool { revealed || reduceMotion }
+    private var loopShown: Bool { loopRevealed || reduceMotion }
 
     /// Under Reduce Motion the star is drawn charged from the first frame (derived here, not set in
     /// `.task`, so there is no frame of an empty star).
@@ -75,10 +84,7 @@ struct Screen1Hook: View {
                     .offset(y: isShown ? 0 : Theme.Spacing.sm)
                     .animation(reveal(delay: 0.35), value: revealed)
 
-                proofStrip
-                    .opacity(isShown ? 1 : 0)
-                    .offset(y: isShown ? 0 : Theme.Spacing.sm)
-                    .animation(reveal(delay: 0.6), value: revealed)
+                HookLoopRow(isShown: loopShown)
             }
             .padding(.horizontal, Theme.Spacing.md)
             // Bottom padding keeps the strip clear of the pinned CTA.
@@ -121,39 +127,6 @@ struct Screen1Hook: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    /// The three product claims that used to rotate on their own screen: one compact card, a glyph
-    /// per line, quiet type. Facts about how ZANO works, never dressed up as quotes.
-    private var proofStrip: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.onboarding.hookProofEyebrow)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
-            ForEach(Array(Copy.onboarding.socialProofQuotes.enumerated()), id: \.offset) { index, claim in
-                HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                    Image(systemName: Self.proofSymbols[index % Self.proofSymbols.count])
-                        .font(Theme.Typography.icon(.small))
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .frame(width: Theme.Spacing.lg)
-                        .accessibilityHidden(true)
-                    Text(claim)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard()
-        .accessibilityElement(children: .combine)
-    }
-
-    /// SF Symbol identifiers matched by position to the three claims (locked until earned /
-    /// verified by location + Health / works offline). Decorative only.
-    private static let proofSymbols = ["lock.fill", "location.fill", "wifi.slash"]
-
     /// Splits "Sentence one. Sentence two." at the first ". " so the second sentence can take the
     /// emphasis. Falls back to one un-split line if the copy ever loses that shape.
     private static func headlineParts(from full: String) -> (lead: String, flip: String?) {
@@ -182,6 +155,64 @@ struct Screen1Hook: View {
         try? await Task.sleep(for: .milliseconds(Self.chargeMilliseconds))
         guard !Task.isCancelled else { return }
         chargedTick += 1
+        loopRevealed = true
+    }
+}
+
+/// Lock it -> Earn it -> Get it back: three stickers in a row, joined by little arrows. Each pops in
+/// 120ms after the one before when `isShown` turns on. One VoiceOver element for the whole loop.
+private struct HookLoopRow: View {
+    let isShown: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Matched to `Copy.onboarding.hookLoop` by position: locked, earned (goal volt), unlocked.
+    private static let symbols = ["lock.fill", "dumbbell.fill", "lock.open.fill"]
+    private static let tints = [Theme.Colors.Aurora.violet, Theme.Colors.Ring.workout, Theme.Colors.accent]
+    /// Stickers lean a little, alternately, like they were slapped on.
+    private static let tilts: [Double] = [-6, 4, -3]
+
+    var body: some View {
+        let beats = Copy.onboarding.hookLoop
+        HStack(alignment: .top, spacing: Theme.Spacing.xxs) {
+            ForEach(Array(beats.enumerated()), id: \.offset) { index, beat in
+                if index > 0 {
+                    Image(systemName: "chevron.forward")
+                        .font(Theme.Typography.icon(.xsmall, weight: .heavy))
+                        .foregroundStyle(Theme.Colors.muted)
+                        .padding(.top, 20)
+                        .opacity(isShown ? 1 : 0)
+                        .animation(pop(index), value: isShown)
+                }
+                beatView(beat, index: index)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.onboarding.hookLoopSpoken)
+    }
+
+    private func beatView(_ beat: Copy.onboarding.LoopBeat, index: Int) -> some View {
+        let i = index % Self.symbols.count
+        return VStack(spacing: Theme.Spacing.xs) {
+            OnboardingSticker(systemImage: Self.symbols[i], tint: Self.tints[i], size: 52, bounceTrigger: isShown ? 1 : 0)
+                .rotationEffect(.degrees(reduceMotion ? 0 : Self.tilts[i]))
+            Text(beat.title)
+                .font(Theme.Typography.headline.weight(.heavy))
+                .foregroundStyle(Theme.Colors.text)
+            Text(beat.detail)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .opacity(isShown ? 1 : 0)
+        .scaleEffect(isShown || reduceMotion ? 1 : 0.6)
+        .animation(pop(index), value: isShown)
+    }
+
+    private func pop(_ index: Int) -> Animation? {
+        reduceMotion ? nil : Theme.Motion.springPop.delay(Double(index) * 0.12)
     }
 }
 

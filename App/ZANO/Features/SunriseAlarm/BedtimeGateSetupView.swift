@@ -58,7 +58,8 @@ struct BedtimeGateSetupView: View {
                     systemImage: "moon.zzz.fill",
                     tint: Theme.Colors.Ring.sleepOnTime,
                     label: Copy.bedtimeGate.bedtimeLabel,
-                    time: $settings.bedtime
+                    time: $settings.bedtime,
+                    art: .moon
                 )
 
                 windDownSection
@@ -72,7 +73,7 @@ struct BedtimeGateSetupView: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background { Theme.Colors.background.ignoresSafeArea() }
+        .zanoBackdrop(glow: Theme.Colors.Ring.sleepOnTime, intensity: 0.16)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             SleepSetupSaveBar(
                 title: Copy.bedtimeGate.saveButtonLabel,

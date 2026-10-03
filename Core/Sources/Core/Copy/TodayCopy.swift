@@ -111,6 +111,21 @@ extension Copy {
         /// old caption `Copy.screenTime.chargeLine` under the hero.
         public static func heroStarCharge(percent: Int) -> String { "\(percent)% charged" }
 
+        // MARK: - Pass 2: playful (2026-10-03)
+
+        /// The star's VoiceOver label on Today: the brand name and its mood.
+        public static func mascotSpoken(_ mood: ZanoMascotMood) -> String {
+            switch mood {
+            case .sleepy: "ZANO star, napping until a goal is done"
+            case .idle: "ZANO star"
+            case .perky: "ZANO star, charging up"
+            case .charged: "ZANO star, fully charged"
+            }
+        }
+
+        /// The star's VoiceOver hint: what poking it does.
+        public static let mascotHint = "Spins the star"
+
         /// Today's lock capsule when the lock set has no name.
         public static let heroLockedCapsuleFallback = "Locked"
 

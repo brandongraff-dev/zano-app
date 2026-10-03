@@ -19,7 +19,7 @@ extension Copy.onboarding {
     // MARK: - Step 3: Your why (phone time + when it slips + the math, one step)
 
     public static let yourWhyTitle = "What's your phone costing you?"
-    public static let yourWhySubtitle = "Be honest. This is just for you."
+    public static let yourWhySubtitle = "Be honest. No judgment here."
     /// Above the optional "when does it slip" chips.
     public static let yourWhySlipLabel = "When does your routine usually slip? (optional)"
 
@@ -37,7 +37,7 @@ extension Copy.onboarding {
     // MARK: - Step 5: Plan + commit
 
     /// Under the plan card, above the hold-to-commit button.
-    public static let planCommitHint = "Hold the button for 2 seconds. This is you, deciding."
+    public static let planCommitHint = "Hold for 2 seconds. This is you, deciding."
     /// Shown on the plan card's apps row when no apps were picked (Screen Time access refused).
     public static let planNoAppsLine = "Pick apps to lock anytime from Today."
 

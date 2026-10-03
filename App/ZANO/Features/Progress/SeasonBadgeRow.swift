@@ -37,11 +37,18 @@ struct SeasonBadgeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.progress.seasonBadgesTitle)
-                .font(Theme.Typography.captionEmphasized)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .padding(.horizontal, Theme.Spacing.md)
-                .accessibilityAddTraits(.isHeader)
+            // Playful pass (2026-10-03): the "finish a season to keep its badge" caption moved
+            // into this info button.
+            HStack(spacing: Theme.Spacing.xs) {
+                Text(Copy.progress.seasonBadgesTitle)
+                    .font(Theme.Typography.label)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                ZanoInfoButton(Copy.progress.seasonBadgesEmpty, accessibilityLabel: Copy.progress.seasonBadgesInfoAccessibilityLabel)
+            }
+            .padding(.leading, Theme.Spacing.md)
+            .padding(.trailing, Theme.Spacing.xs)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: Theme.Spacing.sm) {
@@ -63,15 +70,9 @@ struct SeasonBadgeRow: View {
                 .padding(.horizontal, Theme.Spacing.md)
             }
 
-            if seasonBadges.isEmpty {
-                Text(Copy.progress.seasonBadgesEmpty)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .padding(.vertical, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
+        .padding(.bottom, Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         .zanoCard(radius: Theme.Radius.medium)

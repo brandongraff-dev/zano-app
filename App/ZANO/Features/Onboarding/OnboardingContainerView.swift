@@ -45,6 +45,11 @@
 // fill is blue with a soft glow, and advancing a step ticks a soft haptic. The "Step N of 7"
 // element is unchanged (the star is hidden from VoiceOver so it adds no second element).
 //
+// Visual pass 2 (2026-10-03, founder: "make it more playful"): the flow plays like a game's
+// character select. The header is a charge meter (seven power cells ending in the star), the
+// backdrop is the shared aurora, and the star is a guide character with a speech bubble on the
+// question steps (`OnboardingPlayKit.swift`). Flow, steps, analytics and plan saving are unchanged.
+//
 // Order note (decision 2026-09-23, kept): the hard paywall sits directly after the commitment (the
 // plan step's hold), so nothing sits between the peak and the payment ask, and the first win comes
 // after it. File names keep their older numbers.
@@ -158,8 +163,10 @@ struct OnboardingScaffold<Content: View>: View {
                     .accessibilityLabel(progressLabel)
             }
         }
+        // Visual pass 2: the flow sits in the shared aurora room (drifting arcade light, paused
+        // off-screen, still under Reduce Motion), warming as the charge builds.
         .background {
-            OnboardingKit.Ambient(progress: flowState.progressFraction)
+            ZanoAuroraBackground(state: .progress(flowState.progressFraction))
                 .ignoresSafeArea()
         }
         // A soft tick each time the star takes on charge (forward only; Back is silent).
@@ -169,61 +176,31 @@ struct OnboardingScaffold<Content: View>: View {
         .preferredColorScheme(.dark)
     }
 
-    /// [back 44pt][living star][progress bar]. The back glyph is centered in its 44pt target, which puts the
-    /// chevron's visible edge on the same 16pt margin the cards below use; the bar's trailing edge
-    /// is on that margin too.
+    /// [back 44pt][charge meter: seven power cells ending in the star]. Visual pass 2 (2026-10-03):
+    /// the thin progress line became the charge meter (`OnboardingPlayKit.swift`), which carries
+    /// the same "Step N of 7" accessibility element the UI tests wait on.
     private var header: some View {
         HStack(spacing: Theme.Spacing.xxs) {
             Button {
                 flowState.goBack()
             } label: {
                 Image(systemName: "chevron.backward")
-                    .font(Theme.Typography.icon(.medium))
-                    .foregroundStyle(Theme.Colors.muted)
+                    .font(Theme.Typography.icon(.medium, weight: .bold))
+                    .foregroundStyle(Theme.Colors.textSecondary)
                     .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pressable(scale: 0.92))
             .accessibilityLabel(Copy.onboarding.backButtonAccessibilityLabel)
 
-            // The star charges with every answer. Decorative here: the progress bar's
-            // "Step N of 7" element already says where the user is.
-            ZanoLivingMark(charge: flowState.progressFraction, height: OnboardingKit.headerStarHeight)
-                .padding(.trailing, Theme.Spacing.xs)
-                .accessibilityHidden(true)
-
-            progressBar
-                .padding(.trailing, Theme.Spacing.md)
+            OnboardingChargeMeter(
+                step: flowState.currentScreen,
+                total: OnboardingFlowState.lastScreen,
+                accessibilityText: progressLabel
+            )
+            .padding(.trailing, Theme.Spacing.md)
         }
         .frame(height: Theme.Metrics.minTapTarget)
-    }
-
-    private var progressBar: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Theme.Colors.track)
-                // ZANO Blue, brightening toward its leading edge, with a soft glow: the charge
-                // the star in front of it is taking on.
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.Colors.accent.opacity(0.55), Theme.Colors.accent],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .shadow(color: Theme.Colors.accent.opacity(0.55), radius: 4)
-                    .frame(width: max(0, proxy.size.width * flowState.progressFraction))
-                    .animation(
-                        reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill,
-                        value: flowState.progressFraction
-                    )
-            }
-        }
-        .frame(height: OnboardingKit.progressBarHeight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(progressLabel)
     }
 }
 

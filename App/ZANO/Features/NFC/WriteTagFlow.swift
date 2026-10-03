@@ -182,7 +182,8 @@ struct WriteTagFlow: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Theme.Colors.accent)
                 } else if active {
-                    ProgressView()
+                    // Qualified: the app's own `ProgressView` screen shadows SwiftUI's spinner.
+                    SwiftUI.ProgressView()
                         .controlSize(.small)
                         .tint(Theme.Colors.accent)
                 } else {

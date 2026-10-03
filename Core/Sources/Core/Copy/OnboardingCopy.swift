@@ -51,7 +51,7 @@ extension Copy {
         // MARK: - Screen 4: Q2 app selection (spec §7.4)
 
         public static let q2Title = "Which apps steal your time?"
-        public static let q2Subtitle = "Pick the apps and sites you want locked until you've earned them back."
+        public static let q2Subtitle = "Pick the apps you'll earn back. They never leave this phone."
         public static let q2PickerButtonLabel = "Choose apps"
 
         /// Reuses `Copy.lockSetup.selectionSummary` so apps, categories and websites are counted
@@ -182,7 +182,7 @@ extension Copy {
         }
 
         public static func planGoalStartingDetail(current: Int, target: Int, unit: String) -> String {
-            "Starting at \(current) \(unit) · target \(target) \(unit)"
+            "\(current) \(unit) to start, building to \(target)"
         }
 
         /// Spec §7.10's example was "Built for you in 2:14." — a constant, so every user "built"

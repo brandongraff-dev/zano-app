@@ -159,6 +159,21 @@
 //   - Streak: "14 days" as a 48pt condensed numeral. With no earned day yet the calendar collapses
 //     to the current week under a guidance line, instead of 28 grey cells.
 
+// PLAYFUL PASS (2026-10-03, visual direction v2 second pass; founder: "make it more playful").
+// Visual only — every `@Query`, derivation rule, hook and analytics event above is unchanged:
+//   - Hero = an arcade score: the lifetime number, a "+16h 15m in 7 days" chip, and the week as
+//     candy-coloured pills (goal-ring hues, earned days only) that spring up once
+//     (`ProgressCandyBars`, Components/ProgressArcade.swift). The how-it-counts sentence and the
+//     first-week "what shows up here" list moved into an info button.
+//   - Streak = an ember flame + score numeral with best/freezes as chips, and the calendar as a
+//     sticker grid: earned days are tilted ember stickers with a flame (`ProgressStickerCell`).
+//   - Rank = a collectible hexagon medal (`RankMedal`, RankCard.swift).
+//   - Trophy Case = a shelf with badges standing on it; the whole card is the link.
+//   - The Gym Home Turf link is removed from this screen (the leaderboard is hidden for v1; the
+//     `GymLeaderboardView` code and its copy stay for later).
+//   - iPhone SE (320pt): streak chips and rank footer re-flow onto their own rows instead of
+//     squeezing the numerals.
+
 // ASSUMED API (design pass) — `Copy.share.shareButtonTitle` ("Share this", `ShareCopy.swift`) and
 // `WeeklyRecapShareView(recap:goalTitles:rankTierLabel:onDismiss:)` (`Features/Share`), both read in
 // full on disk before use. Not compiler-verified (no Mac).
@@ -241,34 +256,17 @@ struct ProgressView: View {
     /// first finished lock it explains what will be counted instead of shouting a grey "0m".
     private var timeReclaimedHero: some View {
         let minutes = lifetimeReclaimedMinutes
-        let week = last7DaysReclaim
-        let weekMinutes = week.reduce(0) { $0 + $1.minutes }
         let hasHistory = minutes > 0
-        let isFirstWeek = !hasEndedLock
         return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            HStack(spacing: Theme.Spacing.xs) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(hasHistory ? Theme.Colors.accent : Theme.Colors.muted)
-                    .accessibilityHidden(true)
-                ProgressEyebrow(text: Copy.progress.timeReclaimedTitle)
-            }
+            heroHeader(hasHistory: hasHistory)
 
             if hasHistory {
                 NumeralText(Copy.progress.duration(minutes: minutes), size: .hero, color: Theme.Colors.accent)
-                    .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: minutes)
+                    .contentTransition(.numericText(value: Double(minutes)))
+                    .animation(reduceMotion ? nil : Theme.Motion.springPop, value: minutes)
                     // "4 hours 10 minutes", not "4h 10m" (which VoiceOver reads as letters).
                     .accessibilityLabel(Copy.progress.spokenDuration(minutes: minutes))
-
-                Text(weekMinutes > 0
-                     ? Copy.progress.last7DaysReclaimedLabel(duration: Copy.progress.duration(minutes: weekMinutes))
-                     : Copy.progress.last7DaysEmptyLabel)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(weekMinutes > 0
-                        ? Copy.progress.last7DaysReclaimedLabel(duration: Copy.progress.spokenDuration(minutes: weekMinutes))
-                        : Copy.progress.last7DaysEmptyLabel)
+                weekLine
             } else {
                 // Day 1: the number is an honest, quiet 0 (muted, not accent: nothing is earned
                 // yet), and the line under it says what fills it.
@@ -280,21 +278,57 @@ struct ProgressView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if isFirstWeek {
-                // No lock has ever ended: seven bars of nothing would read as a broken chart, so the
-                // strip becomes the week ahead (today first) and a short preview of this screen.
-                ProgressFirstWeekDots(startingAt: Calendar.current.startOfDay(for: .now))
-                    .padding(.top, Theme.Spacing.sm)
-                ProgressComingUpList()
-                    .padding(.top, Theme.Spacing.xs)
-            } else {
-                ProgressWeekBars(days: week, accessibilityText: last7DaysAccessibilityText)
-                    .padding(.top, Theme.Spacing.sm)
-            }
+            heroChart
+                .padding(.top, Theme.Spacing.sm)
         }
         .padding(Theme.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zanoHero(radius: Theme.Radius.large, tint: hasHistory ? Theme.Colors.accent : nil, active: hasHistory)
+    }
+
+    private func heroHeader(hasHistory: Bool) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(hasHistory ? Theme.Colors.accent : Theme.Colors.muted)
+                .accessibilityHidden(true)
+            ProgressEyebrow(text: Copy.progress.timeReclaimedTitle)
+            Spacer(minLength: 0)
+            ZanoInfoButton(
+                Copy.progress.timeReclaimedInfo,
+                accessibilityLabel: Copy.progress.timeReclaimedInfoAccessibilityLabel
+            )
+        }
+    }
+
+    /// "+16h 15m in 7 days" as a chip (a score delta), or the quiet sentence when the week is empty.
+    @ViewBuilder
+    private var weekLine: some View {
+        let weekMinutes = last7DaysReclaim.reduce(0) { $0 + $1.minutes }
+        if weekMinutes > 0 {
+            ZanoGlassChip(
+                Copy.progress.last7DaysChip(duration: Copy.progress.duration(minutes: weekMinutes)),
+                systemImage: "arrow.up.right",
+                tint: Theme.Colors.Ring.steps
+            )
+            .accessibilityLabel(Copy.progress.last7DaysReclaimedLabel(duration: Copy.progress.spokenDuration(minutes: weekMinutes)))
+        } else {
+            Text(Copy.progress.last7DaysEmptyLabel)
+                .font(Theme.Typography.body)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// No lock has ever ended: seven bars of nothing would read as a broken chart, so the strip
+    /// becomes the week ahead (today first). Otherwise the candy week.
+    @ViewBuilder
+    private var heroChart: some View {
+        if hasEndedLock {
+            ProgressCandyBars(bars: last7DaysReclaim.map(\.candyBar), accessibilityText: last7DaysAccessibilityText)
+        } else {
+            ProgressFirstWeekDots(startingAt: Calendar.current.startOfDay(for: .now))
+        }
     }
 
     /// Any lock has ever ended (however it ended). `false` is the first-week state.
@@ -336,7 +370,8 @@ struct ProgressView: View {
                 minutes: minutesByDay[day] ?? 0,
                 isToday: offset == 0,
                 isEarned: earned.contains(day),
-                initial: symbols.indices.contains(weekdayIndex) ? symbols[weekdayIndex] : ""
+                initial: symbols.indices.contains(weekdayIndex) ? symbols[weekdayIndex] : "",
+                weekdayIndex: weekdayIndex
             )
         }
     }
@@ -370,13 +405,13 @@ struct ProgressView: View {
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .zanoCard(radius: Theme.Radius.medium)
+            .zanoCard(radius: Theme.Radius.medium, tint: (currentStreak?.current ?? 0) > 0 ? Theme.Colors.ember : nil)
         }
     }
 
-    /// The streak as a number: flame + `numeralLarge`, with best and freezes beside it (they belong
-    /// with the number they summarise, not under a grid). The old `StreakPill` was a 17pt capsule;
-    /// `RecapCard` still uses it, where it is chrome. Frozen-day state isn't recorded per day in
+    /// The streak as a score: an ember flame that bounces when the count moves, the count in the
+    /// score face, and best + freezes as chips on their own row (they used to sit in a trailing
+    /// column that squeezed the number on iPhone SE). Frozen-day state isn't recorded per day in
     /// `Streak`, so nothing here pretends to show it.
     private var streakHeader: some View {
         let current = currentStreak?.current ?? 0
@@ -388,45 +423,13 @@ struct ProgressView: View {
         // first day of the streak, it just hasn't been earned yet.
         let isDayOne = current == 0 && earnedDays.isEmpty
 
-        return HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-            // Lit while a streak is running, a muted outline when it is not — the disc swaps
-            // flame <-> flame.fill and accent <-> muted on the shared icon-swap spring.
-            IconBadge(
-                systemName: current > 0 ? "flame.fill" : "flame",
-                tint: current > 0 ? Theme.Colors.accent : Theme.Colors.muted
-            )
-
-            if isDayOne {
-                Text(Copy.progress.streakDayOne)
-                    .font(Theme.Typography.numeral(size: 40, weight: .heavy))
-                    .foregroundStyle(Theme.Colors.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            } else {
-                NumeralText(
-                    Copy.progress.streakValue(days: current),
-                    size: .large,
-                    color: current > 0 ? Theme.Colors.text : Theme.Colors.muted
-                )
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                streakFlame(isLit: current > 0, current: current)
+                streakCount(current: current, isDayOne: isDayOne)
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: Theme.Spacing.sm)
-
-            VStack(alignment: .trailing, spacing: Theme.Spacing.xxs) {
-                Text(bestLabel)
-                HStack(spacing: Theme.Spacing.xxs) {
-                    // Freeze = the water hue + snowflake, the same "protected" vocabulary
-                    // `StreakPill` uses for a frozen day.
-                    Image(systemName: "snowflake")
-                        .font(Theme.Typography.icon(.small))
-                        .foregroundStyle(Theme.Colors.Ring.water)
-                        .accessibilityHidden(true)
-                    Text(freezesLabel)
-                }
-            }
-            .font(Theme.Typography.caption)
-            .foregroundStyle(Theme.Colors.muted)
-            .multilineTextAlignment(.trailing)
+            streakChips(bestLabel: bestLabel, freezesLabel: freezesLabel)
         }
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: current)
         .accessibilityElement(children: .ignore)
@@ -435,6 +438,49 @@ struct ProgressView: View {
                 ? "\(Copy.progress.streakDayOneAccessibility) \(freezesLabel)"
                 : "\(Copy.progress.streakSectionTitle) \(current). \(bestLabel). \(freezesLabel)"
         )
+    }
+
+    private func streakFlame(isLit: Bool, current: Int) -> some View {
+        Image(systemName: isLit ? "flame.fill" : "flame")
+            .font(.system(size: 34, weight: .bold))
+            .foregroundStyle(isLit ? Theme.Colors.ember : Theme.Colors.muted)
+            .frame(width: 56, height: 56)
+            .background(Theme.Colors.ember.opacity(isLit ? 0.18 : 0.06), in: Circle())
+            .shadow(color: isLit ? Theme.Colors.ember.opacity(0.5) : .clear, radius: 12)
+            .symbolEffect(.bounce, value: current)
+    }
+
+    @ViewBuilder
+    private func streakCount(current: Int, isDayOne: Bool) -> some View {
+        if isDayOne {
+            Text(Copy.progress.streakDayOne)
+                .font(Theme.Typography.score(size: 36))
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        } else {
+            NumeralText(
+                Copy.progress.streakValue(days: current),
+                size: .large,
+                color: current > 0 ? Theme.Colors.text : Theme.Colors.muted
+            )
+            .contentTransition(.numericText(value: Double(current)))
+        }
+    }
+
+    private func streakChips(bestLabel: String, freezesLabel: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.xs) {
+                ZanoGlassChip(bestLabel, systemImage: "trophy.fill", tint: Theme.Colors.Ring.sunriseAlarm)
+                // Freeze = the water hue + snowflake, the same "protected" vocabulary `StreakPill`
+                // uses for a frozen day.
+                ZanoGlassChip(freezesLabel, systemImage: "snowflake", tint: Theme.Colors.Ring.water)
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                ZanoGlassChip(bestLabel, systemImage: "trophy.fill", tint: Theme.Colors.Ring.sunriseAlarm)
+                ZanoGlassChip(freezesLabel, systemImage: "snowflake", tint: Theme.Colors.Ring.water)
+            }
+        }
     }
 
     /// The set of calendar days (local midnight) that had at least one earned unlock — the exact
@@ -455,8 +501,9 @@ struct ProgressView: View {
 
     // MARK: - Rank, season, monthly challenge, Gym Home Turf (spec §5.8, §5.9)
 
-    /// Everything here is local (no network): rank and challenge from `SeasonsAndRanks`, the gym
-    /// board's own offline state inside `GymLeaderboardView`.
+    /// Everything here is local (no network): rank and challenge from `SeasonsAndRanks`. The Gym
+    /// Home Turf link that used to close this section is gone for v1 (leaderboard hidden); the
+    /// `GymLeaderboardView` screen itself is kept.
     @ViewBuilder
     private var rankSection: some View {
         if let rankStatus {
@@ -469,38 +516,9 @@ struct ProgressView: View {
                         MonthlyChallengeCard(progress: challengeProgress)
                     }
                     SeasonBadgeRow(badges: badges, season: rankStatus.season, currentRank: rankStatus.rank)
-                    gymBoardLink
                 }
             }
         }
-    }
-
-    private var gymBoardLink: some View {
-        NavigationLink {
-            GymLeaderboardView()
-        } label: {
-            HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "dumbbell.fill", tint: Theme.Colors.textSecondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(Copy.progress.gymBoardRowTitle)
-                        .zanoText(.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                    Text(Copy.progress.gymBoardRowSubtitle)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.forward")
-                    .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(Theme.Colors.muted)
-                    .accessibilityHidden(true)
-            }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .zanoCard(radius: Theme.Radius.medium)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
     }
 
     /// Banks any finished season's / cleared month's badge (idempotent), then reads the live
@@ -517,44 +535,27 @@ struct ProgressView: View {
 
     // MARK: - Badges / Trophy Case (spec §5.17)
 
-    /// The label doubles as a `NavigationLink` into the full, dedicated Trophy Case screen
-    /// (`TrophyCaseView`). The strip below shows every earned badge (newest first) and then the
-    /// spec §5.17 milestones not yet earned, so it is never empty and always says what is next.
+    /// The Trophy Case entry as a shelf (`ProgressTrophyShelf`): the whole card is the link into
+    /// the full Trophy Case. Up to four badges stand on it, earned first, then the spec §5.17
+    /// milestones not yet earned as locked silhouettes, so it is never empty.
     private var badgesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            NavigationLink {
-                TrophyCaseView()
-            } label: {
-                ProgressSectionLabel(text: Copy.progress.badgesSectionTitle, showsChevron: true)
-            }
-            .buttonStyle(PressableStyle())
-
-            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                if badges.isEmpty {
-                    Text(Copy.progress.badgesEmptyMessage)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .padding(.horizontal, Theme.Spacing.md)
-                }
-
-                // The scroller spans the whole card width (inset applied to its content), so tiles
-                // slide under the card edge and the next one peeks — the cue that there's more.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                        ForEach(trophyEntries) { entry in
-                            ProgressTrophyTile(entry: entry)
-                        }
-                    }
-                    .padding(.horizontal, Theme.Spacing.md)
-                }
-            }
-            .padding(.vertical, Theme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // The strip scrolls edge to edge, so clip it to the card's own corner before the card
-            // surface (and its edge) is drawn behind it — clipping after would cut the edge.
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            .zanoCard(radius: Theme.Radius.medium)
+        let earnedKeys = Set(badges.map(\.key))
+        let milestones = TrophyMilestone.milestoneKeys
+        let earnedMilestones = milestones.filter { earnedKeys.contains($0) }.count
+        return NavigationLink {
+            TrophyCaseView()
+        } label: {
+            ProgressTrophyShelf(
+                title: Copy.progress.badgesSectionTitle,
+                countText: Copy.progress.trophyShelfCount(earned: earnedMilestones, total: milestones.count),
+                items: trophyEntries.map { ProgressShelfItem(id: $0.id, key: $0.key, isEarned: $0.isEarned) }
+            )
         }
+        .buttonStyle(PressableStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.progress.trophyShelfAccessibility(earned: earnedMilestones, total: milestones.count))
+        .accessibilityHint(badges.isEmpty ? Copy.progress.badgesEmptyMessage : Copy.progress.trophyShelfHint)
+        .accessibilityAddTraits(.isButton)
     }
 
     /// Earned badges first (every one, including per-occurrence `comeback_*` keys — nothing earned
@@ -664,30 +665,16 @@ struct ProgressView: View {
 
 // MARK: - Screen-local primitives
 //
-// What the shared design system does not express: this screen's section labels, the 7-day bars, the
-// calendar-aligned streak grid and the trophy strip. Everything else (cards, numerals, badges, press
+// What the shared design system does not express: this screen's section labels, the first-week dots,
+// the calendar-aligned streak grid. The candy bars, sticker cells, rank medal and trophy shelf live in
+// Components/ProgressArcade.swift. Everything else (cards, numerals, badges, press
 // feedback, the secondary button) is `Core`'s — see the CONSOLIDATION PASS note in this file's header.
 
 private enum ProgressMetrics {
-    /// Trophy tile: circle diameter and tile width (wide enough for a two-line title at 13pt).
-    static let trophyDiameter: CGFloat = 56
-    static let trophyTileWidth: CGFloat = 84
     /// More recap rings than this and the row drops per-goal hues for the one-accent scheme.
     static let denseRecapRingCount = 4
-    /// 7-day strip: bar width, and the tallest/shortest bar.
-    static let barWidth: CGFloat = 22
-    static let barMaxHeight: CGFloat = 52
-    /// The shortest bar a day with ANY reclaimed time gets, so a 3-minute day never looks like a
-    /// zero day.
-    static let barMinHeight: CGFloat = 10
-    /// A zero day: a flat baseline stub, visibly not a bar.
-    static let barZeroHeight: CGFloat = 3
     /// First-week dots: diameter.
     static let firstWeekDotDiameter: CGFloat = 22
-    /// Streak grid: cell aspect (wider than tall keeps four rows compact) and the concentric corner
-    /// radius — a `.medium` card holding cells at `Spacing.md` inset (20 - 16 = 4).
-    static let cellAspect: CGFloat = 1.4
-    static let cellRadius: CGFloat = Theme.Radius.inner(of: Theme.Radius.medium, inset: Theme.Spacing.md)
 }
 
 /// The hero's small sentence-case label ("Time reclaimed") in the shared eyebrow style. It is a
@@ -742,59 +729,20 @@ private struct ProgressDayReclaim: Identifiable, Equatable {
     let isEarned: Bool
     /// Localized very-short weekday symbol ("M", "T", ...) from `Calendar`, not copy.
     let initial: String
+    /// `Calendar.component(.weekday) - 1` (0 = Sunday): picks the day's candy colour.
+    let weekdayIndex: Int
 
     var id: Date { day }
-}
 
-/// Seven bars, oldest to today, with weekday initials underneath. A day with an earned unlock is the
-/// accent (blue means earned); every other day, including locked time that ended another way, is
-/// `track`; a zero day is a flat 3pt baseline stub, so the strip reads as seven days and a zero is
-/// unmistakable. Today's initial is `text`.
-///
-/// Scaling (empty-states pass 2026-09-24): heights are linear in `minutes / busiest day`, into a
-/// fixed-height plot so every column shares one baseline. The screenshot demo's equal bars were the
-/// DATA (every demo day is the same 7 AM - 11 AM lock, 240 min), not this view; what the view did
-/// get wrong was the floor: a 1-minute day and a zero day were both the 6pt minimum and looked
-/// identical. Non-zero days now start at 10pt and zero days are a 3pt stub.
-private struct ProgressWeekBars: View {
-    let days: [ProgressDayReclaim]
-    let accessibilityText: String
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var maxMinutes: Int { max(days.map(\.minutes).max() ?? 0, 1) }
-
-    private func barHeight(for day: ProgressDayReclaim) -> CGFloat {
-        guard day.minutes > 0 else { return ProgressMetrics.barZeroHeight }
-        let fraction = CGFloat(day.minutes) / CGFloat(maxMinutes)
-        return max(ProgressMetrics.barMinHeight, fraction * ProgressMetrics.barMaxHeight)
-    }
-
-    private func barFill(for day: ProgressDayReclaim) -> Color {
-        day.isEarned && day.minutes > 0 ? Theme.Colors.accent : Theme.Colors.track
-    }
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: Theme.Spacing.xs) {
-            ForEach(days) { day in
-                VStack(spacing: Theme.Spacing.xxs) {
-                    // A fixed-height plot per column, bar pinned to its floor: every bar grows up
-                    // from the same baseline whatever the label row does.
-                    Capsule()
-                        .fill(barFill(for: day))
-                        .frame(width: ProgressMetrics.barWidth, height: barHeight(for: day))
-                        .frame(height: ProgressMetrics.barMaxHeight, alignment: .bottom)
-                    Text(day.initial)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(day.isToday ? Theme.Colors.text : Theme.Colors.muted)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .frame(minHeight: ProgressMetrics.barMaxHeight)
-        .animation(reduceMotion ? nil : Theme.Motion.ringFill, value: days.map(\.minutes))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
+    var candyBar: ProgressCandyBar {
+        ProgressCandyBar(
+            id: day,
+            minutes: minutes,
+            isToday: isToday,
+            isEarned: isEarned,
+            initial: initial,
+            weekdayIndex: weekdayIndex
+        )
     }
 }
 
@@ -853,41 +801,6 @@ private struct ProgressFirstWeekDots: View {
     }
 }
 
-/// What this screen will show once there is data, as three quiet rows inside a recessed well: the
-/// preview that replaces a first-week user's empty chart. Icons are identifiers, not copy.
-private struct ProgressComingUpList: View {
-    private let rows: [(icon: String, text: String)] = [
-        ("chart.bar.fill", Copy.progress.firstWeekComingUpDaily),
-        ("flame", Copy.progress.firstWeekComingUpStreak),
-        ("square.and.arrow.up", Copy.progress.firstWeekComingUpRecap),
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(Copy.progress.firstWeekComingUpTitle)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
-                .accessibilityAddTraits(.isHeader)
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: Theme.Spacing.sm) {
-                    Image(systemName: row.icon)
-                        .font(Theme.Typography.icon(.small))
-                        .foregroundStyle(Theme.Colors.muted)
-                        .frame(width: Theme.Spacing.lg)
-                        .accessibilityHidden(true)
-                    Text(row.text)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoWell()
-    }
-}
-
 /// A 4-week, calendar-aligned streak grid: weekday header, four Monday-to-Sunday (locale first
 /// weekday) rows ending with the current week. Earned days are an `accentWash` cell with a check; the
 /// streak's head (the latest earned day, if it's today or yesterday) is the one solid accent cell
@@ -903,7 +816,7 @@ private struct ProgressStreakGrid: View {
     private var today: Date { calendar.startOfDay(for: .now) }
 
     private let columns = Array(
-        repeating: GridItem(.flexible(), spacing: Theme.Spacing.xxs),
+        repeating: GridItem(.flexible(), spacing: Theme.Spacing.xs),
         count: 7
     )
 
@@ -937,7 +850,7 @@ private struct ProgressStreakGrid: View {
         return latest
     }
 
-    private func kind(for day: Date, headDay: Date?, today: Date) -> ProgressStreakCell.Kind {
+    private func kind(for day: Date, headDay: Date?, today: Date) -> ProgressStickerCell.Kind {
         if day > today { return .future }
         if day == headDay { return .head }
         if earnedDays.contains(day) { return .earned }
@@ -962,71 +875,15 @@ private struct ProgressStreakGrid: View {
                 }
             }
 
-            LazyVGrid(columns: columns, spacing: Theme.Spacing.xxs) {
-                ForEach(days, id: \.self) { day in
-                    ProgressStreakCell(kind: kind(for: day, headDay: headDay, today: today))
+            LazyVGrid(columns: columns, spacing: Theme.Spacing.xs) {
+                ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                    ProgressStickerCell(kind: kind(for: day, headDay: headDay, today: today), index: index)
                 }
             }
         }
         .accessibilityElement(children: .ignore)
         // "12 of 28 days earned": days with an earned unlock out of the days shown so far.
         .accessibilityLabel(Text(Copy.progress.streakCalendarAccessibilityLabel(earned: earnedCount, total: counted.count)))
-    }
-}
-
-/// One day cell in `ProgressStreakGrid`. Pure state -> paint; the glow is static (never animated).
-/// Earned is the on-hue `accentWash` with an `accentDim` edge and an accent check; only the head cell
-/// is a solid blue fill — `accentFill` with a white `onAccent` check (5.27:1), the same fill/label
-/// pair as `PrimaryButton` — so the brand's scarcest colour is spent on one cell, not 28.
-private struct ProgressStreakCell: View {
-    enum Kind { case head, earned, today, missed, future }
-
-    let kind: Kind
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: ProgressMetrics.cellRadius, style: .continuous)
-        shape
-            .fill(fill)
-            .overlay { cellEdge(shape) }
-            .overlay {
-                switch kind {
-                case .head:
-                    Image(systemName: "checkmark")
-                        .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                        .foregroundStyle(Theme.Colors.onAccent)
-                case .earned:
-                    Image(systemName: "checkmark")
-                        .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                        .foregroundStyle(Theme.Colors.accent)
-                case .today, .missed, .future:
-                    EmptyView()
-                }
-            }
-            .shadow(color: Theme.Colors.accent.opacity(kind == .head ? 0.45 : 0), radius: 8)
-            .aspectRatio(ProgressMetrics.cellAspect, contentMode: .fit)
-    }
-
-    private var fill: Color {
-        switch kind {
-        case .head: Theme.Colors.accentFill
-        case .earned: Theme.Colors.accentWash
-        case .today, .missed: Theme.Colors.track
-        case .future: Color.clear
-        }
-    }
-
-    @ViewBuilder
-    private func cellEdge(_ shape: RoundedRectangle) -> some View {
-        switch kind {
-        case .today:
-            shape.strokeBorder(Theme.Colors.textSecondary, lineWidth: Theme.Metrics.selectedStroke)
-        case .earned:
-            shape.strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
-        case .future:
-            shape.strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-        case .head, .missed:
-            EmptyView()
-        }
     }
 }
 
@@ -1037,43 +894,6 @@ private struct ProgressTrophyEntry: Identifiable {
     let earnedAt: Date?
 
     var isEarned: Bool { earnedAt != nil }
-}
-
-/// One tile in the trophy strip: the shared `TrophyBadgeDisc` (silver when earned, an empty
-/// hairline socket with the milestone's own glyph and a lock badge when not — the same disc as the
-/// Trophy Case) over its title. Title stays `muted` (5.6:1) when locked, not dimmed: the name of
-/// the thing to earn is the content.
-private struct ProgressTrophyTile: View {
-    let entry: ProgressTrophyEntry
-
-    private var title: String { Copy.badges.title(forKey: entry.key) }
-
-    var body: some View {
-        VStack(spacing: Theme.Spacing.xs) {
-            TrophyBadgeDisc(
-                isEarned: entry.isEarned,
-                glyph: .forKey(entry.key),
-                diameter: ProgressMetrics.trophyDiameter
-            )
-
-            Text(title)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(entry.isEarned ? Theme.Colors.text : Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(width: ProgressMetrics.trophyTileWidth)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-    }
-
-    private var accessibilityText: Text {
-        if let earnedAt = entry.earnedAt {
-            return Text("\(title), \(Copy.badges.earnedOnLabel(date: earnedAt))")
-        }
-        return Text("\(title), \(Copy.trophyCase.lockedAccessibilityHint)")
-    }
 }
 
 #Preview {

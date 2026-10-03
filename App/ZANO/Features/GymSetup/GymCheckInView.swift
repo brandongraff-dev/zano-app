@@ -15,6 +15,10 @@
 // "Can't verify? Check in manually" (`ManualCheckInSheet`) is available in every state that isn't
 // already complete.
 //
+// Pass 2 (2026-10-03, "make it more playful"): the dwell is an arcade charge meter
+// (`GymChargeMeter`, `GymArcade.swift`) in the workout volt instead of a ring; "no gym" shows the
+// pin sticker; verified fills the meter, pops it with a charge burst and bounces the seal.
+//
 // No `NavigationStack` of its own — it's pushed.
 
 import SwiftUI
@@ -172,7 +176,7 @@ public struct GymCheckInView: View {
         case .dwelling(let enteredAt):
             dwellingState(enteredAt: enteredAt)
         case .leftEarly(let minutes):
-            ringHero(progress: Double(minutes) / Double(max(targetMinutes, 1)), color: Theme.Colors.muted, minutes: minutes)
+            ringHero(progress: Double(minutes) / Double(max(targetMinutes, 1)), color: Theme.Colors.muted, minutes: minutes, isCharging: false)
             statusText(
                 title: Copy.gym.leftEarlyTitle(minutes: minutes),
                 message: Copy.gym.leftEarlyMessage(target: targetMinutes)
@@ -187,21 +191,22 @@ public struct GymCheckInView: View {
 
     private var noGymState: some View {
         VStack(spacing: Theme.Spacing.lg) {
-            IconBadge(systemName: "mappin.and.ellipse", tint: Theme.Colors.accent, size: .large)
-                .padding(.top, Theme.Spacing.xl)
+            GymPinHero()
+                .padding(.top, Theme.Spacing.lg)
             statusText(title: Copy.gym.noGymTitle, message: Copy.gym.noGymMessage)
         }
     }
 
     private var awayState: some View {
         VStack(spacing: Theme.Spacing.lg) {
-            ZanoStatusCapsule(dotColor: Theme.Colors.muted, text: gymName)
-            GoalRing(
+            ZanoStatusCapsule(dotColor: Theme.Colors.muted, text: gymName, systemImage: "mappin")
+            GymChargeMeter(
                 progress: 0,
-                color: Theme.Colors.accent,
-                size: .custom(220),
-                center: .icon(systemName: "figure.strengthtraining.traditional"),
-                label: Copy.gym.ringLabel
+                minutes: nil,
+                targetMinutes: targetMinutes,
+                tint: Theme.Colors.Ring.workout,
+                isCharging: false,
+                accessibilityLabel: Copy.gym.ringLabel
             )
             statusText(title: Copy.gym.headTo(gym: gymName), message: Copy.gym.awayMessage)
             startNoteView
@@ -210,15 +215,16 @@ public struct GymCheckInView: View {
 
     private func dwellingState(enteredAt: Date) -> some View {
         VStack(spacing: Theme.Spacing.lg) {
-            ZanoStatusCapsule(dotColor: Theme.Colors.accent, text: Copy.gym.atGym(gymName))
+            ZanoStatusCapsule(dotColor: Theme.Colors.Ring.workout, text: Copy.gym.atGym(gymName), systemImage: "bolt.fill")
             // Minutes are derived from `enteredAt` locally so the ring moves between the service's
             // 30 s refreshes.
             TimelineView(.periodic(from: .now, by: 5)) { context in
                 let minutes = minutes(since: enteredAt, at: context.date)
                 ringHero(
                     progress: progress(since: enteredAt, at: context.date),
-                    color: Theme.Colors.accent,
-                    minutes: minutes
+                    color: Theme.Colors.Ring.workout,
+                    minutes: minutes,
+                    isCharging: true
                 )
             }
             TimelineView(.periodic(from: .now, by: 15)) { context in
@@ -233,14 +239,28 @@ public struct GymCheckInView: View {
 
     private func completeState(icon: String, title: String, detail: String, badge: String?) -> some View {
         VStack(spacing: Theme.Spacing.lg) {
-            ZStack {
-                GoalRing(progress: 1, color: Theme.Colors.accent, size: .custom(220), center: .none, label: title)
+            ZStack(alignment: .topTrailing) {
+                GymChargeMeter(
+                    progress: 1,
+                    minutes: nil,
+                    targetMinutes: targetMinutes,
+                    tint: Theme.Colors.Ring.workout,
+                    isCharging: false,
+                    accessibilityLabel: title
+                )
+                // The seal slapped on the full meter's corner.
                 Image(systemName: icon)
-                    .font(.system(size: 64, weight: .bold))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .font(.system(size: 30, weight: .black))
+                    .foregroundStyle(Theme.Colors.onFill)
+                    .frame(width: 64, height: 64)
+                    .background(Theme.Colors.Ring.workout, in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white, lineWidth: 3))
+                    .rotationEffect(.degrees(12))
+                    .offset(x: 8, y: -16)
                     .symbolEffect(.bounce, value: presence.verificationCount + manualTick)
                     .accessibilityHidden(true)
             }
+            .zanoChargeBurst(trigger: presence.verificationCount + manualTick, color: Theme.Colors.Ring.workout)
             .padding(.top, Theme.Spacing.md)
             statusText(title: title, message: detail)
             if let badge {
@@ -254,19 +274,16 @@ public struct GymCheckInView: View {
 
     // MARK: Pieces
 
-    private func ringHero(progress: Double, color: Color, minutes: Int) -> some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            GoalRing(
-                progress: progress,
-                color: color,
-                size: .custom(236),
-                center: .value("\(minutes)", unit: Copy.gym.minutesUnit),
-                label: Copy.gym.ringLabel
-            )
-            Text(Copy.gym.verifiesAt(minutes: targetMinutes))
-                .zanoText(.captionEmphasized)
-                .foregroundStyle(Theme.Colors.muted)
-        }
+    /// The dwell as a charge meter (see `GymArcade.swift`).
+    private func ringHero(progress: Double, color: Color, minutes: Int, isCharging: Bool) -> some View {
+        GymChargeMeter(
+            progress: progress,
+            minutes: minutes,
+            targetMinutes: targetMinutes,
+            tint: color,
+            isCharging: isCharging,
+            accessibilityLabel: Copy.gym.ringLabel
+        )
     }
 
     private func statusText(title: String, message: String) -> some View {
@@ -290,7 +307,7 @@ public struct GymCheckInView: View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: elevated ? "heart.fill" : "heart")
                 .font(Theme.Typography.icon(.small))
-                .foregroundStyle(elevated ? Theme.Colors.accent : Theme.Colors.muted)
+                .foregroundStyle(elevated ? Theme.Colors.Ring.creatine : Theme.Colors.muted)
                 .symbolEffect(.pulse, isActive: elevated && !reduceMotion)
                 .accessibilityHidden(true)
             Text(elevated ? Copy.gym.heartRateUp : Copy.gym.heartRateSteady)

@@ -8,10 +8,11 @@
 // `GoalEvent`s — no network, so the card is always live. The caller loads the `RankStatus` and
 // passes it in; this view only draws it.
 //
-// Design: the rank name is the numeral (compressed heavy face) filled with `metallic`, the earned
-// metal. The medal disc is the same `TrophyBadgeDisc` the Trophy Case uses (earned = silver). The
-// progress to the next rank is a thin accent bar under it, with the four weekly buckets as small
-// ticks beside the season line so "consistency" is visible, not just claimed.
+// Design (playful pass 2026-10-03, visual direction v2 second pass): the rank is a collectible.
+// A faceted hexagon medal in the tier's colour (`RankMedal`, Components/ProgressArcade.swift), the
+// rank name beside it in the tier colour, then a chunky meter toward the next tier with the four
+// weekly buckets as small pills. The explainer line moved into an info button; the season end is a
+// chip. On narrow screens (iPhone SE) and accessibility sizes the footer stacks instead of squeezing.
 
 import SwiftUI
 import Core
@@ -22,10 +23,11 @@ struct RankCard: View {
     let placementDaysLeft: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .largeTitle) private var rankSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .largeTitle) private var rankSize: CGFloat = 34
 
     private var consistencyPercent: Int { Int((status.consistency * 100).rounded()) }
     private var progressPercent: Int { Int((status.progressToNextRank * 100).rounded()) }
+    private var tint: Color { RankMedal.color(for: status.rank) }
 
     private var seasonLastDay: Date {
         Calendar.current.date(byAdding: .day, value: -1, to: status.season.endDate) ?? status.season.endDate
@@ -33,56 +35,73 @@ struct RankCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            HStack(alignment: .center, spacing: Theme.Spacing.md) {
-                TrophyBadgeDisc(
-                    isEarned: !status.isPlacement,
-                    systemImage: Self.glyph(for: status.rank),
-                    diameter: 56
-                )
-
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(Copy.progress.seasonLabel(quarter: status.season.quarter, year: status.season.year))
-                        .zanoText(.eyebrow)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .lineLimit(1)
-
-                    Text(Copy.progress.rankName(status.rank))
-                        .font(Theme.Typography.numeral(size: rankSize, weight: .heavy))
-                        .foregroundStyle(status.isPlacement ? AnyShapeStyle(Theme.Colors.textSecondary) : AnyShapeStyle(Theme.Colors.metallic))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-
-                Spacer(minLength: 0)
-
-                WeeklyTicks(values: status.weeklyConsistency)
-            }
-
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                progressBar
-                Text(progressLine)
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: Theme.Spacing.xs) {
-                    Text(Copy.progress.rankExplainer)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                    Text(Copy.progress.seasonEndsLabel(lastDay: seasonLastDay))
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .lineLimit(1)
-                }
-            }
+            topRow
+            meterRow
+            footer
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(radius: Theme.Radius.medium)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Copy.progress.rankConsistencyAccessibility(rank: status.rank, percent: consistencyPercent))
-        .accessibilityValue(progressLine)
+        .zanoCard(radius: Theme.Radius.medium, tint: status.isPlacement ? nil : tint)
+    }
+
+    private var topRow: some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.md) {
+            RankMedal(rank: status.rank, isPlacement: status.isPlacement)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(Copy.progress.seasonLabel(quarter: status.season.quarter, year: status.season.year))
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Text(Copy.progress.rankName(status.rank))
+                    .font(.system(size: rankSize, weight: .heavy, design: .rounded))
+                    .foregroundStyle(status.isPlacement ? Theme.Colors.textSecondary : tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.progress.rankConsistencyAccessibility(rank: status.rank, percent: consistencyPercent))
+            .accessibilityValue(progressLine)
+
+            Spacer(minLength: 0)
+
+            ZanoInfoButton(Copy.progress.rankExplainer, accessibilityLabel: Copy.progress.rankInfoAccessibilityLabel)
+        }
+    }
+
+    private var meterRow: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            progressBar
+            WeeklyTicks(values: status.weeklyConsistency, tint: status.isPlacement ? Theme.Colors.accent : tint)
+        }
+    }
+
+    private var footer: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.xs) {
+                progressText
+                Spacer(minLength: Theme.Spacing.xs)
+                endsChip
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                progressText
+                endsChip
+            }
+        }
+    }
+
+    private var progressText: some View {
+        Text(progressLine)
+            .font(Theme.Typography.captionEmphasized)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityHidden(true)
+    }
+
+    private var endsChip: some View {
+        ZanoGlassChip(Copy.progress.seasonEndsLabel(lastDay: seasonLastDay), systemImage: "hourglass", tint: Theme.Colors.muted)
     }
 
     private var progressLine: String {
@@ -91,17 +110,26 @@ struct RankCard: View {
         return Copy.progress.rankProgressLabel(percent: progressPercent, next: next)
     }
 
+    /// A chunky lit tube toward the next tier, in the tier's colour.
     private var progressBar: some View {
-        GeometryReader { proxy in
+        let fill = status.isPlacement ? Theme.Colors.accent : tint
+        return GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.Colors.surface2)
+                Capsule().fill(fill.opacity(0.18))
                 Capsule()
-                    .fill(Theme.Colors.accent)
-                    .frame(width: max(6, proxy.size.width * status.progressToNextRank))
-                    .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: status.progressToNextRank)
+                    .fill(fill)
+                    .overlay(alignment: .top) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.35))
+                            .frame(height: 3)
+                            .padding(.horizontal, 6)
+                            .padding(.top, 3)
+                    }
+                    .frame(width: max(14, proxy.size.width * status.progressToNextRank))
+                    .animation(reduceMotion ? nil : Theme.Motion.springPop, value: status.progressToNextRank)
             }
         }
-        .frame(height: 6)
+        .frame(height: 14)
         .accessibilityHidden(true)
     }
 
@@ -120,16 +148,17 @@ struct RankCard: View {
 /// Up to four small bars, oldest → newest: this user's own-cadence consistency per week.
 private struct WeeklyTicks: View {
     let values: [Double]
+    var tint: Color = Theme.Colors.accent
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 4) {
+        HStack(alignment: .bottom, spacing: 3) {
             ForEach(Array(values.enumerated()), id: \.offset) { _, value in
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(value >= 1 ? Theme.Colors.accent : Theme.Colors.hairlineStrong)
-                    .frame(width: 6, height: 8 + 20 * CGFloat(min(1, max(0, value))))
+                Capsule(style: .continuous)
+                    .fill(value >= 1 ? tint : Theme.Colors.hairlineStrong)
+                    .frame(width: 6, height: 8 + 16 * CGFloat(min(1, max(0, value))))
             }
         }
-        .frame(height: 28, alignment: .bottom)
+        .frame(height: 24, alignment: .bottom)
         .accessibilityHidden(true)
     }
 }

@@ -48,12 +48,8 @@ struct FinishTrialBanner: View {
             isPaywallPresented = true
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(Theme.Typography.icon(.small, weight: .bold))
-                    .foregroundStyle(Theme.Colors.accent)
-                    .frame(width: 32, height: 32)
-                    .background(Theme.Colors.accentWash, in: Circle())
-                    .accessibilityHidden(true)
+                // Visual pass 2: the same sticker language as onboarding and Settings.
+                OnboardingSticker(systemImage: "sparkles", tint: Theme.Colors.Ring.sunriseAlarm, size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(Copy.paywall.finishTrialBannerTitle)
                         .font(Theme.Typography.headline)

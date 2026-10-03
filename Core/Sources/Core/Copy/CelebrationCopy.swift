@@ -48,6 +48,10 @@ extension Copy {
             return "\(goalName) verified · \(detail)"
         }
 
+        /// The first chip under the stamp ("Workout verified"); the detail gets its own chip, so
+        /// the screen never shows the middle-dot sentence (`subline` stays as the spoken form).
+        public static func verifiedChip(goalName: String) -> String { "\(goalName) verified" }
+
         /// Spec §16 P3 verbatim shape: "a Time Bank bar filling to '2h 10m unlocked'" — the same
         /// wording `WidgetCopy.minutesRemaining(_:)` (`Core/Sources/Core/Copy/WidgetCopy.swift`)
         /// produces. Reimplemented here rather than calling that function: `WidgetCopy`'s own file
@@ -97,7 +101,7 @@ extension Copy {
 
 extension Copy.celebration {
     /// The reveal's eyebrow.
-    public static let surpriseEyebrow = "Surprise!"
+    public static let surpriseEyebrow = "Bonus round!"
     /// "+50 coins".
     public static func surpriseCoinsTitle(_ coins: Int) -> String { "+\(coins) coins" }
     public static let surpriseCoinsDetail = "For the Cosmetics Shop."

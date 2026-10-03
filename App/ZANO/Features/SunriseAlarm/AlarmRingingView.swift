@@ -72,6 +72,15 @@
 //     now sits beside the hold bar in one row, the explanation is a one-line footnote (the full
 //     text stays on the hold bar as its VoiceOver hint), and the dock's top padding is tighter.
 //
+//   * Pass 2 (2026-10-03, "make it more playful"): a sunrise arcade wake-up. A retro striped sun
+//     (`RetroSun`) rises behind the clock in sun -> ember -> pink and breathes with the existing
+//     pulse (opacity only, still under Reduce Motion); the clock is the arcade score face; the Tag
+//     prompt is a sun sticker with ripple rings that breathe on the same pulse (still under Reduce
+//     Motion); the card is sun-washed glass. Small phones (container under 700pt tall, e.g. SE):
+//     a smaller clock, a smaller tag glyph and tighter spacing so the task and snooze fit above the
+//     pinned escape dock. The escape hatch is unchanged in behaviour and still pinned; its idle
+//     label is now short ("Emergency off") so it no longer truncates beside the toggle.
+//
 // Copy: every string is a `Copy.alarmRinging.*` / `SunriseAlarmCopy.*` key. Numbers ("12", "/40",
 // "3:00") are formatted here the same way the previous version formatted them. Errors show fixed
 // Copy strings, never `error.localizedDescription`.
@@ -99,7 +108,10 @@ struct AlarmRingingView: View {
     /// length, so the size lives here as a Dynamic-Type-scaled metric. Migrate to a
     /// `Theme.Typography.numeralHero` if/when that token lands
     /// (docs/design/competitive-research.md §0 punch list #2).
-    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 88
+    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 84
+
+    /// The container is short (an SE-class phone): tighter layout. Set from the root geometry.
+    @State private var isCompact = false
 
     /// The 3-minute Focus-dismiss timer's total duration (spec §5.10: "3-minute journal/stretch
     /// timer").
@@ -147,7 +159,7 @@ struct AlarmRingingView: View {
             sunriseGlow
 
             ScrollView {
-                VStack(spacing: Theme.Spacing.lg) {
+                VStack(spacing: isCompact ? Theme.Spacing.md : Theme.Spacing.lg) {
                     header
                     variantContent
                     snoozeControl
@@ -159,7 +171,7 @@ struct AlarmRingingView: View {
                         .padding(.top, Theme.Spacing.xs)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, Theme.Spacing.xl)
+                .padding(.top, isCompact ? Theme.Spacing.sm : Theme.Spacing.xl)
                 .padding(.bottom, Theme.Spacing.lg)
                 .frame(maxWidth: .infinity)
             }
@@ -168,6 +180,15 @@ struct AlarmRingingView: View {
             // every viewport size (spec §5.10 point 6, CLAUDE.md "never trap the user").
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 escapeDock
+            }
+        }
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { isCompact = proxy.size.height < AlarmMetrics.compactHeight }
+                    .onChange(of: proxy.size.height) { _, height in
+                        isCompact = height < AlarmMetrics.compactHeight
+                    }
             }
         }
         .task { await loadDismissVariant() }
@@ -209,13 +230,22 @@ struct AlarmRingingView: View {
     /// animate blur or depth, and this animates neither. See `runPulseLoop()` for the matching gate
     /// on the animation that drives `isPulsing`.
     private var sunriseGlow: some View {
-        RadialGradient(
-            colors: [phase.tint, phase.tint.opacity(0)],
-            center: UnitPoint(x: 0.5, y: 0.2),
-            startRadius: 0,
-            endRadius: 460
-        )
-        .opacity(reduceMotion ? 0.22 : (isPulsing ? 0.32 : 0.10))
+        ZStack(alignment: .top) {
+            RadialGradient(
+                colors: [phase.tint, phase.tint.opacity(0)],
+                center: UnitPoint(x: 0.5, y: 0.2),
+                startRadius: 0,
+                endRadius: 460
+            )
+            .opacity(reduceMotion ? 0.22 : (isPulsing ? 0.32 : 0.10))
+
+            // The arcade sunrise: a striped retro sun rising behind the clock. Breathes with the
+            // same pulse (opacity only); held still under Reduce Motion.
+            RetroSun(tint: phase.tint)
+                .frame(width: AlarmMetrics.sunDiameter, height: AlarmMetrics.sunDiameter)
+                .offset(y: isCompact ? -AlarmMetrics.sunDiameter * 0.42 : -AlarmMetrics.sunDiameter * 0.28)
+                .opacity(reduceMotion ? 0.42 : (isPulsing ? 0.5 : 0.34))
+        }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -228,11 +258,11 @@ struct AlarmRingingView: View {
             phaseChip
 
             Text(now, format: .dateTime.hour().minute())
-                // The app's condensed numeral face (Nike-style), not SF Rounded.
-                .font(Theme.Typography.numeral(size: clockSize, weight: .heavy))
-                .tracking(-1)
+                // The arcade score face; a little smaller on short phones.
+                .font(Theme.Typography.score(size: isCompact ? clockSize * 0.78 : clockSize))
                 .foregroundStyle(Theme.Colors.text)
-                .minimumScaleFactor(0.5)
+                .shadow(color: phase.tint.opacity(0.45), radius: 18)
+                .minimumScaleFactor(0.45)
                 .lineLimit(1)
 
             // `text`, not `muted`: this is the one instruction the screen exists to deliver, and it
@@ -326,26 +356,33 @@ struct AlarmRingingView: View {
         }
     }
 
-    /// Static target rings around an NFC "waves" glyph. The waves animate (variable-colour sweep)
-    /// only when Reduce Motion is off; the rings never move.
+    /// The tag as a sun sticker (white die-cut rim, ink waves glyph) inside ripple rings. The rings
+    /// breathe on the alarm's pulse and the waves sweep, both only when Reduce Motion is off.
     private var tagGlyph: some View {
         let tint = Theme.Colors.Ring.sunriseAlarm
+        let scale: CGFloat = isCompact ? 0.78 : 1
+        let ripple: CGFloat = reduceMotion ? 1 : (isPulsing ? 1.08 : 0.96)
         return ZStack {
             Circle()
-                .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-                .frame(width: AlarmMetrics.glyphOuterRing, height: AlarmMetrics.glyphOuterRing)
+                .strokeBorder(tint.opacity(0.25), lineWidth: 2)
+                .frame(width: AlarmMetrics.glyphOuterRing * scale, height: AlarmMetrics.glyphOuterRing * scale)
+                .scaleEffect(ripple)
             Circle()
-                .strokeBorder(Theme.Colors.wash(tint), lineWidth: Theme.Metrics.edgeWidth)
-                .frame(width: AlarmMetrics.glyphInnerRing, height: AlarmMetrics.glyphInnerRing)
+                .strokeBorder(tint.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [4, 6]))
+                .frame(width: AlarmMetrics.glyphInnerRing * scale, height: AlarmMetrics.glyphInnerRing * scale)
+                .scaleEffect(reduceMotion ? 1 : (isPulsing ? 1.04 : 0.98))
             Circle()
-                .fill(Theme.Colors.wash(tint))
-                .frame(width: AlarmMetrics.glyphDisc, height: AlarmMetrics.glyphDisc)
+                .fill(tint)
+                .frame(width: AlarmMetrics.glyphDisc * scale, height: AlarmMetrics.glyphDisc * scale)
+                .overlay(Circle().strokeBorder(Color.white, lineWidth: 3))
+                .shadow(color: tint.opacity(0.6), radius: 14)
             Image(systemName: "wave.3.right")
-                .font(Theme.Typography.icon(.large))
+                .font(Theme.Typography.icon(.large, weight: .bold))
                 .imageScale(.large)
-                .foregroundStyle(tint)
+                .foregroundStyle(Theme.Colors.onFill)
                 .symbolEffect(.variableColor.iterative, options: .repeating, isActive: !reduceMotion)
         }
+        .rotationEffect(.degrees(-6))
         .accessibilityHidden(true)
     }
 
@@ -434,9 +471,9 @@ struct AlarmRingingView: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .padding(Theme.Spacing.lg)
+        .padding(isCompact ? Theme.Spacing.md : Theme.Spacing.lg)
         .frame(maxWidth: .infinity)
-        .zanoCard(radius: Theme.Radius.large)
+        .zanoCard(radius: Theme.Radius.large, tint: Theme.Colors.Ring.sunriseAlarm)
     }
 
     // MARK: - Snooze (spec §5.10: "1 snooze max (5 min), or it breaks the morning goal")
@@ -870,6 +907,46 @@ private enum AlarmMetrics {
     static let glyphDisc: CGFloat = 64
     static let glyphInnerRing: CGFloat = 92
     static let glyphOuterRing: CGFloat = 120
+    /// Below this container height the screen uses its compact layout (SE-class phones).
+    static let compactHeight: CGFloat = 700
+    /// The retro sun behind the clock.
+    static let sunDiameter: CGFloat = 340
+}
+
+/// A retro arcade sun: a disc in a vertical gradient (tint at the top, ember, then pink) with
+/// horizontal slits cut out of its lower half that get thicker towards the bottom, like a sunset
+/// on an old cabinet's marquee. Static; the caller animates its opacity. Also drawn in the corner
+/// of the wake-time card (`SleepTimeCard`).
+struct RetroSun: View {
+    let tint: Color
+
+    var body: some View {
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: [tint, Theme.Colors.ember, Theme.Colors.Ring.creatine],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .mask {
+                Canvas { context, size in
+                    context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.white))
+                    context.blendMode = .destinationOut
+                    // Seven slits from the middle down, each thicker and closer together.
+                    var y = size.height * 0.52
+                    var gap: CGFloat = size.height * 0.07
+                    var thickness: CGFloat = 2
+                    for _ in 0..<7 {
+                        context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: thickness)), with: .color(.white))
+                        y += gap
+                        gap *= 0.86
+                        thickness += 2.2
+                    }
+                }
+            }
+            .blur(radius: 0.5)
+    }
 }
 
 // MARK: - Components

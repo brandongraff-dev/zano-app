@@ -111,7 +111,7 @@ extension Copy {
         public static let kitchenStaplesSectionTitle = "Kitchen staples"
         /// Empty-states pass 2026-09-24: the headline of the empty staples tile (the message below
         /// it says why).
-        public static let kitchenStaplesEmptyTitle = "Save your first staple"
+        public static let kitchenStaplesEmptyTitle = "Save your go-to foods"
         public static let kitchenStaplesEmptyMessage = "Save a few high-protein foods you eat often so the gap planner can suggest them first."
         public static let kitchenStapleAddButtonLabel = "Add"
         public static let kitchenStapleAddSheetTitle = "Add a kitchen staple"
@@ -125,6 +125,31 @@ extension Copy {
         }
         /// The staple row's "…" menu, named for the staple it acts on.
         public static func kitchenStapleMoreOptionsLabel(name: String) -> String { "More options for \(name)" }
+
+        // Playful pass (2026-10-03, visual direction v2 pass 2): game-meter cards, sticker buttons
+        // and one calm "top-ups" section. Additive only (spec §24): every line is about adding.
+        /// The meter's corner chip while it fills: "48%".
+        public static func meterPercentChip(percent: Int) -> String { "\(percent)%" }
+        /// The meter's corner chip once the goal is met.
+        public static let proteinMeterFullChip = "Goal hit"
+        public static let waterMeterFullChip = "Tank full"
+        /// The floating "+25 g" that rises off the meter after a log.
+        public static func gainBubble(amount: Int, unit: String) -> String { "+\(amount) \(unit)" }
+        /// Sticker buttons on the protein card (VoiceOver keeps the longer
+        /// `mealPhoto.entryButtonLabel` / `barcodeScanButtonLabel`).
+        public static let snapStickerLabel = "Snap a meal"
+        public static let scanStickerLabel = "Scan it"
+        /// The quick-add chip that opens the custom amount sheet.
+        public static let customChipLabel = "Other"
+
+        /// The one calm section under the meters: gap ideas + saved staples.
+        public static let topUpsSectionTitle = "Top-ups"
+        public static func topUpsGapChip(gapGrams: Int) -> String { "\(grams(gapGrams)) to go" }
+        public static let topUpsInfo =
+            "Ideas to reach today's protein, best first: your own staples, then a quick snack or something nearby. Tap one to log it."
+        public static let topUpsInfoAccessibilityLabel = "About top-ups"
+        public static let topUpsStaplesHeading = "Your staples"
+        public static let kitchenStaplesInfoAccessibilityLabel = "About staples"
     }
 }
 

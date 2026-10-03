@@ -21,7 +21,7 @@ extension Copy {
         // MARK: - Gym setup list
 
         public static let setupTitle = "Gym setup"
-        public static let emptyTitle = "No gyms saved yet"
+        public static let emptyTitle = "No gym on the map yet"
         public static let emptyMessage = "Add your gym so workouts verify on their own when you show up."
         public static let addButtonLabel = "Add a gym"
         public static let unnamedLabel = "Unnamed gym"
@@ -80,7 +80,7 @@ extension Copy {
 
         public static let checkInTitle = "Gym check-in"
         public static func headTo(gym: String) -> String { "Head to \(gym)" }
-        public static let awayMessage = "Your timer starts on its own when you arrive."
+        public static let awayMessage = "The meter starts charging on its own when you walk in."
         public static let startCheckInButton = "Start check-in"
         public static let resumeCheckInButton = "Resume check-in"
         public static func notAtGymYet(gym: String) -> String {
@@ -89,11 +89,11 @@ extension Copy {
         public static let checkInUnavailable = "That gym isn't set up for check-ins. Confirm it in Gym setup."
         public static func atGym(_ gym: String) -> String { "At \(gym)" }
         public static let minutesUnit = "min"
-        public static func verifiesAt(minutes: Int) -> String { "Verified at \(minutes) min" }
+        public static func verifiesAt(minutes: Int) -> String { "Full charge at \(minutes) min" }
         public static func verifiesIn(minutes: Int) -> String {
             minutes <= 1 ? "Verifies in about a minute" : "Verifies in \(minutes) min"
         }
-        public static let stayHint = "Stay inside the circle. Leaving stops the timer."
+        public static let stayHint = "Stay in the circle. Step out and the meter stops."
         public static let verifiedTitle = "Workout verified"
         public static func verifiedDetail(minutes: Int, gym: String) -> String { "\(minutes) min at \(gym). It counts toward today." }
         public static let manualDoneTitle = "Checked in manually"

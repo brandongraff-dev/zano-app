@@ -162,8 +162,10 @@ public struct LockedOutMomentView: View {
                 onDismiss: onDismiss
             )
 
+            // Slapped on like a sticker: it drops in tilted and big, and lands square with a thunk.
             SharePosterPreview(poster: poster)
-                .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
+                .scaleEffect(reduceMotion || cardAppeared ? 1 : 1.12)
+                .rotationEffect(.degrees(reduceMotion || cardAppeared ? 0 : -7))
                 .opacity(cardAppeared ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -199,10 +201,11 @@ public struct LockedOutMomentView: View {
         // no scale.
         .onAppear {
             guard !cardAppeared else { return }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.38, dampingFraction: 0.62)) {
                 cardAppeared = true
             }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: cardAppeared) { _, newValue in newValue }
         // `Theme.swift`'s own header: this is a fixed, dark-only design system — see
         // `docs/design/ui-stress-test-findings.md` §2.1, and `LockSetupView.swift`'s identical
         // comment for the full rationale.
@@ -275,21 +278,24 @@ public struct LockedOutMomentView: View {
             eyebrow: Copy.lockedOut.screenTitle,
             headline: Copy.lockedOut.headline(appName: content.appName, blockingGoalSummary: content.blockingGoalSummary),
             statLine: Copy.lockedOut.statLine(attemptCount: content.attemptCount, windowMinutes: content.windowMinutes),
-            highlightLine: highlightLine,
+            chips: highlightChips,
             footerLabel: Copy.share.footerWordmark
         )
     }
 
-    private var highlightLine: String? {
-        guard let goalsRemaining = content.goalsRemaining else { return nil }
-        return Copy.lockedOut.highlightLine(goalsRemaining: goalsRemaining, streak: content.streak ?? 0)
+    /// Goals left and the streak as two chips (a public card never prints a zero streak).
+    private var highlightChips: [String] {
+        guard let goalsRemaining = content.goalsRemaining else { return [] }
+        var chips = [Copy.lockedOut.goalsLeftChip(goalsRemaining)]
+        if let streak = content.streak, streak > 0 { chips.append(Copy.lockedOut.streakChip(streak)) }
+        return chips
     }
 }
 
 #Preview {
     LockedOutMomentView(
         content: LockedOutMomentContent(
-            appName: "TikTok",
+            appName: "Social",
             attemptCount: 4,
             blockingGoalSummary: "hit the gym",
             goalsRemaining: 1,

@@ -40,7 +40,11 @@
 // and (short flow, 2026-10-02) a second "Continue without locking" button appears once access was
 // refused: the first win then runs as a plain timer with no lock, so nobody is stuck here.
 //
-// Handoff idea (needs a Copy key, not editable here): one privacy line under the subtitle, e.g.
+// VISUAL PASS 2 (2026-10-03): the guide star sits above the picker ("Pick your villains...") and
+// reacts once apps are in; the live "+" slot glows, leans and bounces twice when the screen opens.
+// The privacy line below is now part of the subtitle (`q2Subtitle`). Authorization is unchanged.
+//
+// Handoff idea (done in pass 2, kept for history): one privacy line under the subtitle, e.g.
 // "Your app list never leaves this phone." It is true (CLAUDE.md: tokens never leave the device) and
 // it is the moment users are about to see a system permission prompt.
 
@@ -67,6 +71,8 @@ struct Screen4AppSelection: View {
     /// button hides it immediately without waiting for `AlwaysAllowedCheck.hasAcknowledgedWarning`
     /// (a `UserDefaults`-backed value, not `@Observable`) to be re-read on the next render.
     @State private var alwaysAllowedWarningDismissed = false
+    /// Bumped once on appear (not under Reduce Motion) so the "+" slot bounces to say "tap me".
+    @State private var plusBounce = 0
 
     private let tileSize = Theme.Metrics.iconBadgeMedium
     private let maxIconTiles = 5
@@ -109,6 +115,13 @@ struct Screen4AppSelection: View {
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.q2Title, subtitle: Copy.onboarding.q2Subtitle) {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                // Visual pass 2: the guide star asks for the "villains", then reacts once they're in.
+                OnboardingGuideStar(
+                    line: hasSelection ? Copy.onboarding.guideAppsPicked : Copy.onboarding.guideAppsPrompt,
+                    charge: hasSelection ? 0.7 : 0.5,
+                    tint: hasSelection ? Theme.Colors.Ring.steps : Theme.Colors.accent
+                )
+
                 pickerCard
 
                 if authorizationDenied && !hasSelection {
@@ -160,6 +173,7 @@ struct Screen4AppSelection: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
+            if !reduceMotion { plusBounce += 1 }
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
                 properties: OnboardingStep.appSelection.viewedProperties
@@ -241,8 +255,12 @@ struct Screen4AppSelection: View {
                 Image(systemName: "plus")
                     .font(Theme.Typography.icon(.large, weight: .bold))
                     .foregroundStyle(Theme.Colors.onAccent)
+                    // A periodic nudge on the one live slot (still under Reduce Motion).
+                    .symbolEffect(.bounce, options: .repeat(2), value: plusBounce)
                     .frame(width: tileSize, height: tileSize)
                     .background(Theme.Colors.interactive, in: slotShape)
+                    .shadow(color: Theme.Colors.accent.opacity(0.55), radius: 10)
+                    .rotationEffect(.degrees(reduceMotion ? 0 : 4))
             }
             .accessibilityHidden(true)
 

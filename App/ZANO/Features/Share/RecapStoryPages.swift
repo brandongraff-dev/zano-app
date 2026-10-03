@@ -181,17 +181,15 @@ private extension View {
     }
 }
 
-/// The small accent label at the top of each page: the shared sentence-case eyebrow (tracked caps
-/// were retired app-wide, and the poster these pages end on uses the same style).
+/// The label at the top of each page: a tilted sticker pill, the same one the poster these pages
+/// end on wears (pass 2, 2026-10-03).
 private struct StoryEyebrow: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .zanoText(.eyebrow)
-            .foregroundStyle(Theme.Colors.accent)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+        PosterStickerPill(text: text, hue: .sky)
+            .rotationEffect(.degrees(-3))
+            .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 }
 

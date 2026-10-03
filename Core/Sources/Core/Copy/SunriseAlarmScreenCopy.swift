@@ -27,13 +27,13 @@ import Foundation
 
 extension Copy {
     public enum alarmRinging {
-        public static let headline = "Get up to turn this off."
+        public static let headline = "Rise and shine. Up you get."
         public static let eyebrowWaking = "Wake up"
         public static let eyebrowUrgent = "Still asleep?"
-        public static let eyebrowCritical = "Get up"
+        public static let eyebrowCritical = "Seriously, get up"
 
         // Tag
-        public static let tagPromptLabel = "Tap your Sunrise Tag to turn off the alarm."
+        public static let tagPromptLabel = "Walk to your Sunrise Tag and tap it."
         public static let tagScanButtonLabel = "Scan Sunrise Tag"
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
         // While the alarm is ringing, never tell a half-asleep user to add a new tag: the only
@@ -66,7 +66,7 @@ extension Copy {
 
         // Escape hatch — spec §5.10 point 6 / §24, voice-invariant. Reuses SunriseAlarmCopy's
         // escape-hatch/standard-alarm strings directly rather than re-authoring the same promise.
-        public static let escapeHatchSectionLabel = "Emergency: turn off without verifying"
+        public static let escapeHatchSectionLabel = "Emergency off"
         public static let escapeHatchHoldLabel = "Hold to turn off the alarm without verifying your morning goal"
         public static let escapeHatchHoldHint = SunriseAlarmCopy.escapeHatchExplanation
         /// The one-line version under the hold bar; `escapeHatchHoldHint` is the full text (VoiceOver).

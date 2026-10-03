@@ -132,6 +132,22 @@ extension Copy {
 extension Copy.progress {
     public static let rankSectionTitle = "Rank"
 
+    // Playful pass (2026-10-03, visual direction v2 pass 2): explanations moved into info buttons.
+    public static let timeReclaimedInfo =
+        "Every minute your apps stay locked counts here. Colored bars are days you earned an unlock."
+    public static let timeReclaimedInfoAccessibilityLabel = "About time reclaimed"
+    /// The hero's "last 7 days" chip: "+16h 15m in 7 days".
+    public static func last7DaysChip(duration: String) -> String { "+\(duration) in 7 days" }
+    public static let rankInfoAccessibilityLabel = "About ranks"
+    public static let monthlyChallengeInfoAccessibilityLabel = "About the monthly challenge"
+    public static let seasonBadgesInfoAccessibilityLabel = "About season badges"
+    /// The trophy shelf's count chip: "2 of 6".
+    public static func trophyShelfCount(earned: Int, total: Int) -> String { "\(earned) of \(total)" }
+    public static func trophyShelfAccessibility(earned: Int, total: Int) -> String {
+        "Trophy Case, \(earned) of \(total) earned"
+    }
+    public static let trophyShelfHint = "Opens your Trophy Case"
+
     public static func rankName(_ rank: SeasonsAndRanks.Rank) -> String {
         switch rank {
         case .bronze: "Bronze"
@@ -142,8 +158,8 @@ extension Copy.progress {
         }
     }
 
-    /// "Season 3 · 2026" — calendar quarters.
-    public static func seasonLabel(quarter: Int, year: Int) -> String { "Season \(quarter) · \(year)" }
+    /// "Season 3, 2026" — calendar quarters (v2: no middle-dot meta strings).
+    public static func seasonLabel(quarter: Int, year: Int) -> String { "Season \(quarter), \(year)" }
     /// "Ends Sep 30".
     public static func seasonEndsLabel(lastDay: Date) -> String {
         "Ends \(weekLabelFormatter.string(from: lastDay))"

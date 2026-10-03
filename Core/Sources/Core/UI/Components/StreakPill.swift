@@ -63,6 +63,7 @@ public struct StreakPill: View {
                 }
             }
             .font(Theme.Typography.icon(.medium))
+            .symbolRenderingMode(.hierarchical)
             // v2: the flame is ember (streak and fire moments are ember's only job).
             .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.ember)
             .shadow(color: (isFrozen ? Theme.Colors.Ring.water : Theme.Colors.ember).opacity(0.55), radius: 6)
@@ -71,6 +72,18 @@ public struct StreakPill: View {
         }
         .padding(.horizontal, Theme.Spacing.sm + 2)
         .padding(.vertical, Theme.Spacing.xs - 2)
+        // Pass 2 (playful): the pill warms with the streak, an ember wash that grows to full at 30
+        // days (the same curve as the aurora's warmth). Paint over the glass, never the label.
+        .background {
+            Capsule(style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Theme.Colors.ember.opacity(0.32 * emberWarmth), Theme.Colors.ember.opacity(0.08 * emberWarmth)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+        }
         // v2: chrome glass, like every floating capsule.
         .zanoGlass()
         .accessibilityElement(children: .ignore)
@@ -83,6 +96,10 @@ public struct StreakPill: View {
             guard newValue > oldValue else { return }
             bounceTrigger += 1
         }
+    }
+
+    private var emberWarmth: Double {
+        isFrozen ? 0 : ZanoAuroraWarmth.forStreak(days: count)
     }
 
     /// The un-overridden fallback VoiceOver label: the day count plus the frozen state (the one

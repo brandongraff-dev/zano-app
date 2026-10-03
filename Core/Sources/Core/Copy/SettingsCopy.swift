@@ -25,7 +25,7 @@ extension Copy {
         // MARK: - Coach voice (spec §5.13)
 
         public static let coachVoiceSectionTitle = "Coach voice"
-        public static let coachVoiceSectionFooter = "Switch anytime. This changes how your coach talks to you, not what it asks of you."
+        public static let coachVoiceSectionFooter = "Switch anytime. It changes how your coach talks, not what it asks of you."
 
         // MARK: - Gym Setup (spec §3, §9.4)
 
@@ -105,7 +105,7 @@ extension Copy {
 
         public static let goalsEditorTitle = "Goals"
         public static let goalsYourGoalsSectionTitle = "Your goals"
-        public static let goalsFooter = "Change a target anytime. Smaller is fine. Showing up is what counts."
+        public static let goalsFooter = "Change a target anytime. Smaller is fine. Showing up is the whole game."
         public static let goalsEmptyTitle = "No goals yet"
         public static let goalsEmptyMessage = "Add a goal to start earning your apps back."
         public static let goalsAddButtonLabel = "Add goal"
@@ -226,8 +226,8 @@ extension Copy {
         public static let nudgesRowLabel = "Nudges"
         public static let nudgesTitle = "Nudges"
         public static let nudgesToggleLabel = "Nudges"
-        public static let nudgesIntro = "A nudge is a short reminder when it could change your day. Choose which ones you get and when."
-        public static let nudgesCapNote = "ZANO sends at most 2 nudges a day, never more. That limit is built in."
+        public static let nudgesIntro = "Short reminders, only when they could change your day."
+        public static let nudgesCapNote = "Two a day, max. Built in. We're not that app."
         public static let nudgesTypesSectionTitle = "Which nudges"
         public static let nudgeKindMorningPlanTitle = "Morning plan"
         public static let nudgeKindMorningPlanDetail = "Today's goals, first thing."

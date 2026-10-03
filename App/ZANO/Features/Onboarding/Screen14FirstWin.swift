@@ -109,6 +109,11 @@
 //         Exit while running: a plain "Do it later" button (nothing to unlock, so no wait).
 //     Either way "Do it later" on the intro skips the win and goes straight to Today.
 //
+// VISUAL PASS 2 (2026-10-03, "make it more playful"): the intro's ring now holds the living star
+// (nearly charged: the last bit is what the session earns) instead of a bare "2", and the length is
+// a focus-violet sticker on the ring's rim. The small "Your first win" eyebrow is gone (v2: no
+// eyebrows). Running, celebration and the widget guide are unchanged.
+//
 // Every animation is gated on `accessibilityReduceMotion`. The header chrome is hidden on this
 // screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
 // shared action bar.
@@ -210,7 +215,6 @@ struct Screen14FirstWin: View {
                 FirstWinIntroRing(minutes: Self.plannedMinutes)
 
                 VStack(spacing: Theme.Spacing.sm) {
-                    OnboardingKit.Eyebrow(text: Copy.onboarding.firstWinEyebrow)
                     OnboardingKit.DisplayTitle(text: Copy.onboarding.firstWinHeadline)
                     Text(flowState.hasAppSelection ? Copy.onboarding.firstWinSubtitle : Copy.onboarding.firstWinSubtitleNoLock)
                         .font(Theme.Typography.body)
@@ -222,20 +226,7 @@ struct Screen14FirstWin: View {
                 .accessibilityElement(children: .combine)
 
                 // The notification priming line (its own screen before the short flow). Start asks.
-                HStack(spacing: Theme.Spacing.xs) {
-                    Image(systemName: "bell.badge.fill")
-                        .font(Theme.Typography.icon(.xsmall))
-                        .accessibilityHidden(true)
-                    Text(Copy.onboarding.firstWinNotificationLine)
-                        .font(Theme.Typography.captionEmphasized)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.vertical, Theme.Spacing.xs)
-                .background(Theme.Colors.surface2, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
-                .accessibilityElement(children: .combine)
+                ZanoGlassChip(Copy.onboarding.firstWinNotificationLine, systemImage: "bell.badge.fill", tint: Theme.Colors.Ring.sunriseAlarm)
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
@@ -595,7 +586,7 @@ private struct FirstWinIntroRing: View {
     @State private var appeared = false
 
     /// Shared with the running phase's ring, so the promise and the timer are one object.
-    static let diameter: CGFloat = 248
+    static let diameter: CGFloat = 228
     /// The halo is wider than the ring; a `background` never affects layout.
     private static let haloDiameter: CGFloat = 420
 
@@ -609,12 +600,24 @@ private struct FirstWinIntroRing: View {
             center: .none
         )
         .overlay {
-            VStack(spacing: 0) {
-                OnboardingKit.HeroNumeral(text: "\(minutes)", color: Theme.Colors.text)
+            // Visual pass 2: the star waits inside the ring it is about to fill, nearly charged.
+            ZanoLivingMark(charge: 0.85, height: Self.diameter * 0.32)
+        }
+        .overlay(alignment: .bottom) {
+            // The session length as a sticker on the ring's rim: "2 min".
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xxs) {
+                Text("\(minutes)")
+                    .font(Theme.Typography.score(size: 30))
                 Text(Copy.onboardingReveal.firstWinRingUnit)
-                    .zanoText(.unit)
-                    .foregroundStyle(Theme.Colors.muted)
+                    .font(Theme.Typography.headline.weight(.heavy))
             }
+            .foregroundStyle(Theme.Colors.background)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xxs)
+            .background(Capsule().fill(Theme.Colors.Ring.focus))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.5), lineWidth: 1))
+            .rotationEffect(.degrees(reduceMotion ? 0 : -4))
+            .offset(y: Theme.Spacing.md)
         }
         .background {
             // Static: only its opacity changes, once, as the ring arrives (never an animated blur).

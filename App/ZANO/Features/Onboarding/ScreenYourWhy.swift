@@ -12,6 +12,13 @@
 // earned state), white is the selected chip. Every animation is gated on Reduce Motion; one
 // `.selection` haptic per half-hour step and per chip.
 
+// VISUAL PASS 2 (2026-10-03, "make it more playful"): the math is the screen's one big moment. The
+// days-a-year number is a huge score numeral in ember-to-red that counts up from zero when the
+// screen opens (a rolling `numericText` with a tick of haptics, then one heavier tap as it lands),
+// and rolls live as the slider moves. The hours sit above it as a chip; the reclaim half is a mint
+// "+N days back a year" sticker under it. The slip chips are glass capsules with an "Optional" tag
+// instead of "(optional)" in the heading. Reduce Motion: the final number from the first frame.
+
 import SwiftUI
 import Core
 
@@ -21,9 +28,15 @@ struct ScreenYourWhy: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The number on screen: counts up on appear, then follows the slider.
+    @State private var shownDays = 0
+    @State private var hasCounted = false
+    @State private var landTick = 0
+
     private var hours: Double { flowState.dailyPhoneTimeHours }
     private var hoursText: String { Copy.onboarding.q3HoursValue(hours) }
     private var daysPerYear: Int { Int(flowState.estimatedDaysPerYearOnPhone.rounded()) }
+    private var visibleDays: Int { reduceMotion ? daysPerYear : shownDays }
 
     private let chipColumns = [
         GridItem(.flexible(), spacing: Theme.Spacing.xs),
@@ -33,7 +46,7 @@ struct ScreenYourWhy: View {
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.yourWhyTitle, subtitle: Copy.onboarding.yourWhySubtitle) {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                readoutCard
+                counterCard
                 slider
                 slipChips
             }
@@ -43,7 +56,13 @@ struct ScreenYourWhy: View {
         .onboardingPinnedContinue(title: Copy.common.continueButtonLabel) {
             flowState.advance()
         }
+        .sensoryFeedback(.impact(weight: .heavy, intensity: 0.8), trigger: landTick)
         .preferredColorScheme(.dark)
+        .task { await countUp() }
+        .onChange(of: daysPerYear) { _, newValue in
+            guard hasCounted else { return }
+            withAnimation(reduceMotion ? nil : .snappy) { shownDays = newValue }
+        }
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
@@ -52,51 +71,66 @@ struct ScreenYourWhy: View {
         }
     }
 
-    // MARK: - The math
+    // MARK: - The counter
 
-    private var readoutCard: some View {
-        VStack(spacing: Theme.Spacing.md) {
-            // Decorative repeat of the slider's value; the slider carries the VoiceOver value.
-            NumeralText(hoursText, size: .hero)
-                .frame(maxWidth: .infinity)
+    private var counterCard: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            ZanoGlassChip(Copy.onboarding.yourWhyHoursChip(hoursText), systemImage: "iphone", tint: Theme.Colors.ember)
+                .contentTransition(.numericText())
                 .accessibilityHidden(true)
 
-            VStack(spacing: Theme.Spacing.xs) {
-                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                    NumeralText("\(daysPerYear)", size: .large, color: Theme.Colors.danger)
-                    Text(Copy.onboarding.daysPerYearUnitLabel)
-                        .zanoText(.body)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                .accessibilityElement(children: .combine)
+            daysNumeral
 
-                HStack(alignment: .top, spacing: Theme.Spacing.xs) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(Theme.Typography.icon(.small))
-                        .foregroundStyle(Theme.Colors.text)
-                        .accessibilityHidden(true)
-                    Text(
-                        Copy.onboarding.yourWhyReclaimLine(
-                            hoursLabel: Copy.onboarding.q3HoursValue(flowState.reclaimHours),
-                            days: flowState.reclaimDaysPerYear
-                        )
-                    )
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .zanoWell()
+            Text(Copy.onboarding.daysPerYearUnitLabel)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+
+            reclaimSticker
+                .padding(.top, Theme.Spacing.xs)
         }
-        .padding(Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: .infinity)
-        .zanoCard(radius: Theme.Radius.large)
-        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: hours)
+        .zanoHero(tint: Theme.Colors.danger)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The days, as big as the phone allows, ember into red. Shrinks rather than clips.
+    private var daysNumeral: some View {
+        Text("\(visibleDays)")
+            .font(Theme.Typography.score(size: 104))
+            .foregroundStyle(
+                LinearGradient(colors: [Theme.Colors.ember, Theme.Colors.danger], startPoint: .top, endPoint: .bottom)
+            )
+            .shadow(color: Theme.Colors.danger.opacity(0.45), radius: 18)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .contentTransition(.numericText(value: Double(visibleDays)))
+            .accessibilityLabel("\(daysPerYear)")
+    }
+
+    /// "+30 days back a year", a mint sticker, and the condition under it.
+    private var reclaimSticker: some View {
+        VStack(spacing: Theme.Spacing.xxs) {
+            HStack(spacing: Theme.Spacing.xs) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(Theme.Typography.icon(.small, weight: .heavy))
+                    .accessibilityHidden(true)
+                Text(Copy.onboarding.yourWhyReclaimChip(days: flowState.reclaimDaysPerYear))
+                    .font(Theme.Typography.headline.weight(.heavy))
+                    .contentTransition(.numericText(value: Double(flowState.reclaimDaysPerYear)))
+            }
+            .foregroundStyle(Theme.Colors.background)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xs)
+            .background(Capsule().fill(Theme.Colors.Ring.steps))
+            .rotationEffect(.degrees(reduceMotion ? 0 : -2))
+
+            Text(Copy.onboarding.yourWhyReclaimCondition(hoursLabel: Copy.onboarding.q3HoursValue(flowState.reclaimHours)))
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+        }
     }
 
     private var slider: some View {
@@ -104,7 +138,7 @@ struct ScreenYourWhy: View {
             Slider(value: $flowState.dailyPhoneTimeHours, in: 1...10, step: 0.5) {
                 Text(Copy.onboarding.q3Title)
             }
-            .tint(Theme.Colors.interactive)
+            .tint(Theme.Colors.ember)
             .accessibilityValue(Text(hoursText))
 
             HStack {
@@ -122,9 +156,13 @@ struct ScreenYourWhy: View {
 
     private var slipChips: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(Copy.onboarding.yourWhySlipLabel)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
+            HStack(spacing: Theme.Spacing.xs) {
+                Text(Copy.onboarding.yourWhySlipTitle)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .accessibilityAddTraits(.isHeader)
+                ZanoGlassChip(Copy.onboarding.yourWhySlipOptional, tint: Theme.Colors.muted)
+            }
 
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: Theme.Spacing.xs) {
                 ForEach(FallOffPattern.allCases, id: \.self) { pattern in
@@ -138,34 +176,41 @@ struct ScreenYourWhy: View {
     /// Tap to pick, tap again to clear: the answer is optional.
     private func chip(_ pattern: FallOffPattern) -> some View {
         let isSelected = flowState.fallOffPattern == pattern
-        let shape = Capsule()
+        let shape = Capsule(style: .continuous)
         return Button {
             flowState.fallOffPattern = isSelected ? nil : pattern
         } label: {
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: symbol(for: pattern))
-                    .font(Theme.Typography.icon(.xsmall))
+                    .font(Theme.Typography.icon(.small, weight: .bold))
+                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.textSecondary)
+                    .symbolEffect(.bounce, options: .nonRepeating, value: isSelected && !reduceMotion)
                     .accessibilityHidden(true)
                 Text(pattern.displayLabel)
                     .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.textSecondary)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.textSecondary)
             .padding(.horizontal, Theme.Spacing.sm)
             .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget, alignment: .leading)
-            .background(isSelected ? Theme.Colors.surface2 : Theme.Colors.surface, in: shape)
-            .overlay(
-                shape.strokeBorder(
-                    isSelected ? Theme.Colors.interactive : Theme.Colors.hairline,
-                    lineWidth: isSelected ? Theme.Metrics.selectedStroke : Theme.Metrics.edgeWidth
-                )
-            )
+            .background {
+                if isSelected {
+                    shape.fill(Theme.Colors.accentWash)
+                } else {
+                    ZanoGlass(shape)
+                }
+            }
+            .overlay {
+                if isSelected {
+                    shape.strokeBorder(Theme.Colors.accent, lineWidth: Theme.Metrics.selectedStroke)
+                }
+            }
             .contentShape(shape)
         }
-        .buttonStyle(.pressable(scale: 0.96))
-        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isSelected)
+        .buttonStyle(.pressable(scale: 0.95))
+        .animation(reduceMotion ? nil : Theme.Motion.springPop, value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -178,6 +223,32 @@ struct ScreenYourWhy: View {
         case .afterGoodDays: "chart.line.downtrend.xyaxis"
         case .travel: "airplane"
         }
+    }
+
+    // MARK: - Count-up
+
+    /// Rolls the number up from zero in ten steps (~0.9s), ticking lightly, then lands with one
+    /// heavier tap. Once only; the slider takes over after.
+    private func countUp() async {
+        guard !hasCounted else { return }
+        guard !reduceMotion else {
+            shownDays = daysPerYear
+            hasCounted = true
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(350))
+        let steps = 10
+        for step in 1...steps {
+            guard !Task.isCancelled else { return }
+            let target = daysPerYear
+            withAnimation(.snappy(duration: 0.12)) {
+                shownDays = Int((Double(target) * Double(step) / Double(steps)).rounded())
+            }
+            try? await Task.sleep(for: .milliseconds(80))
+        }
+        shownDays = daysPerYear
+        hasCounted = true
+        landTick += 1
     }
 }
 

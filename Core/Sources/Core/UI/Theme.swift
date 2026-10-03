@@ -221,6 +221,22 @@ public enum Theme {
             )
         }
 
+        // MARK: Pass 2: playful (docs/design/visual-direction-v2.md "Pass 2: playful")
+
+        /// The confetti box: the hues a win is allowed to throw. ZANO Blue plus the five loudest goal
+        /// colours (volt, apricot, pink, sky, sun). `CelebrationBurst`'s default and the spark colours
+        /// of the mascot when no goal colours are passed. Decorative only, never text.
+        public static let confetti: [Color] = [
+            accent, Ring.workout, Ring.protein, Ring.creatine, Ring.water, Ring.sunriseAlarm,
+        ]
+
+        /// The bright top half of a sticker's face (`ZanoSticker`): the "printed vinyl" highlight.
+        public static let stickerHighlight = Color.white.opacity(0.32)
+        /// The shade along a sticker's bottom inside edge, so it reads as a thick, peel-able chip.
+        public static let stickerShade = Color.black.opacity(0.18)
+        /// The white die-cut border around a decorative (icon-only) sticker.
+        public static let stickerRim = Color.white.opacity(0.85)
+
         /// The label on a blue fill. White reads better and more premium on blue than near-black,
         /// but only on `accentFill` (5.27:1); on `accent` itself it is 3.83:1 and fails AA.
         public static let onAccent = Color.white
@@ -410,6 +426,12 @@ public enum Theme {
         public static let primaryButtonHeight: CGFloat = 52
         /// Width of a card edge / divider stroke.
         public static let edgeWidth: CGFloat = 1
+        /// Sticker heights (`ZanoSticker`): compact chips and the chunky default.
+        public static let stickerSmall: CGFloat = 26
+        public static let stickerRegular: CGFloat = 34
+        public static let stickerLarge: CGFloat = 48
+        /// The minimum height of a goal tile (`GoalTile`), so a row of two reads as a game board.
+        public static let goalTileMinHeight: CGFloat = 156
         /// Height of a horizontal progress bar (`TimeBankBar`). 10pt read as a hairline next to a
         /// 28pt numeral; 12pt has presence without becoming a slab.
         public static let progressBarHeight: CGFloat = 12
@@ -611,10 +633,32 @@ public enum Theme {
 
         /// A goal completing, the star's charge burst: a quick, bouncy pop. Use it for *earned*
         /// beats only; it overshoots on purpose.
-        public static let springPop: Animation = .spring(response: 0.28, dampingFraction: 0.52)
+        /// Pass 2: springier (0.34 / 0.46, was 0.28 / 0.52): a bigger, rounder overshoot.
+        public static let springPop: Animation = .spring(response: 0.34, dampingFraction: 0.46)
 
-        /// The tab bar's selection pill sliding between tabs.
-        public static let tabPill: Animation = .spring(response: 0.42, dampingFraction: 0.78)
+        /// The tab bar's selection pill sliding between tabs. Pass 2: squishier (more overshoot).
+        public static let tabPill: Animation = .spring(response: 0.4, dampingFraction: 0.68)
+
+        // MARK: Pass 2: playful (2026-10-03)
+
+        /// The bounce back after a press (`PressableStyle` on release): a fast spring with visible
+        /// overshoot, so every tile feels like a squishy button. Press-*in* stays `pressFeedback`.
+        public static let springSquish: Animation = .spring(response: 0.3, dampingFraction: 0.45)
+
+        /// Numbers rolling to a new value (`RollingNumber`, `NumeralText`'s `.numericText` roll).
+        public static let numberRoll: Animation = .spring(response: 0.45, dampingFraction: 0.72)
+
+        /// The mascot's jump on a goal completion, crouch to landing, in seconds.
+        public static let mascotJumpDuration: TimeInterval = 0.9
+
+        /// The mascot's little spin when poked, in seconds.
+        public static let mascotSpinDuration: TimeInterval = 0.7
+
+        /// One squash-and-stretch hop of a perky mascot, in seconds.
+        public static let mascotHopPeriod: TimeInterval = 1.6
+
+        /// How often a charged mascot does its wiggle, in seconds (it wiggles for the first 0.6s).
+        public static let mascotWigglePeriod: TimeInterval = 3.2
 
         /// One full up-and-down of the star's idle bob, in seconds.
         public static let idleBobPeriod: TimeInterval = 3.4

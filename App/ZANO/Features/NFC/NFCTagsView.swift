@@ -29,6 +29,7 @@ struct NFCTagsView: View {
     @State private var tapFeedback = TagTapFeedback.shared
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var ordinaryTags: [NFCTagMapping] {
         mappings.filter { $0.kind != .lockCard }
@@ -82,7 +83,9 @@ struct NFCTagsView: View {
             await reload()
             if !hasLoaded {
                 hasLoaded = true
-                isHowItWorksExpanded = mappings.isEmpty
+                // Folded by default: the hero already says what a tag does, and the open help was
+                // a wall of text on first visit (pass 2).
+                isHowItWorksExpanded = false
             }
         }
         // A tap elsewhere (background URL, Today) updates "last tapped" here.
@@ -156,7 +159,7 @@ struct NFCTagsView: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity)
-        .zanoHero()
+        .zanoHero(tint: Theme.Colors.Ring.water)
     }
 
     // MARK: Lock Card
@@ -166,7 +169,7 @@ struct NFCTagsView: View {
             LockCardSetupView()
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "creditcard.fill", tint: Theme.Colors.accent, size: .medium)
+                NFCTagStickerDisc(symbol: "creditcard.fill", tint: Theme.Colors.Ring.focus, diameter: 48, tilt: -8)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(Copy.nfc.lockCardRowTitle)
                         .font(Theme.Typography.headline)
@@ -186,7 +189,7 @@ struct NFCTagsView: View {
                     .accessibilityHidden(true)
             }
             .padding(Theme.Spacing.md)
-            .zanoCard()
+            .zanoCard(tint: Theme.Colors.Ring.focus)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
@@ -194,71 +197,34 @@ struct NFCTagsView: View {
 
     // MARK: Your tags
 
+    /// The collection: two stickers per row, one per row at accessibility text sizes.
     private var yourTagsSection: some View {
         NFCSection(title: Copy.nfc.yourTagsSectionTitle) {
-            VStack(spacing: 0) {
-                ForEach(ordinaryTags) { mapping in
-                    tagRow(mapping)
-                    if mapping.id != ordinaryTags.last?.id {
-                        NFCRowDivider(inset: Theme.Spacing.md + Theme.Metrics.iconBadgeMedium + Theme.Spacing.sm)
-                    }
+            LazyVGrid(columns: tagColumns, spacing: Theme.Spacing.sm) {
+                ForEach(Array(ordinaryTags.enumerated()), id: \.element.id) { index, mapping in
+                    tagTile(mapping, tilt: index.isMultiple(of: 2) ? -6 : 5)
                 }
             }
-            .zanoCard()
         }
     }
 
-    private func tagRow(_ mapping: NFCTagMapping) -> some View {
-        let choice = NFCActionChoice(mapping.action)
-        return HStack(spacing: Theme.Spacing.sm) {
-            Button {
-                editing = mapping
-            } label: {
-                HStack(spacing: Theme.Spacing.sm) {
-                    IconBadge(systemName: choice.symbol, tint: choice.tint, size: .medium)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(mapping.nfcDisplayName)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
-                        Text(mapping.action.nfcSummary(goalTitle: goalTitle(for: mapping.action)))
-                            .zanoText(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                            .lineLimit(2)
-                        Text(lastTappedText(mapping))
-                            .zanoText(.caption)
-                            .foregroundStyle(Theme.Colors.muted)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            .accessibilityElement(children: .combine)
+    private var tagColumns: [GridItem] {
+        let count = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm, alignment: .top), count: count)
+    }
 
-            Menu {
-                Button {
-                    editing = mapping
-                } label: {
-                    Label(Copy.nfc.editTagButton, systemImage: "slider.horizontal.3")
-                }
-                Button(role: .destructive) {
-                    pendingRemoval = mapping
-                } label: {
-                    Label(Copy.nfc.removeTagButton, systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(Theme.Typography.icon(.medium))
-                    .foregroundStyle(Theme.Colors.muted)
-                    .minTapTarget()
-            }
-            .accessibilityLabel(Copy.common.moreOptions(for: mapping.nfcDisplayName))
-        }
-        .padding(.leading, Theme.Spacing.md)
-        .padding(.trailing, Theme.Spacing.xs)
-        .padding(.vertical, Theme.Spacing.sm)
-        .contextMenu {
+    private func tagTile(_ mapping: NFCTagMapping, tilt: Double) -> some View {
+        let choice = NFCActionChoice(mapping.action)
+        return NFCTagStickerTile(
+            name: mapping.nfcDisplayName,
+            summary: mapping.action.nfcSummary(goalTitle: goalTitle(for: mapping.action)),
+            lastTapped: lastTappedText(mapping),
+            symbol: choice.symbol,
+            tint: choice.tint,
+            tilt: reduceMotion ? 0 : tilt,
+            onEdit: { editing = mapping },
+            menuAccessibilityLabel: Copy.common.moreOptions(for: mapping.nfcDisplayName)
+        ) {
             Button {
                 editing = mapping
             } label: {

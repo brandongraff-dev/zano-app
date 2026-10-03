@@ -109,6 +109,21 @@
 //     `SwiftUI.ProgressView` (composition-audit offender 2). Every spinner in this file is spelled
 //     `SwiftUI.ProgressView()` for that reason.
 
+// ---------------------------------------------------------------------------------------------
+// VISUAL PASS 2 (2026-10-03, founder: "more playful"; Settings stays calmer than the rest):
+//   * Every row carries a colour sticker (`SettingsSticker`, SettingsKit.swift) instead of a grey
+//     disc; each section has one colour family (`SettingsPalette`), so a section reads as a unit.
+//   * Section heads are rounded titles, not small grey eyebrows. Most captions under cards moved
+//     into an (i) beside the title (coach voice, notifications, your data). The "finish setup"
+//     caption stays visible: it explains why rows are disabled.
+//   * The plan card loses its "Plan" eyebrow and the Apple-billing sentence (now an (i)); it gains
+//     the fully charged star beside "ZANO Pro".
+//   * Coach voice tiles are glass; the picked voice lights up in its own colour (Hype apricot, Tough
+//     Love ember, Chill mint, Data sky) with a bouncing sticker, and the sample line gets a quote
+//     mark in that colour.
+//   * Toggles are tinted per section. "Delete all my data", the plan card, `FinishTrialBanner`,
+//     restore and the legal links are all still here.
+
 import SwiftUI
 import SwiftData
 // Needed for `FamilyActivitySelection` (`LockSetManager.shared.selection(for:)`'s return type) in
@@ -350,11 +365,15 @@ struct SettingsView: View {
     // belong to goal progress, not to a settings menu.
 
     private var verificationSetupSection: some View {
-        SettingsSection(footer: currentUser == nil ? Copy.settings.finishSetupFooter : nil) {
+        SettingsSection(
+            title: Copy.settings.setupSectionTitle,
+            footer: currentUser == nil ? Copy.settings.finishSetupFooter : nil
+        ) {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.goalsRowLabel,
                     systemImage: "target",
+                    tint: SettingsPalette.goals,
                     value: activeGoals.isEmpty ? nil : "\(activeGoals.count)"
                 ) {
                     GoalsEditorView()
@@ -365,7 +384,8 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.lockSetup.screenTitle,
-                    systemImage: "lock.rectangle.stack",
+                    systemImage: "lock.rectangle.stack.fill",
+                    tint: SettingsPalette.lockSets,
                     value: lockSets.isEmpty ? nil : "\(lockSets.count)"
                 ) {
                     LockSetupView()
@@ -375,7 +395,8 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.gymSetupRowLabel,
-                    systemImage: "dumbbell",
+                    systemImage: "dumbbell.fill",
+                    tint: SettingsPalette.gym,
                     value: gyms.isEmpty ? nil : "\(gyms.count)"
                 ) {
                     GymSetupView()
@@ -393,7 +414,8 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.nfcTagSetupRowLabel,
-                    systemImage: "wave.3.right"
+                    systemImage: "wave.3.right",
+                    tint: SettingsPalette.tags
                 ) {
                     NFCTagsView()
                 }
@@ -406,7 +428,7 @@ struct SettingsView: View {
     private var coachVoiceSection: some View {
         SettingsSection(
             title: Copy.settings.coachVoiceSectionTitle,
-            footer: Copy.settings.coachVoiceSectionFooter
+            info: Copy.settings.coachVoiceSectionFooter
         ) {
             CoachVoiceCard(selected: currentUser?.coachVoice, onSelect: selectCoachVoice)
                 .disabled(currentUser == nil)
@@ -431,7 +453,8 @@ struct SettingsView: View {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.sunriseAlarmRowLabel,
-                    systemImage: "sunrise"
+                    systemImage: "sunrise.fill",
+                    tint: SettingsPalette.sunrise
                 ) {
                     SunriseAlarmSetupView()
                 }
@@ -440,7 +463,8 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.bedtimeGateRowLabel,
-                    systemImage: "moon.zzz"
+                    systemImage: "moon.zzz.fill",
+                    tint: SettingsPalette.sleep
                 ) {
                     BedtimeGateSetupView()
                 }
@@ -450,7 +474,8 @@ struct SettingsView: View {
                 // Spec §5.12 one-tap setup guide (Wave 3L).
                 SettingsNavRow(
                     Copy.settings.autoFocusRowLabel,
-                    systemImage: "moon.circle",
+                    systemImage: "moon.circle.fill",
+                    tint: SettingsPalette.focus,
                     value: autoFocusIsSetUp ? Copy.settings.autoFocusRowValueOn : nil
                 ) {
                     AutoFocusGuideView()
@@ -460,7 +485,7 @@ struct SettingsView: View {
 
                 // Today's "light day" card (Wave 2F) asks once; this is the way back on or off.
                 HStack(spacing: Theme.Spacing.sm) {
-                    SettingsIconBadge(systemImage: "calendar.badge.clock")
+                    SettingsIconBadge(systemImage: "calendar.badge.clock", tint: SettingsPalette.calendar)
                     Toggle(isOn: Binding(
                         get: { calendarAwarenessOn },
                         set: { newValue in Task { await setCalendarAwareness(newValue) } }
@@ -469,7 +494,7 @@ struct SettingsView: View {
                             .font(Theme.Typography.headline)
                             .foregroundStyle(Theme.Colors.text)
                     }
-                    .tint(Theme.Colors.accentFill)
+                    .tint(SettingsPalette.calendar)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.vertical, Theme.Spacing.sm)
@@ -503,7 +528,8 @@ struct SettingsView: View {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.trophyCaseRowLabel,
-                    systemImage: "trophy"
+                    systemImage: "trophy.fill",
+                    tint: SettingsPalette.rewards
                 ) {
                     TrophyCaseView()
                 }
@@ -520,7 +546,7 @@ struct SettingsView: View {
 
                     if let offer = contextualGearOffer {
                         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                            SettingsIconBadge(systemImage: "gift")
+                            SettingsIconBadge(systemImage: "gift.fill", tint: SettingsPalette.gear)
                             Text(offer)
                                 .font(Theme.Typography.body)
                                 .foregroundStyle(Theme.Colors.text)
@@ -536,7 +562,8 @@ struct SettingsView: View {
 
                     SettingsActionRow(
                         title: Copy.settings.gearRowLabel,
-                        systemImage: "bag",
+                        systemImage: "bag.fill",
+                        tint: SettingsPalette.gear,
                         accessory: .external
                     ) {
                         openURL(gearStoreURL)
@@ -589,11 +616,12 @@ struct SettingsView: View {
     // (`openNotificationSettingsURLString`, iOS 16+), which still owns sounds/banners/all-off.
 
     private var notificationsSection: some View {
-        SettingsSection(title: Copy.settings.notificationsSectionTitle, footer: Copy.settings.notificationsFooter) {
+        SettingsSection(title: Copy.settings.notificationsSectionTitle, info: Copy.settings.notificationsFooter) {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.nudgesRowLabel,
-                    systemImage: "bell.badge"
+                    systemImage: "bell.badge.fill",
+                    tint: SettingsPalette.nudges
                 ) {
                     NudgeSettingsView()
                 }
@@ -602,7 +630,8 @@ struct SettingsView: View {
 
                 SettingsActionRow(
                     title: Copy.settings.systemNotificationsRowLabel,
-                    systemImage: "bell",
+                    systemImage: "gearshape.fill",
+                    tint: SettingsPalette.systemNotifications,
                     accessory: .external
                 ) {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
@@ -621,6 +650,7 @@ struct SettingsView: View {
                 SettingsActionRow(
                     title: Copy.settings.restorePurchasesButtonLabel,
                     systemImage: "arrow.clockwise",
+                    tint: SettingsPalette.restore,
                     accessory: .none,
                     isBusy: isRestoringPurchases
                 ) {
@@ -667,7 +697,8 @@ struct SettingsView: View {
             SettingsGroupCard {
                 SettingsNavRow(
                     Copy.settings.helpRowLabel,
-                    systemImage: "questionmark.circle"
+                    systemImage: "questionmark.bubble.fill",
+                    tint: SettingsPalette.help
                 ) {
                     HelpFeedbackView()
                 }
@@ -676,7 +707,8 @@ struct SettingsView: View {
 
                 SettingsNavRow(
                     Copy.settings.pauseRowLabel,
-                    systemImage: "heart"
+                    systemImage: "heart.fill",
+                    tint: SettingsPalette.health
                 ) {
                     PauseForHealthView()
                 }
@@ -685,7 +717,7 @@ struct SettingsView: View {
 
                 SettingsActionRow(
                     title: Copy.settings.termsOfUseButtonLabel,
-                    systemImage: "doc.text",
+                    systemImage: "doc.text.fill",
                     accessory: .external
                 ) {
                     openURL(SettingsReferenceData.termsOfUseURL)
@@ -695,7 +727,7 @@ struct SettingsView: View {
 
                 SettingsActionRow(
                     title: Copy.settings.privacyPolicyButtonLabel,
-                    systemImage: "hand.raised",
+                    systemImage: "hand.raised.fill",
                     accessory: .external
                 ) {
                     openURL(SettingsReferenceData.privacyPolicyURL)
@@ -709,12 +741,13 @@ struct SettingsView: View {
     private var dataSection: some View {
         SettingsSection(
             title: Copy.settings.dataSectionTitle,
-            footer: Copy.settings.deleteAllDataFooter
+            info: Copy.settings.deleteAllDataFooter
         ) {
             SettingsGroupCard {
                 SettingsActionRow(
                     title: Copy.settings.deleteAllDataRowLabel,
-                    systemImage: "trash",
+                    systemImage: "trash.fill",
+                    tint: SettingsPalette.danger,
                     accessory: .none,
                     isBusy: isDeletingData,
                     isDestructive: true
@@ -885,18 +918,12 @@ private extension View {
 /// `SettingsRowDivider`'s inset math relies on. Disabled rows dim the glyph to `muted`.
 private struct SettingsIconBadge: View {
     let systemImage: String
-
-    @Environment(\.isEnabled) private var isEnabled
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    var tint: Color = SettingsPalette.legal
 
     var body: some View {
-        let diameter = Theme.Metrics.iconBadgeSmall * min(scale, 1.4)
-        Image(systemName: systemImage)
-            .font(.system(size: diameter * 0.45, weight: .medium))
-            .foregroundStyle(isEnabled ? Theme.Colors.textSecondary : Theme.Colors.muted)
-            .frame(width: diameter, height: diameter)
-            .background(Theme.Colors.surface2, in: Circle())
-            .accessibilityHidden(true)
+        // Visual pass 2: a colour sticker (SettingsKit.swift). Same 32pt base and Dynamic Type
+        // scaling as before, so `SettingsRowDivider`'s inset math still lines up.
+        SettingsSticker(systemImage: systemImage, tint: tint)
     }
 }
 
@@ -920,20 +947,23 @@ private struct SettingsEyebrow: View {
 /// gap between groups (set by the parent stack) is `Spacing.lg` — 3x, past the 2x proximity rule.
 private struct SettingsSection<Content: View>: View {
     let title: String?
+    /// The section's explanation, behind an (i) beside the title (visual pass 2).
+    let info: String?
+    /// A caption that must stay visible (e.g. why the rows are disabled).
     let footer: String?
     let content: Content
 
-    init(title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+    init(title: String? = nil, info: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.info = info
         self.footer = footer
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
             if let title {
-                SettingsEyebrow(text: title, isHeader: true)
-                    .padding(.horizontal, Theme.Spacing.xs)
+                SettingsSectionTitle(title: title, info: info)
             }
             content
             if let footer {
@@ -1012,6 +1042,7 @@ private struct SettingsRowLabel: View {
 
     let title: String
     let systemImage: String
+    var tint: Color = SettingsPalette.legal
     var value: String? = nil
     var accessory: Accessory = .chevron
     var isBusy = false
@@ -1028,7 +1059,7 @@ private struct SettingsRowLabel: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            SettingsIconBadge(systemImage: systemImage)
+            SettingsIconBadge(systemImage: systemImage, tint: tint)
 
             Text(title)
                 .font(Theme.Typography.headline)
@@ -1099,17 +1130,20 @@ private struct SettingsRowButtonStyle: ButtonStyle {
 private struct SettingsNavRow<Destination: View>: View {
     let title: String
     let systemImage: String
+    let tint: Color
     let value: String?
     let destination: () -> Destination
 
     init(
         _ title: String,
         systemImage: String,
+        tint: Color = SettingsPalette.legal,
         value: String? = nil,
         @ViewBuilder destination: @escaping () -> Destination
     ) {
         self.title = title
         self.systemImage = systemImage
+        self.tint = tint
         self.value = value
         self.destination = destination
     }
@@ -1118,7 +1152,7 @@ private struct SettingsNavRow<Destination: View>: View {
         NavigationLink {
             destination()
         } label: {
-            SettingsRowLabel(title: title, systemImage: systemImage, value: value)
+            SettingsRowLabel(title: title, systemImage: systemImage, tint: tint, value: value)
         }
         .buttonStyle(SettingsRowButtonStyle())
     }
@@ -1129,6 +1163,7 @@ private struct SettingsNavRow<Destination: View>: View {
 private struct SettingsActionRow: View {
     let title: String
     let systemImage: String
+    var tint: Color = SettingsPalette.legal
     var accessory: SettingsRowLabel.Accessory = .external
     var isBusy = false
     var isDestructive = false
@@ -1139,6 +1174,7 @@ private struct SettingsActionRow: View {
             SettingsRowLabel(
                 title: title,
                 systemImage: systemImage,
+                tint: tint,
                 accessory: accessory,
                 isBusy: isBusy,
                 isDestructive: isDestructive

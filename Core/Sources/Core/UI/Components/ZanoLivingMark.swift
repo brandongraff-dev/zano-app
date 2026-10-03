@@ -21,6 +21,7 @@ public struct ZanoLivingMark: View {
     private let charge: Double
     private let height: CGFloat
     private let accessibilityValueText: String?
+    private let mood: ZanoMascotMood
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -31,10 +32,15 @@ public struct ZanoLivingMark: View {
     ///   - accessibilityValue: What the star *means* here, spoken after the brand name (e.g.
     ///     `Copy.screenTime.chargeSpoken(percent:)`). `nil` (the default) hides the star from
     ///     VoiceOver: most screens use it as decoration beside copy that already says the thing.
-    public init(charge: Double, height: CGFloat = 120, accessibilityValue: String? = nil) {
+    ///   - mood: Pass 2: how the star feels (`ZanoMascotMood`). In-process it dims a sleepy star,
+    ///     slows its bob and brightens a charged one; the body language (hop, wiggle, sparks, jump,
+    ///     spin) is `.zanoMascot(mood:...)`, applied around the star. Defaults to `.idle`, which
+    ///     draws exactly what the star drew before pass 2.
+    public init(charge: Double, height: CGFloat = 120, accessibilityValue: String? = nil, mood: ZanoMascotMood = .idle) {
         self.charge = min(1, max(0, charge))
         self.height = height
         self.accessibilityValueText = accessibilityValue
+        self.mood = mood
     }
 
     private var width: CGFloat { height * ZanoMark.aspectRatio }
@@ -62,8 +68,10 @@ public struct ZanoLivingMark: View {
     private func star(time t: Double, animated: Bool) -> some View {
         let breathe = animated ? 0.5 + 0.5 * sin(t * 2 * .pi / 4.5) : 0.5
         // v2: the mascot bobs — a playful, quicker float with a little lean into each rise.
-        let bobPhase = t * 2 * .pi / Theme.Motion.idleBobPeriod
-        let float = animated ? sin(bobPhase) * height * 0.045 : 0
+        // Pass 2: a sleepy star bobs slower and lower; a charged one glows brighter.
+        let sleepy = mood == .sleepy
+        let bobPhase = t * 2 * .pi / (Theme.Motion.idleBobPeriod * (sleepy ? 1.6 : 1))
+        let float = animated ? sin(bobPhase) * height * (sleepy ? 0.02 : 0.045) : 0
         let lean = animated ? cos(bobPhase) * 2.5 : 0
         let turn = animated ? sin(t * 2 * .pi / 9) * 9 : 0
         // The sweep crosses once every 4 s, from off the left edge to off the right.
@@ -81,7 +89,7 @@ public struct ZanoLivingMark: View {
                     .opacity(charge)
             }
             .blur(radius: height * 0.2)
-            .opacity((0.18 + 0.62 * charge) * (0.7 + 0.3 * breathe))
+            .opacity(min(1, (0.18 + 0.62 * charge) * (0.7 + 0.3 * breathe) * mood.glowFactor))
 
             // Uncharged metal.
             ZanoMarkShape()
@@ -97,7 +105,7 @@ public struct ZanoLivingMark: View {
                 .mask(chargeMask)
 
             // The light sweep, only over the charged part.
-            if charge > 0.05 {
+            if charge > 0.05 && !sleepy {
                 LinearGradient(
                     stops: [
                         .init(color: .white.opacity(0), location: max(0, sweep - 0.12)),
@@ -142,25 +150,30 @@ public struct ZanoLivingMark: View {
     }
 }
 
-/// The living star with today's charge under it. Sized for Today's hero. This is the view the
+/// The living star with today's charge stuck on it. Sized for Today's hero. This is the view the
 /// `ZANOReport` extension draws for the `.zanoMark` context, so its type must stay concrete.
 ///
-/// v2 (visual direction v2): one quiet row of glass chips under the star — the charge and the day's
-/// screen time — instead of a 44pt total, a tracked all-caps label and a middle-dot sentence, so the
-/// screen's real hero (the goal count) is the only big number on Today.
+/// v2 (visual direction v2): one quiet row of glass chips under the star.
+///
+/// Pass 2 (playful, 2026-10-03): the hero is compact now (the star sits beside the score, so the goal
+/// tiles start above the fold), so the charge is a small sticker stuck on the star's corner ("72%"
+/// with a bolt, filled ZANO Blue once it is worth bragging about) instead of a chip row under it. It
+/// moves with the star, which is the point: it is the star's own badge. The day's screen-time total
+/// lives in the Screen time section. The default height (96) is the compact hero's star, and it is
+/// what the report extension draws with (it passes no height), so the app and extension agree.
 public struct ScreenTimeChargeView: View {
     private let charge: Double
     private let total: TimeInterval?
     private let height: CGFloat
 
-    public init(summary: ScreenTimeSummary, height: CGFloat = 150) {
+    public init(summary: ScreenTimeSummary, height: CGFloat = 96) {
         self.charge = summary.charge
         self.total = summary.total
         self.height = height
     }
 
     /// Before Screen Time access: an uncharged star and a hint instead of numbers.
-    public init(height: CGFloat = 150) {
+    public init(height: CGFloat = 96) {
         self.charge = 0
         self.total = nil
         self.height = height
@@ -169,7 +182,7 @@ public struct ScreenTimeChargeView: View {
     private var percent: Int { Int((charge * 100).rounded()) }
 
     public var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Theme.Spacing.xs) {
             // Before access there is no charge to speak, so the star stays decorative and the
             // hint below carries the meaning.
             ZanoLivingMark(
@@ -177,31 +190,30 @@ public struct ScreenTimeChargeView: View {
                 height: height,
                 accessibilityValue: total == nil ? nil : Copy.screenTime.chargeSpoken(percent: percent)
             )
-            .padding(.bottom, height * 0.3)
-            if let total {
-                HStack(spacing: Theme.Spacing.xs) {
-                    ZanoGlassChip(
-                        Copy.today.heroStarCharge(percent: percent),
+            .overlay(alignment: .bottomTrailing) {
+                if total != nil {
+                    ZanoSticker(
+                        Copy.screenTime.chargeSticker(percent: percent),
                         systemImage: "bolt.fill",
-                        tint: charge >= 0.35 ? Theme.Colors.accent : Theme.Colors.muted
+                        color: charge >= 0.35 ? Theme.Colors.accent : Theme.Colors.muted,
+                        style: charge >= 0.35 ? .filled : .tinted,
+                        size: .small
                     )
-                    // The star above already speaks the charge (`chargeSpoken`).
+                    .fixedSize()
+                    .offset(x: Theme.Spacing.xxs, y: Theme.Spacing.xs)
+                    // The star already speaks the charge (`chargeSpoken`).
                     .accessibilityHidden(true)
-                    ZanoGlassChip(Copy.screenTime.duration(total), systemImage: "iphone", tint: Theme.Colors.muted)
-                        .contentTransition(.numericText())
-                        .accessibilityElement(children: .ignore)
-                        // `2h 30m` is read as letters; speak it as words, with what it is.
-                        .accessibilityLabel(Copy.screenTime.totalLabel)
-                        .accessibilityValue(Copy.screenTime.spokenDuration(total))
                 }
-            } else {
+            }
+            if total == nil {
                 Text(Copy.screenTime.chargeHint)
-                    .font(Theme.Typography.captionEmphasized)
+                    .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .multilineTextAlignment(.center)
-        .padding(.top, height * 0.3)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
@@ -211,47 +223,104 @@ public struct ScreenTimeChargeView: View {
 
 extension View {
     /// The star's "charge" moment (visual direction v2): each time `trigger` changes, the content
-    /// pops (scale 1 → 1.1 → 1 on `Theme.Motion.springPop`-like keyframes) and a ring of `color`
-    /// light expands out of it and fades. For an earned beat only (a goal completing). Reduce Motion:
-    /// nothing moves.
-    public func zanoChargeBurst(trigger: Int, color: Color = Theme.Colors.accent) -> some View {
-        modifier(ZanoChargeBurst(trigger: trigger, color: color))
+    /// pops (scale 1 → 1.12 → 1) and a ring of `color` light expands out of it and fades.
+    ///
+    /// Pass 2 (playful): eight sparkles fly out with the ring and spin as they go, so a completed
+    /// goal throws a little handful of its own colour. For an earned beat only (a goal completing).
+    /// Reduce Motion: nothing moves.
+    ///
+    /// - Parameters:
+    ///   - trigger: Bump to fire.
+    ///   - color: The ring's and the sparkles' colour. Defaults to the accent.
+    ///   - sparks: Throw the sparkles. Defaults to `true`; pass `false` for a ring-only pulse.
+    public func zanoChargeBurst(trigger: Int, color: Color = Theme.Colors.accent, sparks: Bool = true) -> some View {
+        modifier(ZanoChargeBurst(trigger: trigger, color: color, sparks: sparks))
     }
 }
 
 private struct ZanoChargeBurst: ViewModifier {
     let trigger: Int
     let color: Color
+    let sparks: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let sparkCount = 8
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if reduceMotion {
             content
         } else {
+            // Plain values: the keyframe content closures are `@Sendable`.
+            let color = self.color
+            let sparks = self.sparks
             content
                 .keyframeAnimator(initialValue: 1.0, trigger: trigger) { view, scale in
                     view.scaleEffect(scale)
                 } keyframes: { _ in
-                    SpringKeyframe(1.1, duration: 0.18, spring: .snappy)
-                    SpringKeyframe(1.0, duration: 0.5, spring: .bouncy)
+                    SpringKeyframe(1.12, duration: 0.16, spring: .snappy)
+                    SpringKeyframe(1.0, duration: 0.55, spring: .bouncy)
                 }
                 .overlay {
-                    Circle()
-                        .strokeBorder(color, lineWidth: 3)
-                        .keyframeAnimator(initialValue: 0.0, trigger: trigger) { ring, progress in
-                            ring
+                    GeometryReader { proxy in
+                        let radius = min(proxy.size.width, proxy.size.height) / 2
+                        ZStack {
+                            Circle()
+                                .strokeBorder(color, lineWidth: 3)
+                            if sparks {
+                                ForEach(0..<Self.sparkCount, id: \.self) { index in
+                                    ZanoSparkleShape()
+                                        .fill(index.isMultiple(of: 2) ? color : Color.white)
+                                        .frame(width: max(6, radius * 0.22), height: max(6, radius * 0.22))
+                                        .modifier(SparkFlight(index: index, count: Self.sparkCount, radius: radius))
+                                }
+                            }
+                        }
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .keyframeAnimator(initialValue: 0.0, trigger: trigger) { burst, progress in
+                            burst
+                                .environment(\.zanoBurstProgress, progress)
                                 .scaleEffect(0.4 + 1.2 * progress)
-                                .opacity(progress > 0 && progress < 1 ? (1 - progress) * 0.9 : 0)
-                                .blur(radius: 1 + 3 * progress)
+                                .opacity(progress > 0 && progress < 1 ? (1 - progress) * 0.95 : 0)
                         } keyframes: { _ in
                             LinearKeyframe(0.0, duration: 0.001)
                             CubicKeyframe(1.0, duration: 0.75)
                         }
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
         }
+    }
+}
+
+/// How far through a charge burst the sparkles are (0...1). Set by the burst's keyframes.
+private struct ZanoBurstProgressKey: EnvironmentKey {
+    static let defaultValue: Double = 0
+}
+
+extension EnvironmentValues {
+    fileprivate var zanoBurstProgress: Double {
+        get { self[ZanoBurstProgressKey.self] }
+        set { self[ZanoBurstProgressKey.self] = newValue }
+    }
+}
+
+/// One sparkle's path out of the burst: straight out along its spoke, spinning, a little further
+/// than the ring.
+private struct SparkFlight: ViewModifier {
+    let index: Int
+    let count: Int
+    let radius: CGFloat
+
+    @Environment(\.zanoBurstProgress) private var progress
+
+    func body(content: Content) -> some View {
+        let angle = Double(index) / Double(count) * 2 * .pi + .pi / 8
+        let distance = radius * (0.3 + 0.55 * progress)
+        return content
+            .rotationEffect(.degrees(progress * 220))
+            .offset(x: cos(angle) * distance, y: sin(angle) * distance)
     }
 }

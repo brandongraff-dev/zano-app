@@ -15,25 +15,41 @@
 
 import SwiftUI
 
-/// A `ButtonStyle` for tappable rows and cards: a slight press-in scale and dim on touch-down,
-/// on `Theme.Motion.pressFeedback`. Under Reduce Motion the scale is dropped (the dim stays: "the
-/// interface heard you" is information; the spring is not).
+/// A `ButtonStyle` for tappable rows and cards: a squish on touch-down and a springy bounce back on
+/// release.
+///
+/// Pass 2 (playful, 2026-10-03): the press is a *squish*, not a shrink. The view gets a little wider
+/// than it gets taller (x shrinks a quarter less than `scale`, y a quarter more), dims slightly, and
+/// on release springs back on `Theme.Motion.springSquish`, overshooting past 1 like a rubber button.
+/// Press-in stays on the fast `pressFeedback` curve (HIG's 100–160ms response budget). Under Reduce
+/// Motion the scale is dropped and the release is a flat ease (the dim stays: "the interface heard
+/// you" is information; the bounce is not).
 public struct PressableStyle: ButtonStyle {
     private let scale: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameter scale: Pressed scale. `0.98` (default) for full-width rows and cards — a 4%
-    ///   shrink of a 361pt card is already 14pt; use `0.96` for compact controls and chips.
+    ///   shrink of a 361pt card is already 14pt; use `0.96` for tiles, `0.92` for compact chips.
     public init(scale: CGFloat = 0.98) {
         self.scale = scale
     }
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1)
-            .opacity(configuration.isPressed ? 0.86 : 1)
-            .animation(Theme.Motion.press(reduceMotion: reduceMotion), value: configuration.isPressed)
+        let pressed = configuration.isPressed && !reduceMotion
+        let give = 1 - scale
+        return configuration.label
+            .scaleEffect(
+                x: pressed ? scale + give * 0.25 : 1,
+                y: pressed ? scale - give * 0.25 : 1
+            )
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .animation(curve(isPressed: configuration.isPressed), value: configuration.isPressed)
+    }
+
+    private func curve(isPressed: Bool) -> Animation {
+        if reduceMotion { return .easeOut(duration: 0.1) }
+        return isPressed ? Theme.Motion.pressFeedback : Theme.Motion.springSquish
     }
 }
 

@@ -25,15 +25,39 @@ struct MonthlyChallengeCard: View {
         return max(1, calendar.dateComponents([.day], from: today, to: progress.challenge.endDate).day ?? 1)
     }
 
+    // Playful pass (2026-10-03): violet ring (a challenge, not "earned" blue until it is cleared),
+    // the explainer moved into an info button, and days-left is a chip under the title instead of a
+    // trailing label that squeezed the title on iPhone SE.
+    private var ringColor: Color {
+        progress.isComplete ? Theme.Colors.accent : Theme.Colors.Ring.focus
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: Theme.Spacing.md) {
+        HStack(alignment: .top, spacing: Theme.Spacing.md) {
             GoalRing(
                 progress: progress.progress,
-                color: Theme.Colors.accent,
+                color: ringColor,
                 size: .small,
                 center: progress.isComplete ? .icon(systemName: "checkmark") : .icon(systemName: "calendar")
             )
+            .accessibilityHidden(true)
 
+            details
+
+            Spacer(minLength: 0)
+
+            ZanoInfoButton(
+                Copy.progress.monthlyChallengeExplainer,
+                accessibilityLabel: Copy.progress.monthlyChallengeInfoAccessibilityLabel
+            )
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard(radius: Theme.Radius.medium, tint: ringColor, active: progress.isComplete)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(title)
                     .zanoText(.headline)
@@ -46,25 +70,14 @@ struct MonthlyChallengeCard: View {
                     .font(Theme.Typography.captionEmphasized)
                     .foregroundStyle(progress.isComplete ? Theme.Colors.accent : Theme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-
-                Text(progress.isComplete ? Copy.progress.monthlyChallengeEndsLabel(daysLeft: daysLeft) : Copy.progress.monthlyChallengeExplainer)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
 
-            Spacer(minLength: 0)
-
-            if !progress.isComplete {
-                Text(Copy.progress.monthlyChallengeEndsLabel(daysLeft: daysLeft))
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .lineLimit(1)
-            }
+            ZanoGlassChip(
+                Copy.progress.monthlyChallengeEndsLabel(daysLeft: daysLeft),
+                systemImage: "hourglass",
+                tint: ringColor
+            )
         }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(radius: Theme.Radius.medium, active: progress.isComplete)
-        .accessibilityElement(children: .combine)
     }
 }

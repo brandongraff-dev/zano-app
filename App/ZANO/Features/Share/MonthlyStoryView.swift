@@ -42,7 +42,8 @@ struct MonthlyStoryView: View {
                 eyebrow: Copy.milestone.monthEyebrow(monthName: monthName),
                 numeral: "\(story.earnedDays)",
                 unit: Copy.milestone.monthDaysUnit,
-                line: Copy.milestone.monthIntroLine
+                line: Copy.milestone.monthIntroLine,
+                hue: .sky
             ),
         ]
         if story.lockedHours > 0 {
@@ -50,7 +51,8 @@ struct MonthlyStoryView: View {
                 eyebrow: Copy.milestone.monthHoursEyebrow,
                 numeral: "\(story.lockedHours)",
                 unit: Copy.milestone.monthHoursUnit(hours: story.lockedHours),
-                line: Copy.milestone.monthHoursLine
+                line: Copy.milestone.monthHoursLine,
+                hue: .violet
             ))
         }
         result.append(MilestoneCardContent(
@@ -58,7 +60,8 @@ struct MonthlyStoryView: View {
             numeral: "\(story.bestStreak)",
             unit: Copy.milestone.monthStreakUnit(days: story.bestStreak),
             line: story.topGoalTitle.map { Copy.milestone.monthTopGoalLine(goal: $0) }
-                ?? Copy.milestone.monthUnlocksLine(count: story.earnedUnlocks)
+                ?? Copy.milestone.monthUnlocksLine(count: story.earnedUnlocks),
+            hue: .ember
         ))
         return result
     }
@@ -66,9 +69,7 @@ struct MonthlyStoryView: View {
     var body: some View {
         let pages = self.pages
         VStack(spacing: 0) {
-            Text(Copy.milestone.monthlyMomentHeadline)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.accent)
+            ZanoGlassChip(Copy.milestone.monthlyMomentHeadline, systemImage: "calendar", tint: Theme.Colors.Ring.water)
                 .padding(.top, Theme.Spacing.md)
                 .accessibilityAddTraits(.isHeader)
 

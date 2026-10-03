@@ -46,6 +46,19 @@
 //     offers).
 //   * `.grace` context: opened from the "Finish starting your trial" banner; dismisses on success.
 //
+// Visual pass 2 (2026-10-03, founder: "premium-playful"). Every 3.1.2 element is unchanged (billed
+// amount the biggest price, terms paragraph under the CTA, Terms / Privacy / Restore, the dated
+// timeline, the reminder toggle, "Continue for now" when plans fail). What changed is the dressing:
+//   * Hero: the star "unlocks". It opens part-charged with a padlock sticker on its shoulder; a beat
+//     later it charges to full, the padlock morphs open (`symbolEffect(.replace)`), a charge burst
+//     rings out and one success haptic lands. Once, on appear; Reduce Motion shows the open state.
+//   * Timeline: a glowing path. The trial stretch is a blue-to-violet track with a soft glow, the
+//     paid tail stays plain grey (honest: that part costs money). Nodes are stickers: today blue,
+//     the reminder sun-yellow, billing a glass disc.
+//   * Plan tiles: glass cards; the selected one gets a blue rim and the earned glow; the "7 days
+//     free" pill is a sun-yellow sticker, tilted, on the tile's corner. The billed price is the score
+//     face. No countdowns, no strike-through prices, no fake scarcity.
+//
 // Carried from earlier passes: `SwiftUI.ProgressView()` (bare `ProgressView` is this module's
 // Progress tab), Terms/Privacy links App Review expects, every animation gated on Reduce Motion.
 // The Terms link is Apple's standard EULA and Privacy is a placeholder: both need final URLs before
@@ -214,11 +227,7 @@ struct PaywallView: View {
     /// The fully charged star over its blue bloom: what the user is paying to earn. The bloom is a
     /// background, so it never adds height.
     private var hero: some View {
-        ZanoLivingMark(charge: 1, height: Self.heroMarkHeight)
-            .background {
-                OnboardingKit.StarBloom(diameter: Self.heroMarkHeight * 3.5)
-            }
-            .accessibilityHidden(true)
+        PaywallUnlockHero(height: Self.heroMarkHeight)
     }
 
     private var firstHeadlineLine: String {
@@ -609,6 +618,54 @@ struct PaywallView: View {
     }
 }
 
+// MARK: - Unlock hero
+
+/// The star "unlocking": part-charged with a padlock sticker on its shoulder, then (once, ~0.5s in)
+/// it charges to full, the padlock morphs open, a burst rings out and a success haptic lands. The
+/// bloom behind only changes opacity. Reduce Motion: drawn open and full from the first frame.
+private struct PaywallUnlockHero: View {
+    let height: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isUnlocked = false
+    @State private var burst = 0
+
+    private var open: Bool { isUnlocked || reduceMotion }
+
+    var body: some View {
+        ZanoLivingMark(charge: open ? 1 : 0.55, height: height)
+            .background {
+                OnboardingKit.StarBloom(diameter: height * 3.5)
+                    .opacity(open ? 1 : 0.45)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.8), value: open)
+            }
+            .zanoChargeBurst(trigger: burst, color: Theme.Colors.accent)
+            .overlay(alignment: .bottomTrailing) { padlock }
+            .sensoryFeedback(.success, trigger: burst)
+            // Decorative: the headline right under it says what it means.
+            .accessibilityHidden(true)
+            .task {
+                guard !reduceMotion, !isUnlocked else { return }
+                try? await Task.sleep(for: .milliseconds(550))
+                guard !Task.isCancelled else { return }
+                withAnimation(Theme.Motion.springPop) { isUnlocked = true }
+                burst += 1
+            }
+    }
+
+    private var padlock: some View {
+        Image(systemName: open ? "lock.open.fill" : "lock.fill")
+            .font(.system(size: 14, weight: .heavy))
+            .foregroundStyle(Theme.Colors.background)
+            .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+            .frame(width: 28, height: 28)
+            .background(Circle().fill(open ? Theme.Colors.Ring.steps : Theme.Colors.Ring.sunriseAlarm))
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: 1))
+            .rotationEffect(.degrees(reduceMotion ? 0 : (open ? 12 : -6)))
+            .offset(x: Theme.Spacing.xs, y: Theme.Spacing.xxs)
+    }
+}
+
 // MARK: - Legal links
 
 /// The two links App Review expects on a subscription paywall. `terms` is Apple's standard EULA
@@ -635,7 +692,11 @@ private struct PaywallTrialTimeline: View {
     var isReminderOn: Bool = true
 
     private static let nodeSize: CGFloat = 36
-    private static let trackWidth: CGFloat = 10
+    private static let trackWidth: CGFloat = 8
+
+    private static var pathGradient: LinearGradient {
+        LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.Aurora.violet], startPoint: .top, endPoint: .bottom)
+    }
 
     private struct Node: Identifiable {
         enum Kind { case today, reminder, billing }
@@ -709,8 +770,10 @@ private struct PaywallTrialTimeline: View {
         // The track segment below this node, behind it: accent while still in the trial, grey for
         // the tail after billing. A background, so it spans the row whatever the text does.
         .background(alignment: .topLeading) {
+            // The trial stretch glows blue into violet; the paid tail after billing stays plain.
             RoundedRectangle(cornerRadius: Self.trackWidth / 2)
-                .fill(node.kind == .billing ? Theme.Colors.track : Theme.Colors.accent.opacity(0.35))
+                .fill(node.kind == .billing ? AnyShapeStyle(Theme.Colors.track) : AnyShapeStyle(Self.pathGradient))
+                .shadow(color: node.kind == .billing ? .clear : Theme.Colors.Aurora.violet.opacity(0.6), radius: 8)
                 .frame(width: Self.trackWidth)
                 .padding(.leading, (Self.nodeSize - Self.trackWidth) / 2)
                 .padding(.top, Self.nodeSize / 2)
@@ -732,18 +795,20 @@ private struct PaywallTrialTimeline: View {
             glyph = Theme.Colors.onAccent
         case .reminder:
             symbol = "bell.fill"
-            fill = Theme.Colors.surface2
-            glyph = Theme.Colors.textSecondary
+            fill = Theme.Colors.Ring.sunriseAlarm
+            glyph = Theme.Colors.background
         case .billing:
             symbol = "crown.fill"
             fill = Theme.Colors.surface2
-            glyph = Theme.Colors.muted
+            glyph = Theme.Colors.textSecondary
         }
         return Image(systemName: symbol)
             .font(Theme.Typography.icon(.medium, weight: .bold))
             .foregroundStyle(glyph)
             .frame(width: Self.nodeSize, height: Self.nodeSize)
             .background(fill, in: Circle())
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+            .shadow(color: node.kind == .today ? Theme.Colors.accent.opacity(0.7) : .clear, radius: 10)
             .zIndex(1)
             .accessibilityHidden(true)
     }
@@ -785,7 +850,7 @@ private struct PaywallPlanTile: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(price)
-                            .font(.system(.title2, weight: .heavy).width(.condensed))
+                            .font(Theme.Typography.score(size: 24))
                             .foregroundStyle(Theme.Colors.text)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -811,24 +876,28 @@ private struct PaywallPlanTile: View {
             // Room for the pill on top and for larger text; the tile grows instead of clipping.
             .padding(.vertical, Theme.Spacing.sm)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface, in: shape)
+            // Glass; the picked plan wears the blue rim and the earned glow.
+            .zanoCard(radius: Theme.Radius.medium, tint: isSelected ? Theme.Colors.accent : nil, active: isSelected)
             .overlay(
                 shape.strokeBorder(
-                    isSelected ? Theme.Colors.interactive : Theme.Colors.hairlineStrong,
-                    lineWidth: isSelected ? Theme.Metrics.selectedStroke : Theme.Metrics.edgeWidth
+                    isSelected ? Theme.Colors.interactive : Color.clear,
+                    lineWidth: Theme.Metrics.selectedStroke + 0.5
                 )
             )
-            .overlay(alignment: .top) {
+            .overlay(alignment: .topTrailing) {
                 if let pill {
+                    // A sun-yellow sticker slapped on the corner. Ink on sun is 11:1.
                     Text(pill)
-                        .font(Theme.Typography.captionEmphasized)
-                        .foregroundStyle(Theme.Colors.onAccent)
+                        .font(Theme.Typography.captionEmphasized.weight(.heavy))
+                        .foregroundStyle(Theme.Colors.background)
                         .lineLimit(1)
                         .padding(.horizontal, Theme.Spacing.sm)
                         .padding(.vertical, Theme.Spacing.xxs)
-                        // `accentFill`, not `accent`: white caption text needs the deeper blue.
-                        .background(Theme.Colors.accentFill, in: Capsule())
-                        .offset(y: -13)
+                        .background(Capsule().fill(Theme.Colors.Ring.sunriseAlarm))
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.55), lineWidth: 1))
+                        .rotationEffect(.degrees(reduceMotion ? 0 : 6))
+                        .offset(x: -Theme.Spacing.xs, y: -14)
+                        .shadow(color: Theme.Colors.Ring.sunriseAlarm.opacity(0.35), radius: 6, y: 2)
                 }
             }
             .contentShape(shape)

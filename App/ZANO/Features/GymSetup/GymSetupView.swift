@@ -127,7 +127,7 @@ public struct GymSetupView: View {
 
     private var emptyState: some View {
         VStack(spacing: Theme.Spacing.lg) {
-            IconBadge(systemName: "mappin.and.ellipse", tint: Theme.Colors.accent, size: .large)
+            GymPinHero()
 
             VStack(spacing: Theme.Spacing.xs) {
                 Text(Copy.gym.emptyTitle)
@@ -158,7 +158,7 @@ public struct GymSetupView: View {
             GymCheckInView()
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "figure.strengthtraining.traditional", tint: Theme.Colors.accent, size: .medium)
+                IconBadge(systemName: "bolt.fill", tint: Theme.Colors.Ring.workout, size: .medium)
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(Copy.gym.checkInRowTitle)
                         .zanoText(.headline)
@@ -178,7 +178,7 @@ public struct GymSetupView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .zanoCard()
+        .zanoCard(tint: Theme.Colors.Ring.workout)
     }
 
     // MARK: Gym cards
@@ -191,14 +191,40 @@ public struct GymSetupView: View {
         }
     }
 
+    /// A saved gym as a glass map card: the gym's circle on a small muted map up top, the name,
+    /// radius and status under it on the glass.
     private func gymCard(_ gym: Gym) -> some View {
+        let tint = gym.confirmed ? Theme.Colors.Ring.workout : Theme.Colors.warning
+        return VStack(alignment: .leading, spacing: 0) {
+            GymMapPreview(latitude: gym.lat, longitude: gym.lng, radiusMeters: gym.radiusMeters, tint: tint)
+                .frame(height: GymCardMetrics.mapHeight)
+            gymCardBody(gym)
+                .padding(Theme.Spacing.md)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .zanoCard(tint: tint)
+        .contextMenu {
+            Button {
+                editor = .edit(gym)
+            } label: {
+                Label(Copy.gym.editLabel, systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                pendingDeletion = gym
+            } label: {
+                Label(Copy.common.delete, systemImage: "trash")
+            }
+        }
+    }
+
+    private func gymCardBody(_ gym: Gym) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(alignment: .top, spacing: Theme.Spacing.sm) {
                 Button {
                     editor = .edit(gym)
                 } label: {
                     HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                        IconBadge(systemName: "dumbbell", tint: Theme.Colors.textSecondary, size: .small)
                         VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                             Text(gym.name ?? Copy.gym.unnamedLabel)
                                 .zanoText(.headline)
@@ -229,31 +255,16 @@ public struct GymSetupView: View {
                 }
             }
         }
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard(tint: gym.confirmed ? nil : Theme.Colors.warning)
-        .contextMenu {
-            Button {
-                editor = .edit(gym)
-            } label: {
-                Label(Copy.gym.editLabel, systemImage: "pencil")
-            }
-            Button(role: .destructive) {
-                pendingDeletion = gym
-            } label: {
-                Label(Copy.common.delete, systemImage: "trash")
-            }
-        }
     }
 
     private func detailLine(for gym: Gym) -> String {
         let radius = Copy.gym.radiusLabel(meters: gym.radiusMeters)
-        return gym.autoDetected ? "\(radius) · \(Copy.gym.autoDetectedLabel)" : radius
+        return gym.autoDetected ? "\(radius), \(Copy.gym.autoDetectedLabel.lowercased())" : radius
     }
 
     /// Glyph + word, never hue alone. Confirmed = accent; unconfirmed = warning.
     private func statusPill(confirmed: Bool) -> some View {
-        let tint = confirmed ? Theme.Colors.accent : Theme.Colors.warning
+        let tint = confirmed ? Theme.Colors.Ring.workout : Theme.Colors.warning
         return HStack(spacing: Theme.Spacing.xxs) {
             Image(systemName: confirmed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(Theme.Typography.icon(.xsmall))
@@ -353,6 +364,10 @@ public struct GymSetupView: View {
             isAlwaysPrimerPresented = true
         }
     }
+}
+
+private enum GymCardMetrics {
+    static let mapHeight: CGFloat = 112
 }
 
 /// What the editor sheet is open for.

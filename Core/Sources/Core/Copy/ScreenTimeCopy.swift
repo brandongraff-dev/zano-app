@@ -25,6 +25,8 @@ extension Copy {
         public static let accessButton = "Allow access"
         /// Under the living star on Today: how charged it is.
         public static func chargeLine(percent: Int) -> String { "Star \(percent)% charged · time off your phone" }
+        /// Pass 2: the charge sticker stuck on the star's corner on Today (`72%`).
+        public static func chargeSticker(percent: Int) -> String { "\(percent)%" }
         /// Under the star before Screen Time access.
         public static let chargeHint = "Your star charges while you're off your phone"
 

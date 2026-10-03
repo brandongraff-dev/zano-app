@@ -367,7 +367,11 @@ struct NFCNotice: View {
 
 // MARK: - TagTapScene
 
-/// A phone lowering onto a silver ZANO tag with blue read waves. State-driven:
+/// Pass 2 (2026-10-03, "make it more playful"): the tag is a die-cut sticker (white rim, hard
+/// shadow), the read waves cycle through the goal colours, and success pops confetti out of the tag
+/// with a volt check sticker. Reduce Motion: no confetti, still waves (as before).
+///
+/// A phone lowering onto a silver ZANO tag with read waves. State-driven:
 /// `.idle` breathes slowly, `.active` pulses fast (scan in progress), `.success` lands a check,
 /// `.failure` shows a quiet cross. Decorative; the text beside it carries the meaning.
 struct TagTapScene: View {
@@ -414,7 +418,7 @@ struct TagTapScene: View {
                     ? Double(index) / 3 + 0.2
                     : ((time / period) + Double(index) / 3).truncatingRemainder(dividingBy: 1)
                 Circle()
-                    .stroke(waveColor, lineWidth: 1.5)
+                    .stroke(waveColor(index), lineWidth: 2)
                     .frame(width: 64, height: 64)
                     .scaleEffect(1 + local * 1.4)
                     .opacity(phase == .failure ? 0.12 : (1 - local) * 0.8)
@@ -424,6 +428,14 @@ struct TagTapScene: View {
             tagBody
                 .position(tagCenter)
                 .shadow(color: Theme.Colors.accent.opacity(phase == .active || phase == .success ? 0.55 : 0.2), radius: 16)
+
+            if phase == .success && !reduceMotion {
+                // Mounted on success, so it fires once out of the tag.
+                CelebrationBurst(trigger: 0, colors: Self.wavePalette + [Theme.Colors.text], particleCount: 26)
+                    .frame(width: 200, height: 200)
+                    .position(tagCenter)
+                    .allowsHitTesting(false)
+            }
 
             phone
                 .frame(width: 66, height: 120)
@@ -440,8 +452,12 @@ struct TagTapScene: View {
         .frame(width: size.width, height: size.height)
     }
 
-    private var waveColor: Color {
-        phase == .failure ? Theme.Colors.muted : Theme.Colors.accent
+    private static let wavePalette: [Color] = [
+        Theme.Colors.Ring.water, Theme.Colors.Ring.creatine, Theme.Colors.Ring.workout,
+    ]
+
+    private func waveColor(_ index: Int) -> Color {
+        phase == .failure ? Theme.Colors.muted : Self.wavePalette[index % Self.wavePalette.count]
     }
 
     @ViewBuilder
@@ -454,7 +470,11 @@ struct TagTapScene: View {
                 ZanoMark(height: 24, style: .mono(Theme.Colors.background.opacity(0.82)))
             }
             .frame(width: 64, height: 64)
-            .overlay(Circle().strokeBorder(Color.white.opacity(0.6), lineWidth: 0.75))
+            // Die-cut sticker: a white rim and a hard, printed shadow.
+            .padding(3)
+            .background(Color.white, in: Circle())
+            .compositingGroup()
+            .shadow(color: Color.black.opacity(0.45), radius: 0, x: 2, y: 3)
         case .card:
             let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
             ZStack(alignment: .bottomLeading) {
@@ -491,10 +511,11 @@ struct TagTapScene: View {
 
     private var resultBadge: some View {
         Image(systemName: phase == .success ? "checkmark" : "xmark")
-            .font(Theme.Typography.icon(.small, weight: .bold))
-            .foregroundStyle(phase == .success ? Theme.Colors.onAccent : Theme.Colors.text)
-            .frame(width: 30, height: 30)
-            .background(phase == .success ? Theme.Colors.accentFill : Theme.Colors.surface2, in: Circle())
-            .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 2))
+            .font(Theme.Typography.icon(.medium, weight: .black))
+            .foregroundStyle(phase == .success ? Theme.Colors.onFill : Theme.Colors.text)
+            .frame(width: 38, height: 38)
+            .background(phase == .success ? Theme.Colors.Ring.workout : Theme.Colors.surface2, in: Circle())
+            .overlay(Circle().strokeBorder(Color.white, lineWidth: 2.5))
+            .rotationEffect(.degrees(10))
     }
 }

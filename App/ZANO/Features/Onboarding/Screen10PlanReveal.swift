@@ -85,6 +85,19 @@
 // reminder nudge, and gives the slip-risk score its prior. Protein has no picker: it's logged
 // through the day, not done at a time.
 //
+// VISUAL PASS 2 (2026-10-03, "make it more playful"):
+//   - The commit is a charging button (`OnboardingChargeButton`): a tall glass capsule that fills
+//     blue-to-violet over the 2-second hold, with a bouncing bolt, a growing glow and a burst when
+//     it lands. Same label and hold contract, so the UI tests' press-and-hold still works.
+//   - Cramped bottom fixed: the "hold for 2 seconds" hint no longer sits in the pinned bar over the
+//     scrolling card (on an SE it covered the last rows); it is the last line of the scroll content,
+//     the bar holds only the button, and the content has bottom room so the footer clears it.
+//   - The star speaks: under the title, the guide bubble says the plan starts easy on purpose (it
+//     replaces the separate tag). Section labels are rounded headlines, not small grey eyebrows.
+//   - The if-then picker is the fun bit: day chips are chunky squares in the goal's colour, the time
+//     sits in a glass capsule, and the sentence plays back as a quote in the goal's colour. The
+//     "a plan with a time is easier to keep" caption moved into an (i).
+//
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
 
@@ -200,7 +213,7 @@ struct Screen10PlanReveal: View {
     }
 
     private static let buildStarHeight: CGFloat = 88
-    private static let revealStarHeight: CGFloat = 30
+    private static let revealStarHeight: CGFloat = 44
 
     /// The build beat's star: 0.1 before anything checks off, 0.75 when every answer has.
     private var buildStarCharge: Double {
@@ -282,36 +295,47 @@ struct Screen10PlanReveal: View {
     private var revealedView: some View {
         OnboardingKit.CenteredScroll {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                ZanoLivingMark(charge: revealStarCharge, height: Self.revealStarHeight)
-                    .background {
-                        OnboardingKit.StarBloom(diameter: Self.revealStarHeight * 4)
-                            .opacity(0.6)
-                    }
-                    .accessibilityHidden(true)
                 OnboardingKit.DisplayTitle(text: Copy.onboarding.planRevealHeadline, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityAddTraits(.isHeader)
+                OnboardingGuideStar(
+                    line: Copy.onboarding.guidePlanLine,
+                    charge: revealStarCharge,
+                    starHeight: Self.revealStarHeight
+                )
                 planCard
+                commitHint
             }
             .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.lg)
+            .padding(.top, Theme.Spacing.lg)
+            // Room under the hint so the last line clears the pinned button on small phones.
+            .padding(.bottom, Theme.Spacing.xl)
         }
         .onboardingKitActionBar {
-            Text(Copy.onboarding.planCommitHint)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity)
-                .accessibilityHidden(true)
-            PrimaryButton(
+            OnboardingChargeButton(
                 title: Copy.onboarding.commitHoldButtonLabel,
-                style: .holdToCommit,
                 isEnabled: !isCommitted
             ) {
                 Task { await commit() }
             }
         }
+    }
+
+    /// "Hold for 2 seconds. This is you, deciding." The last line of the scroll content (it used to
+    /// sit in the pinned bar, over the card). The button's own hint says the same to VoiceOver.
+    private var commitHint: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: "hand.tap.fill")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.Aurora.violet)
+                .accessibilityHidden(true)
+            Text(Copy.onboarding.planCommitHint)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
     }
 
     /// The Lock-In Plan: one hero card, three sections and a footer. A hero radius (28) with
@@ -351,8 +375,9 @@ struct Screen10PlanReveal: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .zanoText(.eyebrow)
-            .foregroundStyle(Theme.Colors.muted)
+            .font(Theme.Typography.headline)
+            .foregroundStyle(Theme.Colors.text)
+            .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: Group 1 — locked apps
@@ -461,7 +486,6 @@ struct Screen10PlanReveal: View {
             ForEach(planGoals) { goal in
                 goalRow(goal)
             }
-            easyStartTag
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.md)
@@ -556,10 +580,10 @@ struct Screen10PlanReveal: View {
                 .font(Theme.Typography.icon(.small, weight: .bold))
                 .foregroundStyle(Theme.Colors.text)
                 .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
-                .background(Theme.Colors.surface2, in: Circle())
-                .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+                .background(ZanoGlass(Circle()))
+                .overlay(Circle().strokeBorder(Theme.Colors.Ring.workout.opacity(0.6), lineWidth: Theme.Metrics.edgeWidth))
         }
-        .buttonStyle(.pressable(scale: 0.94))
+        .buttonStyle(.pressable(scale: 0.88))
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.35)
         .accessibilityLabel(label)
@@ -573,23 +597,6 @@ struct Screen10PlanReveal: View {
 
     /// SF Symbol for the verification line: a camera for the photo fallback.
     private let verificationSymbol = "camera.fill"
-
-    /// Spec §16 P4's "Starting easy on purpose" tag — the day-one targets really are ~70% of stated.
-    /// Neutral: it is a fact about the plan, not something earned.
-    private var easyStartTag: some View {
-        HStack(spacing: Theme.Spacing.xxs) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(Theme.Typography.icon(.xsmall))
-            Text(Copy.onboardingReveal.planEasyStartTag)
-                .font(Theme.Typography.captionEmphasized)
-        }
-        .foregroundStyle(Theme.Colors.textSecondary)
-        .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, Theme.Spacing.xs)
-        .background(Theme.Colors.interactiveWash, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
-        .accessibilityElement(children: .combine)
-    }
 
     // MARK: Group 3 — schedule
 
@@ -633,12 +640,12 @@ struct Screen10PlanReveal: View {
 
     private var ifThenGroup: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            HStack(spacing: Theme.Spacing.xxs) {
                 sectionLabel(Copy.ifThenPlan.sectionLabel)
-                Text(Copy.ifThenPlan.sectionDetail)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                ZanoInfoButton(
+                    Copy.ifThenPlan.sectionDetail,
+                    accessibilityLabel: Copy.settings.sectionInfoLabel(Copy.ifThenPlan.sectionLabel)
+                )
             }
             ForEach(plannableGoalTypes, id: \.self) { type in
                 ifThenRow(type)
@@ -649,8 +656,10 @@ struct Screen10PlanReveal: View {
     }
 
     private func ifThenRow(_ type: GoalType) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        let color = Theme.Colors.Ring.color(for: type)
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(spacing: Theme.Spacing.sm) {
+                OnboardingSticker(systemImage: type == .workoutGym ? "dumbbell.fill" : "timer", tint: color, size: 32)
                 Text(Copy.ifThenPlan.rowTitle(for: type))
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
@@ -662,25 +671,24 @@ struct Screen10PlanReveal: View {
                 )
                 .labelsHidden()
                 .datePickerStyle(.compact)
-                .tint(Theme.Colors.interactive)
+                .tint(color)
             }
 
             if type == .workoutGym {
-                PlanDayChips(selection: $gymDays, onEdit: { gymDaysEdited = true })
+                PlanDayChips(selection: $gymDays, tint: color, onEdit: { gymDaysEdited = true })
                 if gymDays.isEmpty {
                     Text(Copy.ifThenPlan.noDaysHint)
                         .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
+                        .foregroundStyle(Theme.Colors.warning)
                 }
             }
 
             if let line = ifThenSentence(for: type) {
-                Text(line)
-                    .font(Theme.Typography.captionEmphasized)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                PlanIfThenQuote(text: line, tint: color)
             }
         }
+        .padding(Theme.Spacing.sm)
+        .zanoCard(radius: Theme.Radius.small, tint: color)
     }
 
     /// "If it's Mon/Wed/Fri at 6:00 PM, I go to the gym." `nil` while no day is picked.
@@ -914,7 +922,10 @@ struct Screen10PlanReveal: View {
 /// Seven day chips in the user's locale order (same look as the lock schedule editor's).
 private struct PlanDayChips: View {
     @Binding var selection: Set<Int>
+    var tint: Color = Theme.Colors.accent
     var onEdit: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let symbols = Calendar.current.veryShortWeekdaySymbols
@@ -927,12 +938,21 @@ private struct PlanDayChips: View {
                     onEdit()
                 } label: {
                     Text(symbols[day - 1])
-                        .font(Theme.Typography.captionEmphasized)
-                        .foregroundStyle(isOn ? Theme.Colors.onAccent : Theme.Colors.text)
+                        .font(Theme.Typography.headline.weight(.heavy))
+                        .foregroundStyle(isOn ? Theme.Colors.background : Theme.Colors.textSecondary)
                         .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-                        .background(isOn ? Theme.Colors.accent : Theme.Colors.track, in: Circle())
+                        .background {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isOn ? AnyShapeStyle(tint) : AnyShapeStyle(Theme.Colors.glassFill))
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(isOn ? Color.white.opacity(0.45) : Theme.Colors.hairline, lineWidth: 1)
+                        }
+                        .scaleEffect(isOn && !reduceMotion ? 1.0 : 0.94)
+                        .animation(reduceMotion ? nil : Theme.Motion.springPop, value: isOn)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable(scale: 0.88))
                 .accessibilityLabel(fullSymbols[day - 1])
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
@@ -944,6 +964,38 @@ private struct PlanDayChips: View {
     static func orderedWeekdays() -> [Int] {
         let first = Calendar.current.firstWeekday
         return (0..<7).map { (first - 1 + $0) % 7 + 1 }
+    }
+}
+
+// MARK: - If-then quote
+
+/// The plan played back in the user's own words, as a quote in the goal's colour: a coloured bar,
+/// a big opening quote mark, and the sentence. Rolls to the new text when days or time change.
+private struct PlanIfThenQuote: View {
+    let text: String
+    let tint: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.xs) {
+            Image(systemName: "quote.opening")
+                .font(Theme.Typography.icon(.small, weight: .heavy))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.numericText())
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: text)
+        }
+        .padding(.vertical, Theme.Spacing.xs)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(alignment: .leading) {
+            Capsule().fill(tint).frame(width: 3)
+        }
     }
 }
 

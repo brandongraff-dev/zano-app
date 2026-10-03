@@ -36,6 +36,36 @@ extension EnvironmentValues {
     }
 }
 
+private struct ZanoAuroraWarmthKey: EnvironmentKey {
+    static let defaultValue: Double = 0
+}
+
+extension EnvironmentValues {
+    /// Pass 2 (playful): how warm the aurora runs, 0...1. The room warms toward ember as a streak
+    /// grows (`ZanoAuroraWarmth.forStreak(days:)`). Set with `.zanoAuroraWarmth(_:)`.
+    public var zanoAuroraWarmth: Double {
+        get { self[ZanoAuroraWarmthKey.self] }
+        set { self[ZanoAuroraWarmthKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Pass 2 (playful): warms every aurora under this view toward ember by `warmth` (0...1). Apply
+    /// it *outside* `.zanoAmbient(_:)` / `.zanoBackdrop(...)` so their background reads it.
+    public func zanoAuroraWarmth(_ warmth: Double) -> some View {
+        environment(\.zanoAuroraWarmth, min(1, max(0, warmth)))
+    }
+}
+
+/// Pass 2 (playful): the streak-to-warmth curve. A fast start (day 3 already reads warmer) that
+/// flattens toward a 30-day streak, the warmest room the app has.
+public enum ZanoAuroraWarmth {
+    public static func forStreak(days: Int) -> Double {
+        guard days > 0 else { return 0 }
+        return min(1, (Double(days) / 30).squareRoot())
+    }
+}
+
 // MARK: - View
 
 /// The full-screen v2 canvas. Use it through `.zanoAmbient(_:)` / `.zanoBackdrop(...)` rather than
@@ -47,6 +77,7 @@ public struct ZanoAuroraBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.zanoAmbientIsLive) private var isLive
+    @Environment(\.zanoAuroraWarmth) private var warmth
 
     public init(state: ZanoAmbientState = .neutral) {
         self.state = state
@@ -79,7 +110,7 @@ public struct ZanoAuroraBackground: View {
     private func lights(time t: Double) -> some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let mood = AuroraMood(state)
+            let mood = AuroraMood(state, warmth: warmth)
             ZStack {
                 light(Theme.Colors.Aurora.blue, strength: mood.blue, size: size,
                       center: drift(base: CGPoint(x: 0.12, y: 0.06), t: t, period: 23, phase: 0), radius: 0.95)
@@ -115,11 +146,13 @@ private struct AuroraMood {
     let violet: Double
     let ember: Double
 
-    init(_ state: ZanoAmbientState) {
+    /// `warmth` (pass 2, the streak): ember rises by up to 0.16 in every state, and violet cools off
+    /// a little to make room, so a long streak glows warm even while locked.
+    init(_ state: ZanoAmbientState, warmth: Double = 0) {
         let levels = Self.levels(for: state)
         blue = levels.blue
-        violet = levels.violet
-        ember = levels.ember
+        violet = max(0, levels.violet - 0.05 * warmth)
+        ember = levels.ember + 0.16 * warmth
     }
 
     private static func levels(for state: ZanoAmbientState) -> (blue: Double, violet: Double, ember: Double) {

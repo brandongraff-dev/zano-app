@@ -100,7 +100,8 @@ struct SunriseAlarmSetupView: View {
                     systemImage: "sunrise.fill",
                     tint: Theme.Colors.Ring.sunriseAlarm,
                     label: Copy.sunriseAlarm.wakeTimeLabel,
-                    time: $settings.wakeTime
+                    time: $settings.wakeTime,
+                    art: .sun
                 )
 
                 dismissMethodSection
@@ -114,7 +115,7 @@ struct SunriseAlarmSetupView: View {
             .padding(.bottom, Theme.Spacing.lg)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background { Theme.Colors.background.ignoresSafeArea() }
+        .zanoBackdrop(glow: Theme.Colors.Ring.sunriseAlarm, intensity: 0.16)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // Disabled until the saved settings have loaded: saving before then would write the
             // `Settings()` defaults over the user's real row.
@@ -740,9 +741,14 @@ enum SleepSetupMetrics {
 /// better-layout-findings.md 1.11); the wheel stays hidden until asked for so the screen opens
 /// calm.
 struct SleepTimeCard: View {
+    /// The corner artwork (pass 2, 2026-10-03): a retro sun rising for the wake time, a moon and
+    /// stars for bedtime. Decorative, drawn inside the card's clip.
+    enum Art { case none, sun, moon }
+
     private let systemImage: String
     private let tint: Color
     private let label: String
+    private let art: Art
     @Binding private var time: Date
 
     @State private var isEditing = false
@@ -750,10 +756,11 @@ struct SleepTimeCard: View {
     /// Hero time size; scales with Dynamic Type (Theme has no numeral step this large yet).
     @ScaledMetric(relativeTo: .largeTitle) private var timeSize: CGFloat = 64
 
-    init(systemImage: String, tint: Color, label: String, time: Binding<Date>) {
+    init(systemImage: String, tint: Color, label: String, time: Binding<Date>, art: Art = .none) {
         self.systemImage = systemImage
         self.tint = tint
         self.label = label
+        self.art = art
         self._time = time
     }
 
@@ -782,9 +789,9 @@ struct SleepTimeCard: View {
                     }
 
                     Text(time, format: .dateTime.hour().minute())
-                        .font(Theme.Typography.numeral(size: timeSize, weight: .heavy))
-                        .tracking(-1)
+                        .font(Theme.Typography.score(size: timeSize))
                         .foregroundStyle(Theme.Colors.text)
+                        .shadow(color: tint.opacity(0.35), radius: 14)
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                 }
@@ -801,10 +808,66 @@ struct SleepTimeCard: View {
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
         }
-        
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard()
+        .background { cornerArt }
+        .zanoHero(tint: tint)
+    }
+
+    /// The decorative corner piece, clipped to the card so it reads as a window onto the sky.
+    private var cornerArt: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.clear
+            switch art {
+            case .none:
+                EmptyView()
+            case .sun:
+                RetroSun(tint: tint)
+                    .frame(width: 150, height: 150)
+                    .opacity(0.5)
+                    .offset(x: 38, y: 34)
+            case .moon:
+                MoonAndStars(tint: tint)
+                    .frame(width: 130, height: 110)
+                    .offset(x: 18, y: 8)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A crescent moon with a few twinkle stars: the bedtime card's corner art. Static.
+private struct MoonAndStars: View {
+    let tint: Color
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Circle()
+                .fill(tint.opacity(0.55))
+                .frame(width: 92, height: 92)
+                .mask {
+                    Canvas { context, size in
+                        context.fill(Path(ellipseIn: CGRect(origin: .zero, size: size)), with: .color(.white))
+                        context.blendMode = .destinationOut
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: -size.width * 0.32, y: -size.height * 0.12, width: size.width, height: size.height)),
+                            with: .color(.white)
+                        )
+                    }
+                }
+                .shadow(color: tint.opacity(0.6), radius: 16)
+            sparkle(size: 14).offset(x: -96, y: 12)
+            sparkle(size: 9).offset(x: -70, y: 64)
+            sparkle(size: 11).offset(x: -12, y: 86)
+        }
+    }
+
+    private func sparkle(size: CGFloat) -> some View {
+        Image(systemName: "sparkle")
+            .font(.system(size: size, weight: .black))
+            .foregroundStyle(Theme.Colors.text.opacity(0.7))
     }
 }
 

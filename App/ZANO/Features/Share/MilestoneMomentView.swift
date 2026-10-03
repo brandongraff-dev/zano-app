@@ -42,19 +42,25 @@ struct MilestoneMomentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(Copy.milestone.momentHeadline)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.accent)
+            ZanoGlassChip(Copy.milestone.momentHeadline, systemImage: "trophy.fill", tint: content.hue.color)
                 .padding(.top, Theme.Spacing.md)
                 .opacity(cardAppeared ? 1 : 0)
                 .accessibilityAddTraits(.isHeader)
 
             ZStack {
                 burst
+                // Slapped on like a sticker: in big and tilted, landing square.
                 SharePosterPreview(poster: poster)
-                    .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.86)
-                    .offset(y: reduceMotion || cardAppeared ? 0 : 40)
+                    .scaleEffect(reduceMotion || cardAppeared ? 1 : 1.15)
+                    .rotationEffect(.degrees(reduceMotion || cardAppeared ? 0 : -8))
                     .opacity(cardAppeared ? 1 : 0)
+                if cardAppeared && !reduceMotion {
+                    // Confetti in the milestone's colours as the card lands; fires once on mount.
+                    CelebrationBurst(trigger: 0, colors: content.hue.sprinkles, particleCount: 36)
+                        .frame(width: 340, height: 340)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -102,7 +108,7 @@ struct MilestoneMomentView: View {
             ZanoMark(height: 72, style: .brand)
                 .background {
                     RadialGradient(
-                        colors: [Theme.Colors.accent.opacity(0.8), Theme.Colors.accent.opacity(0)],
+                        colors: [content.hue.color.opacity(0.8), content.hue.color.opacity(0)],
                         center: .center,
                         startRadius: 0,
                         endRadius: 160
@@ -123,7 +129,12 @@ struct MilestoneMomentView: View {
             return
         }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { burstStarted = true }
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.55)) { cardAppeared = true }
+        // A real beat, not `.delay`: `cardAppeared` also mounts the confetti, which must fire as
+        // the card lands, not when the state flips.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.62)) { cardAppeared = true }
+        }
     }
 
     // MARK: - Share

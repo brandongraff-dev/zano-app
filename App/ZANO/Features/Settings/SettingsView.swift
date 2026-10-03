@@ -925,9 +925,8 @@ private struct SettingsIconBadge: View {
     var tint: Color = SettingsPalette.legal
 
     var body: some View {
-        // Visual pass 2: a colour sticker (SettingsKit.swift, Core's `ZanoSticker` at its 34pt
-        // regular size). `SettingsRowDivider` still insets by the 32pt badge math, which lands the
-        // divider within ~2pt of the title.
+        // Visual pass 2: a colour sticker (SettingsKit.swift, Core's `ZanoSticker` at its regular
+        // size). `SettingsRowDivider` insets by `Theme.Metrics.stickerRegular` to match.
         SettingsSticker(systemImage: systemImage, tint: tint)
     }
 }
@@ -1011,7 +1010,7 @@ private struct SettingsRowDivider: View {
 
     var body: some View {
         let titleInset = Theme.Spacing.md
-            + Theme.Metrics.iconBadgeSmall * min(badgeScale, 1.4)
+            + Theme.Metrics.stickerRegular * min(badgeScale, 1.4)
             + Theme.Spacing.sm
         SettingsHairline()
             .padding(.leading, inset ?? titleInset)

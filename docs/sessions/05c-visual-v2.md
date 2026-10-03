@@ -111,3 +111,56 @@ inherit the new tokens/components here; their own layout passes are listed in th
 - **Status:** Scaffolded — Unverified. Parse-checked only (`swiftc -frontend -parse`); needs the CI
   build and a look at the light screenshots, then a device for widgets, the report extension and
   the shield.
+
+## 2026-10-03 — Buddies (the star is replaced by 9 pickable pixel-art buddies)
+
+- **What changed:** the founder replaced the ZANO star mascot with nine pixel-art buddies (Stash
+  default). Earlier commit: the `Buddy` model, generated sprite data, `BuddySprite`, colours, copy and
+  the Stash app icon. This task: a "Pick your buddy" screen (onboarding step 2, new; Settings > Buddy
+  row), the buddy drawn wherever the star was the character (Today hero incl. the `ZANOReport`
+  extension's view, Lock idle hero, unlock celebration, onboarding hook/guide/meter/plan/first
+  win/paywall, milestone poster + moment, recap intro, Home Screen widgets), pose from the day's
+  mood, hero glow tinted with the buddy's colour, `-ZANOBuddy <rawValue>` screenshot argument, CI
+  shots `buddy-picker`, `onboarding-8`, `buddy-brick-today`, `light-buddy-picker`, Core tests.
+  Design notes: docs/design/visual-direction-v2.md §11.
+- **Files:** new `App/ZANO/Features/Buddy/BuddyPickerView.swift`, `Core/Tests/CoreTests/BuddyTests.swift`;
+  Core: `UI/Buddy/Buddy.swift` (pose raw value + `heroStorageKey`), `UI/Theme.swift`
+  (`BuddyColors.onSignature`), `UI/Components/{ZanoLivingMark,ZanoMascot,ScreenTimeSummaryView}.swift`,
+  `Copy/{BuddyCopy,ScreenTimeCopy,TodayCopy}.swift`; App: `ScreenshotGallery.swift`,
+  `Features/Today/TodayView.swift`, `Features/Lock/LockStatusView.swift`,
+  `Features/Celebration/UnlockStarStage.swift`, `Features/Settings/SettingsView.swift`,
+  `Features/Onboarding/{OnboardingFlowState,OnboardingContainerView,OnboardingPlayKit,Screen1Hook,
+  Screen10PlanReveal,Screen14FirstWin,PaywallView}.swift` (+ step-number comments in Screen3MainGoal,
+  Screen4AppSelection, ScreenYourWhy), `Features/Share/{MilestoneCardView,MilestoneMomentView,
+  RecapStoryPages}.swift`; Extensions: `ZANOReport/ZANOReportExtension.swift` (comment),
+  `ZANOWidgets/{Support/ZANOWidgetComponents,HomeWidget/ZANOHomeWidget,
+  LockScreenWidget/ZANOLockScreenWidget}.swift`; UI tests: `ZANOUITests/{ZANOUIScenarioSupport,
+  Flow1PaywallFreePathUITests,Flow2OnboardingCompletionUITests}.swift` (buddy step); CI:
+  `.github/workflows/ci.yml`, `scripts/ci/screenshots.sh`; docs: `docs/spec.md` §7 (one line),
+  `docs/design/visual-direction-v2.md` §11.
+- **Decisions:**
+  - Onboarding is 8 steps: buddy right after the hook. Every later step number moved up by one, so
+    `-ZANOScreen onboarding-N` ids shifted (the CI SE pass list was remapped to the same screens) and
+    the UI tests tap "Team up with" on step 2.
+  - The picker stores on every tap (like Settings > Appearance) and reloads widgets; "Team up"
+    only advances (onboarding) or pops (Settings).
+  - Today's hero on a device is drawn by the report extension, which can't see goals, so Today writes
+    the pose to the App Group (`BuddyPose.heroStorageKey`) and `ScreenTimeChargeView` reads it (and
+    the buddy) with `@AppStorage`; in-app callers pass the pose directly. The charge the star used to
+    show as a fill is now only the "72%" sticker (which now carries the spoken charge); the screen-time
+    total sticker stays under the hero.
+  - The star stays where it is a brand mark, not the character (see design §11), including the
+    Lock Screen accessory widgets and accented/vibrant Home widgets, where full-colour pixel art can't
+    render legibly. `ZanoLivingMark` stays (Settings' Pro badge, previews).
+  - Copy that named the star on Today/Screen time now names the buddy or the charge
+    (`Copy.buddy.heroSpoken/heroHint`; `chargeHint`, `chargeSpoken`, `accessDetail`); the unused
+    `Copy.today.mascotSpoken/mascotHint` were removed. Shield and widget copy about "the star
+    charging" is unchanged (out of scope; flagged).
+  - The picker's button label is a fixed dark ink (`Theme.BuddyColors.onSignature`) because every
+    signature colour is mid-to-bright; the kind line uses `textSecondary` in light mode.
+- **Known issues / unverified:** parse-checked only (`swiftc -frontend -parse` on every touched Swift
+  file); needs the CI build, Core tests and a look at `shots/buddy-picker.png`, `onboarding-2.png`,
+  `buddy-brick-today.png`, `light-buddy-picker.png`. Device-only: the report extension reflecting a
+  pose/buddy change written by the app (cross-process `@AppStorage` refresh), widget rendering modes,
+  haptics. Shield copy and the Lock Screen widget glyph still speak of the star.
+- **Status:** Scaffolded — Unverified.

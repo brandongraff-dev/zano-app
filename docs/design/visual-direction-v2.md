@@ -427,3 +427,49 @@ Dynamic `UIColor`-backed `Color`s resolving against `.environment(\.colorScheme,
 `ImageRenderer` and in the widget's container background; `preferredColorScheme(.dark)` on a
 full-screen cover not leaking to the window; the report extension honouring an explicit choice;
 everything until the CI light pass (`shots/light-*.png`) has been looked at.
+
+## 11. Buddies (2026-10-03)
+
+**Why:** the founder replaced the ZANO star as the app's character with nine pixel-art buddies the
+user picks from. All nine ship; **Stash** (the raccoon, also the app icon) is the default.
+
+- **Model:** `Buddy` (Core/UI/Buddy): stash, zib, lox, pip, moko (cozy crew) and brick, tank, volt,
+  howl (hype crew). Each has three poses (`BuddyPose`: idle, sleepy, happy) as generated 32x32 pixel
+  data (`BuddySprites.swift`, from `scripts/buddies`; never edit by hand) and a colour trio in
+  `Theme.BuddyColors`. `BuddySprite(buddy, pose:, size:)` draws it with nearest-neighbour scaling;
+  it is decorative (callers label the element). Copy: `Copy.buddy`.
+- **Storage:** `Buddy.storageKey` in the App Group defaults, read with
+  `@AppStorage(Buddy.storageKey, store: SharedDefaults.store)` in the app, the widgets and the Screen
+  Time report. Today also writes the hero's pose (`BuddyPose.heroStorageKey`) because the report
+  extension that draws the hero on a device knows nothing about goals.
+- **Picker** (`App/ZANO/Features/Buddy/BuddyPickerView.swift`): onboarding step 2 and Settings >
+  Buddy. A raised glass stage (`zanoHero`) with the buddy at 128pt over a radial glow in its colour
+  and an elliptical floor shadow; name in display rounded heavy; kind in the buddy colour (dark) or
+  `textSecondary` (light, where lime/sun text would not read); the world as a solid chip in the buddy
+  colour; a 3x3 grid of glass tiles (64pt sprite + name), selected = 2pt rim in the buddy colour over
+  an 18% flat tint; a solid "Team up with <name>" capsule in the buddy colour with a fixed dark ink
+  label (`Theme.BuddyColors.onSignature`). Tapping a tile stores it, hops the hero (not under Reduce
+  Motion) and ticks a light haptic.
+- **Pose mapping** (`BuddyPose(ZanoMascotMood)`): locked with nothing done = sleepy; everything done
+  and every celebration = happy; otherwise idle. The `.zanoMascot(...)` motion layer (sway, hop,
+  jump, spin, sparks) wraps the sprite exactly as it wrapped the star.
+- **Per-buddy theme:** only the hero glow behind the buddy takes its colour (Today's mascot glow via
+  `zanoMascot(glowColor:)`, the unlock celebration's bloom, the picker's stage). The app accent stays
+  ZANO Blue.
+- **Where the buddy replaced the star:** Today's hero (screen-time sticker and total kept under it)
+  and the no-access card, the Lock tab's idle hero, the unlock celebration stage, the onboarding hook,
+  guide, header meter, plan build beat, first win (intro ring, running, celebration) and paywall hero,
+  the milestone poster sticker and moment, the recap story intro, and the Home Screen widgets
+  (full-colour rendering).
+- **Where the star stays (brand, not character):** the wordmark and the mark beside it on posters, the
+  Lock Screen accessory widgets and accented/vibrant Home widgets (pixel art collapses into a tinted
+  block there), NFC tag/card artwork (the printed maker's mark), the "first earned unlock" trophy glyph,
+  Settings' Pro plan badge, the recap's faint star texture, the shield, and the app's previews.
+- **Crispness:** sprites are sized at 32/64/96/128/160pt where it fits (the small Home widget with a
+  Start button uses 48pt).
+
+### Unverified
+
+Everything until CI builds it and the tour (`buddy-picker`, `onboarding-2`, `buddy-brick-today`,
+`light-buddy-picker`) has been looked at; the report extension picking up a buddy/pose change made in
+the app (cross-process `@AppStorage` on App Group defaults); widget rendering modes on a device.

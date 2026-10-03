@@ -212,6 +212,9 @@ struct TodayView: View {
                         )
                         .transition(.opacity)
                     }
+                    // Goals come straight after the hero so the first row of tiles is above the
+                    // fold; suggestions and setup follow them.
+                    goalSections
                     // Both draw nothing unless they apply (grace period / trial ending soon).
                     FinishTrialBanner()
                     TrialEarnedCard()
@@ -227,7 +230,6 @@ struct TodayView: View {
                         }
                         .transition(.opacity)
                     }
-                    goalSections
                     screenTimeSection
                     if let ghostComparison {
                         ghostRow(ghostComparison)
@@ -528,6 +530,7 @@ struct TodayView: View {
             )
             .zanoChargeBurst(trigger: heroBurstTick, color: heroBurstColor)
             .frame(width: Self.heroStageWidth, height: Self.heroStageHeight)
+            .padding(.leading, Theme.Spacing.xs)
             .overlay(alignment: .topLeading) { mascotBubbleView }
             .contentShape(Rectangle())
             .onTapGesture(perform: pokeMascot)
@@ -662,7 +665,8 @@ struct TodayView: View {
     /// on-device (report extension) paths, so all three lay out the same. `heroMarkHeight` matches
     /// `ScreenTimeChargeView`'s default, which the report extension draws with.
     private static let heroStageHeight: CGFloat = 176
-    private static let heroStageWidth: CGFloat = 156
+    // Wider than the mark (≈150pt at 96pt tall) so its lean and hop never reach the screen edge.
+    private static let heroStageWidth: CGFloat = 168
     private static let heroMarkHeight: CGFloat = 96
 
     private func refreshScreenTimeStatus() {

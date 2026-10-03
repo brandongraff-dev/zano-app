@@ -566,8 +566,10 @@ struct LockedOutPoster: View {
                 .lineLimit(5)
                 .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(Theme.Spacing.md + 2)
-                .padding(.trailing, Theme.Spacing.md)
+                // The lock sticker sits on this card's top-right corner; keep the words clear of it.
+                .padding(.trailing, 44)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))

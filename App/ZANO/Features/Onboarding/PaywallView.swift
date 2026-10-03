@@ -849,11 +849,15 @@ private struct PaywallPlanTile: View {
                         .font(Theme.Typography.body)
                         .foregroundStyle(Theme.Colors.textSecondary)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        // Rounded, not the expanded score face: the billed amount must never
+                        // truncate ("$39...."), and two tiles share a 393pt row.
                         Text(price)
-                            .font(Theme.Typography.score(size: 24))
+                            .font(.system(size: 24, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
                             .foregroundStyle(Theme.Colors.text)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.55)
+                            .layoutPriority(1)
                         if let priceSuffix {
                             Text(priceSuffix)
                                 .font(Theme.Typography.unit)

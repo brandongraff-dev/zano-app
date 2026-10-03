@@ -263,13 +263,8 @@ public struct ScreenTimeSummaryView: View {
                 Spacer(minLength: 0)
                 if otherHeight > 0.5 {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Theme.Colors.text, Theme.Colors.lockedAmbient],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                        // Pass 3 (restraint): one flat colour, matching the "Other" legend dot.
+                        .fill(Theme.Colors.textSecondary)
                         .frame(height: max(3, otherHeight))
                 }
                 if lockedHeight > 0.5 {

@@ -19,9 +19,7 @@ struct NFCTagStickerDisc: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(
-                LinearGradient(colors: [tint, tint.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
+            Circle().fill(tint)
             Circle().strokeBorder(Color.white, lineWidth: max(2.5, diameter * 0.05))
             // A tiny ZANO star in the corner, like a maker's mark.
             ZanoMark(height: diameter * 0.12, style: .mono(Theme.Colors.onFill.opacity(0.55)))

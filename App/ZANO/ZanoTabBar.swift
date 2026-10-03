@@ -144,17 +144,8 @@ struct ZanoTabBar: View {
     private var selectionPill: some View {
         let shape = Capsule(style: .continuous)
         return shape
+            // Pass 3 (restraint): a solid pill with the glass rim; no sheen, no glow.
             .fill(Theme.Colors.accentFill)
-            .overlay {
-                shape.fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.16), Color.white.opacity(0)],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-            }
             .overlay(shape.strokeBorder(Theme.Colors.glassEdge, lineWidth: Theme.Metrics.edgeWidth))
-            .shadow(color: Theme.Colors.accent.opacity(0.5), radius: 12, y: 4)
     }
 }

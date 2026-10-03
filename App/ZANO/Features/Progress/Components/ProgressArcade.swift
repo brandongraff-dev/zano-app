@@ -18,26 +18,11 @@
 import SwiftUI
 import Core
 
-// MARK: - Candy palette
+// MARK: - Sticker tilts
+//
+// Pass 3 (restraint): the per-weekday candy palette is gone; earned week pills are one accent colour.
 
 enum ProgressCandy {
-    /// The goal-ring hues, one per weekday (Sunday first), so a good week looks like a row of
-    /// arcade lights. Colour is decoration here; "earned" is carried by colour vs. grey track AND
-    /// by the VoiceOver sentence the chart speaks.
-    static let weekday: [Color] = [
-        Theme.Colors.Ring.creatine,
-        Theme.Colors.Ring.workout,
-        Theme.Colors.Ring.water,
-        Theme.Colors.Ring.protein,
-        Theme.Colors.Ring.focus,
-        Theme.Colors.Ring.steps,
-        Theme.Colors.Ring.sunriseAlarm,
-    ]
-
-    static func color(forWeekdayIndex index: Int) -> Color {
-        weekday[((index % 7) + 7) % 7]
-    }
-
     /// Hand-placed sticker tilts (degrees), cycled by cell index.
     static let tilts: [Double] = [-3, 2, -1.5, 3, -2.5, 1.5, -2]
 
@@ -92,28 +77,18 @@ struct ProgressCandyBars: View {
         return max(minHeight, fraction * maxHeight)
     }
 
+    /// Pass 3 (restraint): every earned pill is the one accent colour (no per-weekday candy hues).
     private func fill(for bar: ProgressCandyBar) -> Color {
-        bar.isEarned && bar.minutes > 0 ? ProgressCandy.color(forWeekdayIndex: bar.weekdayIndex) : Theme.Colors.track
+        bar.isEarned && bar.minutes > 0 ? Theme.Colors.accent : Theme.Colors.track
     }
 
     private func column(_ bar: ProgressCandyBar, index: Int) -> some View {
         let isUp = hasAppeared || reduceMotion
-        let lit = bar.isEarned && bar.minutes > 0
         return VStack(spacing: Theme.Spacing.xxs) {
             Capsule(style: .continuous)
                 .fill(fill(for: bar))
-                .overlay(alignment: .top) {
-                    // Candy shine on lit pills.
-                    if lit {
-                        Capsule(style: .continuous)
-                            .fill(Color.white.opacity(0.35))
-                            .frame(width: 4, height: min(14, height(for: bar) * 0.4))
-                            .padding(.top, 4)
-                    }
-                }
                 .frame(maxWidth: 26)
                 .frame(height: height(for: bar))
-                .shadow(color: lit ? fill(for: bar).opacity(0.45) : .clear, radius: 6)
                 .scaleEffect(x: 1, y: isUp ? 1 : 0.02, anchor: .bottom)
                 .animation(
                     reduceMotion ? nil : Animation.spring(response: 0.5, dampingFraction: 0.55).delay(Double(index) * 0.06),
@@ -130,8 +105,8 @@ struct ProgressCandyBars: View {
 
 // MARK: - Streak sticker cell
 
-/// One streak-calendar day. Head = the streak's newest day (a full ember sticker with a flame and a
-/// glow); earned = an ember-tinted sticker with a flame; today (not yet earned) = a dashed outline;
+/// One streak-calendar day. Head = the streak's newest day (a full ember sticker with a flame; pass 3:
+/// no glow); earned = an ember-tinted sticker with a flame; today (not yet earned) = a dashed outline;
 /// missed = a dim tile; future = a faint dashed outline. Earned stickers are tilted a hair, like
 /// they were slapped on by hand. Decorative per cell: the grid speaks one sentence.
 struct ProgressStickerCell: View {
@@ -148,7 +123,6 @@ struct ProgressStickerCell: View {
             .fill(fill)
             .overlay { edge(shape) }
             .overlay { glyph }
-            .shadow(color: kind == .head ? Theme.Colors.ember.opacity(0.6) : .clear, radius: 8)
             .shadow(color: isSticker ? Color.black.opacity(0.3) : .clear, radius: 2, y: 2)
             .rotationEffect(.degrees(isSticker ? ProgressCandy.tilt(for: index) : 0))
             .aspectRatio(1, contentMode: .fit)
@@ -227,7 +201,7 @@ struct RankMedal: View {
                     .stroke(Theme.Colors.hairlineStrong, style: StrokeStyle(lineWidth: 2, lineJoin: .round, dash: [5, 4]))
             } else {
                 ProgressHexagon()
-                    .fill(LinearGradient(colors: [tint, tint.opacity(0.62)], startPoint: .top, endPoint: .bottom))
+                    .fill(tint)
                 ProgressHexagon()
                     .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
                 ProgressHexagon()
@@ -240,7 +214,6 @@ struct RankMedal: View {
                 .foregroundStyle(isPlacement ? Theme.Colors.muted : Theme.Colors.onFill)
         }
         .frame(width: size, height: size)
-        .shadow(color: isPlacement ? .clear : tint.opacity(0.45), radius: 12)
         .rotationEffect(.degrees(isPlacement ? 0 : -6))
         .accessibilityHidden(true)
     }
@@ -324,7 +297,6 @@ struct ProgressTrophyShelf: View {
             HStack(alignment: .bottom, spacing: 0) {
                 ForEach(Array(items.prefix(4).enumerated()), id: \.element.id) { index, item in
                     TrophyBadgeDisc(isEarned: item.isEarned, glyph: .forKey(item.key), diameter: discDiameter)
-                        .shadow(color: item.isEarned ? Theme.Colors.Ring.sunriseAlarm.opacity(0.35) : .clear, radius: 10)
                         .rotationEffect(.degrees(item.isEarned ? ProgressCandy.tilt(for: index) : 0))
                         .frame(maxWidth: .infinity)
                 }
@@ -337,11 +309,7 @@ struct ProgressTrophyShelf: View {
     /// The glass plank the badges stand on: a lit top edge, a soft shadow under it.
     private var plank: some View {
         RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(LinearGradient(
-                colors: [Color.white.opacity(0.30), Color.white.opacity(0.08)],
-                startPoint: .top,
-                endPoint: .bottom
-            ))
+            .fill(Color.white.opacity(0.18))
             .frame(height: 10)
             .shadow(color: Color.black.opacity(0.45), radius: 6, y: 6)
     }

@@ -11,7 +11,10 @@
 //   * Three radial lights: ZANO Blue top-left, violet top-right, ember low-left. Their strengths come
 //     from `ZanoAmbientState`: cool and dim while locked, warming as goals complete, brightest when
 //     the day is earned (the only state that lights ember).
-//   * Drift: each light orbits a few percent of the screen over 20–30 s, redrawn at
+//   * Pass 3 (restraint, 2026-10-03): every light runs at about half its pass-2 strength, drifts half
+//     as far and ~1.7x slower, and the streak warmth adds at most +0.07 ember. Most of the screen
+//     reads as calm ink; the lights are a hint at the top corners, not a lava lamp.
+//   * Drift: each light orbits a few percent of the screen over 40–50 s, redrawn at
 //     `Theme.Motion.auroraFrameInterval` (12 fps; the lights move a fraction of a point per frame).
 //     Paused when the scene is not active and when the screen is a hidden kept-alive tab
 //     (`zanoAmbientIsLive`, set by the tab container). Reduce Motion: one still frame.
@@ -113,24 +116,24 @@ public struct ZanoAuroraBackground: View {
             let mood = AuroraMood(state, warmth: warmth)
             ZStack {
                 light(Theme.Colors.Aurora.blue, strength: mood.blue, size: size,
-                      center: drift(base: CGPoint(x: 0.12, y: 0.06), t: t, period: 23, phase: 0), radius: 0.95)
+                      center: drift(base: CGPoint(x: 0.12, y: 0.06), t: t, period: 40, phase: 0), radius: 0.9)
                 light(Theme.Colors.Aurora.violet, strength: mood.violet, size: size,
-                      center: drift(base: CGPoint(x: 0.92, y: 0.2), t: t, period: 29, phase: 1.7), radius: 0.85)
+                      center: drift(base: CGPoint(x: 0.92, y: 0.2), t: t, period: 50, phase: 1.7), radius: 0.8)
                 light(Theme.Colors.Aurora.ember, strength: mood.ember, size: size,
-                      center: drift(base: CGPoint(x: 0.18, y: 0.6), t: t, period: 26, phase: 3.1), radius: 0.75)
+                      center: drift(base: CGPoint(x: 0.18, y: 0.6), t: t, period: 45, phase: 3.1), radius: 0.7)
             }
         }
     }
 
-    /// A slow Lissajous orbit around `base`, ±5% of the screen.
+    /// A slow Lissajous orbit around `base`, ±2.5% of the screen (pass 3: half the pass-2 swing).
     private func drift(base: CGPoint, t: Double, period: Double, phase: Double) -> UnitPoint {
         let a = (t / period) * 2 * .pi + phase
-        return UnitPoint(x: base.x + 0.05 * sin(a), y: base.y + 0.035 * cos(a * 0.8))
+        return UnitPoint(x: base.x + 0.025 * sin(a), y: base.y + 0.018 * cos(a * 0.8))
     }
 
     private func light(_ color: Color, strength: Double, size: CGSize, center: UnitPoint, radius: CGFloat) -> some View {
         RadialGradient(
-            colors: [color.opacity(strength), color.opacity(strength * 0.35), color.opacity(0)],
+            colors: [color.opacity(strength), color.opacity(strength * 0.3), color.opacity(0)],
             center: center,
             startRadius: 0,
             endRadius: max(size.width, 1) * radius
@@ -146,26 +149,27 @@ private struct AuroraMood {
     let violet: Double
     let ember: Double
 
-    /// `warmth` (pass 2, the streak): ember rises by up to 0.16 in every state, and violet cools off
-    /// a little to make room, so a long streak glows warm even while locked.
+    /// `warmth` (pass 2, the streak): ember rises by up to 0.07 in every state (pass 3: was 0.16), and
+    /// violet cools off a little to make room, so a long streak reads faintly warm, never orange.
     init(_ state: ZanoAmbientState, warmth: Double = 0) {
         let levels = Self.levels(for: state)
         blue = levels.blue
-        violet = max(0, levels.violet - 0.05 * warmth)
-        ember = levels.ember + 0.16 * warmth
+        violet = max(0, levels.violet - 0.03 * warmth)
+        ember = levels.ember + 0.07 * warmth
     }
 
     private static func levels(for state: ZanoAmbientState) -> (blue: Double, violet: Double, ember: Double) {
+        // Pass 3 (restraint): roughly 55% of the pass-2 levels.
         switch state {
         case .neutral:
-            return (0.26, 0.20, 0)
+            return (0.14, 0.11, 0)
         case .locked:
-            return (0.16, 0.24, 0)
+            return (0.09, 0.13, 0)
         case .progress(let fraction):
             let f = min(1, max(0, fraction))
-            return (0.18 + 0.14 * f, 0.22, 0.06 * f)
+            return (0.10 + 0.08 * f, 0.12, 0.03 * f)
         case .earned:
-            return (0.36, 0.20, 0.14)
+            return (0.20, 0.11, 0.08)
         }
     }
 }

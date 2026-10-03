@@ -77,7 +77,6 @@ struct FuelSegmentMeter: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var clamped: CGFloat { CGFloat(min(max(progress, 0), 1)) }
-    private var isFull: Bool { progress >= 1 }
 
     var body: some View {
         GeometryReader { proxy in
@@ -92,7 +91,6 @@ struct FuelSegmentMeter: View {
             .clipShape(Capsule(style: .continuous))
         }
         .frame(height: height)
-        .shadow(color: color.opacity(isFull ? 0.55 : 0), radius: 12)
         .animation(reduceMotion ? nil : Theme.Motion.springPop, value: clamped)
         .accessibilityHidden(true)
     }
@@ -101,14 +99,8 @@ struct FuelSegmentMeter: View {
         // A sliver is always visible once anything is logged, so 3 g never reads as zero.
         let fillWidth = clamped > 0 ? max(height, width * clamped) : 0
         return Capsule(style: .continuous)
-            .fill(LinearGradient(colors: [color.opacity(0.85), color], startPoint: .leading, endPoint: .trailing))
-            .overlay(alignment: .top) {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.35))
-                    .frame(height: height * 0.22)
-                    .padding(.horizontal, height * 0.35)
-                    .padding(.top, height * 0.16)
-            }
+            // Pass 3 (restraint): one flat fill, no gradient and no gloss strip.
+            .fill(color)
             .frame(width: fillWidth)
     }
 
@@ -150,14 +142,8 @@ struct FuelWaterTank: View {
             waves
                 .clipShape(shape)
             marks
-            shape.strokeBorder(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.45), Color.white.opacity(0.10)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                lineWidth: 2
-            )
+            // Pass 3 (restraint): a flat glass rim.
+            shape.strokeBorder(Color.white.opacity(0.25), lineWidth: 2)
             // Glass glint down the left side.
             Capsule()
                 .fill(Color.white.opacity(0.22))
@@ -166,7 +152,6 @@ struct FuelWaterTank: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 8)
         }
-        .shadow(color: color.opacity(level >= 1 ? 0.5 : 0), radius: 14)
         .animation(reduceMotion ? nil : Theme.Motion.springPop, value: level)
         .onChange(of: slosh) { _, _ in
             guard !reduceMotion else { return }
@@ -184,7 +169,7 @@ struct FuelWaterTank: View {
             FuelWaveShape(level: level, phase: phase + 1.4, amplitude: amplitude * 0.8)
                 .fill(color.opacity(0.45))
             FuelWaveShape(level: level, phase: phase, amplitude: amplitude)
-                .fill(LinearGradient(colors: [color, color.opacity(0.7)], startPoint: .top, endPoint: .bottom))
+                .fill(color.opacity(0.85))
         }
     }
 

@@ -2387,15 +2387,12 @@ private struct TodayStatusRow: View {
     let title: String
     let isLive: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
+            // Pass 3 (restraint): no indefinite pulse on the live glyph; the title carries the state.
             Image(systemName: icon)
                 .font(Theme.Typography.icon(.medium))
                 .foregroundStyle(Theme.Colors.accent)
-                // Indefinite pulse only while live, never under Reduce Motion.
-                .symbolEffect(.pulse, isActive: isLive && !reduceMotion)
             Text(title)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)

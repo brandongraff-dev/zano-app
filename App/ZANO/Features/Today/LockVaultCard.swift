@@ -306,17 +306,9 @@ struct ConcentricGoalRings: View {
                 .stroke(segment.color.opacity(0.16), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: progress)
-                .stroke(
-                    AngularGradient(
-                        colors: [segment.color.opacity(0.6), segment.color],
-                        center: .center,
-                        startAngle: .degrees(0),
-                        endAngle: .degrees(max(1, 360 * progress))
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
+                // Pass 3 (restraint): one flat stroke per ring, no sweep, no glow.
+                .stroke(segment.color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: segment.color.opacity(segment.isDone ? 0.75 : 0.3), radius: lineWidth * (segment.isDone ? 0.9 : 0.6))
                 .opacity(progress > 0.001 ? 1 : 0)
                 .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: progress)
         }
@@ -326,7 +318,6 @@ struct ConcentricGoalRings: View {
                 ZanoSparkleShape()
                     .fill(Color.white)
                     .frame(width: lineWidth * 1.3, height: lineWidth * 1.3)
-                    .shadow(color: segment.color, radius: 4)
                     .offset(y: -lineWidth / 2)
                     .transition(.scale(scale: 0.2).combined(with: .opacity))
             }
@@ -365,7 +356,6 @@ struct VaultLockCharacter: View {
                 }
             }
             .overlay(Circle().strokeBorder(Theme.Colors.glassEdge, lineWidth: Theme.Metrics.edgeWidth))
-            .shadow(color: mood == .open ? Theme.Colors.accent.opacity(0.6) : .clear, radius: 10)
             .rotationEffect(.degrees(mood == .resting ? -12 : 0), anchor: .bottom)
             .offset(y: mood == .resting ? size * 0.04 : 0)
             .opacity(mood == .resting ? 0.8 : 1)
@@ -424,7 +414,6 @@ struct VaultSegmentBar: View {
                     }
                     .clipShape(Capsule())
                     .frame(height: Self.height)
-                    .shadow(color: segment.isDone ? segment.color.opacity(0.6) : .clear, radius: 8)
             }
         }
         .accessibilityHidden(true)

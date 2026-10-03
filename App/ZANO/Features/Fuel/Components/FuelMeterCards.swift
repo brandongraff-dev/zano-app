@@ -284,15 +284,9 @@ struct FuelChunkyChip: View {
     private var chipBackground: some View {
         let shape = Capsule(style: .continuous)
         return shape
-            .fill(LinearGradient(colors: [color.opacity(0.30), color.opacity(0.14)], startPoint: .top, endPoint: .bottom))
+            // Pass 3 (restraint): a flat tint and a solid rim; no gradient, no gloss strip.
+            .fill(color.opacity(0.20))
             .overlay(shape.strokeBorder(color.opacity(0.6), lineWidth: 1.5))
-            .overlay(alignment: .top) {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.18))
-                    .frame(height: 3)
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.top, 4)
-            }
     }
 }
 

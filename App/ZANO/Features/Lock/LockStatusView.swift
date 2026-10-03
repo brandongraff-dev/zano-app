@@ -1133,19 +1133,8 @@ struct LockStatusView: View {
             } else {
                 ZanoGlass(shape)
             }
-            shape.fill(
-                LinearGradient(
-                    colors: [Theme.Colors.stickerHighlight.opacity(isSelected ? 1 : 0.4), .clear],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-            )
-            shape.strokeBorder(
-                LinearGradient(colors: [.clear, Theme.Colors.stickerShade], startPoint: .center, endPoint: .bottom),
-                lineWidth: 2
-            )
+            // Pass 3 (restraint): a flat coin, no sheen, no glow.
         }
-        .shadow(color: isSelected ? Theme.Colors.accent.opacity(0.45) : .clear, radius: 10, y: 4)
     }
 
     private func borrow(minutes: Int) {

@@ -14,6 +14,10 @@
 // raised level (brighter frost, a drop shadow, radius `hero`). Reduce Transparency: opaque `surface`.
 // A caller-supplied non-default `fill` stays a solid colour. The notes below describe the pass before.
 //
+// Pass 3 (restraint, 2026-10-03): the `tint` wash is a FLAT tint (one colour, 8% / 12% active) instead
+// of a corner-fading gradient; an `active` card gets a thin solid rim in its tint instead of a glow.
+// Only `zanoHero` may glow (one glow per screen). The glass sheen and specular rim are unchanged.
+//
 // The recipe, and why it is built this way:
 //
 //   * A 1px *top-lit* gradient edge (`Theme.Colors.edgeGradient`, white 14% → 6%), not a drop shadow. Drop shadows are
@@ -41,9 +45,9 @@ extension View {
     /// - Parameters:
     ///   - radius: Corner radius. `Theme.Radius.medium` for standard cards, `.large` for hero
     ///     surfaces, `.small` for compact rows. Nested surfaces: see `Theme.Radius`.
-    ///   - tint: A hue wash fading from the top-leading corner (10% of `tint`, 18% when `active`).
-    ///   - active: Adds a static outer glow in `tint` (accent when `tint` is `nil`) and strengthens
-    ///     the wash. Reserve for *earned/unlocked* surfaces — the glow is the reward.
+    ///   - tint: A flat hue tint over the glass (8% of `tint`, 12% when `active`).
+    ///   - active: Adds a thin solid rim in `tint` (accent when `tint` is `nil`) and strengthens
+    ///     the tint (on `zanoHero`, a static glow instead). Reserve for *earned/unlocked* surfaces.
     ///   - fill: Base fill. Defaults to `Theme.Colors.surface`.
     public func zanoCard(
         radius: CGFloat = Theme.Radius.medium,
@@ -137,6 +141,12 @@ struct ZanoSurface: ViewModifier {
                         // The edge is paint, not a control: it must never swallow a tap meant for
                         // the button inside the card.
                         .allowsHitTesting(false)
+                    if active && !elevated {
+                        // Pass 3: an earned card says so with a thin solid rim, not a glow.
+                        shape
+                            .strokeBorder((tint ?? Theme.Colors.accent).opacity(0.6), lineWidth: 1.5)
+                            .allowsHitTesting(false)
+                    }
                 }
             }
     }
@@ -155,7 +165,7 @@ struct ZanoSurface: ViewModifier {
                     )
                 )
                 .shadow(color: elevated ? Theme.Colors.shadow.opacity(0.6) : .clear, radius: 30, y: 18)
-                .shadow(color: glowColor, radius: elevated ? 28 : 18)
+                .shadow(color: glowColor, radius: 28)
         } else if elevated {
             shape
                 .fill(LinearGradient(colors: [Theme.Colors.surfaceHero, solidFill], startPoint: .top, endPoint: .bottom))
@@ -164,7 +174,6 @@ struct ZanoSurface: ViewModifier {
         } else {
             shape
                 .fill(solidFill)
-                .shadow(color: glowColor, radius: 18)
         }
     }
 
@@ -176,16 +185,14 @@ struct ZanoSurface: ViewModifier {
         return showsEdge && (isGlass || elevated) ? Theme.Colors.glassEdge : Theme.Colors.edgeGradient()
     }
 
-    private func wash(_ tint: Color) -> LinearGradient {
-        LinearGradient(
-            colors: [tint.opacity(active ? 0.24 : 0.14), tint.opacity(0)],
-            startPoint: .topLeading,
-            endPoint: UnitPoint(x: 0.85, y: 0.9)
-        )
+    /// Pass 3: one flat tint, no fade.
+    private func wash(_ tint: Color) -> Color {
+        tint.opacity(active ? 0.12 : 0.08)
     }
 
+    /// The hero's earned glow. Cards never glow (pass 3: one glow per screen).
     private var glowColor: Color {
-        guard active else { return .clear }
+        guard active, elevated else { return .clear }
         return (tint ?? Theme.Colors.accent).opacity(0.3)
     }
 }

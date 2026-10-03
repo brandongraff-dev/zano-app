@@ -446,7 +446,6 @@ struct ProgressView: View {
             .foregroundStyle(isLit ? Theme.Colors.ember : Theme.Colors.muted)
             .frame(width: 56, height: 56)
             .background(Theme.Colors.ember.opacity(isLit ? 0.18 : 0.06), in: Circle())
-            .shadow(color: isLit ? Theme.Colors.ember.opacity(0.5) : .clear, radius: 12)
             .symbolEffect(.bounce, value: current)
     }
 

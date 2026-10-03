@@ -5,14 +5,18 @@
 // Pass 1 washed each goal tile in 14% of its colour, which read as "a grey card with a hint". Here the
 // goal's colour is a real presence:
 //
-//   * the glass is tinted with the colour from the top (22%, 34% once done) instead of a corner wash;
-//   * the tile fills up like a glass of juice: a liquid layer of the colour rises from the bottom to
-//     `progress`, with a bright "surface line" on top, so progress reads from across the room;
-//   * the rim is lit in the colour at the top, so a row of tiles reads as a row of colours;
-//   * a done tile glows in its colour (static glow, never pulsing).
+//   * the glass is tinted with the colour, flat (14%, 18% once done);
+//   * progress fills the tile from the bottom as one flat layer of the colour (10%), no gradient and
+//     no bright surface line;
+//   * the rim is the glass's own neutral specular edge; only a done tile gets a thin solid rim in
+//     its colour (that rim carries meaning). Tiles never glow: one glow per screen, and it is the
+//     hero's.
+//
+// Pass 3 (restraint, 2026-10-03) replaced pass 2's top-lit gradient wash, the "juice" gradient with
+// its bright surface line, the coloured gradient rim and the done-glow with the flat rules above.
 //
 // Reduce Transparency: the glass becomes the solid `surface`; the colour fill stays (it is paint on
-// an opaque card, not translucency). Increase Contrast: the rim is the full colour.
+// an opaque card, not translucency). Increase Contrast: the done rim is the full colour, the neutral rim doubles.
 //
 // Text on the tile stays `text`/`textSecondary` (never the goal colour: violet and periwinkle are
 // under 4.5:1). Colour is never the only signal: the tile always carries its glyph and words.
@@ -27,7 +31,7 @@ extension View {
     /// - Parameters:
     ///   - color: The goal's colour (`Theme.Colors.Ring.color(for:)`).
     ///   - progress: `0...1`, how high the liquid fill stands. `0` hides it.
-    ///   - isDone: A full, brighter tile with a glow in `color`.
+    ///   - isDone: A full, brighter tile with a thin solid rim in `color`.
     ///   - radius: Corner radius. Defaults to `Theme.Radius.medium`.
     public func zanoGoalTile(
         color: Color,
@@ -66,11 +70,9 @@ struct ZanoGoalTileSurface: ViewModifier {
                     .blur(radius: 3)
                     .clipShape(shape)
                 }
-                .shadow(color: isDone && !reduceTransparency ? color.opacity(0.42) : .clear, radius: 16)
             }
             .overlay {
-                shape
-                    .strokeBorder(rim, lineWidth: isDone ? 1.5 : Theme.Metrics.edgeWidth)
+                rimView(shape)
                     .allowsHitTesting(false)
             }
             .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: fill)
@@ -89,53 +91,33 @@ struct ZanoGoalTileSurface: ViewModifier {
                 )
             )
         }
-        shape.fill(
-            LinearGradient(
-                colors: [color.opacity(isDone ? 0.34 : 0.22), color.opacity(0.04)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        shape.fill(color.opacity(isDone ? 0.18 : 0.14))
     }
 
-    /// The colour rising from the bottom to `fill`, with a bright surface line on top.
+    /// The colour rising from the bottom to `fill`: one flat layer, no surface line.
     private var liquid: some View {
         GeometryReader { proxy in
-            let height = proxy.size.height * fill
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                ZStack(alignment: .top) {
-                    LinearGradient(
-                        colors: [color.opacity(isDone ? 0.30 : 0.24), color.opacity(isDone ? 0.18 : 0.10)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    if fill > 0.001 && fill < 0.999 {
-                        Rectangle()
-                            .fill(color.opacity(0.75))
-                            .frame(height: 2)
-                            .blur(radius: 0.5)
-                    }
-                }
-                .frame(height: height)
+                Rectangle()
+                    .fill(color.opacity(0.10))
+                    .frame(height: proxy.size.height * fill)
             }
         }
         .allowsHitTesting(false)
     }
 
-    private var rim: LinearGradient {
-        if contrast == .increased {
-            return LinearGradient(colors: [color, color.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+    /// Done: a thin solid rim in the goal colour. Otherwise the glass's neutral specular edge.
+    @ViewBuilder
+    private func rimView(_ shape: RoundedRectangle) -> some View {
+        if isDone {
+            shape.strokeBorder(contrast == .increased ? color : color.opacity(0.7), lineWidth: 1.5)
+        } else {
+            shape.strokeBorder(
+                contrast == .increased ? Theme.Colors.glassEdgeIncreased : Theme.Colors.glassEdge,
+                lineWidth: Theme.Metrics.edgeWidth
+            )
         }
-        return LinearGradient(
-            stops: [
-                .init(color: color.opacity(isDone ? 0.9 : 0.6), location: 0),
-                .init(color: Color.white.opacity(0.06), location: 0.5),
-                .init(color: color.opacity(isDone ? 0.45 : 0.18), location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
     }
 }
 

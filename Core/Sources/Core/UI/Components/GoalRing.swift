@@ -135,10 +135,6 @@ public struct GoalRing: View {
         min(1, max(0, progress))
     }
 
-    private var isComplete: Bool {
-        clampedProgress >= 1
-    }
-
     private var isPlaceholder: Bool {
         center == .add
     }
@@ -204,23 +200,13 @@ public struct GoalRing: View {
     /// The filled arc. Always in the view tree (faded out at 0%) rather than conditionally
     /// inserted, so the first fill from 0 animates instead of appearing already drawn — and so
     /// a zero-length round-capped stroke never draws a stray dot at 12 o'clock.
-    /// The arc is a sweep, not a flat stroke: it starts at 55% of the goal's hue and brightens to
-    /// the full hue at its leading end, so the eye reads direction and "how far" at once (the
-    /// Activity-ring idea). A small lit cap rides the leading end while the ring is in progress.
-    private func arcGradient() -> AngularGradient {
-        AngularGradient(
-            colors: [color.opacity(0.55), color],
-            center: .center,
-            startAngle: .degrees(0),
-            endAngle: .degrees(max(1, 360 * clampedProgress))
-        )
-    }
-
+    /// Pass 3 (restraint): the arc is one flat stroke of the goal's hue (the pass-2 angular sweep
+    /// and the per-ring glow are gone). A small lit cap rides the leading end while in progress.
     private func progressArc(lineWidth: CGFloat) -> some View {
         Circle()
             .trim(from: 0, to: clampedProgress)
             .stroke(
-                arcGradient(),
+                color,
                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
             .overlay {
@@ -241,9 +227,6 @@ public struct GoalRing: View {
                 }
             }
             .rotationEffect(.degrees(-90))
-            // The static "active element" glow (spec §16): soft while in progress, stronger once
-            // earned. Never animated — a function of progress only.
-            .shadow(color: color.opacity(isComplete ? 0.5 : 0.28), radius: lineWidth * 0.7)
             .padding(lineWidth / 2)
             .opacity(clampedProgress > 0.001 && !isPlaceholder ? 1 : 0)
             // The fill itself is information (a progress fraction), not decoration, so

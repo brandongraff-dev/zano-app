@@ -372,8 +372,8 @@ struct NFCNotice: View {
 /// with a volt check sticker. Reduce Motion: no confetti, still waves (as before).
 ///
 /// A phone lowering onto a silver ZANO tag with read waves. State-driven:
-/// `.idle` breathes slowly, `.active` pulses fast (scan in progress), `.success` lands a check,
-/// `.failure` shows a quiet cross. Decorative; the text beside it carries the meaning.
+/// `.idle` rests still (pass 3, restraint: no idle loop), `.active` pulses fast (scan in progress),
+/// `.success` lands a check, `.failure` shows a quiet cross. Decorative; the text beside it carries the meaning.
 struct TagTapScene: View {
     enum Phase: Equatable {
         case idle, active, success, failure
@@ -390,7 +390,7 @@ struct TagTapScene: View {
     private let size = CGSize(width: 220, height: 180)
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion || phase == .success || phase == .failure)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion || phase != .active)) { context in
             scene(time: context.date.timeIntervalSinceReferenceDate)
         }
         .frame(width: size.width, height: size.height)
@@ -409,12 +409,13 @@ struct TagTapScene: View {
     private func scene(time: TimeInterval) -> some View {
         let tagCenter = CGPoint(x: size.width / 2, y: size.height * 0.64)
         let period: Double = phase == .active ? 1.1 : 2.4
-        let phoneDown: CGFloat = (phase == .idle && !reduceMotion) ? CGFloat((sin(time * 2 * .pi / 3.2) + 1) / 2) : 1
+        // Pass 3 (restraint): only a scan in progress moves; idle is the still frame.
+        let phoneDown: CGFloat = 1
 
         return ZStack {
             // Read waves.
             ForEach(0..<3, id: \.self) { index in
-                let local = reduceMotion || phase == .success || phase == .failure
+                let local = reduceMotion || phase != .active
                     ? Double(index) / 3 + 0.2
                     : ((time / period) + Double(index) / 3).truncatingRemainder(dividingBy: 1)
                 Circle()
@@ -478,13 +479,7 @@ struct TagTapScene: View {
         case .card:
             let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
             ZStack(alignment: .bottomLeading) {
-                shape.fill(
-                    LinearGradient(
-                        colors: [Color(white: 0.22), Color(white: 0.08)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                shape.fill(Color(white: 0.15))
                 ZanoMark(height: 16, style: .brand)
                     .padding(10)
             }
@@ -497,11 +492,9 @@ struct TagTapScene: View {
     private var phone: some View {
         let outer = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return ZStack(alignment: .top) {
-            outer.fill(
-                LinearGradient(colors: [Color(white: 0.32), Color(white: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
+            outer.fill(Color(white: 0.24))
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(LinearGradient(colors: [Theme.Colors.lockedAmbient, Theme.Colors.background], startPoint: .top, endPoint: .bottom))
+                .fill(Theme.Colors.lockedAmbient)
                 .padding(3)
             Capsule().fill(Color.black).frame(width: 18, height: 5).padding(.top, 8)
         }

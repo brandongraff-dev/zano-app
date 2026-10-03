@@ -288,8 +288,6 @@ struct GoalTile: View {
                     Image(systemName: "circle.fill")
                         .font(.system(size: 7))
                         .foregroundStyle(item.color)
-                        .shadow(color: item.color.opacity(0.7), radius: 4)
-                        .symbolEffect(.pulse, isActive: !reduceMotion)
                         .accessibilityHidden(true)
                 }
                 Text(text)
@@ -322,15 +320,8 @@ struct GoalTile: View {
         .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: Theme.Metrics.minTapTarget)
         .background {
-            ZStack {
-                shape.fill(fill)
-                shape.fill(LinearGradient(colors: [Theme.Colors.stickerHighlight, .clear], startPoint: .top, endPoint: .center))
-                shape.strokeBorder(
-                    LinearGradient(colors: [.clear, Theme.Colors.stickerShade], startPoint: .center, endPoint: .bottom),
-                    lineWidth: 2
-                )
-            }
-            .shadow(color: fill.opacity(0.45), radius: 10, y: 4)
+            // Pass 3 (restraint): a solid fill, no sheen, no coloured glow.
+            shape.fill(fill)
         }
         .opacity(isBusy ? 0.6 : 1)
     }

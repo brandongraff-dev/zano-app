@@ -362,19 +362,7 @@ private struct PrimaryButtonStyle: ButtonStyle {
                 } else {
                     Capsule()
                         .fill(fillColor)
-                        // A liquid sheen across the top third of a filled control (white 10% →
-                        // 0), kept faint so the white label still clears AA on `accentFill`.
-                        .overlay {
-                            if isFilled {
-                                Capsule().fill(
-                                    LinearGradient(
-                                        colors: [Color.white.opacity(0.10), Color.white.opacity(0)],
-                                        startPoint: .top,
-                                        endPoint: UnitPoint(x: 0.5, y: 0.45)
-                                    )
-                                )
-                            }
-                        }
+                        // Pass 3 (restraint): a flat fill. The pass-2 sheen is gone.
                         // Accent glow only on the *pressed* CTA (spec §16: "inner glow on active
                         // elements") — never a resting shadow.
                         .shadow(color: isFilled && pressed ? tint.color.opacity(0.45) : .clear, radius: 16)
@@ -382,15 +370,8 @@ private struct PrimaryButtonStyle: ButtonStyle {
             }
             .overlay {
                 if isFilled {
-                    // A 1px top-lit highlight: the same edge light the cards get.
-                    Capsule().strokeBorder(
-                        LinearGradient(
-                            colors: [Theme.Colors.specular, Theme.Colors.specular.opacity(0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
+                    // Pass 3 (restraint): a flat 1px rim, no gradient.
+                    Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: 1)
                 } else if !(kind == .secondary && isEnabled) {
                     // The glass secondary carries its own specular rim.
                     Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: 1)

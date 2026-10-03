@@ -29,12 +29,10 @@ struct GymChargeMeter: View {
     let minutes: Int?
     let targetMinutes: Int
     let tint: Color
-    /// The dwell is running: the next segment blinks.
+    /// The dwell is running: the next segment shows half-lit (pass 3: static, no blink loop).
     let isCharging: Bool
     let accessibilityLabel: String
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var blinkOn = false
     @ScaledMetric(relativeTo: .largeTitle) private var numeralSize: CGFloat = 76
 
     private static let segments = 10
@@ -53,8 +51,6 @@ struct GymChargeMeter: View {
         .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: .infinity)
         .zanoHero(tint: tint, active: clamped >= 1)
-        .onAppear { startBlink() }
-        .onChange(of: isCharging) { _, _ in startBlink() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(Text("\(minutes ?? 0) / \(targetMinutes) \(Copy.gym.minutesUnit)"))
@@ -68,7 +64,6 @@ struct GymChargeMeter: View {
                     .font(Theme.Typography.score(size: numeralSize))
                     .foregroundStyle(Theme.Colors.text)
                     .contentTransition(.numericText(value: Double(minutes)))
-                    .shadow(color: tint.opacity(0.4), radius: 16)
                 Text(Copy.gym.minutesUnit)
                     .font(Theme.Typography.title)
                     .foregroundStyle(tint)
@@ -98,21 +93,10 @@ struct GymChargeMeter: View {
     private func segment(_ index: Int) -> some View {
         let isLit = index < litSegments
         let isNext = index == litSegments && isCharging
-        let fill: Color = isLit ? tint : (isNext && (blinkOn || reduceMotion) ? tint.opacity(0.45) : Theme.Colors.track)
+        let fill: Color = isLit ? tint : (isNext ? tint.opacity(0.45) : Theme.Colors.track)
         return RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(fill)
             .frame(height: 30)
-            .shadow(color: isLit ? tint.opacity(0.6) : .clear, radius: 5)
-    }
-
-    private func startBlink() {
-        guard isCharging, !reduceMotion else {
-            blinkOn = false
-            return
-        }
-        withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
-            blinkOn = true
-        }
     }
 }
 

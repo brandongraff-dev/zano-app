@@ -487,8 +487,8 @@ private struct TrophyTile: View {
     }
 }
 
-/// The little glass stand a badge sits on: a flat frosted ellipse with a top highlight, glowing in
-/// the badge's colour once it's earned.
+/// The little glass stand a badge sits on: a flat frosted ellipse with a thin rim; once the badge
+/// is earned the rim takes the badge's colour (pass 3: a solid rim, not a glow).
 private struct TrophyStand: View {
     let isLit: Bool
     let tint: Color
@@ -498,18 +498,11 @@ private struct TrophyStand: View {
     var body: some View {
         ZStack {
             Ellipse()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.22), Color.white.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .fill(Color.white.opacity(0.12))
             Ellipse()
-                .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                .strokeBorder(isLit ? tint.opacity(0.7) : Color.white.opacity(0.3), lineWidth: 1)
         }
         .frame(width: TrophyBadgeDisc.defaultDiameter * 1.25, height: 16)
-        .shadow(color: isLit ? tint.opacity(0.55) : .clear, radius: 10)
         .offset(y: 4)
         .accessibilityHidden(true)
     }
@@ -527,7 +520,6 @@ private struct TrophyShelf: View {
                 Capsule()
                     .fill(earned ? tint : Theme.Colors.track)
                     .frame(height: 8)
-                    .shadow(color: earned ? tint.opacity(0.45) : Color.clear, radius: 4)
             }
         }
         .accessibilityHidden(true)

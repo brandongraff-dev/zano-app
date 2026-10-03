@@ -634,7 +634,7 @@ struct TodayView: View {
     private func scoreNumeral(_ line: String, earned: Bool, changeKey: Int) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             NumeralText(line, size: .hero, color: earned ? Theme.Colors.accent : Theme.Colors.text, remainder: .hidden)
-                .shadow(color: (earned ? Theme.Colors.accent : Theme.Colors.Aurora.violet).opacity(reduceTransparency ? 0 : 0.35), radius: 18)
+                // Pass 3 (restraint): no numeral glow; the star and the vault carry the light.
                 .animation(reduceMotion ? nil : Theme.Motion.springPop, value: changeKey)
             Text(NumeralText.remainder(of: line))
                 .font(Theme.Typography.title)

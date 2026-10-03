@@ -694,9 +694,8 @@ private struct PaywallTrialTimeline: View {
     private static let nodeSize: CGFloat = 36
     private static let trackWidth: CGFloat = 8
 
-    private static var pathGradient: LinearGradient {
-        LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.Aurora.violet], startPoint: .top, endPoint: .bottom)
-    }
+    /// Pass 3 (restraint): the trial path is one solid accent line (was blue into violet, glowing).
+    private static let pathColor = Theme.Colors.accent
 
     private struct Node: Identifiable {
         enum Kind { case today, reminder, billing }
@@ -770,10 +769,9 @@ private struct PaywallTrialTimeline: View {
         // The track segment below this node, behind it: accent while still in the trial, grey for
         // the tail after billing. A background, so it spans the row whatever the text does.
         .background(alignment: .topLeading) {
-            // The trial stretch glows blue into violet; the paid tail after billing stays plain.
+            // The trial stretch is solid accent; the paid tail after billing stays plain.
             RoundedRectangle(cornerRadius: Self.trackWidth / 2)
-                .fill(node.kind == .billing ? AnyShapeStyle(Theme.Colors.track) : AnyShapeStyle(Self.pathGradient))
-                .shadow(color: node.kind == .billing ? .clear : Theme.Colors.Aurora.violet.opacity(0.6), radius: 8)
+                .fill(node.kind == .billing ? Theme.Colors.track : Self.pathColor)
                 .frame(width: Self.trackWidth)
                 .padding(.leading, (Self.nodeSize - Self.trackWidth) / 2)
                 .padding(.top, Self.nodeSize / 2)
@@ -808,7 +806,6 @@ private struct PaywallTrialTimeline: View {
             .frame(width: Self.nodeSize, height: Self.nodeSize)
             .background(fill, in: Circle())
             .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
-            .shadow(color: node.kind == .today ? Theme.Colors.accent.opacity(0.7) : .clear, radius: 10)
             .zIndex(1)
             .accessibilityHidden(true)
     }

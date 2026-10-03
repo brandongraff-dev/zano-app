@@ -232,6 +232,7 @@ struct ZANOChargedStar: View {
 /// The Home Screen widgets' container background: the v2 indigo ink with a blue light sitting behind
 /// the star (brighter as the star charges) and a faint violet light in the far corner, a still frame
 /// of the app's aurora. The system drops it in accented/vibrant modes and StandBy.
+/// Pass 3 (restraint): both lights at about half their pass-2 strength, matching the app's aurora.
 struct ZANOWidgetBackground: View {
     let glowCenter: UnitPoint
     let charge: Double
@@ -245,14 +246,14 @@ struct ZANOWidgetBackground: View {
                 endPoint: .bottom
             )
             RadialGradient(
-                colors: [ZANOWidgetColor.violet.opacity(0.18), ZANOWidgetColor.violet.opacity(0)],
+                colors: [ZANOWidgetColor.violet.opacity(0.10), ZANOWidgetColor.violet.opacity(0)],
                 center: UnitPoint(x: 1 - glowCenter.x, y: 1 - glowCenter.y),
                 startRadius: 0,
                 endRadius: glowRadius * 1.2
             )
             RadialGradient(
                 colors: [
-                    ZANOWidgetColor.accent.opacity(0.08 + 0.20 * min(max(charge, 0), 1)),
+                    ZANOWidgetColor.accent.opacity(0.05 + 0.11 * min(max(charge, 0), 1)),
                     ZANOWidgetColor.accent.opacity(0)
                 ],
                 center: glowCenter,

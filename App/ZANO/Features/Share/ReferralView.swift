@@ -106,7 +106,7 @@ struct ReferralView: View {
                         Text(code)
                             .font(Theme.Typography.numeral(size: 36, weight: .heavy))
                             .tracking(3)
-                            .foregroundStyle(Theme.Colors.metallic)
+                            .foregroundStyle(Theme.Colors.text) // pass 3: solid text, no metallic gradient
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                             .textSelection(.enabled)

@@ -55,6 +55,10 @@
 // the wordmark and the star in the footer keep them recognisably ZANO's. Still no materials and no
 // animation in a poster, and the star stays the static `ZanoMark`.
 //
+// PASS 3 (2026-10-03, restraint): posters stay bold, but the room keeps at most two decorative
+// layers over the ink: one hue blob (top-right) and the sunburst. The partner blob, the halftone
+// field and the confetti sprinkles are gone.
+//
 // NOT VERIFIED (no Mac/Simulator in this environment): every size here is layout arithmetic on the
 // 360 x 640 canvas. In particular the hero numeral's fit for long durations relies on
 // `minimumScaleFactor`, and `ImageRenderer`'s output for `RadialGradient` + `shadow` (expected to
@@ -129,7 +133,7 @@ enum PosterHue: CaseIterable, Sendable {
         }
     }
 
-    /// The poster's confetti sprinkles: this hue first, then the rest of the goal palette.
+    /// The milestone burst's confetti: this hue first, then the rest of the goal palette.
     var sprinkles: [Color] {
         [color, partner, Theme.Colors.Ring.sunriseAlarm, Theme.Colors.Ring.water, Theme.Colors.Ring.creatine, Theme.Colors.Ring.workout]
     }
@@ -137,8 +141,8 @@ enum PosterHue: CaseIterable, Sendable {
 
 // MARK: - Chassis
 
-/// The shared canvas: the arcade room (ink, two hue blobs, a sunburst of rays from the top-right, a
-/// halftone dot field and a few fixed confetti sprinkles), the eyebrow as a tilted sticker pill at
+/// The shared canvas: the arcade room (ink, one hue blob and a sunburst of rays from the top-right;
+/// pass 3 caps the room at two decorative layers), the eyebrow as a tilted sticker pill at
 /// the top of the safe area, the content between flexible spacers, and the wordmark at the bottom of
 /// the safe area. Fixed 360 x 640, opaque, unclipped by any rounded shape.
 struct PosterChassis<Content: View>: View {
@@ -209,18 +213,10 @@ private struct PosterRoom: View {
                 startRadius: 0,
                 endRadius: PosterMetrics.canvas.width * 0.95
             )
-            RadialGradient(
-                colors: [hue.partner.opacity(0.35), hue.partner.opacity(0)],
-                center: UnitPoint(x: 0.05, y: 0.8),
-                startRadius: 0,
-                endRadius: PosterMetrics.canvas.width * 0.9
-            )
             PosterRays()
                 .fill(hue.color.opacity(0.10))
                 .frame(width: 1100, height: 1100)
                 .position(x: PosterMetrics.canvas.width * 0.85, y: PosterMetrics.canvas.height * 0.12)
-            PosterHalftone(color: Color.white.opacity(0.07))
-            PosterSprinkles(colors: hue.sprinkles)
         }
         .frame(width: PosterMetrics.canvas.width, height: PosterMetrics.canvas.height)
         .accessibilityHidden(true)
@@ -245,63 +241,6 @@ private struct PosterRays: Shape {
             path.closeSubpath()
         }
         return path
-    }
-}
-
-/// A halftone dot field fading out towards the bottom-left: the printed-sticker texture.
-private struct PosterHalftone: View {
-    let color: Color
-
-    var body: some View {
-        Canvas { context, size in
-            let gap: CGFloat = 14
-            var y: CGFloat = 0
-            var row = 0
-            while y < size.height {
-                var x: CGFloat = row.isMultiple(of: 2) ? 0 : gap / 2
-                while x < size.width {
-                    // Bigger dots towards the top-right, none bottom-left.
-                    let weight = max(0, (x / size.width) - (y / size.height) * 0.9 + 0.1)
-                    let d = 3.2 * min(1, weight)
-                    if d > 0.4 {
-                        context.fill(Path(ellipseIn: CGRect(x: x - d / 2, y: y - d / 2, width: d, height: d)), with: .color(color))
-                    }
-                    x += gap
-                }
-                y += gap
-                row += 1
-            }
-        }
-    }
-}
-
-/// Fixed confetti sprinkles (positions are constants, so every render is identical).
-private struct PosterSprinkles: View {
-    let colors: [Color]
-
-    private static let spots: [(x: CGFloat, y: CGFloat, angle: Double, kind: Int)] = [
-        (0.88, 0.30, 30, 0), (0.10, 0.22, -20, 1), (0.92, 0.62, 65, 2), (0.06, 0.55, 10, 0),
-        (0.78, 0.82, -35, 1), (0.30, 0.10, 45, 2), (0.62, 0.07, -60, 0), (0.18, 0.80, 80, 2),
-    ]
-
-    var body: some View {
-        ZStack {
-            ForEach(Array(Self.spots.enumerated()), id: \.offset) { index, spot in
-                sprinkle(kind: spot.kind)
-                    .foregroundStyle(colors[index % colors.count])
-                    .rotationEffect(.degrees(spot.angle))
-                    .position(x: PosterMetrics.canvas.width * spot.x, y: PosterMetrics.canvas.height * spot.y)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func sprinkle(kind: Int) -> some View {
-        switch kind {
-        case 0: Capsule().frame(width: 16, height: 5)
-        case 1: Circle().frame(width: 7, height: 7)
-        default: Image(systemName: "sparkle").font(.system(size: 14, weight: .black))
-        }
     }
 }
 
@@ -822,14 +761,8 @@ struct ShareActionLabel: View {
     private var edge: some View {
         switch state {
         case .ready:
-            Capsule().strokeBorder(
-                LinearGradient(
-                    colors: [Theme.Colors.specular, Theme.Colors.specular.opacity(0)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                lineWidth: Theme.Metrics.edgeWidth
-            )
+            // Pass 3 (restraint): a flat rim on a solid button.
+            Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
         case .preparing:
             Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
         case .failed:

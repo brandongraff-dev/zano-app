@@ -96,14 +96,12 @@ struct ScreenYourWhy: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// The days, as big as the phone allows, ember into red. Shrinks rather than clips.
+    /// The days, as big as the phone allows, in solid ember (pass 3: no gradient text, no glow).
+    /// Shrinks rather than clips.
     private var daysNumeral: some View {
         Text("\(visibleDays)")
             .font(Theme.Typography.score(size: 104))
-            .foregroundStyle(
-                LinearGradient(colors: [Theme.Colors.ember, Theme.Colors.danger], startPoint: .top, endPoint: .bottom)
-            )
-            .shadow(color: Theme.Colors.danger.opacity(0.45), radius: 18)
+            .foregroundStyle(Theme.Colors.ember)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             .contentTransition(.numericText(value: Double(visibleDays)))

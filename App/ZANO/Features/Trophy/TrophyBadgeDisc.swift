@@ -99,9 +99,7 @@ struct TrophyBadgeDisc: View {
     var body: some View {
         ZStack {
             if isEarned, let tint {
-                Circle().fill(
-                    LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
+                Circle().fill(tint)
                 Circle().strokeBorder(Color.white, lineWidth: max(2, diameter * 0.05))
                 // A shine streak across the top-left, like a foil sticker.
                 Capsule()

@@ -220,6 +220,7 @@ enum OnboardingKit {
     /// and ZANO Blue light that grows in as `progress` (0...1) advances, from the top-right corner
     /// and, late in the flow, rising from the floor. Only layer opacities change, eased once per
     /// step; nothing loops, so it is the same under Reduce Motion (just a shorter fade).
+    /// Pass 3 (restraint): every layer at roughly half its pass-2 strength, so the room reads as ink.
     struct Ambient: View {
         let progress: Double
 
@@ -238,16 +239,16 @@ enum OnboardingKit {
                         startRadius: 0,
                         endRadius: width * 1.3
                     )
-                    .opacity(0.45 + 0.30 * p)
+                    .opacity(0.25 + 0.15 * p)
                     RadialGradient(
-                        colors: [Theme.Colors.accent.opacity(0.20), Theme.Colors.accent.opacity(0)],
+                        colors: [Theme.Colors.accent.opacity(0.11), Theme.Colors.accent.opacity(0)],
                         center: UnitPoint(x: 0.95, y: 0.0),
                         startRadius: 0,
                         endRadius: width * 1.05
                     )
                     .opacity(0.15 + 0.85 * p)
                     RadialGradient(
-                        colors: [Theme.Colors.accent.opacity(0.12), Theme.Colors.accent.opacity(0)],
+                        colors: [Theme.Colors.accent.opacity(0.06), Theme.Colors.accent.opacity(0)],
                         center: .bottom,
                         startRadius: 0,
                         endRadius: width * 0.95

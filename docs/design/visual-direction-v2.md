@@ -310,3 +310,52 @@ Device/simulator rendering of all of the above. Specifically: transforms applied
 `DeviceActivityReport` remote view (scale/rotation/opacity on the extension-hosted star) are expected to
 work but are unverified; `symbolEffect(.bounce.up, options: .speed(_:))`, `hourglass.circle.fill` and
 `sparkles` symbol names are from memory of the iOS 17 SDK.
+
+## 9. Pass 3: restraint (2026-10-03)
+
+**Why:** the founder, on the pass-2 screenshots: "I like the playful feel, just make sure it doesn't
+overdo it and the gradients everywhere aren't too much — but the new icons and stuff are good and fun."
+Pass 3 keeps every playful *object* (icons, `ZanoSticker`, goal-colour badges, the star mascot, chunky
+score numerals, rolling numbers, the glass tab bar, the celebration) and takes the paint down.
+
+### Rules (apply to anything new)
+
+1. **Calm ink canvas.** The aurora stays on but runs at ~55% of its pass-2 light levels, drifts half
+   as far (±2.5%) and ~1.7x slower (40–50 s orbits); streak warmth adds at most +0.07 ember (was
+   0.16). The onboarding backdrop and the widget background were halved to match. Most of any screen
+   should read as plain ink.
+2. **Flat tints, not washes.** A tinted surface is ONE colour at low opacity: `zanoCard(tint:)` 8%
+   (12% active), `zanoGoalTile` 14% (18% done). No multi-stop or corner-fading washes on cards, tiles,
+   chips or meters.
+3. **Flat progress.** Progress fills are one solid colour: tile fill (10%, no "juice" surface line),
+   goal rings and vault rings (no angular sweep), Fuel bar (no gloss strip), water tank (solid water,
+   flat rim), Progress week pills (one accent colour for every earned day, no candy palette, no
+   shine), onboarding power cells (one accent), the paywall trial path (one solid accent line).
+4. **Rims only where they mean something.** Neutral glass keeps its specular edge. A thin *solid*
+   coloured rim marks done/selected/earned (done goal tile, active `zanoCard`, earned trophy stand).
+5. **One glow per screen, and it is the hero's.** Only `zanoHero(active:)` and the star (mascot glow,
+   `StarBloom`, Lock's idle halo, First Win halo) glow. Removed: done-tile glow, active-card glow, ring
+   glows, Fuel bar/tank glows, streak-pill flame glow, Progress flame/pill/sticker/rank/shelf glows,
+   power-cell glows, paywall path/node glows, tab-bar pill glow, gym battery segment + numeral glows,
+   Today's score-numeral glow, vault lock/segment glows, live-dot glows.
+6. **No gradient text.** Every text fill is one solid colour (Your Why's days numeral is solid ember;
+   the metallic text on recap story, referral code and the "Earned." stamp is now `text`).
+7. **Solid buttons.** `PrimaryButton` filled = flat `tint.fillColor` with a flat hairline rim (no
+   sheen, no gradient rim). The onboarding charge button sweeps solid `accentFill` with a solid
+   `accent` rim (no blue→violet, no violet glow). Tab-bar pill, Today chunky capsules, Lock borrow
+   coins, Fuel chips, the share button: solid.
+8. **Gradients are allowed only for:** glass material (frost fill, specular `glassEdge`/`edgeGradient`,
+   inner shade), the star's metal and light (`metallic`, graphite, charge mask, light sweep), the
+   aurora / `HeroGlow` / onboarding ambient lights, functional scrims (sticky action bar, map fade,
+   camera vignette, alarm dock fade), cosmetics previews (they depict the product), the unlock
+   celebration, the alarm ringing screen, and share posters/story pages.
+9. **Posters stay bold, two decorative layers max.** `PosterRoom` = ink + one hue blob + the sunburst.
+   The partner blob, halftone field and confetti sprinkles were removed.
+10. **Motion:** the only always-on idle motion is the star (and the alarm ringing screen). Removed:
+    the live-status `symbolEffect(.pulse)` (Today status row, tile live dot), the gym battery's blinking
+    next segment, the NFC tag scene's idle phone bob and idle wave loop (the waves move only during an
+    active scan). **One burst per win:** a goal completing on Today bursts the hero star only; the
+    tile pops and flips its sticker but no longer throws its own burst.
+
+All accessibility labels, UI-test labels and behaviour are unchanged; Reduce Motion / Reduce
+Transparency paths are as in pass 2. Unverified until the next CI screenshot tour.

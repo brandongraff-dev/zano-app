@@ -334,7 +334,7 @@ public struct UnlockCelebrationView: View {
     private var stamp: some View {
         Text(Copy.celebration.headline)
             .font(Theme.Typography.score(size: headlineSize))
-            .foregroundStyle(Theme.Colors.metallic)
+            .foregroundStyle(Theme.Colors.text) // pass 3: solid text, no metallic gradient
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             .padding(.horizontal, Theme.Spacing.md)

@@ -121,7 +121,7 @@ struct OnboardingGuideStar: View {
             .overlay {
                 GuideBubbleShape(includesTail: false)
                     .stroke(
-                        LinearGradient(colors: [tint.opacity(0.7), Theme.Colors.specular.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        tint.opacity(0.5),
                         lineWidth: 1
                     )
             }
@@ -151,8 +151,8 @@ private struct GuideBubbleShape: Shape {
 
 // MARK: - Charge meter (header progress)
 
-/// Seven power cells, lit up to the current step, ending in the star. The lit cells run blue to
-/// violet like a charge building; the newest one pops in. The star at the end charges with them.
+/// Seven power cells, lit up to the current step, ending in the star. Pass 3 (restraint): every lit
+/// cell is the one accent blue, no glow; the newest one pops in. The star at the end charges with them.
 struct OnboardingChargeMeter: View {
     let step: Int
     let total: Int
@@ -186,18 +186,11 @@ struct OnboardingChargeMeter: View {
 
     private func cell(_ index: Int) -> some View {
         let isLit = index <= step
-        let position = Double(index - 1) / Double(max(total - 1, 1))
-        let color = isLit ? mix(position) : Theme.Colors.track.opacity(0.6)
+        let color = isLit ? Theme.Colors.accent : Theme.Colors.track.opacity(0.6)
         return RoundedRectangle(cornerRadius: 3, style: .continuous)
             .fill(color)
             .frame(height: 10)
-            .shadow(color: isLit ? color.opacity(0.6) : .clear, radius: 4)
             .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springPop.delay(0.05), value: isLit)
-    }
-
-    /// Blue at the first cell, violet at the last.
-    private func mix(_ t: Double) -> Color {
-        t < 0.5 ? Theme.Colors.accent : (t < 0.85 ? Theme.Colors.Ring.focus : Theme.Colors.Aurora.violet)
     }
 }
 
@@ -230,7 +223,6 @@ struct OnboardingChargeButton: View {
             .background { track }
             .overlay { rim }
             .compositingGroup()
-            .shadow(color: Theme.Colors.Aurora.violet.opacity(0.55 * progress), radius: 22)
             .zanoChargeBurst(trigger: commitTick, color: Theme.Colors.Aurora.violet)
             .scaleEffect(isHolding && !reduceMotion ? 0.97 : 1)
             .contentShape(Capsule())
@@ -283,14 +275,9 @@ struct OnboardingChargeButton: View {
         ZStack(alignment: .leading) {
             ZanoGlass(Capsule(style: .continuous))
             GeometryReader { proxy in
+                // Pass 3 (restraint): a solid accentFill sweep, not a blue-to-violet gradient.
                 Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.Colors.accentFill, Theme.Colors.Aurora.violet],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .fill(Theme.Colors.accentFill)
                     .frame(width: proxy.size.width * progress)
             }
             .clipShape(Capsule(style: .continuous))
@@ -301,7 +288,7 @@ struct OnboardingChargeButton: View {
         Capsule(style: .continuous)
             .strokeBorder(
                 isEnabled
-                    ? AnyShapeStyle(LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.Aurora.violet], startPoint: .leading, endPoint: .trailing))
+                    ? AnyShapeStyle(Theme.Colors.accent)
                     : AnyShapeStyle(Theme.Colors.hairline),
                 lineWidth: 1.5
             )

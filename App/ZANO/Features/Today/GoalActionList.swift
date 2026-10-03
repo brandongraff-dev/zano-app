@@ -4,7 +4,7 @@
 // Today's and Lock's goal list. v2 (docs/design/visual-direction-v2.md §4): each goal is its own
 // glass tile washed in the goal's colour, two per row (an odd last tile spans the row as a wide
 // tile; one per row at accessibility text sizes), with the one action that moves that goal forward
-// full width at the bottom. A tile that completes pops (ring burst) and glows in its colour. The
+// full width at the bottom. A tile that completes pops and gets a solid rim in its colour (pass 3). The
 // "78g to go" second line is spoken, not shown, on tiles (fewer words); wide tiles still show it.
 //
 // Before v2: one inset-grouped card, one row per goal (docs/design/premium-ui-plan.md, UX pass).
@@ -89,11 +89,11 @@ struct GoalActionList: View {
 /// One goal as a glass tile. `isWide`: the horizontal layout for a row of one.
 ///
 /// Pass 2 (playful, docs/design/visual-direction-v2.md "Pass 2: playful"): the tile is the goal's
-/// colour (`zanoGoalTile`: tinted glass that fills up like a glass of juice as the day's progress
-/// rises), the goal's glyph is a chunky sticker, the progress line rolls, and a tile with an action is
+/// colour (`zanoGoalTile`: flat-tinted glass with a flat fill that rises with the day's progress;
+/// pass 3 removed the juice gradient), the goal's glyph is a chunky sticker, the progress line rolls, and a tile with an action is
 /// itself the button: the whole tile squishes on touch (`PressableStyle`), the sticker bounces on every
-/// log, and completing it pops the tile, throws a charge burst in its colour and flips the sticker
-/// to a filled check. Read-only tiles (Lock) are compact and not buttons.
+/// log, and completing it pops the tile and flips the sticker to a filled check (pass 3: the win's
+/// one burst is the hero star's, not the tile's). Read-only tiles (Lock) are compact and not buttons.
 struct GoalTile: View {
     let item: GoalActionItem
     let isWide: Bool
@@ -219,7 +219,7 @@ struct GoalTile: View {
             tilt: isDone ? 0 : -6,
             bounceTrigger: progressTick + doneTick
         )
-        .zanoChargeBurst(trigger: doneTick, color: item.color)
+        // Pass 3 (restraint): no burst here; the hero star's burst is the one burst per win.
         .accessibilityHidden(true)
     }
 

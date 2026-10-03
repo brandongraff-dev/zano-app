@@ -65,3 +65,22 @@ inherit the new tokens/components here; their own layout passes are listed in th
 - **Needs verification on:** CI build (Swift 6 type checking of `keyframeAnimator` closures, the
   tab bar layout on iPhone SE), screenshot tour, real device (aurora cost, Reduce Transparency /
   Reduce Motion / Increase Contrast paths).
+
+## 2026-10-03 — Pass 2 (playful) and pass 3 (restraint)
+
+- **Pass 2, playful** (founder: "make it more playful"): star mascot moods (sleepy/idle/perky/charged,
+  jump on goal, spin on tap), `ZanoSticker`, `RollingNumber`, `zanoGoalTile`, squishy press, bouncy
+  tab icons, rounded nav titles; Today compact stage (goals above the fold); Lock padlock character;
+  Fuel game meters; Progress arcade (week pills, sticker streak grid, rank medal, trophy shelf);
+  onboarding guide star, power cells, charging hold; playful paywall; sticker Settings; arcade unlock
+  celebration; collectible share posters; sunrise ringing screen; gym charging meter; NFC sticker
+  collection; trophy cabinet; v2 widget palette.
+- **Pass 3, restraint** (founder: "don't overdo it, gradients everywhere aren't too much; icons are
+  good"): aurora ~55% intensity and slower; flat goal tints instead of gradient washes; one hero glow
+  per screen; no gradient text; solid buttons/meters/paths; posters at most two decorative layers;
+  idle motion only on the star (and the alarm). Rules in docs/design/visual-direction-v2.md §9.
+- **Fixes from screenshots:** paywall prices never truncate/wrap; locked-out poster headline clears
+  the lock sticker; Today shows goals right after the hero; star not clipped; screen-time total kept
+  under the star. EmergencyUnlock takes an injectable clock so hold tests don't depend on wall time.
+- **Status:** Scaffolded — Unverified until the CI build + screenshot tour for this commit is green;
+  all device-only behaviour still unverified.

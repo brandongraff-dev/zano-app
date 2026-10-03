@@ -225,7 +225,7 @@ struct RecapIntroPage: View {
                     .storyReveal(appeared, delay: 0.25)
                 Text(data.dateRange)
                     .font(Theme.Typography.numeral(size: 28, weight: .bold))
-                    .foregroundStyle(Theme.Colors.metallic)
+                    .foregroundStyle(Theme.Colors.text) // pass 3: solid text, no metallic gradient
                     .storyReveal(appeared, delay: 0.35)
                 Text(Copy.share.storyIntroSubline)
                     .font(Theme.Typography.body)
@@ -442,7 +442,7 @@ struct RecapDaysPage: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                     Text(bestDay)
                         .font(StoryType.dayName)
-                        .foregroundStyle(Theme.Colors.metallic)
+                        .foregroundStyle(Theme.Colors.text) // pass 3: solid text, no metallic gradient
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                         .shadow(color: Theme.Colors.accent.opacity(0.45), radius: 30)

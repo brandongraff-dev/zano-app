@@ -68,6 +68,11 @@ Apps stay locked until you hit the gym, finish a focus session or hit your prote
 Alternates:
 
 ```
+Meet your buddy. Stash, Brick, Volt and friends guard your apps and cheer when you earn them back. Emergency unlock always works.
+```
+125/170 (buddy-led; good for the launch week once the icon-switch is verified on device)
+
+```
 Gym, focus, protein, done? Then your apps open. ZANO keeps distracting apps locked until you earn them back. Emergency unlock always works.
 ```
 139/170
@@ -82,7 +87,7 @@ that says "free for 7 days" without the plan qualifier invites a 3.1.2 metadata 
 
 ## 4. Description (limit 4000)
 
-**2,889/4,000.** The first three lines (what shows before "more") are the hook, the mechanic, and
+**~3,200/4,000** (re-count before submitting; the PICK YOUR BUDDY section was added 2026-10-03). The first three lines (what shows before "more") are the hook, the mechanic, and
 the safety promise. Section headers are ALL CAPS because the App Store renders plain text only.
 
 ```
@@ -121,6 +126,9 @@ WORKS WITHOUT OPENING THE APP
 • Siri and Shortcuts: "Lock in with ZANO"
 • ZANO NFC tags: tap to log a shake, start a lock or check in
 • Sunrise Alarm: turn it off by doing your morning goal
+
+PICK YOUR BUDDY
+Nine pixel-art buddies, from Stash the phone-hoarding raccoon to Brick the gym bulldog. Your buddy lives on your Home Screen icon, naps while you're locked, sweats when you've been scrolling too long and throws its arms up when you earn it. Keep your streak going and it earns gear: shades, a beanie, a crown.
 
 PICK YOUR COACH
 Hype, Tough Love, Chill or Data. Same goals, your kind of push.
@@ -292,6 +300,7 @@ Format: dark background (brand), caption on top in the brand font, device frame 
 | 5 | **Your first win in 2 minutes** | Start a focus lock right now. | `onboarding-7` | The first-win screen; tells the browser it pays off immediately. |
 | 6 | **Bank minutes. Spend them later.** | Earn Mode, for days that aren't all-or-nothing. | `earn-settings` (or `tab-lock` with the Time Bank borrow card) | Pick whichever reads better at thumbnail size. |
 | 7 | **Tap a tag. Logged.** | NFC tags for shakes, water and locks. | `nfc-tags` | Optional: composite with a photo of a tag on a shaker. Physical tags are sold separately; don't imply they ship with the app. |
+| 7b | **Pick your buddy** | Nine buddies. Yours becomes your app icon. | `buddy-picker` (+ `buddy-gear` inset) | Strong thumbnail; consider moving it to slot 2. Show the icon switch in the preview video too. |
 | 8 | **See the time you took back** | Streaks, milestones and your monthly story. | `monthly-story` (or `milestone`, 30-day streak) | Shareable output; doubles as social proof without fake quotes. |
 
 Not used, on purpose: `tab-squad` (squads are hidden in v1); `paywall` (Apple discourages pricing screens in screenshots); `tab-progress` is a fine

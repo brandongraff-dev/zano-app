@@ -166,6 +166,8 @@ private struct MilestoneMomentsModifier: ViewModifier {
                         MilestoneMomentView(milestone: milestone, onDismiss: { presenter.dismiss() })
                     }
                 }
+                // Deliberately dark in light mode too: milestone moments show the share poster
+                // (docs/design/visual-direction-v2.md §10).
                 .preferredColorScheme(.dark)
                 .onAppear { presenter.didPresent(milestone) }
             }

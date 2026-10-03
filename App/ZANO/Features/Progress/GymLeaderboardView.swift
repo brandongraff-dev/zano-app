@@ -59,7 +59,6 @@ struct GymLeaderboardView: View {
             .padding(.bottom, Theme.Spacing.xl)
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.progress.gymBoardScreenTitle)
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.selection, trigger: toggleTick)

@@ -39,7 +39,6 @@ struct LockCardSetupView: View {
             .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: cards.map(\.id))
         }
         .zanoBackdrop(glow: Theme.Colors.lockedAmbient, intensity: 0.5)
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.nfc.lockCardTitle)
         .navigationBarTitleDisplayMode(.inline)

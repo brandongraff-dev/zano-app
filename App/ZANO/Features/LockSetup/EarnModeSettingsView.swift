@@ -64,7 +64,6 @@ struct EarnModeSettingsView: View {
             LockPreferences.defaultMode = newValue
         }
         .tint(Theme.Colors.interactive)
-        .preferredColorScheme(.dark)
     }
 
     /// Today's bank: the minutes as a big score numeral in the earned blue.

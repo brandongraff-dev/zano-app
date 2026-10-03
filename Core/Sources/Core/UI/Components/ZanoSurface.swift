@@ -80,7 +80,7 @@ extension View {
     }
 }
 
-/// A recessed well: a faint white wash inside glass (solid `surface2` under Reduce Transparency).
+/// A recessed well: a faint wash inside glass (white in dark mode, ink in light) (solid `surface2` under Reduce Transparency).
 struct ZanoWell: ViewModifier {
     let radius: CGFloat
 
@@ -88,7 +88,7 @@ struct ZanoWell: ViewModifier {
 
     func body(content: Content) -> some View {
         content.background(
-            reduceTransparency ? AnyShapeStyle(Theme.Colors.surface2) : AnyShapeStyle(Color.white.opacity(0.05)),
+            reduceTransparency ? AnyShapeStyle(Theme.Colors.surface2) : AnyShapeStyle(Theme.Colors.wellFill),
             in: RoundedRectangle(cornerRadius: radius, style: .continuous)
         )
     }
@@ -165,6 +165,9 @@ struct ZanoSurface: ViewModifier {
                     )
                 )
                 .shadow(color: elevated ? Theme.Colors.shadow.opacity(0.6) : .clear, radius: 30, y: 18)
+                // Light mode: a white panel needs a soft shadow to lift off the white canvas
+                // (`glassShadow` is clear in dark mode, where the specular rim does that job).
+                .shadow(color: elevated ? .clear : Theme.Colors.glassShadow, radius: 14, y: 6)
                 .shadow(color: glowColor, radius: 28)
         } else if elevated {
             shape

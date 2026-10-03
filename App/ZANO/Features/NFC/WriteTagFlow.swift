@@ -62,7 +62,6 @@ struct WriteTagFlow: View {
                             }
                         }
                 }
-                .preferredColorScheme(.dark)
                 .tint(Theme.Colors.accent)
             }
         }

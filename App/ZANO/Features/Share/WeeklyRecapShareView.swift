@@ -231,9 +231,8 @@ public struct WeeklyRecapShareView: View {
                 shareRenderFailed = true
             }
         }
-        // `Theme.swift`'s own header: fixed, dark-only design system — see
-        // `docs/design/ui-stress-test-findings.md` §2.1 and `LockSetupView.swift`'s comment for
-        // the full rationale.
+        // Deliberately dark in light mode too (docs/design/visual-direction-v2.md §10): the recap
+        // story pages are the share posters themselves, rendered dark for social feeds.
         .preferredColorScheme(.dark)
     }
 

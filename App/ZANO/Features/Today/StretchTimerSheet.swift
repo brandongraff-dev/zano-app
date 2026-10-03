@@ -53,7 +53,6 @@ struct StretchTimerSheet: View {
             .navigationTitle(Copy.today.stretchTitle)
             .navigationBarTitleDisplayMode(.inline)
         }
-        .preferredColorScheme(.dark)
         .interactiveDismissDisabled(runningSessionID != nil)
         .task(id: attempt) { await run() }
         .onChange(of: runningSessionID) { _, id in

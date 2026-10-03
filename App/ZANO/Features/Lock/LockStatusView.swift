@@ -160,7 +160,6 @@ struct LockStatusView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: activeSession?.id) { oldValue, newValue in
             oldValue == nil && newValue != nil
         }
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.lockStatus.screenTitle)
         // Large, like every other tab (it used to fall back to a small inline title here).
         .navigationBarTitleDisplayMode(.large)

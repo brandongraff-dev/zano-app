@@ -104,8 +104,6 @@ struct BedtimeGateSetupView: View {
         } message: { alert in
             Text(alert.message)
         }
-        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1.
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Sections

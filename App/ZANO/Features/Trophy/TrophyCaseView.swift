@@ -133,9 +133,6 @@ public struct TrophyCaseView: View {
         .navigationTitle(Copy.trophyCase.screenTitle)
         .task { await CosmeticsStore.shared.refresh() }
         .tint(Theme.Colors.interactive)
-        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
-        // `LockSetupView.swift`'s comment for the full rationale.
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Hero (earned count + shelf + coin balance)

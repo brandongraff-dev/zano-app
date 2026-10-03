@@ -84,7 +84,6 @@ struct NudgeSettingsView: View {
             .padding(Theme.Spacing.md)
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .tint(SettingsPalette.nudges)
         .navigationTitle(Copy.settings.nudgesTitle)
         .navigationBarTitleDisplayMode(.inline)

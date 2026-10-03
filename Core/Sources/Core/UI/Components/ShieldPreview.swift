@@ -169,6 +169,9 @@ public struct ShieldPreview: View {
         // `lockedAmbient` is itself a dark navy, so it needs a much higher peak than a bright hue.
         .zanoBackdrop(glow: Theme.Colors.lockedAmbient, intensity: 0.7)
         .onAppear { hasAppeared = true }
+        // The real shield (`ZANOShieldConfig`) is always dark (light mode, 2026-10-03: its
+        // `ShieldConfiguration` colours are pinned to the dark tones), so the preview of it is too.
+        .environment(\.colorScheme, .dark)
     }
 
     /// A subline that opens with a number leads with it as a numeral ("1" big, "goal left · Streak

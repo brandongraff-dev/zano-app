@@ -352,7 +352,6 @@ struct TodayView: View {
                 if let blob = defaultLockSet?.appTokensBlob { SharedDefaults.lockedSelectionData = blob }
             }
         }
-        .preferredColorScheme(.dark)
         .sensoryFeedback(.success, trigger: isLocked) { oldValue, newValue in
             oldValue == true && newValue == false
         }

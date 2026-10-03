@@ -6,8 +6,10 @@
 // quick-add controls, floating circular buttons. Unlike content cards (`zanoCard`, which is frost
 // without blur), chrome is a real `.ultraThinMaterial` blur, because what scrolls beneath it is sharp.
 //
-//   * `.ultraThinMaterial` in the dark scheme, an ink tint over it (so it reads ink-frosted, not
-//     system grey), a faint white sheen from the top, and the 1px specular rim.
+//   * `.ultraThinMaterial` in the current scheme, a tint over it (ink in dark mode so it reads
+//     ink-frosted, white in light mode so it reads milk-frosted; not system grey), a faint white
+//     sheen from the top, and the 1px specular rim. Follows the app's appearance (light mode,
+//     2026-10-03); it used to force the dark material.
 //   * Reduce Transparency: an opaque `surface` fill with the same rim.
 //   * Increase Contrast: the rim doubles.
 
@@ -44,7 +46,6 @@ public struct ZanoGlass<S: InsettableShape>: View {
                 lineWidth: Theme.Metrics.edgeWidth
             )
         }
-        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -173,7 +174,6 @@ public struct ZanoInfoButton: View {
                 .frame(maxWidth: 280, alignment: .leading)
                 .padding(Theme.Spacing.md)
                 .presentationCompactAdaptation(.popover)
-                .preferredColorScheme(.dark)
         }
     }
 }

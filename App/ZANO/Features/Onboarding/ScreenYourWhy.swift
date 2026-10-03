@@ -57,7 +57,6 @@ struct ScreenYourWhy: View {
             flowState.advance()
         }
         .sensoryFeedback(.impact(weight: .heavy, intensity: 0.8), trigger: landTick)
-        .preferredColorScheme(.dark)
         .task { await countUp() }
         .onChange(of: daysPerYear) { _, newValue in
             guard hasCounted else { return }

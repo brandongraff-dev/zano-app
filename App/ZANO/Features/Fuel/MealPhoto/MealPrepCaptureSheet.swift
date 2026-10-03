@@ -81,7 +81,6 @@ struct MealPrepCaptureSheet: View {
                     }
                 }
         }
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.success, trigger: successTick)
         .interactiveDismissDisabled(phase.key == 6)

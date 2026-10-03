@@ -13,6 +13,11 @@ struct ZANOApp: App {
     /// `StoreUnavailableView` instead of running against an empty in-memory fallback whose writes
     /// would vanish on the next launch (and whose onboarding would start over).
     private let storeOpenFailure: String?
+    /// Settings > Appearance (System / Light / Dark). Lives in the App Group defaults so widgets and
+    /// the Screen Time report can match; applied once, here at the root, so every screen, sheet and
+    /// cover follows it (the few deliberately dark surfaces force their own scheme).
+    @AppStorage(ZanoAppearance.storageKey, store: SharedDefaults.store)
+    private var appearance: ZanoAppearance = .system
 
     init() {
         #if DEBUG
@@ -124,13 +129,45 @@ struct ZANOApp: App {
     /// Pass 2 "playful" (2026-10-03, docs/design/visual-direction-v2.md): SF Pro Rounded, heavy for
     /// the large title and bold for the inline one (was condensed heavy), scaled with Dynamic Type.
     private static func configureNavigationBarTitles() {
-        let appearance = UINavigationBar.appearance()
-        appearance.largeTitleTextAttributes = [
-            .font: roundedFont(size: 34, weight: .heavy, textStyle: .largeTitle)
+        // Light mode: the title colour is the `text` token as a dynamic UIColor, so it is ink on
+        // the light canvas and pearl on the dark one (the system default label colour is close but
+        // not the palette's ink/pearl).
+        let titleColor = Theme.Tones.text.dynamicUIColor
+        let navigationBar = UINavigationBar.appearance()
+        navigationBar.largeTitleTextAttributes = [
+            .font: roundedFont(size: 34, weight: .heavy, textStyle: .largeTitle),
+            .foregroundColor: titleColor
         ]
-        appearance.titleTextAttributes = [
-            .font: roundedFont(size: 17, weight: .bold, textStyle: .headline)
+        navigationBar.titleTextAttributes = [
+            .font: roundedFont(size: 17, weight: .bold, textStyle: .headline),
+            .foregroundColor: titleColor
         ]
+    }
+
+    /// The scheme the whole app is drawn in: the Settings choice, or (DEBUG screenshot runs only)
+    /// the `-ZANOAppearance` launch argument, which defaults to dark so the main CI tour is unchanged.
+    private var rootColorScheme: ColorScheme? {
+        #if DEBUG
+        if ScreenshotMode.screen != nil { return ScreenshotMode.colorScheme }
+        #endif
+        return appearance.colorScheme
+    }
+
+    /// Belt and braces for `preferredColorScheme`: switching back to "System" (nil) has not always
+    /// released an earlier forced scheme on every iOS version, so the window's own override is set
+    /// to match. Runs on the main actor (the scene's `onChange`).
+    @MainActor
+    private static func applyWindowStyle(_ scheme: ColorScheme?) {
+        let style: UIUserInterfaceStyle = switch scheme {
+        case .light: .light
+        case .dark: .dark
+        default: .unspecified
+        }
+        for case let windowScene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = style
+            }
+        }
     }
 
     /// The system font at `size`/`weight` in its rounded design (plain system font if the rounded
@@ -166,6 +203,11 @@ struct ZANOApp: App {
     var body: some Scene {
         WindowGroup {
             rootContent
+                // Settings > Appearance (light mode, 2026-10-03). Default System.
+                .preferredColorScheme(rootColorScheme)
+                .onChange(of: rootColorScheme, initial: true) { _, scheme in
+                    Self.applyWindowStyle(scheme)
+                }
                 // `AppRouter` is a singleton (see its header for why); views read it from the
                 // environment rather than reaching for the global.
                 .environment(AppRouter.shared)
@@ -240,7 +282,6 @@ private struct StoreUnavailableView: View {
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
     }
 }
 

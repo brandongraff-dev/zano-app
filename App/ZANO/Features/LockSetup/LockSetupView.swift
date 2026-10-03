@@ -210,13 +210,8 @@ struct LockSetupView: View {
             Text(alert.message)
         }
         .tint(Theme.Colors.interactive)
-        // `Theme.swift`'s own header: this is a fixed, dark-only design system, not
-        // light/dark-adaptive — screens force `.preferredColorScheme(.dark)` themselves. Without
-        // this, a Light/Automatic system appearance leaves this screen's own dark surfaces intact
-        // but every native `.confirmationDialog`/`.alert` above (both heavily used here) and the
-        // status bar/nav chrome follow the *system* appearance instead. See
-        // `docs/design/ui-stress-test-findings.md` §2.1.
-        .preferredColorScheme(.dark)
+        // Appearance (light mode, 2026-10-03): this screen, its dialogs and the status bar all follow
+        // the scheme set once at the app root (`ZANOApp`, Settings > Appearance), so they agree.
     }
 
     /// A newly-created row settles in (fade + gentle scale-up from 0.96) and a deleted one simply
@@ -669,9 +664,6 @@ private struct LockSetEditorSheet: View {
             }
         }
         .tint(Theme.Colors.interactive)
-        // Same fixed-dark rationale as `LockSetupView`; a presented sheet does not reliably inherit
-        // the presenter's `preferredColorScheme`.
-        .preferredColorScheme(.dark)
     }
 
     /// An eyebrow label over an input well (`surface2`, edge-lit). The well lights an accent ring while

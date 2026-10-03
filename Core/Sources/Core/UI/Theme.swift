@@ -7,14 +7,15 @@
 // `Theme` — no ad hoc hex literals or magic numbers outside this file (spec §15, CLAUDE.md
 // "Conventions").
 //
-// This is intentionally a single, fixed dark palette, not a light/dark adaptive theme: spec §15
-// opens with "Feel: dark, confident, game-progress energy" and never defines a light variant —
-// ZANO's product surfaces are dark-mode-first by design (like the mockups in §16). Screens should
-// still force `.preferredColorScheme(.dark)` where appropriate at the App/Features layer; that's
-// outside this file's scope. `PreviewCatalog.swift` renders these fixed tokens under both
-// `.preferredColorScheme(.light)` and `.dark` previews to confirm nothing regresses if the OS
-// chrome (status bar, system alerts) flips appearance — not because the tokens themselves change.
-//
+// Light mode (2026-10-03, founder: "A light mode for the app would be nice"). Every colour token
+// resolves per colour scheme: the dark values are the visual-direction-v2 palette unchanged, the
+// light values are its cool-soft-white twin (docs/design/visual-direction-v2.md §10). The pairs are
+// `ZanoTone`s in `Theme.Tones`; `Theme.Colors` builds a dynamic `Color` from each (a `UIColor`
+// dynamic provider, no asset catalog), so token names and call sites are unchanged and the whole
+// app adapts. The app follows the system appearance unless Settings > Appearance overrides it
+// (`ZanoAppearance`, applied once at the root). A few surfaces stay dark on purpose (alarm ringing,
+// unlock celebration, share posters/moments, the shield); see §10 of that document.
+
 // No user-facing copy lives here (CLAUDE.md: "User-facing copy lives in Core/Sources/Core/Copy").
 // `Theme` only ever exposes colors, radii, spacing, type ramps, and motion curves.
 //
@@ -56,6 +57,7 @@
 // spec's token table; the notes above describe the previous pass.
 
 import SwiftUI
+import UIKit
 
 /// ZANO's design system: colors, radii, spacing, typography, and motion — all sourced from
 /// docs/spec.md §15. Everything here is a value type / static constant; `Theme` itself is never
@@ -64,108 +66,106 @@ public enum Theme {
 
     // MARK: - Colors
 
-    /// Color tokens from docs/spec.md §15's "Tokens" table, reproduced exactly (hex values are
-    /// spec-authoritative; do not retune here without updating §15 first).
+    /// Color tokens. Every token resolves per color scheme (light mode, 2026-10-03): the dark value
+    /// is the visual-direction-v2 palette unchanged, the light value is its "cool soft white" twin
+    /// (docs/design/visual-direction-v2.md §10). The pairs live in `Theme.Tones`; these are the
+    /// `Color`s built from them, so a view that reads `Theme.Colors.text` follows the scheme with no
+    /// code of its own. Static lets on a non-actor enum holding `Color` (Sendable): safe from widget
+    /// and other nonisolated code.
     public enum Colors {
-        /// `#0B0E24` — app background: indigo ink (visual direction v2, 2026-10-02). Not black: the
-        /// glass needs colour behind it, and the aurora (`ZanoAuroraBackground`) is lit on top of it.
-        public static let background = Color(zanoHex: 0x0B_0E_24)
-        /// `#06081A` — the bottom of the canvas gradient, under the tab bar and pinned action bars.
-        public static let backgroundDeep = Color(zanoHex: 0x06_08_1A)
-        /// `#161A3A` — opaque surface: the solid glass fallback under Reduce Transparency, sheets.
-        public static let surface = Color(zanoHex: 0x16_1A_3A)
-        /// `#1F2450` — secondary surface (nested solid wells, tracks, pressed states).
-        public static let surface2 = Color(zanoHex: 0x1F_24_50)
-        /// `#F4F3FF` — primary text. Warm white with a breath of violet (19.0:1 on ink).
-        public static let text = Color(zanoHex: 0xF4_F3_FF)
-        /// `#A6A4C8` — metadata text, about 70% of `text` (7.6:1 on ink, 6.5:1 on a glass card). The
-        /// old 45% grey made every helper line look like an afterthought.
-        public static let muted = Color(zanoHex: 0xA6_A4_C8)
+        /// Dark `#0B0E24` indigo ink / light `#F5F6FB` cool soft white with a faint lavender. Not
+        /// black, not pure white: the glass needs a little colour behind it.
+        public static let background = Tones.background.color
+        /// The bottom of the canvas gradient, under the tab bar and pinned action bars.
+        public static let backgroundDeep = Tones.backgroundDeep.color
+        /// Opaque surface: the solid glass fallback under Reduce Transparency, sheets. White in light.
+        public static let surface = Tones.surface.color
+        /// Secondary surface (nested solid wells, tracks, pressed states).
+        public static let surface2 = Tones.surface2.color
+        /// Primary text. Dark: warm white with a breath of violet (19.0:1 on ink). Light: ink
+        /// `#13142B` (16.7:1 on the light canvas).
+        public static let text = Tones.text.color
+        /// Metadata text, about 70% of `text` (dark 7.6:1 on ink; light `#5C5E7E`, 5.8:1).
+        public static let muted = Tones.muted.color
 
-        /// `#FF8A3D` — ember. Streak and fire moments only: the streak flame, the warm aurora blob of an
-        /// earned day, milestone bursts. Never a control colour.
-        public static let ember = Color(zanoHex: 0xFF_8A_3D)
+        /// Ember. Streak and fire moments only: the streak flame, the warm aurora blob of an earned
+        /// day, milestone bursts. Never a control colour. Light `#B34A06` (5.0:1, usable as text).
+        public static let ember = Tones.ember.color
 
-        /// The aurora's light sources (`ZanoAuroraBackground`). Decorative only: never text.
+        /// The aurora's light sources (`ZanoAuroraBackground`). Decorative only: never text. In
+        /// light mode they are softer, pastel-leaning hues; the aurora's low opacities turn them
+        /// into faint tints of the white canvas.
         public enum Aurora {
-            public static let blue = Color(zanoHex: 0x3F_7B_FF)
-            public static let violet = Color(zanoHex: 0x8F_5B_FF)
-            public static let ember = Colors.ember
+            public static let blue = Tones.auroraBlue.color
+            public static let violet = Tones.auroraViolet.color
+            public static let ember = Tones.auroraEmber.color
         }
-        /// `#3F7BFF` — ZANO Blue, the primary accent (founder decision 2026-09-24: the all-silver app
-        /// felt dull and lifeless). Primary buttons, selection, the tab bar's lit tab, the workout
-        /// ring and earned moments. Silver (`metallic`) stays the logo's metal; blue is its light.
-        /// Use it for text, strokes, glyphs and glows: accent on `background` is 5.32:1, on `surface`
-        /// 4.93:1. Do NOT put white labels on it (white on `#3F7BFF` is 3.83:1, below AA for a
-        /// 17pt semibold label): a *filled* blue control uses `accentFill` instead.
-        public static let accent = Color(zanoHex: 0x3F_7B_FF)
+        /// ZANO Blue, the primary accent. Dark `#3F7BFF` (5.32:1 on ink). Light `#2A62E6` (the same
+        /// blue one step deeper: 4.9:1 on the light canvas, so it still works as text). Primary
+        /// buttons, selection, the tab bar's lit tab and earned moments. Never under a white label
+        /// in dark mode: a *filled* blue control uses `accentFill`.
+        public static let accent = Tones.accent.color
 
         /// `#2A62E6` — the fill of a filled blue control (`PrimaryButton`'s `.accent` tint and its
-        /// hold-to-commit sweep). A deeper step of ZANO Blue so the white `onAccent` label clears
-        /// AA: white on it is 5.27:1. Not for text on dark surfaces (3.87:1 on `background`): text,
-        /// strokes and glows stay `accent`.
-        public static let accentFill = Color(zanoHex: 0x2A_62_E6)
+        /// hold-to-commit sweep). White on it is 5.27:1 in both schemes.
+        public static let accentFill = Tones.accentFill.color
 
-        /// The brushed-silver fill of the logo mark and of earned hero moments: pearl top-left to
-        /// silver bottom-right.
+        /// The brushed-metal fill of the logo mark and of earned hero moments. Dark: pearl top-left
+        /// to silver bottom-right. Light: a darker steel (the silver vanishes on a white canvas).
         public static var metallic: LinearGradient { LinearGradient(
-            colors: [Color(zanoHex: 0xFA_F9_F6), Color(zanoHex: 0xD6_D4_CF), Color(zanoHex: 0x9E_9C_97)],
+            colors: [metalLight, metalMid, metalDark],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         ) }
+        private static let metalLight = Tones.metalLight.color
+        private static let metalMid = Tones.metalMid.color
+        private static let metalDark = Tones.metalDark.color
 
         // MARK: Interactive
 
         /// An alias of `accent`, kept because 40+ call sites use it: selection strokes, the lit
-        /// tab, chosen options. Same rules as `accent` (fine as text/stroke, never under a white
-        /// label: use `accentFill` for a filled control). New code may use either name.
+        /// tab, chosen options. Same rules as `accent`. New code may use either name.
         public static let interactive = accent
-        /// The fill behind a selected control (a chosen option, an active segment): `accent` at 16%.
-        public static let interactiveWash = Color(zanoHex: 0x3F_7B_FF).opacity(0.16)
+        /// The fill behind a selected control (a chosen option, an active segment).
+        public static let interactiveWash = Tones.interactiveWash.color
 
         // MARK: Ambient light
 
-        /// The cool light a locked screen sits in: dark, quiet, a little cold. Paired with
-        /// `accent` for the earned state so the backdrop itself tells you where you stand.
-        public static let lockedAmbient = Color(zanoHex: 0x2A_2F_7A)
-        /// Top stop of a hero surface's vertical gradient (bottom stop is `surface`): the hero
-        /// catches a little more light than a standard card.
-        public static let surfaceHero = Color(zanoHex: 0x1D_22_48)
-        /// `#F0606E` — danger: the emergency unlock and nothing else.
-        public static let danger = Color(zanoHex: 0xF0_60_6E)
-        /// `#F5B54A` — warning state (warm amber).
-        public static let warning = Color(zanoHex: 0xF5_B5_4A)
+        /// The cool light a locked screen sits in: quiet, a little cold. Paired with `accent` for
+        /// the earned state so the backdrop itself tells you where you stand.
+        public static let lockedAmbient = Tones.lockedAmbient.color
+        /// Top stop of a hero surface's vertical gradient (bottom stop is `surface`).
+        public static let surfaceHero = Tones.surfaceHero.color
+        /// Danger: the emergency unlock and nothing else. Light `#C42F3F` (5.1:1).
+        public static let danger = Tones.danger.color
+        /// Warning state (warm amber). Light `#9A5F00` (4.9:1).
+        public static let warning = Tones.warning.color
 
-        // MARK: Derived neutrals (not in spec §15's table; derived, not new hues)
+        // MARK: Derived neutrals
 
-        /// A crisp 1px edge/divider tone — spec §16 calls for "crisp 1px hairline dividers".
-        /// White at 12% (1.40:1 over `surface`, 1.33:1 over `background`). The previous value,
-        /// `surface2` at 0.8, was 1.06:1 against its own card and drew nothing. Pure white, not
-        /// `text`: a tinted edge reads as dirt on near-black.
-        public static let hairline = Color.white.opacity(0.12)
+        /// A crisp 1px edge/divider tone. Dark: white at 12% (1.40:1 over `surface`; pure white,
+        /// not `text`: a tinted edge reads as dirt on near-black). Light: ink at 10%.
+        public static let hairline = Tones.hairline.color
 
-        /// A stronger edge for pressed / selected-neutral / Increase Contrast states. White at
-        /// 20% (1.86:1 over `surface`).
-        public static let hairlineStrong = Color.white.opacity(0.20)
+        /// A stronger edge for pressed / selected-neutral / Increase Contrast states.
+        public static let hairlineStrong = Tones.hairlineStrong.color
 
-        /// The empty part of a bar, pager dot or unearned grid tile. White at 16% (1.53:1 over
-        /// `background`, 1.61:1 over `surface`). Was `surface2` (1.16 / 1.08:1) — the "empty"
-        /// half of a progress visual is the informational half and it vanished. Rings use
+        /// The empty part of a bar, pager dot or unearned grid tile. Rings use
         /// `Ring.track(for:)` instead (their own hue), not this.
-        public static let track = Color.white.opacity(0.16)
+        public static let track = Tones.track.color
 
         // MARK: Card edge light
 
-        /// The card edge is a 1px *top-lit* gradient (light falling from above), not a box outline:
-        /// drop shadows are invisible on near-black, and a lit rim is what dark design systems (and
-        /// iOS's own glass chrome) use for depth. Top and bottom stops, pure white.
-        public static let edgeTop = Color.white.opacity(0.14)
-        public static let edgeBottom = Color.white.opacity(0.06)
-        /// The same edge under Increase Contrast (`colorSchemeContrast == .increased`): doubled.
-        public static let edgeTopIncreased = Color.white.opacity(0.30)
-        public static let edgeBottomIncreased = Color.white.opacity(0.18)
+        /// The card edge: a 1px *top-lit* gradient in dark mode (drop shadows are invisible on
+        /// near-black), a plain ink hairline that darkens slightly toward the bottom in light mode
+        /// (where the soft drop shadow does the lifting).
+        public static let edgeTop = Tones.edgeTop.color
+        public static let edgeBottom = Tones.edgeBottom.color
+        /// The same edge under Increase Contrast (`colorSchemeContrast == .increased`).
+        public static let edgeTopIncreased = Tones.edgeTopIncreased.color
+        public static let edgeBottomIncreased = Tones.edgeBottomIncreased.color
 
-        /// The top-lit card edge as a stroke style. `increasedContrast` swaps in the stronger pair.
+        /// The card edge as a stroke style. `increasedContrast` swaps in the stronger pair.
         public static func edgeGradient(increasedContrast: Bool = false) -> LinearGradient {
             LinearGradient(
                 colors: increasedContrast ? [edgeTopIncreased, edgeBottomIncreased] : [edgeTop, edgeBottom],
@@ -175,173 +175,163 @@ public enum Theme {
         }
 
         /// The specular rim on an *accent-filled* control (the top edge of `PrimaryButton`): white at
-        /// 30%, fading to nothing. Only ever on a filled control, never on a card.
+        /// 30%, in both schemes (it sits on blue). Only ever on a filled control, never on a card.
         public static let specular = Color.white.opacity(0.30)
 
-        /// The label/icon color for anything drawn ON a pearl (`text` / `metallic`), `danger` or
-        /// `warning` fill: `background` near-black is 18.0:1 on pearl, 5.5:1 on danger and 9.2:1 on
-        /// warning (and 5.3:1 on `accent`, though blue fills take `onAccent` on `accentFill`).
+        /// The label/icon colour for anything drawn ON a `text`/`metallic`, `danger`, `warning` or
+        /// goal-colour fill: `background`. Dark: near-black ink on bright fills. Light: the white
+        /// canvas on the deeper light-mode fills (every light fill clears 4.5:1 against it).
         public static let onFill = background
 
-        /// Glass (visual direction v2): the frost on a content card, white 9% at the top to 4% at the
-        /// bottom. Read through to the aurora; no real blur (the canvas is already soft).
-        public static let glassFill = Color.white.opacity(0.07)
-        public static let glassFillTop = Color.white.opacity(0.09)
-        public static let glassFillBottom = Color.white.opacity(0.04)
+        /// Glass: the frost on a content card. Dark: white 9% at the top to 4% at the bottom, read
+        /// through to the aurora. Light: a white frosted panel (86% → 66%).
+        public static let glassFill = Tones.glassFill.color
+        public static let glassFillTop = Tones.glassFillTop.color
+        public static let glassFillBottom = Tones.glassFillBottom.color
         /// The raised (hero) glass: a step brighter.
-        public static let glassRaisedTop = Color.white.opacity(0.13)
-        public static let glassRaisedBottom = Color.white.opacity(0.05)
-        /// The ink tint laid over real material on chrome glass (tab bar, capsules), so the blur reads
-        /// as ink-frosted rather than system grey.
-        public static let glassChromeTint = Color(zanoHex: 0x0B_0E_24).opacity(0.35)
+        public static let glassRaisedTop = Tones.glassRaisedTop.color
+        public static let glassRaisedBottom = Tones.glassRaisedBottom.color
+        /// The tint laid over real material on chrome glass (tab bar, capsules): ink in dark mode so
+        /// the blur reads ink-frosted, white in light mode so it reads milk-frosted, not system grey.
+        public static let glassChromeTint = Tones.glassChromeTint.color
         /// The soft shade along a glass surface's bottom edge (inner shadow).
-        public static let glassInnerShade = Color.black.opacity(0.22)
+        public static let glassInnerShade = Tones.glassInnerShade.color
+        /// The soft drop shadow under a light-mode glass card (clear in dark mode, where a shadow
+        /// on ink reads as nothing). Light mode only lifts cards with this, not with an edge glow.
+        public static let glassShadow = Tones.glassShadow.color
+        /// A recessed well inside glass (`zanoWell`).
+        public static let wellFill = Tones.wellFill.color
 
-        /// The glass's specular rim: a 1px stroke lit from above (white 35% at the top edge, nearly
-        /// gone at the sides, a faint return at the bottom).
+        /// The glass's rim: dark, a 1px specular stroke lit from above (white 35% at the top edge,
+        /// nearly gone at the sides, a faint return at the bottom); light, a white top highlight over
+        /// an ink hairline.
         public static var glassEdge: LinearGradient {
             LinearGradient(
                 stops: [
-                    .init(color: Color.white.opacity(0.35), location: 0),
-                    .init(color: Color.white.opacity(0.06), location: 0.45),
-                    .init(color: Color.white.opacity(0.04), location: 0.75),
-                    .init(color: Color.white.opacity(0.12), location: 1),
+                    .init(color: glassEdgeStops[0], location: 0),
+                    .init(color: glassEdgeStops[1], location: 0.45),
+                    .init(color: glassEdgeStops[2], location: 0.75),
+                    .init(color: glassEdgeStops[3], location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
+        private static let glassEdgeStops: [Color] = [
+            Tones.glassEdge0.color, Tones.glassEdge1.color, Tones.glassEdge2.color, Tones.glassEdge3.color,
+        ]
 
         /// `glassEdge` under Increase Contrast: every stop roughly doubled.
         public static var glassEdgeIncreased: LinearGradient {
-            LinearGradient(
-                colors: [Color.white.opacity(0.6), Color.white.opacity(0.22), Color.white.opacity(0.3)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            LinearGradient(colors: glassEdgeIncreasedStops, startPoint: .top, endPoint: .bottom)
         }
+        private static let glassEdgeIncreasedStops: [Color] = [
+            Tones.glassEdgeHi0.color, Tones.glassEdgeHi1.color, Tones.glassEdgeHi2.color,
+        ]
+
+        /// The uncharged metal of the living star (`ZanoLivingMark`, the widgets' charged star):
+        /// translucent white in dark mode, translucent ink in light mode, so the empty star is a
+        /// visible outline in both.
+        public static let markGraphiteTop = Tones.markGraphiteTop.color
+        public static let markGraphiteBottom = Tones.markGraphiteBottom.color
+        /// The uncharged star's outline stroke.
+        public static let markGraphiteEdge = Tones.markGraphiteEdge.color
 
         // MARK: Pass 2: playful (docs/design/visual-direction-v2.md "Pass 2: playful")
 
         /// The confetti box: the hues a win is allowed to throw. ZANO Blue plus the five loudest goal
-        /// colours (volt, apricot, pink, sky, sun). `CelebrationBurst`'s default and the spark colours
-        /// of the mascot when no goal colours are passed. Decorative only, never text.
+        /// colours (volt, apricot, pink, sky, sun). Decorative only, never text.
         public static let confetti: [Color] = [
             accent, Ring.workout, Ring.protein, Ring.creatine, Ring.water, Ring.sunriseAlarm,
         ]
 
         /// The bright top half of a sticker's face (`ZanoSticker`): the "printed vinyl" highlight.
+        /// Stickers are physical objects, so they look the same in both schemes.
         public static let stickerHighlight = Color.white.opacity(0.32)
         /// The shade along a sticker's bottom inside edge, so it reads as a thick, peel-able chip.
         public static let stickerShade = Color.black.opacity(0.18)
         /// The white die-cut border around a decorative (icon-only) sticker.
         public static let stickerRim = Color.white.opacity(0.85)
 
-        /// The label on a blue fill. White reads better and more premium on blue than near-black,
-        /// but only on `accentFill` (5.27:1); on `accent` itself it is 3.83:1 and fails AA.
+        /// The label on a blue fill: white, on `accentFill` (5.27:1).
         public static let onAccent = Color.white
 
-        /// Drop-shadow tone for a lifted surface (`ZanoSurface`'s elevated shadow). Black at 55%.
-        public static let shadow = Color.black.opacity(0.55)
+        /// Drop-shadow tone for a lifted surface (`ZanoSurface`'s elevated shadow). Dark: black at
+        /// 55%. Light: a soft indigo shade at 18%.
+        public static let shadow = Tones.shadow.color
 
         /// The bright leading cap on a ring's progress arc (`GoalRing`): white at 85%.
         public static let ringCap = Color.white.opacity(0.85)
 
-        /// `#C7C7CC` — a middle text tier for paragraph copy that should be quieter than `text`
-        /// (18.2:1) but easier to read than `muted` (6.1:1): 11.8:1 on `background`, 10.9:1 on
-        /// `surface`. Use for multi-line supporting copy; keep `muted` for metadata.
-        public static let textSecondary = Color(zanoHex: 0xD2_D0_EA)
+        /// A middle text tier for paragraph copy that should be quieter than `text` but easier to
+        /// read than `muted`. Dark `#D2D0EA`; light `#3B3D5E` (9.7:1).
+        public static let textSecondary = Tones.textSecondary.color
 
-        /// Elevation semantics (HIG dark mode: base vs elevated). The fill for anything that
-        /// presents over the app when the system's own sheet material is not in play (full-screen
-        /// covers, celebration/alarm/onboarding backdrops). Same hex as `surface`, so it costs no
-        /// new color; it exists so the *intent* is legible at the call site.
+        /// Elevation semantics (HIG: base vs elevated). Same tone as `surface`; it exists so the
+        /// *intent* is legible at the call site.
         public static let backgroundElevated = surface
 
         // MARK: Accent tints (precomputed, on-hue)
 
-        /// `#0F1B36` — the accent at dark-surface strength: icon-badge discs, selected rows, the
-        /// unlock chip. Accent on this wash is about 12:1.
-        public static let accentWash = Color(zanoHex: 0x15_25_5E)
+        /// The accent at surface strength: icon-badge discs, selected rows, the unlock chip.
+        public static let accentWash = Tones.accentWash.color
 
-        /// `#1D356B` — the accent's dim core: a highlighted-but-unselected border, the track
-        /// beneath an active accent bar.
-        public static let accentDim = Color(zanoHex: 0x24_40_8C)
+        /// The accent's dim core: a highlighted-but-unselected border, the track beneath an active
+        /// accent bar.
+        public static let accentDim = Tones.accentDim.color
 
-        /// The disc/wash fill for an icon badge or chip tinted `tint`. The accent gets its
-        /// on-hue precomputed wash (`accentWash`); every other hue falls back to 18% of itself,
-        /// which is the same recipe the app used before but no longer applied to the accent
-        /// (where it went olive).
+        /// The disc/wash fill for an icon badge or chip tinted `tint`. The accent gets its on-hue
+        /// precomputed wash (`accentWash`); every other hue falls back to 18% of itself.
         public static func wash(_ tint: Color) -> Color {
             tint == accent ? accentWash : tint.opacity(0.18)
         }
 
-        /// Per-goal ring colors (spec §15: "Ring colors: workout = accent, protein = `#FF7A00`,
-        /// focus = `#5E5CE6`, water = `#32ADE6`"). Spec only names those four; the remaining
-        /// `GoalType` cases (steps, creatine, sunrise alarm, sleep, reading, meal prep, stretch,
-        /// cold shower/sauna, custom) have no assigned hex in §15. `Ring.color(for:)` below
-        /// extends the palette additively using Apple's own system palette hues so every goal type
-        /// gets a stable, distinguishable ring color — flagged as an assumption in this task's
-        /// decisions; revisit with design before shipping if §15 is amended with exact values.
+        /// Per-goal ring colours. Dark: the saturated v2 hues. Light: deeper twins of the same hues,
+        /// each at least 4.5:1 on the light canvas, so they work as text, as graphics, and as fills
+        /// under an `onFill` label in both schemes.
         ///
         /// Rule of use (docs/design/2026-ios-trends.md §4): a hue only ever identifies a ring by
         /// reinforcement — every ring/row must also be identifiable by glyph or label, never by
-        /// color alone (`GoalRing`/`RingCluster` always carry a glyph or label). Do not use
-        /// `Ring.focus` as text: 3.9:1 on `background`, below the 4.5:1 text threshold.
+        /// color alone. Do not use `Ring.focus` as text in dark mode (3.9:1 on `background`).
         ///
         /// Fewer hues per screen (docs/design/competitive-research.md 3.11.4): a screen may show its
-        /// per-goal hues for three, at most four, rings. A dense view (five or more rings — the
-        /// weekly recap, a full progress grid) switches to ONE scheme instead: complete = `accent`,
-        /// incomplete = `textSecondary`. `RecapCard` does this itself. The additive hues below also
-        /// collide with each other and with the accent/warning tokens under color-vision
-        /// deficiency (`steps` vs `accent`, `sunriseAlarm` vs `warning`, `water` vs `coldShowerSauna`),
-        /// which is one more reason a hue must never be the only thing identifying a ring.
+        /// per-goal hues for three, at most four, rings. A dense view (five or more rings) switches
+        /// to ONE scheme instead: complete = `accent`, incomplete = `textSecondary`.
         public enum Ring {
-            /// Spec-exact: workout rings reuse the single brand accent.
-            /// `#A3B1C6` cool steel. Was the accent; blue now means act / earned only.
-            /// `#C8F04A` volt (visual direction v2: saturated, joyful ring colours; was cool steel).
-            public static let workout = Color(zanoHex: 0xC8_F0_4A)
-            /// `#FF9548` apricot.
-            public static let protein = Color(zanoHex: 0xFF_95_48)
-            /// `#9B7BFF` violet.
-            public static let focus = Color(zanoHex: 0x9B_7B_FF)
-            /// `#3CC8FF` sky.
-            public static let water = Color(zanoHex: 0x3C_C8_FF)
-
-            // Additive extensions (assumption — not in spec §15's table; see the doc comment
-            // above). Muted, low-chroma tones (sage, rose, champagne, steel...) matching the
-            // brand palette, distinct from the four hues above.
-            /// Assumption: steps ring.
-            public static let steps = Color(zanoHex: 0x4B_E3_8C)
-            /// Assumption: creatine/supplement ring.
-            public static let creatine = Color(zanoHex: 0xFF_6F_AE)
-            /// Assumption: sunrise alarm / morning routine ring.
-            public static let sunriseAlarm = Color(zanoHex: 0xFF_C9_4A)
-            /// Assumption: sleep-on-time ring.
-            public static let sleepOnTime = Color(zanoHex: 0x7C_8C_FF)
-            /// Assumption: reading ring.
-            public static let reading = Color(zanoHex: 0xE9_A8_6B)
-            /// Assumption: weekly meal prep ring.
-            public static let mealPrep = Color(zanoHex: 0x34_D6_BE)
-            /// Assumption: stretch/mobility ring.
-            public static let stretchMobility = Color(zanoHex: 0xD1_7B_FF)
-            /// Assumption: cold shower / sauna ring.
-            public static let coldShowerSauna = Color(zanoHex: 0x8F_E3_FF)
-            /// Assumption: user-defined custom goal ring — deliberately neutral (`muted`) since
-            /// there is no inherent category color for a goal the user invents themselves.
+            /// Volt (dark `#C8F04A`, light `#4F7300`).
+            public static let workout = Tones.ringWorkout.color
+            /// Apricot (dark `#FF9548`, light `#B8520A`).
+            public static let protein = Tones.ringProtein.color
+            /// Violet (dark `#9B7BFF`, light `#6A48E0`).
+            public static let focus = Tones.ringFocus.color
+            /// Sky (dark `#3CC8FF`, light `#00749E`).
+            public static let water = Tones.ringWater.color
+            /// Steps ring: mint.
+            public static let steps = Tones.ringSteps.color
+            /// Creatine/supplement ring: pink.
+            public static let creatine = Tones.ringCreatine.color
+            /// Sunrise alarm / morning routine ring: sun.
+            public static let sunriseAlarm = Tones.ringSunrise.color
+            /// Sleep-on-time ring: periwinkle.
+            public static let sleepOnTime = Tones.ringSleep.color
+            /// Reading ring: tan.
+            public static let reading = Tones.ringReading.color
+            /// Weekly meal prep ring: teal.
+            public static let mealPrep = Tones.ringMealPrep.color
+            /// Stretch/mobility ring: orchid.
+            public static let stretchMobility = Tones.ringStretch.color
+            /// Cold shower / sauna ring: ice.
+            public static let coldShowerSauna = Tones.ringCold.color
+            /// User-defined custom goal ring — deliberately neutral (`muted`).
             public static let custom = Colors.muted
 
-            /// The unfilled part of a ring: the ring's own hue at 30%, so a 0% ring still reads as
-            /// *that goal's* ring (Apple Activity convention) instead of a neutral grey arc. Over
-            /// `background` this is 1.33:1 (focus) to 2.33:1 (workout); the old `surface2` track
-            /// was 1.16:1 on Today and effectively vanished on a new day.
+            /// The unfilled part of a ring: the ring's own hue at 20%, so a 0% ring still reads as
+            /// *that goal's* ring (Apple Activity convention) instead of a neutral grey arc.
             public static func track(for color: Color) -> Color {
                 color.opacity(0.20)
             }
 
             /// Resolves the ring color for a `GoalType` (`Core/Sources/Core/Models/Goal.swift`).
-            /// Prefer this over hand-picking a color so every screen stays consistent, and so the
-            /// four spec-exact assignments above are the only place that can drift from §15.
             public static func color(for goalType: GoalType) -> Color {
                 switch goalType {
                 case .workoutGym, .workoutHomeOutdoor: workout
@@ -360,6 +350,87 @@ public enum Theme {
                 }
             }
         }
+    }
+
+    // MARK: - Tones (light/dark pairs)
+
+    /// The light/dark pair behind every adaptive colour token. `Theme.Colors` is what views use;
+    /// reach for a tone directly only where an API needs a `UIColor` or a fixed scheme (the shield's
+    /// `ShieldConfiguration`, the navigation bar's title attributes).
+    public enum Tones {
+        private static let ink: UInt32 = 0x13_14_2B
+        private static let white: UInt32 = 0xFF_FF_FF
+        private static let black: UInt32 = 0x00_00_00
+
+        public static let background = ZanoTone(light: 0xF5_F6_FB, dark: 0x0B_0E_24)
+        public static let backgroundDeep = ZanoTone(light: 0xE8_EA_F4, dark: 0x06_08_1A)
+        public static let surface = ZanoTone(light: 0xFF_FF_FF, dark: 0x16_1A_3A)
+        public static let surface2 = ZanoTone(light: 0xEC_EE_F6, dark: 0x1F_24_50)
+        public static let text = ZanoTone(light: ink, dark: 0xF4_F3_FF)
+        public static let textSecondary = ZanoTone(light: 0x3B_3D_5E, dark: 0xD2_D0_EA)
+        public static let muted = ZanoTone(light: 0x5C_5E_7E, dark: 0xA6_A4_C8)
+        public static let ember = ZanoTone(light: 0xB3_4A_06, dark: 0xFF_8A_3D)
+
+        public static let auroraBlue = ZanoTone(light: 0x5B_8C_FF, dark: 0x3F_7B_FF)
+        public static let auroraViolet = ZanoTone(light: 0xA5_7B_FF, dark: 0x8F_5B_FF)
+        public static let auroraEmber = ZanoTone(light: 0xFF_9A_55, dark: 0xFF_8A_3D)
+
+        public static let accent = ZanoTone(light: 0x2A_62_E6, dark: 0x3F_7B_FF)
+        public static let accentFill = ZanoTone(0x2A_62_E6)
+        public static let interactiveWash = ZanoTone(light: 0x2A_62_E6, 0.12, dark: 0x3F_7B_FF, 0.16)
+        public static let accentWash = ZanoTone(light: 0xDF_E7_FF, dark: 0x15_25_5E)
+        public static let accentDim = ZanoTone(light: 0xA9_BF_F5, dark: 0x24_40_8C)
+
+        public static let metalLight = ZanoTone(light: 0x8C_91_A6, dark: 0xFA_F9_F6)
+        public static let metalMid = ZanoTone(light: 0x66_6B_80, dark: 0xD6_D4_CF)
+        public static let metalDark = ZanoTone(light: 0x44_48_5C, dark: 0x9E_9C_97)
+
+        public static let lockedAmbient = ZanoTone(light: 0xC3_C8_F2, dark: 0x2A_2F_7A)
+        public static let surfaceHero = ZanoTone(light: 0xFF_FF_FF, dark: 0x1D_22_48)
+        public static let danger = ZanoTone(light: 0xC4_2F_3F, dark: 0xF0_60_6E)
+        public static let warning = ZanoTone(light: 0x9A_5F_00, dark: 0xF5_B5_4A)
+
+        public static let hairline = ZanoTone(light: ink, 0.10, dark: white, 0.12)
+        public static let hairlineStrong = ZanoTone(light: ink, 0.18, dark: white, 0.20)
+        public static let track = ZanoTone(light: ink, 0.10, dark: white, 0.16)
+        public static let edgeTop = ZanoTone(light: ink, 0.06, dark: white, 0.14)
+        public static let edgeBottom = ZanoTone(light: ink, 0.12, dark: white, 0.06)
+        public static let edgeTopIncreased = ZanoTone(light: ink, 0.22, dark: white, 0.30)
+        public static let edgeBottomIncreased = ZanoTone(light: ink, 0.32, dark: white, 0.18)
+
+        public static let glassFill = ZanoTone(light: white, 0.74, dark: white, 0.07)
+        public static let glassFillTop = ZanoTone(light: white, 0.86, dark: white, 0.09)
+        public static let glassFillBottom = ZanoTone(light: white, 0.66, dark: white, 0.04)
+        public static let glassRaisedTop = ZanoTone(light: white, 0.96, dark: white, 0.13)
+        public static let glassRaisedBottom = ZanoTone(light: white, 0.84, dark: white, 0.05)
+        public static let glassChromeTint = ZanoTone(light: white, 0.45, dark: 0x0B_0E_24, 0.35)
+        public static let glassInnerShade = ZanoTone(light: ink, 0.05, dark: black, 0.22)
+        public static let glassShadow = ZanoTone(light: 0x2A_2D_5C, 0.10, dark: black, 0)
+        public static let wellFill = ZanoTone(light: ink, 0.04, dark: white, 0.05)
+        public static let glassEdge0 = ZanoTone(light: white, 1.0, dark: white, 0.35)
+        public static let glassEdge1 = ZanoTone(light: ink, 0.07, dark: white, 0.06)
+        public static let glassEdge2 = ZanoTone(light: ink, 0.07, dark: white, 0.04)
+        public static let glassEdge3 = ZanoTone(light: ink, 0.12, dark: white, 0.12)
+        public static let glassEdgeHi0 = ZanoTone(light: ink, 0.26, dark: white, 0.6)
+        public static let glassEdgeHi1 = ZanoTone(light: ink, 0.30, dark: white, 0.22)
+        public static let glassEdgeHi2 = ZanoTone(light: ink, 0.38, dark: white, 0.3)
+        public static let markGraphiteTop = ZanoTone(light: ink, 0.16, dark: white, 0.11)
+        public static let markGraphiteBottom = ZanoTone(light: ink, 0.08, dark: white, 0.035)
+        public static let markGraphiteEdge = ZanoTone(light: ink, 0.30, dark: white, 0.16)
+        public static let shadow = ZanoTone(light: 0x2A_2D_5C, 0.18, dark: black, 0.55)
+
+        public static let ringWorkout = ZanoTone(light: 0x4F_73_00, dark: 0xC8_F0_4A)
+        public static let ringProtein = ZanoTone(light: 0xB8_52_0A, dark: 0xFF_95_48)
+        public static let ringFocus = ZanoTone(light: 0x6A_48_E0, dark: 0x9B_7B_FF)
+        public static let ringWater = ZanoTone(light: 0x00_74_9E, dark: 0x3C_C8_FF)
+        public static let ringSteps = ZanoTone(light: 0x0E_7A_43, dark: 0x4B_E3_8C)
+        public static let ringCreatine = ZanoTone(light: 0xC2_2F_72, dark: 0xFF_6F_AE)
+        public static let ringSunrise = ZanoTone(light: 0x94_66_00, dark: 0xFF_C9_4A)
+        public static let ringSleep = ZanoTone(light: 0x46_52_D8, dark: 0x7C_8C_FF)
+        public static let ringReading = ZanoTone(light: 0x9A_5A_22, dark: 0xE9_A8_6B)
+        public static let ringMealPrep = ZanoTone(light: 0x00_77_6A, dark: 0x34_D6_BE)
+        public static let ringStretch = ZanoTone(light: 0x9A_3F_D0, dark: 0xD1_7B_FF)
+        public static let ringCold = ZanoTone(light: 0x0F_6E_8C, dark: 0x8F_E3_FF)
     }
 
     // MARK: - Radius
@@ -746,5 +817,57 @@ extension Color {
         let green = Double((value >> 8) & 0xFF) / 255
         let blue = Double(value & 0xFF) / 255
         self.init(.sRGB, red: red, green: green, blue: blue, opacity: 1)
+    }
+}
+
+// MARK: - Adaptive tone
+
+/// One colour token as a light/dark pair (hex + opacity for each scheme). Value type, Sendable:
+/// safe to build `Color`s from in widget and other nonisolated code.
+public struct ZanoTone: Sendable, Hashable {
+    public let light: UInt32
+    public let lightOpacity: Double
+    public let dark: UInt32
+    public let darkOpacity: Double
+
+    public init(light: UInt32, _ lightOpacity: Double = 1, dark: UInt32, _ darkOpacity: Double = 1) {
+        self.light = light
+        self.lightOpacity = lightOpacity
+        self.dark = dark
+        self.darkOpacity = darkOpacity
+    }
+
+    /// The same colour in both schemes.
+    public init(_ both: UInt32, _ opacity: Double = 1) {
+        self.init(light: both, opacity, dark: both, opacity)
+    }
+
+    /// The tone resolved for one scheme, as a fixed (non-dynamic) `UIColor`.
+    public func uiColor(for scheme: ColorScheme) -> UIColor {
+        scheme == .light ? Self.make(light, lightOpacity) : Self.make(dark, darkOpacity)
+    }
+
+    /// A dynamic `UIColor` that follows the trait collection it is resolved in. An unspecified
+    /// style resolves dark (the app's original, and still default-in-doubt, look).
+    public var dynamicUIColor: UIColor {
+        let tone = self
+        return UIColor { traits in
+            tone.uiColor(for: traits.userInterfaceStyle == .light ? .light : .dark)
+        }
+    }
+
+    /// The adaptive SwiftUI colour: resolves against the view's `colorScheme`.
+    public var color: Color { Color(uiColor: dynamicUIColor) }
+
+    /// The tone pinned to one scheme.
+    public func color(for scheme: ColorScheme) -> Color { Color(uiColor: uiColor(for: scheme)) }
+
+    private static func make(_ value: UInt32, _ opacity: Double) -> UIColor {
+        UIColor(
+            red: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: CGFloat(opacity)
+        )
     }
 }

@@ -53,7 +53,6 @@ struct SquadHomeView: View {
         }
         .zanoAmbient(model.squad == nil ? .neutral : .progress(model.squadWeekFraction))
         .scrollContentBackground(.hidden)
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.squad.screenTitle)
         .toolbar { toolbarContent }
         .navigationDestination(for: SquadRoute.self) { route in
@@ -80,11 +79,9 @@ struct SquadHomeView: View {
         .onChange(of: router.pendingSquadJoinCode) { _, _ in consumeDeepLinkJoinCode() }
         .sheet(item: $sheet) { mode in
             CreateJoinSquadSheet(model: model, initialMode: mode, prefilledCode: joinPrefill)
-                .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showDuelInvite) {
             DuelInviteSheet(model: model)
-                .preferredColorScheme(.dark)
         }
         .confirmationDialog(Copy.squad.leaveConfirmTitle, isPresented: $confirmLeave, titleVisibility: .visible) {
             Button(Copy.squad.leaveConfirmButton, role: .destructive) {

@@ -85,7 +85,6 @@ struct GoalsEditorView: View {
             )
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.goalsEditorTitle)
         .toolbar {

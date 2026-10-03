@@ -173,7 +173,6 @@ struct OnboardingScaffold<Content: View>: View {
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: flowState.currentScreen) { oldValue, newValue in
             newValue > oldValue
         }
-        .preferredColorScheme(.dark)
     }
 
     /// [back 44pt][charge meter: seven power cells ending in the star]. Visual pass 2 (2026-10-03):

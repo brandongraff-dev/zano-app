@@ -59,7 +59,6 @@ struct MealCaptureSheet: View {
                     }
                 }
         }
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .onAppear { Analytics.shared.capture(event: "fuel_meal_photo_opened") }
         .onDisappear { work?.cancel() }

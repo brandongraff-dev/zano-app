@@ -52,7 +52,6 @@ struct HealthPermissionPrimer: View {
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom) { actions }
         .zanoBackdrop(glow: Theme.Colors.accent)
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.success, trigger: phase == .finished)
         .onAppear { Analytics.shared.capture(event: "health_primer_viewed") }

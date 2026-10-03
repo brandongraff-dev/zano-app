@@ -20,8 +20,9 @@ import Core
 @main
 struct ZANOReportExtension: DeviceActivityReportExtension {
     var body: some DeviceActivityReportScene {
-        // The closure's return type is the scene's `content` type, so no modifiers here: the view
-        // uses fixed dark Theme colors and needs none.
+        // The closure's return type is the scene's `content` type, so no modifiers here. Both views
+        // use adaptive Theme colours and apply the user's Settings > Appearance choice themselves
+        // (`.zanoAppAppearance()`, read from the App Group), so they match the app in light and dark.
         TodayScreenTimeReport { summary in
             ScreenTimeSummaryView(summary: summary)
         }

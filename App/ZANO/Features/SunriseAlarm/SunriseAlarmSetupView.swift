@@ -163,10 +163,6 @@ struct SunriseAlarmSetupView: View {
             }
             Button(Copy.common.cancel, role: .cancel) { pendingTagRemoval = nil }
         }
-        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1.
-        // Matters especially here: this screen's `.alert`/`.confirmationDialog` above are both
-        // real, frequently-hit paths (forget-tag, save error).
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Dismiss variant picker

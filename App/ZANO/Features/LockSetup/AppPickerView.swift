@@ -358,6 +358,5 @@ private struct AppPickerPreviewContainer: View {
                 .padding(Theme.Spacing.md)
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
     }
 }

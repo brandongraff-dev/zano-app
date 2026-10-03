@@ -27,6 +27,14 @@ extension Copy {
         public static let coachVoiceSectionTitle = "Coach voice"
         public static let coachVoiceSectionFooter = "Switch anytime. It changes how your coach talks, not what it asks of you."
 
+        // MARK: - Appearance (light mode)
+
+        public static let appearanceSectionTitle = "Appearance"
+        public static let appearanceSectionInfo = "Match your iPhone, or pick light or dark. Your widgets follow it too."
+        public static let appearanceSystemLabel = "System"
+        public static let appearanceLightLabel = "Light"
+        public static let appearanceDarkLabel = "Dark"
+
         // MARK: - Gym Setup (spec §3, §9.4)
 
         public static let gymSetupRowLabel = "Gym setup"

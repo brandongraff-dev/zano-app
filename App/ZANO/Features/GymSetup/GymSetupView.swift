@@ -64,7 +64,6 @@ public struct GymSetupView: View {
             }
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.success, trigger: successTick)
         .navigationTitle(Copy.gym.setupTitle)

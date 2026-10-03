@@ -93,7 +93,6 @@ struct Screen1Hook: View {
         .onboardingPinnedContinue(title: Copy.onboarding.hookCTA) {
             flowState.advance()
         }
-        .preferredColorScheme(.dark)
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: chargedTick)
         .task { await playIntro() }
         .onAppear {

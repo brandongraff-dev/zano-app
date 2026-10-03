@@ -206,9 +206,8 @@ public struct LockedOutMomentView: View {
             }
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: cardAppeared) { _, newValue in newValue }
-        // `Theme.swift`'s own header: this is a fixed, dark-only design system — see
-        // `docs/design/ui-stress-test-findings.md` §2.1, and `LockSetupView.swift`'s identical
-        // comment for the full rationale.
+        // Deliberately dark in light mode too (docs/design/visual-direction-v2.md §10): a share
+        // moment shows the poster it shares, and posters are rendered dark for social feeds.
         .preferredColorScheme(.dark)
     }
 

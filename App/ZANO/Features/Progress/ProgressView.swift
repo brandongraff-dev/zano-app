@@ -225,7 +225,6 @@ struct ProgressView: View {
         }
         .zanoAmbient(ambientState)
         .scrollContentBackground(.hidden)
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.progress.screenTitle)
         .onAppear {
             Analytics.shared.capture(event: "progress_viewed")

@@ -187,7 +187,6 @@ struct FinishSetupCard: View {
             Task { await refreshOwnStatus() }
         }) {
             NavigationStack { SunriseAlarmSetupView() }
-                .preferredColorScheme(.dark)
         }
     }
 
@@ -324,7 +323,6 @@ private struct CoachVoiceSetupSheet: View {
         .zanoBackdrop()
         .sensoryFeedback(.selection, trigger: selected)
         .presentationDetents([.large])
-        .preferredColorScheme(.dark)
     }
 
     private func select(_ voice: CoachVoice) {
@@ -373,6 +371,5 @@ struct WidgetHowToSheet: View {
         // v2: the aurora canvas, like every screen.
         .zanoBackdrop()
         .presentationDetents([.medium, .large])
-        .preferredColorScheme(.dark)
     }
 }

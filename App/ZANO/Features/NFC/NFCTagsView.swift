@@ -75,7 +75,6 @@ struct NFCTagsView: View {
             .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: mappings.map(\.id))
         }
         .zanoBackdrop(glow: Theme.Colors.accent, intensity: 0.12)
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.nfc.screenTitle)
         .navigationBarTitleDisplayMode(.inline)

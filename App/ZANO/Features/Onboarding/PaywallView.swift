@@ -145,7 +145,6 @@ struct PaywallView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .zanoAmbient(.neutral)
-        .preferredColorScheme(.dark)
     }
 
     private var withFeedback: some View {

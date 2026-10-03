@@ -116,7 +116,6 @@ struct DuelView: View {
         .overlay { CelebrationBurst(trigger: burstTick) }
         .zanoAmbient(duel.status == .complete && duel.winner == myUserID ? .earned : .neutral)
         .scrollContentBackground(.hidden)
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.squad.duelTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task { await refresh() }
@@ -295,7 +294,6 @@ struct SoloDuelView: View {
         .overlay { CelebrationBurst(trigger: beatTick) }
         .zanoAmbient(solo.map { $0.lastWeekTotal > 0 && $0.pointsToBeatLastWeek == 0 } == true ? .earned : .neutral)
         .scrollContentBackground(.hidden)
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.squad.soloDuelTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

@@ -213,9 +213,9 @@ struct AlarmRingingView: View {
         }
         .interactiveDismissDisabled()
         .persistentSystemOverlays(.hidden)
-        // Fixed, dark-only design system. This full-screen presentation used to set the scheme only
-        // inside `#Preview`, so it depended on the presenter's scheme
-        // (docs/design/typography-color-findings.md C11).
+        // Deliberately dark in light mode too (docs/design/visual-direction-v2.md §10): it rings in
+        // a dark bedroom, and a white screen at 6 a.m. is a flashbang. Set on this full-screen
+        // presentation itself, not inherited (docs/design/typography-color-findings.md C11).
         .preferredColorScheme(.dark)
     }
 

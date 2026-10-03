@@ -48,7 +48,6 @@ struct UnmappedTagView: View {
                             }
                         }
                 }
-                .preferredColorScheme(.dark)
                 .tint(Theme.Colors.accent)
             }
         }

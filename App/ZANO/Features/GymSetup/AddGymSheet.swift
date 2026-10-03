@@ -112,7 +112,6 @@ struct AddGymSheet: View {
             }
         }
         // A sheet is its own presentation: set scheme + tint explicitly.
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.success, trigger: placedTick)
         .sensoryFeedback(.selection, trigger: Int(radius))

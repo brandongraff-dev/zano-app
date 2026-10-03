@@ -78,20 +78,29 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         )
     }
 
-    // MARK: - Brand tokens (UIKit bridges of `Theme.Colors`; ShieldConfiguration takes UIColor)
+    // MARK: - Brand tokens (UIKit bridges of `Theme.Tones`; ShieldConfiguration takes UIColor)
+    //
+    // Light mode (2026-10-03): the shield stays DARK in both appearances, on purpose. The
+    // configuration is a static value handed to the system, which draws it in another process; a
+    // dynamic `UIColor` provider is not guaranteed to survive that hand-off, and the blur style is
+    // fixed per value (`.systemUltraThinMaterialDark`). So every colour is the dark tone resolved
+    // explicitly (`uiColor(for: .dark)`, never the adaptive `Theme.Colors` value, which would
+    // resolve light in a light-mode process). A dark blocked-app screen reads correctly over any
+    // app in either appearance, and the pre-rendered silver `ShieldMark` icon is drawn for dark.
+    // Unverified: whether iOS would honour a dynamic UIColor here (no device to test).
 
-    /// `Theme.Colors.background` (#050506) at 92% so the dark blur reads as depth, not grey.
-    private static let background = UIColor(Theme.Colors.background).withAlphaComponent(0.92)
-    /// `Theme.Colors.text`, pearl #F2F1ED.
-    private static let pearl = UIColor(Theme.Colors.text)
+    /// `Theme.Tones.background` (dark ink) at 92% so the dark blur reads as depth, not grey.
+    private static let background = Theme.Tones.background.uiColor(for: .dark).withAlphaComponent(0.92)
+    /// `Theme.Tones.text` (dark): pearl.
+    private static let pearl = Theme.Tones.text.uiColor(for: .dark)
     /// Pearl, softened for the coach line so the title stays the one thing read first.
-    private static let pearlSoft = UIColor(Theme.Colors.text).withAlphaComponent(0.74)
-    /// `Theme.Colors.muted`, #8E8E93: the emergency button is always there, never shouting.
-    private static let muted = UIColor(Theme.Colors.muted)
-    /// `Theme.Colors.accent`, ZANO Blue #3F7BFF — the one accent.
-    private static let accent = UIColor(Theme.Colors.accent)
-    /// `Theme.Colors.onAccent`: white labels on blue.
-    private static let onAccent = UIColor(Theme.Colors.onAccent)
+    private static let pearlSoft = Theme.Tones.text.uiColor(for: .dark).withAlphaComponent(0.74)
+    /// `Theme.Tones.muted` (dark): the emergency button is always there, never shouting.
+    private static let muted = Theme.Tones.muted.uiColor(for: .dark)
+    /// ZANO Blue (dark tone, `#3F7BFF`) — the one accent.
+    private static let accent = Theme.Tones.accent.uiColor(for: .dark)
+    /// White labels on blue.
+    private static let onAccent = UIColor.white
 
     /// The silver swoosh-star, pre-rendered from `docs/brand/zano-mark.svg` into this
     /// extension's own `Assets.xcassets` (`ShieldMark`, 90pt square canvas @1x/2x/3x,

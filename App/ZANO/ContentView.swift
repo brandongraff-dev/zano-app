@@ -62,7 +62,6 @@ struct ContentView: View {
                 OnboardingContainerView(onFinished: { router.completeOnboarding() })
             }
         }
-        .preferredColorScheme(.dark)
         .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: router.hasCompletedOnboarding)
         // Presented purely from `isRinging`: the setter ignores SwiftUI's own dismissal attempts
         // because the only legitimate way out is `SunriseAlarmManager` clearing `isRinging`
@@ -202,7 +201,6 @@ private struct MainTabView: View {
         }
         .sheet(isPresented: $showGoalsEditor) {
             NavigationStack { GoalsEditorView(showsDoneButton: true) }
-                .preferredColorScheme(.dark)
         }
         // Held back (getter returns `nil`) while the alarm is ringing, then presents as soon as it
         // clears — the queued `router.unlockCelebration` isn't lost. `UnlockCelebrationView`'s own

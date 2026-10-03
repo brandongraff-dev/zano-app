@@ -64,7 +64,6 @@ struct HelpFeedbackView: View {
             .padding(Theme.Spacing.md)
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.helpTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -128,7 +127,6 @@ struct PauseForHealthView: View {
             .padding(Theme.Spacing.md)
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .tint(SettingsPalette.health)
         .navigationTitle(Copy.settings.pauseTitle)
         .navigationBarTitleDisplayMode(.inline)

@@ -98,7 +98,6 @@ public struct ManualCheckInSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.success, trigger: successTick)
         .presentationDetents([.large])

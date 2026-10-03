@@ -180,7 +180,6 @@ struct AlwaysLocationPrimerSheet: View {
                 .padding(.top, Theme.Spacing.md)
         }
         .zanoBackdrop(glow: Theme.Colors.accent)
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

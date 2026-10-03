@@ -129,7 +129,6 @@ public struct GymCheckInView: View {
         .zanoActionBar { actionBar }
         .zanoAmbient(reduceTransparency ? .neutral : ambient)
         .background(Theme.Colors.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.gym.checkInTitle)
         .navigationBarTitleDisplayMode(.inline)

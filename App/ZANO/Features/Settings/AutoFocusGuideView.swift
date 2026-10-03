@@ -55,7 +55,6 @@ struct AutoFocusGuideView: View {
             .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: isSetUp)
         }
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.settings.autoFocusScreenTitle)
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.success, trigger: doneTick)

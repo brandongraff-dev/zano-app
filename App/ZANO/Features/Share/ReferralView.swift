@@ -65,7 +65,6 @@ struct ReferralView: View {
             .padding(.bottom, Theme.Spacing.xl)
         }
         .zanoBackdrop(glow: Theme.Colors.accent)
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.share.referralScreenTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

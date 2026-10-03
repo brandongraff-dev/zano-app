@@ -115,11 +115,6 @@ public struct CosmeticsShopView: View {
             )
         }
         .tint(Theme.Colors.interactive)
-        // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
-        // `LockSetupView.swift`'s comment for the full rationale. Also matters here specifically:
-        // this screen's `.alert` above would otherwise follow the *system* appearance while the
-        // rest of the screen stays dark.
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Wallet

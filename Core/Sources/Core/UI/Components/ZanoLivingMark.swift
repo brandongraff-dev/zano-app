@@ -96,7 +96,7 @@ public struct ZanoLivingMark: View {
                 .fill(Self.graphite, style: FillStyle(eoFill: true))
                 .overlay(
                     ZanoMarkShape()
-                        .stroke(Color.white.opacity(0.10 + 0.06 * breathe), lineWidth: 0.75)
+                        .stroke(Theme.Colors.markGraphiteEdge.opacity(0.625 + 0.375 * breathe), lineWidth: 0.75)
                 )
 
             // Charged metal, filled left to right with a soft leading edge.
@@ -140,10 +140,11 @@ public struct ZanoLivingMark: View {
     }
 
 
-    /// The star's uncharged metal: dark graphite, a step above `surface2`.
+    /// The star's uncharged metal: translucent graphite (white over ink in dark mode, ink over
+    /// white in light mode, so the empty star is visible in both).
     private static var graphite: LinearGradient {
         LinearGradient(
-            colors: [Color.white.opacity(0.11), Color.white.opacity(0.035)],
+            colors: [Theme.Colors.markGraphiteTop, Theme.Colors.markGraphiteBottom],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -229,6 +230,9 @@ public struct ScreenTimeChargeView: View {
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
+        // Drawn by the `ZANOReport` extension, which the app's root scheme can't reach: honour an
+        // explicit Settings > Appearance choice (light mode, 2026-10-03).
+        .zanoAppAppearance()
     }
 }
 

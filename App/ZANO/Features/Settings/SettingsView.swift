@@ -165,6 +165,9 @@ struct SettingsView: View {
     /// Mirrors `AutoFocusIntegration.isSetUp` for the row's trailing value; refreshed on appear.
     @State private var autoFocusIsSetUp = AutoFocusIntegration.isSetUp
     @State private var calendarAwarenessOn = false
+    /// Settings > Appearance (light mode). App Group defaults so widgets match; `ZANOApp` applies it.
+    @AppStorage(ZanoAppearance.storageKey, store: SharedDefaults.store)
+    private var appearance: ZanoAppearance = .system
 
     /// The sign-off at the bottom of Settings: the wordmark, the tagline and the build, the way
     /// premium apps close their settings (docs/brand/brand-kit.md). The version line is plain
@@ -202,6 +205,7 @@ struct SettingsView: View {
                 planCard
                 verificationSetupSection
                 coachVoiceSection
+                appearanceSection
                 dailyRhythmSection
                 rewardsSection
                 notificationsSection
@@ -224,7 +228,6 @@ struct SettingsView: View {
         // the canvas reaches the bottom edge behind the tab bar instead of falling back to the
         // system background there. No `glow:` — this is an admin screen, not a moment.
         .zanoBackdrop()
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.screenTitle)
         .onAppear {
@@ -447,6 +450,31 @@ struct SettingsView: View {
             SharedDefaults.coachVoice = voice.rawValue
         } catch {
             errorAlert = SettingsErrorAlert(title: Copy.settings.saveErrorTitle, message: Copy.settings.saveErrorMessage)
+        }
+    }
+
+    // MARK: - Appearance (light mode, 2026-10-03)
+
+    private var appearanceSection: some View {
+        SettingsSection(
+            title: Copy.settings.appearanceSectionTitle,
+            info: Copy.settings.appearanceSectionInfo
+        ) {
+            HStack(spacing: Theme.Spacing.xs) {
+                ForEach(ZanoAppearance.allCases, id: \.self) { option in
+                    SettingsChoiceTile(
+                        title: option.settingsTitle,
+                        systemImage: option.settingsSymbol,
+                        isSelected: appearance == option
+                    ) {
+                        appearance = option
+                        WidgetRefresh.reloadAll()
+                    }
+                }
+            }
+            .padding(Theme.Spacing.xs)
+            .zanoCard()
+            .sensoryFeedback(.selection, trigger: appearance)
         }
     }
 
@@ -1341,6 +1369,24 @@ private struct CoachVoiceCard: View {
             // No recessed box: the quote sits straight on the card (polish pass 2026-09-24).
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(voice.displayName), \(voice.sampleLine)")
+    }
+}
+
+private extension ZanoAppearance {
+    var settingsTitle: String {
+        switch self {
+        case .system: Copy.settings.appearanceSystemLabel
+        case .light: Copy.settings.appearanceLightLabel
+        case .dark: Copy.settings.appearanceDarkLabel
+        }
+    }
+
+    var settingsSymbol: String {
+        switch self {
+        case .system: "circle.lefthalf.filled"
+        case .light: "sun.max.fill"
+        case .dark: "moon.fill"
+        }
     }
 }
 

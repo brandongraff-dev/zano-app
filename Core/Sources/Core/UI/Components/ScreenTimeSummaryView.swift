@@ -120,6 +120,8 @@ public struct ScreenTimeSummaryView: View {
             list
         }
         .frame(maxWidth: .infinity)
+        // Drawn by the `ZANOReport` extension: honour an explicit Settings > Appearance choice.
+        .zanoAppAppearance()
     }
 
     // MARK: - Stats

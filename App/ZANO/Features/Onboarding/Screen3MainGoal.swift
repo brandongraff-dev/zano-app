@@ -77,7 +77,6 @@ struct Screen3MainGoal: View {
             flowState.advance()
         }
         .sensoryFeedback(.selection, trigger: flowState.mainGoal)
-        .preferredColorScheme(.dark)
         .onAppear {
             appeared = true
             Analytics.shared.capture(

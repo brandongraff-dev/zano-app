@@ -114,7 +114,6 @@ struct NFCMapTagSheet: View {
                 Text(Copy.nfc.mapSaveFailedMessage)
             }
         }
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.selection, trigger: kind)
         .sensoryFeedback(.selection, trigger: choice)

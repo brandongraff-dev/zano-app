@@ -39,6 +39,17 @@ enum ScreenshotMode {
         #endif
     }
 
+    /// The scheme a screenshot run renders in: `-ZANOAppearance light` forces light (the CI light
+    /// pass, saved as `shots/light-<name>.png`); anything else, including no argument, is dark, so
+    /// the main tour stays comparable with earlier runs. Applied at the root by `ZANOApp`.
+    static var colorScheme: ColorScheme {
+        #if DEBUG
+        return UserDefaults.standard.string(forKey: "ZANOAppearance") == "light" ? .light : .dark
+        #else
+        return .dark
+        #endif
+    }
+
     #if DEBUG
 
     /// Called from `ZANOApp.init()` before the first render. Seeds demo data and puts the router in
@@ -72,9 +83,10 @@ enum ScreenshotMode {
 struct ScreenshotHost: View {
     let name: String
 
+    // The scheme (dark, or light with `-ZANOAppearance light`) is applied at the app root by
+    // `ZANOApp.rootColorScheme`, so sheets and covers follow it too.
     var body: some View {
         content
-            .preferredColorScheme(.dark)
     }
 
     @ViewBuilder

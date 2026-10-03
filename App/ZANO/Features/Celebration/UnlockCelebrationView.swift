@@ -248,6 +248,8 @@ public struct UnlockCelebrationView: View {
             play()
         }
         .onDisappear { playTask?.cancel() }
+        // Deliberately dark in light mode too (docs/design/visual-direction-v2.md §10): the star's
+        // light sweep and burst are additive light on ink, and they wash out on white.
         .preferredColorScheme(.dark)
     }
 

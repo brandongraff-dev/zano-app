@@ -172,7 +172,6 @@ struct Screen4AppSelection: View {
         } message: { alert in
             Text(alert.message)
         }
-        .preferredColorScheme(.dark)
         .onAppear {
             if !reduceMotion { plusBounce += 1 }
             Analytics.shared.capture(

@@ -74,7 +74,6 @@ struct GoalTypePickerSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
         .sensoryFeedback(.success, trigger: addedTick)
         .sheet(item: $activeSetup, onDismiss: { dismiss() }) { step in

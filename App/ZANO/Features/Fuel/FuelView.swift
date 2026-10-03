@@ -391,7 +391,6 @@ struct FuelView: View {
                 GoalsEditorView(showsDoneButton: true)
             }
         }
-        .preferredColorScheme(.dark)
         .navigationTitle(Copy.fuel.screenTitle)
         .sensoryFeedback(.success, trigger: logTick)
         .task {
@@ -1550,7 +1549,6 @@ private struct ManualAmountSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
-        .preferredColorScheme(.dark)
         // Toolbar Cancel/Save would otherwise render system blue (no root tint is set app-wide yet).
         .tint(Theme.Colors.accent)
     }
@@ -1671,7 +1669,6 @@ private struct KitchenStapleAddSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
     }
 
@@ -1729,7 +1726,6 @@ private struct BarcodeScanSheet: View {
                     }
                 }
         }
-        .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
     }
 

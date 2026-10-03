@@ -325,7 +325,8 @@ struct SquadHomeView: View {
 
     private var aloneCard: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            IconBadge(systemName: "person.badge.plus", size: .small)
+            // Buddy everywhere (2026-10-03): just you and the buddy so far.
+            StoredBuddySprite(pose: .idle, size: 48)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(Copy.squad.aloneTitle)
                     .zanoText(.headline)

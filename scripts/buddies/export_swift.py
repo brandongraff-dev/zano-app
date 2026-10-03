@@ -99,3 +99,38 @@ for name in ORDER:
     json.dump({'images': [{'filename': 'AppIcon-1024.png', 'idiom': 'universal', 'platform': 'ios', 'size': '1024x1024'}],
                'info': {'author': 'xcode', 'version': 1}}, open(os.path.join(path, 'Contents.json'), 'w'), indent=2)
     print('wrote', os.path.relpath(path, ROOT))
+
+# Launch screen (buddy everywhere, 2026-10-03): Stash (the default buddy; a launch screen is static,
+# so it can't show the user's own pick), beaming, above the ZANO wordmark, on the `LaunchBackground`
+# ink. 120pt wide: the sprite is 96pt (2x/4x/6x whole-pixel scaling at @1x/@2x/@3x, so it stays
+# crisp), a 20pt gap, then the wordmark 120pt wide. The wordmark comes from the brand PNG (light
+# letters on ink): its brightness becomes the alpha of pearl letters, so it sits on any background.
+LAUNCH_W, SPRITE_PT, GAP_PT = 120, 96, 20
+PEARL = (242, 241, 237)
+WORDMARK = os.path.join(ROOT, 'docs/brand/zano-wordmark-1200.png')
+launch_path = os.path.join(ASSETS, 'LaunchLogo.imageset')
+wordmark_src = Image.open(WORDMARK).convert('L')
+lo, hi = wordmark_src.getextrema()
+stash_img = buddies.B['Stash']('happy').render()
+files = []
+for scale in (1, 2, 3):
+    width = LAUNCH_W * scale
+    wm_h = round(wordmark_src.size[1] * width / wordmark_src.size[0])
+    sprite_px = SPRITE_PT * scale
+    height = sprite_px + GAP_PT * scale + wm_h
+    canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    cell = sprite_px // N
+    ox = (width - N * cell) // 2
+    d = ImageDraw.Draw(canvas)
+    for (x, y), c in stash_img.items():
+        d.rectangle((ox + x * cell, y * cell, ox + (x + 1) * cell - 1, (y + 1) * cell - 1), fill=c)
+    alpha = wordmark_src.resize((width, wm_h), Image.LANCZOS).point(lambda v: max(0, min(255, round((v - lo) * 255 / (hi - lo)))))
+    letters = Image.new('RGBA', (width, wm_h), PEARL + (255,))
+    letters.putalpha(alpha)
+    canvas.alpha_composite(letters, (0, sprite_px + GAP_PT * scale))
+    name = f'LaunchLogo@{scale}x.png'
+    canvas.save(os.path.join(launch_path, name))
+    files.append({'filename': name, 'idiom': 'universal', 'scale': f'{scale}x'})
+json.dump({'images': files, 'info': {'author': 'xcode', 'version': 1}},
+          open(os.path.join(launch_path, 'Contents.json'), 'w'), indent=2)
+print('wrote', os.path.relpath(launch_path, ROOT))

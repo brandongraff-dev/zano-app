@@ -129,7 +129,8 @@ struct TierEditorView: View {
 
     private var emptyState: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            SettingsSticker(systemImage: "stairs", tint: Theme.Colors.Ring.steps, baseSize: 40)
+            // Buddy everywhere (2026-10-03): no tiers yet.
+            StoredBuddySprite(pose: .idle, size: 48)
             Text(Copy.lockSetup.tiersEmpty)
                 .font(Theme.Typography.body)
                 .foregroundStyle(Theme.Colors.textSecondary)

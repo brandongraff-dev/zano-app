@@ -41,7 +41,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     // MARK: - Shared build
 
     /// Look (shield redesign, brand tokens from `Core/Sources/Core/UI/Theme.swift`): near-black
-    /// base over a dark blur, the silver ZANO star as the icon, a pearl title that states what's
+    /// base over a dark blur, the user's buddy napping as the icon (buddy everywhere, 2026-10-03;
+    /// the silver ZANO star is the fallback), a pearl title that states what's
     /// left, a softer pearl coach line, ONE ZANO Blue button with a white label, and a quiet
     /// secondary button.
     ///
@@ -69,7 +70,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
             backgroundColor: Self.background,
-            icon: Self.starIcon,
+            icon: Self.buddyIcon ?? Self.starIcon,
             title: ShieldConfiguration.Label(text: content.title, color: Self.pearl),
             subtitle: ShieldConfiguration.Label(text: content.subtitle, color: Self.pearlSoft),
             primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.closeApp, color: Self.onAccent),
@@ -110,6 +111,26 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     /// `UIImage(named:)` keeps its own system cache, so repeat lookups are cheap. `nil` only if
     /// the asset is missing from the build, in which case the shield shows no icon.
     private static var starIcon: UIImage? { UIImage(named: "ShieldMark") }
+
+    /// The user's buddy (`Buddy.stored`, one App Group defaults read), napping (`.sleepy`): the
+    /// apps are locked and it's guarding them. The 48px sprite is drawn 6x with no interpolation
+    /// into a 96pt @3x canvas (288px square, about 330 KB while drawing, then released), so every
+    /// pixel stays crisp. Drawn per shield render rather than cached: it's a few microseconds of
+    /// work and the user can swap buddies at any time. `nil` if the sprite can't be built, in
+    /// which case the caller falls back to the star.
+    private static var buddyIcon: UIImage? {
+        guard let sprite = Buddy.stored.pixels(.sleepy).cgImage() else { return nil }
+        let side: CGFloat = 96
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+        return renderer.image { context in
+            context.cgContext.interpolationQuality = .none
+            context.cgContext.setShouldAntialias(false)
+            UIImage(cgImage: sprite).draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+        }
+    }
 
     /// Builds a `ShieldCopy.ShieldContext` from `SharedDefaults` — the one place this extension
     /// touches the App Group.

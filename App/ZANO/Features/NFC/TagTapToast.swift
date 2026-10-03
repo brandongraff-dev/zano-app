@@ -67,12 +67,14 @@ final class TagTapFeedback {
     }
 }
 
-/// The toast itself: a glass capsule with the action's glyph.
+/// The toast itself: a glass capsule with the user's buddy and the action's glyph.
 struct TagTapToastView: View {
     let toast: TagTapFeedback.Toast
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
+            // Buddy everywhere (2026-10-03): the buddy reacts to the tap, happy or sad.
+            StoredBuddySprite(pose: toast.isFailure ? .sad : .happy, size: 32)
             Image(systemName: toast.systemImage)
                 .font(Theme.Typography.icon(.small))
                 .foregroundStyle(toast.isFailure ? Theme.Colors.warning : Theme.Colors.accent)

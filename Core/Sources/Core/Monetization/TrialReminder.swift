@@ -153,6 +153,7 @@ public enum TrialReminder {
             body: text.body,
             at: fireAt,
             deepLink: deepLink,
+            buddyPose: .idle,
             now: now
         )
     }

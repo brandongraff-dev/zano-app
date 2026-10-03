@@ -617,7 +617,8 @@ struct ProgressView: View {
             ProgressSectionLabel(text: Copy.progress.recapSectionTitle)
 
             HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "calendar", tint: Theme.Colors.muted)
+                // Buddy everywhere (2026-10-03): no recap yet, so the buddy naps.
+                StoredBuddySprite(pose: .sleepy, size: 48)
 
                 Text(Copy.progress.recapEmptyMessage)
                     .font(Theme.Typography.body)

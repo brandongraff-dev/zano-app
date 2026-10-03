@@ -177,6 +177,8 @@ struct SettingsView: View {
     /// `muted` — no extra opacity stacked on top of an already-quiet token.
     private var brandFooter: some View {
         VStack(spacing: Theme.Spacing.xs) {
+            // Buddy everywhere (2026-10-03): the user's buddy signs off with the wordmark.
+            BuddySprite(buddy, pose: .idle, size: 48)
             ZanoWordmark(height: 12, style: .mono(Theme.Colors.muted))
             Text(Copy.brand.taglineEarn)
                 .font(Theme.Typography.captionEmphasized)

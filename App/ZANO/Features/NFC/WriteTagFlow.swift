@@ -162,7 +162,11 @@ struct WriteTagFlow: View {
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .zanoCard()
-        case .succeeded, .alreadyMapped, .failed:
+        case .succeeded:
+            // Buddy everywhere (2026-10-03): the buddy celebrates a written tag.
+            StoredBuddySprite(pose: .excited, size: 64)
+                .frame(maxWidth: .infinity)
+        case .alreadyMapped, .failed:
             EmptyView()
         }
     }

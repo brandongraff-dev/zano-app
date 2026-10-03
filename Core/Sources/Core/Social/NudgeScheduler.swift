@@ -536,6 +536,10 @@ public final class NudgeScheduler {
             Self.kindUserInfoKey: nudge.kind.rawValue,
             Self.deepLinkUserInfoKey: nudge.isPlanReminder ? Self.planReminderDeepLink : Self.deepLink(for: nudge.kind),
         ]
+        // The buddy as the image: sad when the streak is at risk, happy otherwise. None on failure.
+        if let attachment = BuddyNotificationImage.attachment(pose: nudge.kind == .streakAtRisk ? .sad : .happy) {
+            content.attachments = [attachment]
+        }
 
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nudge.fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)

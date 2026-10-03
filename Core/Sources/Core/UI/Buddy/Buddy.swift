@@ -163,3 +163,22 @@ public struct BuddySprite: View {
         .accessibilityHidden(true)
     }
 }
+
+/// `BuddySprite` for the user's stored buddy (App Group defaults, live-updating when the choice
+/// changes): empty states, the NFC toast, Settings' footer and the other small spots that show
+/// "your buddy" without owning the choice themselves (buddy everywhere, 2026-10-03). Decorative.
+public struct StoredBuddySprite: View {
+    let pose: BuddyPose
+    let size: CGFloat
+
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
+
+    public init(pose: BuddyPose = .idle, size: CGFloat = 64) {
+        self.pose = pose
+        self.size = size
+    }
+
+    public var body: some View {
+        BuddySprite(buddy, pose: pose, size: size)
+    }
+}

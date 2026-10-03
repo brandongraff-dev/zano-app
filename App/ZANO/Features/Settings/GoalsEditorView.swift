@@ -299,6 +299,9 @@ struct GoalsEditorView: View {
 
     private var emptyState: some View {
         VStack(spacing: Theme.Spacing.xs) {
+            // Buddy everywhere (2026-10-03): the buddy, waiting for a first goal.
+            StoredBuddySprite(pose: .idle, size: 64)
+                .padding(.bottom, Theme.Spacing.xs)
             Text(Copy.settings.goalsEmptyTitle)
                 .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)

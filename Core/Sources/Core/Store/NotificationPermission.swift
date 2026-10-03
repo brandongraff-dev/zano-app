@@ -56,7 +56,9 @@ public enum NotificationPermission {
 
     /// Schedules (or replaces, same `identifier`) one local notification at `date`. Returns `false`
     /// when `date` is in the past, posting isn't allowed, or the center refused the request.
-    /// `deepLink` is routed by `ZANONotificationDelegate` (`"deepLink"` userInfo key).
+    /// `deepLink` is routed by `ZANONotificationDelegate` (`"deepLink"` userInfo key). With a
+    /// `buddyPose`, the user's buddy in that pose is attached as the image (`BuddyNotificationImage`;
+    /// silently none if it can't be made).
     @discardableResult
     public nonisolated static func scheduleOneShot(
         identifier: String,
@@ -64,6 +66,7 @@ public enum NotificationPermission {
         body: String,
         at date: Date,
         deepLink: String?,
+        buddyPose: BuddyPose? = nil,
         now: Date = .now
     ) async -> Bool {
         let interval = date.timeIntervalSince(now)
@@ -76,6 +79,9 @@ public enum NotificationPermission {
         content.sound = .default
         if let deepLink {
             content.userInfo = [deepLinkUserInfoKey: deepLink]
+        }
+        if let buddyPose, let attachment = BuddyNotificationImage.attachment(pose: buddyPose) {
+            content.attachments = [attachment]
         }
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)

@@ -237,6 +237,10 @@ public final class BedtimeGateManager {
         content.title = copy.title
         content.body = copy.body
         content.sound = .default
+        // Wind-down: the buddy, sleepy. None if the image can't be made.
+        if let attachment = BuddyNotificationImage.attachment(pose: .sleepy) {
+            content.attachments = [attachment]
+        }
 
         let components = Calendar.current.dateComponents([.hour, .minute], from: windDownTime)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)

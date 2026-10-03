@@ -857,11 +857,13 @@ private struct PaywallPlanTile: View {
                             .foregroundStyle(Theme.Colors.text)
                             .lineLimit(1)
                             .minimumScaleFactor(0.55)
-                            .layoutPriority(1)
                         if let priceSuffix {
+                            // Never wraps letter-by-letter; the price shrinks instead.
                             Text(priceSuffix)
                                 .font(Theme.Typography.unit)
                                 .foregroundStyle(Theme.Colors.muted)
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                     }
                     if let detail {

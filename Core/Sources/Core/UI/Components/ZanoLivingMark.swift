@@ -168,7 +168,8 @@ public struct ZanoLivingMark: View {
 /// it and its pose come from the App Group defaults, because the report extension can't be handed
 /// either: the buddy is `Buddy.storageKey`; the pose is `BuddyPose.heroStorageKey`, which Today
 /// writes from the day's mood (the extension knows nothing about goals). In-app callers may pass
-/// `pose` directly. The charge, which the star used to show as a fill, is the sticker's number.
+/// `pose` directly. The charge, which the star used to show as a fill, is the sticker's number, and
+/// it sets the buddy's face (`BuddyPose.hero(charge:mood:)`: drained, meh, content, grinning, beaming).
 public struct ScreenTimeChargeView: View {
     private let charge: Double
     private let total: TimeInterval?
@@ -197,10 +198,17 @@ public struct ScreenTimeChargeView: View {
 
     private var percent: Int { Int((charge * 100).rounded()) }
 
+    /// With a charge to show, the face follows it (drained to beaming), except that a finished day
+    /// always beams; before Screen Time access, the day's mood decides alone.
+    private var face: BuddyPose {
+        let mood = pose ?? sharedPose
+        return total == nil ? mood : BuddyPose.hero(charge: charge, mood: mood)
+    }
+
     public var body: some View {
         VStack(spacing: Theme.Spacing.xs) {
             // Decorative: the sticker and the total speak the numbers.
-            BuddySprite(buddy, pose: pose ?? sharedPose, size: height)
+            BuddySprite(buddy, pose: face, size: height)
             // Under the buddy, never on it: the charge, and today's screen-time total (the founder
             // asked for the total right under the hero; it stays, as a quiet sticker).
             if let total {

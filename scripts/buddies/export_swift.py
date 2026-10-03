@@ -10,13 +10,14 @@ import chars
 from eng import N
 # Sleep "z"s and sparkles are drawn by the app's motion layer, not baked into the sprite.
 chars.zzz = lambda s: None
+# (The sweat drop on `tired` is part of the face, so it stays.)
 chars.spark = lambda s, c=None: None
 
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 OUT = os.path.join(ROOT, 'Core/Sources/Core/UI/Buddy/BuddySprites.swift')
 KEYS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 ORDER = ['stash', 'zib', 'lox', 'pip', 'moko', 'brick', 'tank', 'volt', 'howl']
-POSES = ['idle', 'sleepy', 'happy']
+POSES = ['idle', 'sleepy', 'happy', 'tired', 'meh', 'grin']
 
 def encode(img):
     pal = []

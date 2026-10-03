@@ -102,7 +102,7 @@ def to_svg(img,cell,extra=''):
 EYE_INK='#141836'
 def eye(s,x,y,mood='idle',w=3,h=4,iris=None):
     W='#FFFFFF'
-    if mood=='idle':
+    if mood in ('idle','grin'):
         for j in range(h):
             for i in range(w):
                 c=iris if (iris and j>=h-2) else EYE_INK
@@ -110,6 +110,14 @@ def eye(s,x,y,mood='idle',w=3,h=4,iris=None):
         s.put(x,y,None,'eye',hx(W)); s.put(x+1,y,None,'eye',hx(W)); s.put(x,y+1,None,'eye',hx(W))
         if not iris: s.put(x+w-1,y+h-1,None,'eye',hx('#B9C6FF'))
         else: s.put(x+w-1,y+h-2,None,'eye',shift(hx(iris),.25,0))
+    elif mood in ('tired','meh'):
+        # Heavy lids: the top row is gone; tired also draws the lid line across what's left.
+        top=1 if mood=='meh' else 2
+        for j in range(top,h):
+            for i in range(w):
+                c=iris if (iris and j>=h-2 and not (mood=='tired' and j==top)) else EYE_INK
+                s.put(x+i,y+j,None,'eye',hx(c))
+        if mood=='meh': s.put(x,y+top,None,'eye',hx(W))
     elif mood=='sleepy':
         for i in range(w): s.put(x+i,y+h-1,None,'eye',hx(EYE_INK))
         s.put(x-1 if x<16 else x+w,y+h-2,None,'eye',hx(EYE_INK)) if False else None

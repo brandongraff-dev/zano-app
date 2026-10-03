@@ -110,4 +110,23 @@ struct BuddyTests {
             #expect(BuddyPose(rawValue: pose.rawValue) == pose)
         }
     }
+
+    @Test func faceFollowsTheCharge() {
+        #expect(BuddyPose(charge: 0) == .tired)
+        #expect(BuddyPose(charge: 0.19) == .tired)
+        #expect(BuddyPose(charge: 0.2) == .meh)
+        #expect(BuddyPose(charge: 0.44) == .meh)
+        #expect(BuddyPose(charge: 0.45) == .idle)
+        #expect(BuddyPose(charge: 0.69) == .idle)
+        #expect(BuddyPose(charge: 0.7) == .grin)
+        #expect(BuddyPose(charge: 0.89) == .grin)
+        #expect(BuddyPose(charge: 0.9) == .happy)
+        #expect(BuddyPose(charge: 1) == .happy)
+    }
+
+    @Test func heroBeamsWhenTheDayIsDoneWhateverTheCharge() {
+        #expect(BuddyPose.hero(charge: 0.05, mood: .happy) == .happy)
+        #expect(BuddyPose.hero(charge: 0.05, mood: .sleepy) == .tired)
+        #expect(BuddyPose.hero(charge: 0.72, mood: .idle) == .grin)
+    }
 }

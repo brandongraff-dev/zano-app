@@ -183,3 +183,17 @@ compile, screenshot tour). Reviewing the shots found four issues, fixed here:
 
 Files: `App/ZANO/Features/Buddy/BuddyPickerView.swift`, `Core/Sources/Core/UI/Components/ZanoMascot.swift`,
 `Core/Sources/Core/UI/Components/ZanoLivingMark.swift`, `.github/workflows/ci.yml`.
+
+### Buddies: faces follow the charge (2026-10-03)
+
+Founder ask: "make them have different expressions depending on how charged they are". Three new
+faces for all nine buddies (generated, `scripts/buddies/chars.py` → `BuddySprites.swift`, now 6 poses
+each): `tired` (heavy lids, panting, sweat drop), `meh` (half-lidded, flat mouth), `grin` (big toothy
+smile). `BuddyPose(charge:)`: <20% tired, <45% meh, <70% idle, <90% grin, else happy.
+`BuddyPose.hero(charge:mood:)`: a finished day (all goals done) always beams; otherwise the charge
+decides. `ScreenTimeChargeView` (Today's hero, in-app and in the `ZANOReport` extension) uses it
+whenever there is a charge; before Screen Time access the day's mood alone decides (sleepy/idle/happy,
+as before). Motion (hop, breathing) still follows the goal mood. Widgets have no screen-time charge and
+keep the goal-mood faces. Volt's resting face became a closed smile so his toothy grin means something.
+Tests: `faceFollowsTheCharge`, `heroBeamsWhenTheDayIsDoneWhateverTheCharge` in BuddyTests.
+Unverified until CI/device: the faces in the running app (demo charge is 72%, so screenshots show the grin).

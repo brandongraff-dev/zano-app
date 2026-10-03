@@ -13,8 +13,16 @@ def rowsF(s,x0,y0,rows,key):
         for i,ch in enumerate(row):
             if ch in key: F(s,x0+i,y0+j,key[ch])
 MOUTH='#2A2238'; TONGUE='#E8566F'
+def sweat(s):
+    for x,y,col in [(25,6,'#BFE8FF'),(24,7,'#7FD0FF'),(25,7,'#FFFFFF'),(24,8,'#7FD0FF'),(25,8,'#7FD0FF')]: F(s,x,y,col,'_sweat')
 def smile(s,mood,cx=16,y=18):
-    if mood=='happy':
+    if mood=='grin':
+        rowsF(s,cx-3,y,["KKKKKK","KWWWWK",".KKKK."],{'K':MOUTH,'W':'#FFFFFF'})
+    elif mood=='meh':
+        rowsF(s,cx-2,y,["KKKK"],{'K':MOUTH})
+    elif mood=='tired':
+        rowsF(s,cx-1,y,[".K.","K.K",".K."][0:0]+["KK","KK"],{'K':MOUTH})
+    elif mood=='happy':
         rowsF(s,cx-3,y,["KKKKKK",".KTTK.","..KK.."],{'K':MOUTH,'T':TONGUE})
     elif mood=='sleepy':
         rowsF(s,cx-1,y,["KK"],{'K':MOUTH})
@@ -39,11 +47,17 @@ def brick(mood):
     eyes(s,mood,9,10,3,4,'#C98A4A')
     if mood=='happy':
         rowsF(s,11,18,["KKKKKKKKKK",".KTTTTTTK.","..KKKKKK.."],{'K':MOUTH,'T':TONGUE})
+    elif mood=='grin':
+        rowsF(s,11,18,["KKKKKKKKKK",".KWWWWWWK.","..KKKKKK.."],{'K':MOUTH,'W':'#FFFFFF'})
+    elif mood in ('meh','tired'):
+        rowsF(s,12,19,["KKKKKKKK"],{'K':MOUTH})
+        F(s,12,18,'#FFFFFF'); F(s,19,18,'#FFFFFF')
     else:
         rowsF(s,11,19,["KK......KK","..KKKKKK.."],{'K':MOUTH})
         F(s,12,18,'#FFFFFF'); F(s,19,18,'#FFFFFF')
     rowsF(s,15,23,[".Y","YY","Y."],{'Y':'#FFD447'})
     blush(s,7,15); blush(s,23,15)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s)
     return s
@@ -69,6 +83,7 @@ def stash(mood):
     rowsF(s,15,23,["WW"],{'W':'#FFFFFF'})
     s.ell(12.2,24,2,1.8,'fur','pawL'); s.ell(19.8,24,2,1.8,'fur','pawR')
     blush(s,6,16); blush(s,24,16)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s)
     return s
@@ -87,6 +102,7 @@ def zib(mood):
     eyes(s,mood,9,13,3,4,'#3F7BFF')
     smile(s,mood,16,19)
     blush(s,7,18); blush(s,23,18)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s,'#FF9FC8')
     return s
@@ -109,6 +125,7 @@ def lox(mood):
     eyes(s,mood,9,11,3,4,'#FF8A3D')
     smile(s,mood,16,17)
     blush(s,7,16); blush(s,23,16)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s)
     return s
@@ -129,13 +146,14 @@ def pip(mood):
     pair(s,lambda X,k: s.poly([(X(6),7),(X(7),2.5),(X(10.5),6)] if k=='L' else mp([(6,7),(7,2.5),(10.5,6)]),'fur','tuft'+k))
     pair(s,lambda X,k: s.ell(X(11.5),13.5,4.2,4.2,'ring','_ring'+k))
     pair(s,lambda X,k: s.ell(X(11.5),13.5,3.2,3.2,'belly','_ri'+k))
-    if mood=='idle':
+    if mood in ('idle','grin'):
         for lx in (10,19): 
             rowsF(s,lx,12,["WKK","KKK","KKI"],{'W':'#FFFFFF','K':'#141836','I':'#B9C6FF'})
     else: eyes(s,mood,10,11,3,4)
     rowsF(s,15,17,["BB",".B"[0:0]+"BB"],{'B':'#FF9F43'})
     rowsF(s,15,18,["BB"],{'B':'#E07A20'})
     blush(s,6,18); blush(s,24,18)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s)
     return s
@@ -160,6 +178,7 @@ def moko(mood):
     for x,y in [(8,27),(9,27),(22,26),(23,26),(15,29),(16,29)]: F(s,x,y,'#FFB3C7')
     pair(s,lambda X,k: s.ell(X(7),23,2,1.8,'skin','paw'+k))
     blush(s,7,17); blush(s,23,17)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s,'#FF9FB2')
     return s
@@ -183,9 +202,13 @@ def tank(mood):
     eyes(s,mood,7,11,3,4,'#5C6378')
     if mood!='sleepy': rowsF(s,6,10,["KKK"],{'K':'#55607C'}); rowsF(s,23,10,["KKK"],{'K':'#55607C'})
     if mood=='happy': rowsF(s,12,19,["KKKKKKKK",".KTTTTK."],{'K':MOUTH,'T':TONGUE})
+    elif mood=='grin': rowsF(s,12,19,["KKKKKKKK","KWWWWWWK",".KKKKKK."],{'K':MOUTH,'W':'#FFFFFF'})
+    elif mood=='meh': rowsF(s,14,20,["KKKK"],{'K':MOUTH})
+    elif mood=='tired': rowsF(s,15,19,["KK","KK"],{'K':MOUTH})
     elif mood=='idle': rowsF(s,13,20,["K....K",".KKKK."],{'K':MOUTH})
     else: rowsF(s,15,20,["KK"],{'K':MOUTH})
     blush(s,5,16); blush(s,25,16)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s,'#C8F04A')
     return s
@@ -203,11 +226,14 @@ def volt(mood):
     eyes(s,mood,9,11,3,4,'#1FA2FF')
     if mood!='sleepy':
         F(s,8,10,'#2A4F8C'); F(s,9,9,'#2A4F8C'); F(s,23,10,'#2A4F8C'); F(s,22,9,'#2A4F8C')
-    if mood=='sleepy': rowsF(s,13,18,["KKKKKK"],{'K':'#2A4F8C'})
+    if mood in ('sleepy','meh'): rowsF(s,13,18,["KKKKKK"],{'K':'#2A4F8C'})
+    elif mood=='tired': rowsF(s,13,17,["KKKKKK","KWKWKK"],{'K':'#1D2B55','W':'#FFFFFF'})
+    elif mood=='idle': rowsF(s,11,17,["K........K",".KKKKKKKK."],{'K':'#1D2B55'})
     else:
         rowsF(s,11,17,["KKKKKKKKKK","KWKWKWKWKK" if mood=='idle' else "KWKWKWKWKK",".KTTTTTTK."[0:10] if mood=='happy' else ".KKKKKKKK."],{'K':'#1D2B55','W':'#FFFFFF','T':TONGUE})
     pair(s,lambda X,k: s.ell(X(12),30.3,2.6,1.4,'side','foot'+k))
     blush(s,7,16); blush(s,23,16)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s)
     return s
@@ -230,6 +256,7 @@ def howl(mood):
         rowsF(s,9,11,["KK"],{'K':'#4A5675'}); rowsF(s,21,11,["KK"],{'K':'#4A5675'})
     smile(s,mood,16,18)
     blush(s,8,17); blush(s,22,17)
+    if mood=='tired': sweat(s)
     if mood=='sleepy': zzz(s)
     if mood=='happy': spark(s)
     return s

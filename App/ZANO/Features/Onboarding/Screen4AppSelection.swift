@@ -119,7 +119,8 @@ struct Screen4AppSelection: View {
                 OnboardingGuideStar(
                     line: hasSelection ? Copy.onboarding.guideAppsPicked : Copy.onboarding.guideAppsPrompt,
                     charge: hasSelection ? 0.7 : 0.5,
-                    tint: hasSelection ? Theme.Colors.Ring.steps : Theme.Colors.accent
+                    tint: hasSelection ? Theme.Colors.Ring.steps : Theme.Colors.accent,
+                    mood: hasSelection ? .perky : .idle
                 )
 
                 pickerCard

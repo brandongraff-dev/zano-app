@@ -197,3 +197,116 @@ Feature-local, no Core/UI changes. Unverified on a device or simulator (parse-ch
   a die-cut sticker, waves cycle goal colours, success pops confetti.
 - **Trophy case**: glass cabinet; earned badges are coloured foil stickers (`TrophyBadgeDisc(badgeKey:)`,
   opt-in, so Progress's strip is unchanged) on glass stands; shop row hidden (v1 founder decision).
+
+## 8. Pass 2: playful (design system, Today, Lock, tab bar, widgets; 2026-10-03)
+
+**Why:** the founder, on the pass-1 screenshots: "Do the second pass, make it MORE PLAYFUL." Pass 1 got
+the room right (ink, aurora, glass) but the room was empty: one quiet star, grey-ish tiles, a hero
+that ate the whole first screen so the goals started below the fold. Pass 2 keeps the room and moves
+a cast in. Unverified on a device or simulator (parse-checked only; CI is the compiler).
+
+### The idea
+
+The arcade has a **mascot**, **stickers** and **coins**. The star is a character who reacts to your
+day; every goal's colour is a real presence (tiles that fill up like a glass of juice); wins throw
+confetti in the goal colours; numbers roll like a score counter; everything you can tap squishes.
+Still one orchestrated moment per screen: on Today, a completed goal makes its tile pop and the star
+jump; nothing else moves on its own except the star's idle body language and the aurora.
+
+### Playful tokens (Theme)
+
+| Token | Value | For |
+| --- | --- | --- |
+| `Motion.springPop` | 0.34 / 0.46 (was 0.28 / 0.52) | earned beats: rounder, bigger overshoot |
+| `Motion.springSquish` | 0.30 / 0.45 | the bounce back after any press (`PressableStyle`) |
+| `Motion.numberRoll` | 0.45 / 0.72 | `RollingNumber`, rolling counters |
+| `Motion.tabPill` | 0.40 / 0.68 (was 0.42 / 0.78) | squishier tab pill |
+| `Motion.mascotJumpDuration` / `mascotSpinDuration` / `mascotHopPeriod` / `mascotWigglePeriod` | 0.9 / 0.7 / 1.6 / 3.2 s | the star's beats |
+| `Colors.confetti` | blue, volt, apricot, pink, sky, sun | what a win throws (`CelebrationBurst` default) |
+| `Colors.stickerHighlight` / `stickerShade` / `stickerRim` | white 32% / black 18% / white 85% | the vinyl look |
+| `Metrics.stickerSmall/Regular/Large` | 26 / 34 / 48 | sticker heights |
+| `Metrics.goalTileMinHeight` | 156 | an actionable goal tile |
+
+### Components (Core/UI; adopt these, don't re-invent)
+
+- **`ZanoSticker(_ text: String? = nil, systemImage:, color:, style: .filled | .tinted, size: .small |
+  .regular | .large, tilt: Double = 0, bounceTrigger: Int = 0)`**: chunky chip on thick "vinyl": fill,
+  top highlight, bottom inner shade, coloured drop light. `.filled` = solid colour with an ink label
+  (`onFill`, AA on every goal colour); `.tinted` = the colour's wash on glass, `text` label. Icon-only
+  stickers are decoration (hidden from VoiceOver, white die-cut rim) and may tilt; **`tilt` is ignored
+  when there is text** (never rotate words). Symbols render `.hierarchical` and bounce on
+  `bounceTrigger`.
+- **`ZanoSparkleShape(pinch:)`**: the four-point arcade sparkle. Sparks, bursts, confetti.
+- **`RollingNumber(_ value: Int, size: 34, face: .rounded | .score, color:)`**: a bare count that rolls
+  (`.numericText(value:)`, `numberRoll`), Dynamic Type clamped at 1.35x. Strings with units stay
+  `NumeralText` (which also rolls).
+- **`.zanoGoalTile(color:progress:isDone:radius:)`**: the goal-coloured glass tile: tinted from the top
+  (22%, 34% done), a liquid fill rising to `progress` with a bright surface line, a rim lit in the
+  colour, a static glow when done. Text on it stays `text`/`textSecondary`.
+- **`PressableStyle`** (same API): a squish (x gives a quarter less than `scale`, y a quarter more) and a
+  springy release on `springSquish`. `.pressable(scale: 0.95)` for tiles, `0.92` for chips.
+- **The mascot**: `ZanoMascotMood` (`.sleepy`, `.idle`, `.perky`, `.charged`; derive it with
+  `ZanoMascotMood(done:total:isLocked:)`) and **`.zanoMascot(mood:jump:spin:sparkColors:size:showsGlow:)`**
+  around any star view. Sleepy droops 12°, breathes, sits low and dim with two bubbles; perky hops with
+  squash-and-stretch and orbits a spark per done goal colour; charged glows, hops faster and wiggles.
+  `jump` (bump on a goal completion) crouches, leaps, stretches and lands; `spin` (bump on a tap) winds up
+  and turns once. It is a modifier because Today's star on a device is drawn by the `ZANOReport`
+  extension, which knows nothing about goals; the body language wraps it from the app. 
+  `ZanoLivingMark(charge:height:accessibilityValue:mood:)` (new defaulted `mood`) also dims a sleepy star
+  and brightens a charged one when drawn in-process. No faces.
+- **`.zanoChargeBurst(trigger:color:sparks: Bool = true)`**: the ring pop now throws eight spinning
+  sparkles (half the colour, half white).
+- **`CelebrationBurst`**: defaults to `Theme.Colors.confetti` and adds sparkle particles. Pass
+  `[Theme.Colors.accent]` for the old single-hue burst.
+- **Aurora warmth**: `.zanoAuroraWarmth(_ 0...1)` outside `.zanoAmbient`/`.zanoBackdrop`, and
+  `ZanoAuroraWarmth.forStreak(days:)` (square-root curve, full at 30 days): ember rises up to +0.16 and
+  violet cools. `StreakPill` warms with the same curve (an ember wash) and its flame renders hierarchical.
+- **`ScreenTimeChargeView`**: default height 96 (the compact hero's star; the report extension uses the
+  default). The charge is a small sticker stuck on the star's corner ("72%", filled blue from 35%).
+- **Navigation titles**: SF Pro Rounded heavy (large) and bold (inline), Dynamic-Type scaled, set once
+  in `ZANOApp.configureNavigationBarTitles()`.
+- **Coach voice**: `CoachVoiceTone.mascotLines(_:mood:)` (three short lines per voice and mood, what the
+  star "says" when poked; sleepy lines always point at the next step, never shame) and
+  `Copy.today.mascotSpoken(_:)` / `mascotHint`.
+
+### Screens
+
+- **Today**: the hero is a compact stage, about 190pt: the star (mascot, 96pt, its charge sticker) on the
+  left, the score on the right ("2" / "goals to unlock", segments, the lock capsule, Earn Mode's banked
+  minutes as a sticker). Stacked at accessibility sizes. The score is the button into Lock (VoiceOver
+  label still starts with "Locked ·"); the star is its own control: tap to spin, a speech bubble with a
+  coach line for ~2.4 s (announced to VoiceOver), light haptic. A completed goal: its tile pops and
+  flips its sticker to a filled check with a burst in its colour, and the star jumps with a burst. The
+  first row of goal tiles is visible on a 6.1" phone even with a suggestion card. Goal tiles: the whole
+  tile is the button when it has an action (squish), chunky capsule affordance (quick-logs in the goal's
+  colour with an ink label, starts in blue), the goal glyph as a tilted sticker that bounces on every
+  log, a rolling progress line, liquid colour fill. Read-only tiles (Lock) are compact. Placement of
+  `FinishTrialBanner`, `TrialEarnedCard`, `FinishSetupCard`, the health card and the suggestion slot is
+  unchanged. The aurora warms with the streak.
+- **Lock**: the vault rings light up per goal (full colour, stronger glow, a sparkle at 12 o'clock) around
+  a padlock character that droops while nothing is done, sits up once something is, wobbles each time a
+  goal lands and pops open (bouncing, blue) when earned. Medallion is a sticker; the number rolls. The
+  blocking facts lead with tilted stickers. Borrow: the amounts are minute "coins" (hourglass, chunky,
+  filled blue when picked, squish), the balance is a sticker. **"Hold to unlock in an emergency" is
+  unchanged and pinned in every locked state.** The idle star sways.
+- **Tab bar**: same glass capsule; the glyph you pick bounces (`symbolEffect(.bounce.up)`, keyed per tab
+  so only that one jumps); squishier pill spring and press.
+- **Widgets**: `ZANOWidgetColor` now points at the v2 tokens (ink, ZANO Blue, ember, volt/apricot/
+  violet/sky goal colours) instead of the old near-black/bronze mirror; the background is a still
+  aurora (ink gradient, blue behind the star, violet in the far corner); the streak flame is ember.
+  StandBy unchanged (the system strips the background; `.widgetAccentable` marks what stays lit).
+
+### Accessibility
+
+Every motion is gated on Reduce Motion: the mascot keeps a still pose (sleepy tilt/dimness, glow,
+parked sparks), no hop/wiggle/jump/spin; stickers don't bounce; presses dim without squishing; numbers
+swap without rolling. Reduce Transparency: tiles and stickers become solid; the mascot's glow is off on
+Today. Colour is never the only signal (tiles keep glyph + words; rings sit beside the number). Words
+are never rotated.
+
+### Unverified
+
+Device/simulator rendering of all of the above. Specifically: transforms applied around the
+`DeviceActivityReport` remote view (scale/rotation/opacity on the extension-hosted star) are expected to
+work but are unverified; `symbolEffect(.bounce.up, options: .speed(_:))`, `hourglass.circle.fill` and
+`sparkles` symbol names are from memory of the iOS 17 SDK.

@@ -18,10 +18,10 @@
 //                             button whose label is the title; VoiceOver's activate commits).
 //   * `OnboardingPickTile`    a chunky selectable glass tile washed in a colour, with a sticker
 //                             icon and a check sticker when picked.
-//   * `OnboardingSticker`     the "sticker" look: a saturated rounded square with an ink glyph.
+//   * `OnboardingSticker`     a point-sized front for Core's `ZanoSticker` (icon-only, filled).
 //
-// Nothing here edits Core/UI; it only composes `ZanoLivingMark`, `zanoChargeBurst`, `zanoCard`,
-// `zanoGlass` and `Theme` tokens. Every motion is gated on Reduce Motion (the star is still, the
+// Nothing here edits Core/UI; it only composes `ZanoLivingMark`, `zanoMascot`, `zanoChargeBurst`,
+// `ZanoSticker`, `zanoCard`, `zanoGlass` and `Theme` tokens. Every motion is gated on Reduce Motion (the star is still, the
 // bubble cross-fades, nothing scales). One orchestrated moment per screen is the caller's job.
 
 import SwiftUI
@@ -29,43 +29,35 @@ import Core
 
 // MARK: - Sticker
 
-/// A saturated rounded-square sticker with an ink glyph: the playful counterpart of `IconBadge`.
-/// Every goal colour is bright enough that ink (`Theme.Colors.background`) on it clears 7:1.
-/// Decorative (the text beside it carries the meaning).
+/// An icon-only sticker in `tint`: Core's `ZanoSticker` (filled, die-cut rim, bounce on
+/// `bounceTrigger`), sized from a point size so the steps can say "about 44pt". Decorative.
 struct OnboardingSticker: View {
     let systemImage: String
     let tint: Color
     var size: CGFloat = 44
     /// A bounce plays each time this changes (pass the selection, a tick, ...).
     var bounceTrigger: Int = 0
+    /// Degrees of playful lean (icon-only stickers may lean). None under Reduce Motion.
+    var tilt: Double = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var stickerSize: ZanoSticker.Size {
+        if size >= 44 { return .large }
+        if size >= 32 { return .regular }
+        return .small
+    }
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
-        Image(systemName: systemImage)
-            .font(.system(size: size * 0.46, weight: .bold))
-            .foregroundStyle(Theme.Colors.background)
-            .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? 0 : bounceTrigger)
-            .frame(width: size, height: size)
-            .background {
-                shape.fill(
-                    LinearGradient(
-                        colors: [tint, tint.opacity(0.78)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            }
-            .overlay {
-                // The sticker's gloss: a white rim brightest at the top.
-                shape.strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1
-                )
-            }
-            .shadow(color: tint.opacity(0.35), radius: 8, y: 3)
-            .accessibilityHidden(true)
+        ZanoSticker(
+            systemImage: systemImage,
+            color: tint,
+            style: .filled,
+            size: stickerSize,
+            tilt: reduceMotion ? 0 : tilt,
+            bounceTrigger: bounceTrigger
+        )
+        .accessibilityHidden(true)
     }
 }
 
@@ -79,6 +71,8 @@ struct OnboardingGuideStar: View {
     var starHeight: CGFloat = 52
     /// The bubble's accent edge (a goal colour once one is picked).
     var tint: Color = Theme.Colors.accent
+    /// `.idle` while it waits for an answer, `.perky` once it has one.
+    var mood: ZanoMascotMood = .idle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var reactTick = 0
@@ -90,6 +84,8 @@ struct OnboardingGuideStar: View {
                     OnboardingKit.StarBloom(diameter: starHeight * 3)
                         .opacity(0.35 + 0.5 * charge)
                 }
+                // Core's mascot motion: perky once you've answered, a hop each time it reacts.
+                .zanoMascot(mood: mood, jump: reactTick, sparkColors: [tint], size: starHeight, showsGlow: false)
                 .zanoChargeBurst(trigger: reactTick, color: tint)
                 .accessibilityHidden(true)
 

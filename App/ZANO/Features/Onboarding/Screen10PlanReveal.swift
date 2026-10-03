@@ -301,7 +301,8 @@ struct Screen10PlanReveal: View {
                 OnboardingGuideStar(
                     line: Copy.onboarding.guidePlanLine,
                     charge: revealStarCharge,
-                    starHeight: Self.revealStarHeight
+                    starHeight: Self.revealStarHeight,
+                    mood: .perky
                 )
                 planCard
                 commitHint

@@ -7,6 +7,10 @@
 // goals are done"). Persists through `LockScheduler` (Core), which stores the schedule in the App
 // Group and registers DeviceActivity windows so `ZANOMonitor` can lock with the app closed.
 // Emergency unlock is unaffected: a scheduled lock becomes an ordinary `LockSession`.
+//
+// Visual pass 2 (2026-10-03): `LockRulesSection` heads are rounded titles with an optional (i) for
+// the explanation (`info:`); captions that change with a choice or mention the emergency unlock stay
+// visible (`footer:`). Day chips are chunky violet squares; switches wear the lock violet.
 
 import SwiftUI
 import Core
@@ -28,10 +32,15 @@ struct LockScheduleEditor: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 LockRulesSection(footer: Copy.lockSetup.scheduleEnabledFooter) {
-                    Toggle(Copy.lockSetup.scheduleEnabledToggle, isOn: $isEnabled)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.text)
-                        .tint(Theme.Colors.accentFill)
+                    Toggle(isOn: $isEnabled) {
+                        HStack(spacing: Theme.Spacing.sm) {
+                            SettingsSticker(systemImage: "calendar.badge.clock", tint: SettingsPalette.lockToggle)
+                            Text(Copy.lockSetup.scheduleEnabledToggle)
+                                .font(Theme.Typography.headline)
+                                .foregroundStyle(Theme.Colors.text)
+                        }
+                    }
+                    .tint(SettingsPalette.lockToggle)
                 }
 
                 if isEnabled {
@@ -56,7 +65,7 @@ struct LockScheduleEditor: View {
 
                     LockRulesSection(
                         title: Copy.lockSetup.scheduleModeLabel,
-                        footer: mode == .earn ? Copy.lockSetup.modeEarnDetail : Copy.lockSetup.modeFullDetail
+                        info: mode == .earn ? Copy.lockSetup.modeEarnDetail : Copy.lockSetup.modeFullDetail
                     ) {
                         LockModePicker(mode: $mode)
                     }
@@ -213,12 +222,19 @@ private struct WeekdayChips: View {
                     if isOn { selection.remove(day) } else { selection.insert(day) }
                 } label: {
                     Text(symbols[day - 1])
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(isOn ? Theme.Colors.onAccent : Theme.Colors.text)
+                        .font(Theme.Typography.headline.weight(.heavy))
+                        .foregroundStyle(isOn ? Theme.Colors.background : Theme.Colors.textSecondary)
                         .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-                        .background(isOn ? Theme.Colors.accent : Theme.Colors.track, in: Circle())
+                        .background {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isOn ? AnyShapeStyle(SettingsPalette.lockToggle) : AnyShapeStyle(Theme.Colors.glassFill))
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(isOn ? Color.white.opacity(0.45) : Theme.Colors.hairline, lineWidth: 1)
+                        }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable(scale: 0.88))
                 .accessibilityLabel(fullSymbols[day - 1])
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
@@ -240,19 +256,18 @@ struct LockModePicker: View {
     }
 }
 
-/// An eyebrow title, a card of controls, and an optional caption — the rules screens' one layout.
+/// A rounded title (with an optional (i) holding `info`), a card of controls, and an optional
+/// caption that stays visible — the rules screens' one layout.
 struct LockRulesSection<Content: View>: View {
     var title: String?
+    var info: String? = nil
     var footer: String?
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
             if let title {
-                Text(title)
-                    .zanoText(.eyebrow)
-                    .foregroundStyle(Theme.Colors.muted)
-                    .padding(.horizontal, Theme.Spacing.xs)
+                SettingsSectionTitle(title: title, info: info)
             }
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 content

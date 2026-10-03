@@ -56,7 +56,7 @@
 //     paid tail stays plain grey (honest: that part costs money). Nodes are stickers: today blue,
 //     the reminder sun-yellow, billing a glass disc.
 //   * Plan tiles: glass cards; the selected one gets a blue rim and the earned glow; the "7 days
-//     free" pill is a sun-yellow sticker, tilted, on the tile's corner. The billed price is the score
+//     free" pill is a sun-yellow `ZanoSticker` on the tile's corner. The billed price is the score
 //     face. No countdowns, no strike-through prices, no fake scarcity.
 //
 // Carried from earlier passes: `SwiftUI.ProgressView()` (bare `ProgressView` is this module's
@@ -886,18 +886,10 @@ private struct PaywallPlanTile: View {
             )
             .overlay(alignment: .topTrailing) {
                 if let pill {
-                    // A sun-yellow sticker slapped on the corner. Ink on sun is 11:1.
-                    Text(pill)
-                        .font(Theme.Typography.captionEmphasized.weight(.heavy))
-                        .foregroundStyle(Theme.Colors.background)
-                        .lineLimit(1)
-                        .padding(.horizontal, Theme.Spacing.sm)
-                        .padding(.vertical, Theme.Spacing.xxs)
-                        .background(Capsule().fill(Theme.Colors.Ring.sunriseAlarm))
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.55), lineWidth: 1))
-                        .rotationEffect(.degrees(reduceMotion ? 0 : 6))
-                        .offset(x: -Theme.Spacing.xs, y: -14)
-                        .shadow(color: Theme.Colors.Ring.sunriseAlarm.opacity(0.35), radius: 6, y: 2)
+                    // A sun-yellow sticker on the corner (Core's `ZanoSticker`; words never tilt).
+                    ZanoSticker(pill, color: Theme.Colors.Ring.sunriseAlarm, style: .filled, size: .small)
+                        .fixedSize()
+                        .offset(x: -Theme.Spacing.xs, y: -13)
                 }
             }
             .contentShape(shape)

@@ -229,8 +229,9 @@ struct ZANOChargedStar: View {
 
 // MARK: - Background
 
-/// The Home Screen widgets' container background: near-black with a faint blue light sitting
-/// behind the star, brighter as the star charges. The system drops it in accented/vibrant modes.
+/// The Home Screen widgets' container background: the v2 indigo ink with a blue light sitting behind
+/// the star (brighter as the star charges) and a faint violet light in the far corner, a still frame
+/// of the app's aurora. The system drops it in accented/vibrant modes and StandBy.
 struct ZANOWidgetBackground: View {
     let glowCenter: UnitPoint
     let charge: Double
@@ -238,7 +239,17 @@ struct ZANOWidgetBackground: View {
 
     var body: some View {
         ZStack {
-            ZANOWidgetColor.background
+            LinearGradient(
+                colors: [ZANOWidgetColor.background, ZANOWidgetColor.backgroundDeep],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            RadialGradient(
+                colors: [ZANOWidgetColor.violet.opacity(0.18), ZANOWidgetColor.violet.opacity(0)],
+                center: UnitPoint(x: 1 - glowCenter.x, y: 1 - glowCenter.y),
+                startRadius: 0,
+                endRadius: glowRadius * 1.2
+            )
             RadialGradient(
                 colors: [
                     ZANOWidgetColor.accent.opacity(0.08 + 0.20 * min(max(charge, 0), 1)),
@@ -379,7 +390,8 @@ struct ZANOStreakFlameView: View {
         HStack(spacing: 2) {
             Image(systemName: "flame.fill")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(ZANOWidgetColor.textMuted)
+                // Pass 2: the flame is ember, like the app's streak pill.
+                .foregroundStyle(ZANOWidgetColor.ember)
                 .widgetAccentable()
             Text("\(streak)")
                 .font(.system(size: 11, weight: .bold, design: .rounded))

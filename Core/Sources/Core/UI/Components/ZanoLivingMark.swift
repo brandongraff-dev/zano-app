@@ -159,7 +159,7 @@ public struct ZanoLivingMark: View {
 /// tiles start above the fold), so the charge is a small sticker stuck on the star's corner ("72%"
 /// with a bolt, filled ZANO Blue once it is worth bragging about) instead of a chip row under it. It
 /// moves with the star, which is the point: it is the star's own badge. The day's screen-time total
-/// lives in the Screen time section. The default height (96) is the compact hero's star, and it is
+/// also sits under the star as a quiet sticker. The default height (96) is the compact hero's star, and it is
 /// what the report extension draws with (it passes no height), so the app and extension agree.
 public struct ScreenTimeChargeView: View {
     private let charge: Double
@@ -204,6 +204,19 @@ public struct ScreenTimeChargeView: View {
                     // The star already speaks the charge (`chargeSpoken`).
                     .accessibilityHidden(true)
                 }
+            }
+            // The founder asked for today's screen-time total right under the star; it stays,
+            // as a quiet sticker.
+            if let total {
+                ZanoSticker(
+                    Copy.screenTime.duration(total),
+                    systemImage: "iphone",
+                    color: Theme.Colors.muted,
+                    style: .tinted,
+                    size: .small
+                )
+                .fixedSize()
+                .accessibilityLabel(Copy.screenTime.spokenDuration(total))
             }
             if total == nil {
                 Text(Copy.screenTime.chargeHint)

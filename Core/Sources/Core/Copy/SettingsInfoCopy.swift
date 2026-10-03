@@ -13,14 +13,4 @@ extension Copy.settings {
 
     /// Heading over the goals / lock sets / gym / tags group (it had none).
     public static let setupSectionTitle = "Your setup"
-    /// Heading over the plan card (the old small "Plan" label inside it is gone).
-    public static let planSectionTitle = "Your plan"
-
-    /// Pause screen: the "how long" options' heading is unchanged; this is the info for the toggle.
-    public static let pauseInfoLabel = "About pausing"
-}
-
-extension Copy.lockSetup {
-    /// VoiceOver label of a rules section's (i) button when the section has no title of its own.
-    public static let rulesInfoLabel = "More about this setting"
 }

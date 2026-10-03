@@ -9,6 +9,11 @@
 // tiers hold FamilyControls tokens, which never leave the device) and applied by
 // `LockEngineManager.evaluateUnlockEligibility` whenever a goal completes.
 
+//
+// Visual pass 2 (2026-10-03): the empty state is a ladder sticker with its line; each tier card
+// opens with a numbered colour sticker (tiers climb mint, sky, violet, ...) beside its name; the
+// "apps" label is a headline, not an eyebrow.
+
 import SwiftUI
 import FamilyControls
 import Core
@@ -33,18 +38,18 @@ struct TierEditorView: View {
                     .padding(.horizontal, Theme.Spacing.xs)
 
                 if drafts.isEmpty {
-                    Text(Copy.lockSetup.tiersEmpty)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .padding(.horizontal, Theme.Spacing.xs)
+                    emptyState
                 }
 
                 ForEach($drafts) { $draft in
                     LockRulesSection {
-                        TextField(Copy.lockSetup.tierNamePlaceholder, text: $draft.name)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.text)
-                            .accessibilityLabel(Copy.lockSetup.tierNameLabel)
+                        HStack(spacing: Theme.Spacing.sm) {
+                            tierSticker(drafts.firstIndex { $0.id == draft.id } ?? 0)
+                            TextField(Copy.lockSetup.tierNamePlaceholder, text: $draft.name)
+                                .font(Theme.Typography.headline)
+                                .foregroundStyle(Theme.Colors.text)
+                                .accessibilityLabel(Copy.lockSetup.tierNameLabel)
+                        }
                         Divider().overlay(Theme.Colors.hairline)
                         Stepper(
                             Copy.lockSetup.tierThreshold(goals: draft.goalCount),
@@ -55,8 +60,8 @@ struct TierEditorView: View {
                         .foregroundStyle(Theme.Colors.text)
                         Divider().overlay(Theme.Colors.hairline)
                         Text(Copy.lockSetup.tierAppsLabel)
-                            .zanoText(.eyebrow)
-                            .foregroundStyle(Theme.Colors.muted)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
                         AppPickerView(selection: $draft.selection)
                         Button(Copy.lockSetup.tierRemoveButton, role: .destructive) {
                             let id = draft.id
@@ -75,7 +80,7 @@ struct TierEditorView: View {
                         )
                     )
                 } label: {
-                    Label(Copy.lockSetup.tierAddButton, systemImage: "plus")
+                    Label(Copy.lockSetup.tierAddButton, systemImage: "plus.circle.fill")
                         .font(Theme.Typography.headline)
                         .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
                 }
@@ -102,6 +107,37 @@ struct TierEditorView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    /// Tiers climb the goal palette, one colour per rung.
+    private static let tierTints = [
+        Theme.Colors.Ring.steps, Theme.Colors.Ring.water, Theme.Colors.Ring.focus,
+        Theme.Colors.Ring.creatine, Theme.Colors.Ring.protein, Theme.Colors.Ring.sunriseAlarm,
+    ]
+
+    private func tierSticker(_ index: Int) -> some View {
+        Text(verbatim: "\(index + 1)")
+            .font(Theme.Typography.score(size: 16, weight: .heavy))
+            .foregroundStyle(Theme.Colors.background)
+            .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Self.tierTints[index % Self.tierTints.count])
+            )
+            .accessibilityHidden(true)
+    }
+
+    private var emptyState: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            SettingsSticker(systemImage: "stairs", tint: Theme.Colors.Ring.steps, baseSize: 40)
+            Text(Copy.lockSetup.tiersEmpty)
+                .font(Theme.Typography.body)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard(radius: Theme.Radius.medium)
     }
 
     private func load() {

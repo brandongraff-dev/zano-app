@@ -16,7 +16,7 @@
 // days-a-year number is a huge score numeral in ember-to-red that counts up from zero when the
 // screen opens (a rolling `numericText` with a tick of haptics, then one heavier tap as it lands),
 // and rolls live as the slider moves. The hours sit above it as a chip; the reclaim half is a mint
-// "+N days back a year" sticker under it. The slip chips are glass capsules with an "Optional" tag
+// "+N days back a year" sticker (Core's `ZanoSticker`) under it. The slip chips are glass capsules with an "Optional" tag
 // instead of "(optional)" in the heading. Reduce Motion: the final number from the first frame.
 
 import SwiftUI
@@ -113,19 +113,14 @@ struct ScreenYourWhy: View {
     /// "+30 days back a year", a mint sticker, and the condition under it.
     private var reclaimSticker: some View {
         VStack(spacing: Theme.Spacing.xxs) {
-            HStack(spacing: Theme.Spacing.xs) {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(Theme.Typography.icon(.small, weight: .heavy))
-                    .accessibilityHidden(true)
-                Text(Copy.onboarding.yourWhyReclaimChip(days: flowState.reclaimDaysPerYear))
-                    .font(Theme.Typography.headline.weight(.heavy))
-                    .contentTransition(.numericText(value: Double(flowState.reclaimDaysPerYear)))
-            }
-            .foregroundStyle(Theme.Colors.background)
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.xs)
-            .background(Capsule().fill(Theme.Colors.Ring.steps))
-            .rotationEffect(.degrees(reduceMotion ? 0 : -2))
+            ZanoSticker(
+                Copy.onboarding.yourWhyReclaimChip(days: flowState.reclaimDaysPerYear),
+                systemImage: "arrow.uturn.backward",
+                color: Theme.Colors.Ring.steps,
+                style: .filled,
+                size: .large,
+                bounceTrigger: flowState.reclaimDaysPerYear
+            )
 
             Text(Copy.onboarding.yourWhyReclaimCondition(hoursLabel: Copy.onboarding.q3HoursValue(flowState.reclaimHours)))
                 .font(Theme.Typography.caption)

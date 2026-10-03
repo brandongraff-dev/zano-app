@@ -198,7 +198,9 @@ struct TodayView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // Pass 2: `md` between sections (was `lg`), part of getting the first goal row above
+                // the fold.
+                VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                     header
                     heroCard
                     if ScreenshotMode.screen == nil && lockHealth.needsAttention {

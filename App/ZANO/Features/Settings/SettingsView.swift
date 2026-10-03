@@ -925,8 +925,9 @@ private struct SettingsIconBadge: View {
     var tint: Color = SettingsPalette.legal
 
     var body: some View {
-        // Visual pass 2: a colour sticker (SettingsKit.swift). Same 32pt base and Dynamic Type
-        // scaling as before, so `SettingsRowDivider`'s inset math still lines up.
+        // Visual pass 2: a colour sticker (SettingsKit.swift, Core's `ZanoSticker` at its 34pt
+        // regular size). `SettingsRowDivider` still insets by the 32pt badge math, which lands the
+        // divider within ~2pt of the title.
         SettingsSticker(systemImage: systemImage, tint: tint)
     }
 }

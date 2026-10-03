@@ -63,7 +63,8 @@ struct Screen3MainGoal: View {
                 OnboardingGuideStar(
                     line: guideLine,
                     charge: flowState.mainGoal == nil ? 0.3 : 0.55,
-                    tint: guideTint
+                    tint: guideTint,
+                    mood: flowState.mainGoal == nil ? .idle : .perky
                 )
                 tiles
             }

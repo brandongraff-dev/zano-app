@@ -194,8 +194,7 @@ private struct HookLoopRow: View {
     private func beatView(_ beat: Copy.onboarding.LoopBeat, index: Int) -> some View {
         let i = index % Self.symbols.count
         return VStack(spacing: Theme.Spacing.xs) {
-            OnboardingSticker(systemImage: Self.symbols[i], tint: Self.tints[i], size: 52, bounceTrigger: isShown ? 1 : 0)
-                .rotationEffect(.degrees(reduceMotion ? 0 : Self.tilts[i]))
+            OnboardingSticker(systemImage: Self.symbols[i], tint: Self.tints[i], size: 52, bounceTrigger: isShown ? 1 : 0, tilt: Self.tilts[i])
             Text(beat.title)
                 .font(Theme.Typography.headline.weight(.heavy))
                 .foregroundStyle(Theme.Colors.text)

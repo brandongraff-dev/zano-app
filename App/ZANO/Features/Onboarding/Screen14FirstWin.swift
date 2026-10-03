@@ -616,7 +616,6 @@ private struct FirstWinIntroRing: View {
             .padding(.vertical, Theme.Spacing.xxs)
             .background(Capsule().fill(Theme.Colors.Ring.focus))
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.5), lineWidth: 1))
-            .rotationEffect(.degrees(reduceMotion ? 0 : -4))
             .offset(y: Theme.Spacing.md)
         }
         .background {

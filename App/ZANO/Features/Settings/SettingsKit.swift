@@ -5,14 +5,15 @@
 // The few pieces Settings and its sub-screens (Nudges, Pause, Auto-Focus, Goals, and the LockSetup
 // rules screens) share, so each screen stops hand-rolling its own eyebrow + caption + card:
 //
-//   * `SettingsSticker`       a colour sticker per row (rounded square, ink glyph), replacing the
+//   * `SettingsSticker`       a colour sticker per row (Core's `ZanoSticker`), replacing the
 //                             monochrome grey discs. Colours come from the goal palette; each
 //                             section has its own family so a section reads as one thing.
 //   * `SettingsSectionTitle`  a rounded section title (not a small grey eyebrow) with an optional
 //                             (i) that holds the explanation that used to sit under the card.
 //   * `SettingsPalette`       the per-section colours, in one place.
 //
-// Built only from Core tokens and components (`ZanoInfoButton`, `Theme`); Core/UI is untouched.
+// Built only from Core tokens and components (`ZanoSticker`, `ZanoInfoButton`, `Theme`); Core/UI is
+// untouched.
 
 import SwiftUI
 import Core
@@ -40,35 +41,29 @@ enum SettingsPalette {
     static let lockToggle = Theme.Colors.Ring.focus
 }
 
-/// A colour sticker: a rounded square in `tint` with an ink glyph and a glossy rim. 32pt base,
-/// scaling with Dynamic Type like `IconBadge` (capped at 1.4x). Disabled rows fade it to `muted`.
-/// Decorative (the row's title carries the meaning).
+/// A colour sticker for a row: Core's `ZanoSticker` (icon-only, filled), sized from a point size.
+/// Disabled rows get the quiet tinted version in `muted`. Decorative (the row's title says it).
 struct SettingsSticker: View {
     let systemImage: String
     var tint: Color = Theme.Colors.muted
     var baseSize: CGFloat = Theme.Metrics.iconBadgeSmall
 
     @Environment(\.isEnabled) private var isEnabled
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+
+    private var size: ZanoSticker.Size {
+        if baseSize <= 28 { return .small }
+        if baseSize <= 40 { return .regular }
+        return .large
+    }
 
     var body: some View {
-        let size = baseSize * min(scale, 1.4)
-        let shape = RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
-        let fill = isEnabled ? tint : Theme.Colors.surface2
-        Image(systemName: systemImage)
-            .font(.system(size: size * 0.48, weight: .bold))
-            .foregroundStyle(isEnabled ? Theme.Colors.background : Theme.Colors.muted)
-            .frame(width: size, height: size)
-            .background {
-                shape.fill(LinearGradient(colors: [fill, fill.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            }
-            .overlay {
-                shape.strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1
-                )
-            }
-            .accessibilityHidden(true)
+        ZanoSticker(
+            systemImage: systemImage,
+            color: isEnabled ? tint : Theme.Colors.muted,
+            style: isEnabled ? .filled : .tinted,
+            size: size
+        )
+        .accessibilityHidden(true)
     }
 }
 

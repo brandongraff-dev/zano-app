@@ -226,11 +226,12 @@ struct MascotPose: ViewModifier {
         switch mood {
         case .sleepy:
             // Slow breathing: a 4.5s vertical squash, a lazy sway around a 12° droop.
-            let breath = 0.5 + 0.5 * sin(t * 2 * .pi / 4.5)
+            let breath: Double = 0.5 + 0.5 * sin(t * 2 * .pi / 4.5)
+            let sway: Double = sin(t * 2 * .pi / 6) * 2
             return Pose(
-                tilt: -12 + sin(t * 2 * .pi / 6) * 2,
-                scaleX: 1 + 0.015 * breath,
-                scaleY: 1 - 0.035 * breath,
+                tilt: -12 + sway,
+                scaleX: CGFloat(1 + 0.015 * breath),
+                scaleY: CGFloat(1 - 0.035 * breath),
                 lift: -size * 0.04,
                 opacity: 0.78
             )
@@ -241,9 +242,10 @@ struct MascotPose: ViewModifier {
         case .charged:
             var pose = hop(time: t, period: Theme.Motion.mascotHopPeriod * 0.75, height: size * 0.09, tilt: 0)
             // A happy wiggle for the first 0.6s of every period, decaying.
-            let w = t.truncatingRemainder(dividingBy: Theme.Motion.mascotWigglePeriod)
+            let w: Double = t.truncatingRemainder(dividingBy: Theme.Motion.mascotWigglePeriod)
             if w < 0.6 {
-                pose.tilt = sin(w / 0.6 * .pi * 4) * 9 * (1 - w / 0.6)
+                let decay: Double = 1 - w / 0.6
+                pose.tilt = sin(w / 0.6 * .pi * 4) * 9 * decay
             }
             pose.scaleX *= 1.03
             pose.scaleY *= 1.03
@@ -253,16 +255,12 @@ struct MascotPose: ViewModifier {
 
     /// One squash-and-stretch hop: up on a sine, stretched on the way up, squashed on landing.
     private static func hop(time t: Double, period: Double, height: CGFloat, tilt: Double) -> Pose {
-        let phase = t.truncatingRemainder(dividingBy: period) / period
-        let s = sin(phase * .pi)              // 0 on the ground, 1 at the top
-        let squash = pow(1 - s, 6)            // only near the landing
-        return Pose(
-            tilt: tilt,
-            scaleX: 1 - 0.025 * s + 0.06 * squash,
-            scaleY: 1 + 0.04 * s - 0.07 * squash,
-            lift: height * s,
-            opacity: 1
-        )
+        let phase: Double = t.truncatingRemainder(dividingBy: period) / period
+        let s: Double = sin(phase * .pi)              // 0 on the ground, 1 at the top
+        let squash: Double = pow(1 - s, 6)            // only near the landing
+        let scaleX = CGFloat(1 - 0.025 * s + 0.06 * squash)
+        let scaleY = CGFloat(1 + 0.04 * s - 0.07 * squash)
+        return Pose(tilt: tilt, scaleX: scaleX, scaleY: scaleY, lift: height * CGFloat(s), opacity: 1)
     }
 }
 
@@ -356,11 +354,13 @@ private struct MascotSparks: View {
     }
 
     private func spark(_ index: Int) -> some View {
-        let angle = time * 2 * .pi / period + Double(index) * 2 * .pi / Double(max(count, 1))
-        let depth = (sin(angle) + 1) / 2                // 0 far, 1 near
-        let radiusX = size * 0.95
-        let radiusY = size * 0.32
-        let sparkSize = size * (0.09 + 0.06 * depth) * (mood == .charged ? 1.2 : 1)
+        let spacing: Double = 2 * .pi / Double(max(count, 1))
+        let angle: Double = time * 2 * .pi / period + Double(index) * spacing
+        let depth: Double = (sin(angle) + 1) / 2        // 0 far, 1 near
+        let boost: Double = mood == .charged ? 1.2 : 1
+        let sparkSize = CGFloat((0.09 + 0.06 * depth) * boost) * size
+        let x = CGFloat(cos(angle)) * size * 0.95
+        let y = CGFloat(sin(angle)) * size * 0.32 + size * 0.1
         let color = colors[index % colors.count]
         return ZanoSparkleShape()
             .fill(color)
@@ -368,21 +368,22 @@ private struct MascotSparks: View {
             .shadow(color: color.opacity(0.8), radius: 4)
             .rotationEffect(.radians(angle))
             .opacity(0.45 + 0.55 * depth)
-            .offset(x: cos(angle) * radiusX, y: sin(angle) * radiusY + size * 0.1)
+            .offset(x: x, y: y)
     }
 
     private func bubble(_ index: Int) -> some View {
         let period = 3.6
-        let phase = (time / period + Double(index) * 0.5).truncatingRemainder(dividingBy: 1)
-        let bubbleSize = size * (0.05 + 0.04 * Double(index))
+        let phase: Double = (time / period + Double(index) * 0.5).truncatingRemainder(dividingBy: 1)
+        let bubbleSize = CGFloat(0.05 + 0.04 * Double(index)) * size
+        let fade: Double = time == 0 ? 0.5 : sin(phase * .pi) * 0.7
+        let drift = CGFloat(sin(phase * 2 * .pi) * 0.04)
+        let x = (CGFloat(0.55 + 0.12 * Double(index)) + drift) * size
+        let y = -CGFloat(0.15 + 0.5 * phase) * size
         return Circle()
             .strokeBorder(Theme.Colors.textSecondary.opacity(0.6), lineWidth: 1.5)
             .frame(width: bubbleSize, height: bubbleSize)
-            .opacity(time == 0 ? 0.5 : sin(phase * .pi) * 0.7)
-            .offset(
-                x: size * (0.55 + 0.12 * Double(index)) + sin(phase * 2 * .pi) * size * 0.04,
-                y: -size * (0.15 + 0.5 * phase)
-            )
+            .opacity(fade)
+            .offset(x: x, y: y)
     }
 }
 

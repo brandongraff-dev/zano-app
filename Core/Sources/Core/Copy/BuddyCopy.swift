@@ -185,5 +185,23 @@ extension Copy {
         public static func perfectRun(_ streak: Int) -> String { streak == 1 ? "1 day in a row" : "\(streak) days in a row" }
         public static let perfectHowTo = "Finish every goal in a day for a perfect day."
         public static func perfectTotal(_ total: Int) -> String { "\(total) all time" }
+
+        // MARK: - First-week intro (2026-10-04)
+
+        public static func introDay(_ day: Int, of total: Int) -> String { "Tip \(day) of \(total)" }
+        public static let introGotIt = "Got it"
+        /// One tip per day for the first week, in the buddy's voice.
+        public static func introTip(_ index: Int, buddy: Buddy) -> String {
+            let me = name(buddy)
+            switch index {
+            case 0: return "Hi, I'm \(me)! I'm guarding your apps. Finish today's goals and I hand them right back."
+            case 1: return "Add my widget to your Home Screen. One tap logs water or protein without opening the app."
+            case 2: return "The % under me is your charge: the more of today you spend off your phone, the happier I get."
+            case 3: return "Every goal is +10 XP and every earned unlock +30. Level me up and I unlock gear, starting with a party hat."
+            case 4: return "A Scroll Monster shows up every week. Locked minutes and finished goals knock its HP down. Beat it for coins."
+            case 5: return "Rough day? Plan B and streak freezes keep one slip from wiping out your streak. No guilt."
+            default: return "Real emergency? Hold the button on the Lock tab for 60 seconds. There's always a way out."
+            }
+        }
     }
 }

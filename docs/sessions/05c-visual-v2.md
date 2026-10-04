@@ -345,3 +345,11 @@ licence) for generated images: `docs/brand/zano-wordmark-friendly.png` / `-light
 screen (Stash over "zano"). Call sites sized up for the lowercase mark (Today header 18, onboarding
 hook 22, posters 15–16, Settings footer 14). The swoosh-star `ZanoMark` stays only where it already
 remained (Lock Screen widgets, NFC artwork, the small poster mark). Unverified until CI screenshots.
+
+### First-week buddy intro (2026-10-04)
+
+`BuddyIntro` (Core/Retention): one tip a day for the first seven days, starting the first day Today
+shows one; "Got it" hides it until tomorrow; skipped days are skipped, not queued. `BuddyTipCard` on
+Today (after the trial cards, before suggestions): the buddy, "Tip N of 7", the tip in the buddy's
+voice (`Copy.buddy.introTip`: lock basics, widget, charge, XP and gear, weekly boss, Plan B and
+freezes, emergency unlock). Screenshot runs show tip 1. Test: `BuddyIntroTests`.

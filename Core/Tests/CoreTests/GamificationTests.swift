@@ -85,3 +85,30 @@ struct GamificationTests {
         #expect(PerfectDay.total(defaults: defaults) == 3)
     }
 }
+
+@Suite("Buddy intro — one tip a day for the first week")
+struct BuddyIntroTests {
+    private var calendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+
+    private func day(_ d: Int, _ hour: Int = 9) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: d, hour: hour))!
+    }
+
+    @Test func oneTipPerDayForAWeek() throws {
+        let defaults = try #require(UserDefaults(suiteName: "BuddyIntroTests.\(UUID().uuidString)"))
+        #expect(BuddyIntro.tipForToday(now: day(5), defaults: defaults, calendar: calendar) == 0)
+        // Same day, later: still tip 0 until dismissed.
+        #expect(BuddyIntro.tipForToday(now: day(5, 20), defaults: defaults, calendar: calendar) == 0)
+        BuddyIntro.dismiss(0, defaults: defaults)
+        #expect(BuddyIntro.tipForToday(now: day(5, 21), defaults: defaults, calendar: calendar) == nil)
+        #expect(BuddyIntro.tipForToday(now: day(6), defaults: defaults, calendar: calendar) == 1)
+        // Skipped days are skipped, not queued.
+        #expect(BuddyIntro.tipForToday(now: day(9), defaults: defaults, calendar: calendar) == 4)
+        #expect(BuddyIntro.tipForToday(now: day(11), defaults: defaults, calendar: calendar) == 6)
+        #expect(BuddyIntro.tipForToday(now: day(12), defaults: defaults, calendar: calendar) == nil)
+    }
+}

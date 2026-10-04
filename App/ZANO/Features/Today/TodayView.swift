@@ -227,6 +227,8 @@ struct TodayView: View {
                     // Both draw nothing unless they apply (grace period / trial ending soon).
                     FinishTrialBanner()
                     TrialEarnedCard()
+                    // First week only: one tip a day from the buddy (draws nothing otherwise).
+                    BuddyTipCard()
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist

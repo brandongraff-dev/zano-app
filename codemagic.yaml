@@ -59,6 +59,19 @@ workflows:
             scripts/ci/push-results.sh "build-failed"
             exit 1
           fi
+      # The Apple Watch app (session 13b): the standalone ZANOWatch scheme, unsigned, watchOS
+      # Simulator SDK. Not embedded in ZANO yet, so the build above doesn't compile it. A failure
+      # here marks the run "watch-build-failed" (when the iOS build passed) and its errors land in
+      # errors.txt via watch.log, but it doesn't stop the tests or the screenshot tour.
+      - name: Build ZANOWatch (watchOS Simulator)
+        ignore_failure: true
+        script: |
+          set -o pipefail
+          xcodebuild -project ZANO.xcodeproj -scheme ZANOWatch \
+            -destination 'generic/platform=watchOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee watch.log \
+            || { [ "$(cat .build-status 2>/dev/null)" = "success" ] && echo "watch-build-failed" > .build-status; true; }
       - name: Core unit tests (iOS Simulator)
         ignore_failure: true
         script: |
@@ -77,4 +90,5 @@ workflows:
     artifacts:
       - shots/**
       - build.log
+      - watch.log
       - test.log

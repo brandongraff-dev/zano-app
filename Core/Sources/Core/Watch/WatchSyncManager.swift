@@ -420,6 +420,14 @@ private final class WatchSyncCoordinator {
             ? Self.activePollInterval
             : Self.idlePollInterval
 
+        // The buddy on the wrist (session 13b): who it is, the face Today's hero is pulling, what
+        // it wears, its level, and this week's Scroll Monster. Same sources the phone draws from:
+        // the App Group keys for the choices, SwiftData for the growth and the boss.
+        let buddyProgress = BuddyProgress.load(from: context)
+        let monsterWeek = ScrollMonster.current(context: context, now: now, calendar: calendar)
+        let heroPose = SharedDefaults.store.string(forKey: BuddyPose.heroStorageKey)
+            .flatMap(BuddyPose.init(rawValue:)) ?? .idle
+
         return WatchStateSnapshotPayload(
             rings: rings,
             currentStreak: SharedDefaults.currentStreak,
@@ -436,6 +444,19 @@ private final class WatchSyncCoordinator {
             timeBankRemainingMinutes: SharedDefaults.earnedMinutesMirrorIsForToday
                 ? SharedDefaults.earnedMinutesRemainingToday
                 : 0,
+            buddy: Buddy.stored.rawValue,
+            buddyPose: heroPose.rawValue,
+            buddyGear: BuddyGear.stored.rawValue,
+            level: buddyProgress.level,
+            levelFraction: buddyProgress.levelFraction,
+            earnedUnlocks: buddyProgress.earnedUnlocks,
+            scrollMonster: WatchStateSnapshotPayload.ScrollMonsterWeek(
+                hp: monsterWeek.hp,
+                target: monsterWeek.target,
+                state: monsterWeek.state.rawValue,
+                variant: monsterWeek.variant,
+                daysLeft: monsterWeek.daysLeft
+            ),
             updatedAt: now
         )
     }
@@ -793,6 +814,10 @@ private final class WatchSyncCoordinator {
 /// `LockMode` is used directly for the watch's `WatchLockModeMirror` fields: the watch mirrors its
 /// raw values (`full`/`earn`) on purpose. `Ring.Kind` mirrors `WatchRingKind`.
 ///
+/// Buddy fields (session 13b): `buddy`/`buddyPose`/`buddyGear` are raw values, `level`/
+/// `levelFraction`/`earnedUnlocks` come from `BuddyProgress.load(from:)`, `scrollMonster` from
+/// `ScrollMonster.current(context:)`. The watch declares every one of them optional.
+///
 /// The one deliberate difference: `timeBankRemainingMinutes` does not exist in the watch's
 /// `WatchStateSnapshot` today. The watch's synthesized decoder ignores unknown keys, so it is
 /// harmless now, and it gives the wrist the Time Bank balance (`SharedDefaults.
@@ -842,6 +867,29 @@ private struct WatchStateSnapshotPayload: Codable, Equatable, Sendable {
     var suggestedFocusGoalID: UUID?
     var suggestedFocusGoalTitle: String?
     var timeBankRemainingMinutes: Int
+
+    /// This week's boss, flattened to plain values (mirrors the watch's
+    /// `WatchScrollMonsterSnapshot`; `state` is a `ScrollMonster.State` raw value).
+    struct ScrollMonsterWeek: Codable, Equatable, Sendable {
+        var hp: Int
+        var target: Int
+        var state: String
+        var variant: Int
+        var daysLeft: Int
+    }
+
+    // The buddy (session 13b). All optional on the watch side so a payload from an older phone
+    // build still decodes; raw values are `Buddy`/`BuddyPose`/`BuddyGear` raw values, which the
+    // watch's generated `WatchBuddy`/`WatchBuddyPose`/`WatchBuddyGear` mirror exactly.
+    var buddy: String?
+    var buddyPose: String?
+    var buddyGear: String?
+    var level: Int?
+    var levelFraction: Double?
+    /// `BuddyProgress.earnedUnlocks`: the watch celebrates when it goes up (a lock was earned).
+    var earnedUnlocks: Int?
+    var scrollMonster: ScrollMonsterWeek?
+
     var updatedAt: Date
 
     /// Equality ignoring `updatedAt` — what "nothing changed since the last push" means.

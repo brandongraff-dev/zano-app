@@ -345,6 +345,12 @@ targets:
   #      already flagged there as a choice, not confirmed against an actual Xcode-resolved bundle
   #      ID). If ZANO's real resolved PRODUCT_BUNDLE_IDENTIFIER ever turns out to differ, this
   #      value must be updated to match exactly, or Xcode will refuse to pair the two apps.
+  #
+  # Session 13b (2026-10-04): CI now builds this target on its own (the `ZANOWatch` scheme at the
+  # bottom of this file, `generic/platform=watchOS Simulator`, unsigned). Gap 1 (embedding) is
+  # still deliberately open: embedding changes the main ZANO build and needs signing + a paired
+  # device to mean anything. Gap 2 stands; the watch has its own generated copy of the buddy art
+  # (Watch/ZANOWatch/Generated, from scripts/buddies/export_swift.py) instead of importing Core.
   ZANOWatch:
     type: application
     platform: watchOS
@@ -437,3 +443,13 @@ schemes:
         # to look.
         - package: Core/CoreTests
         - ZANOUITests
+
+  # The watch app on its own (session 13b), so CI can build it: `xcodebuild -scheme ZANOWatch
+  # -destination 'generic/platform=watchOS Simulator'`. XcodeGen only writes the schemes listed
+  # here, and xcodebuild doesn't auto-create one for a target once shared schemes exist.
+  ZANOWatch:
+    build:
+      targets:
+        ZANOWatch: all
+    run:
+      config: Debug

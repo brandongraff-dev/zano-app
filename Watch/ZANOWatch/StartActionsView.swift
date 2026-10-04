@@ -17,39 +17,47 @@ struct StartActionsView: View {
 
     @State private var lastConfirmation: String?
 
+    // A section of `HomeView` (session 13b), not a screen: no ScrollView or title of its own.
     var body: some View {
-        ScrollView {
-            VStack(spacing: WatchTheme.Spacing.md) {
-                if let focusSession = store.snapshot.focusSession {
-                    RunningFocusCard(session: focusSession)
-                } else {
-                    StartFocusCard(store: store, connectivity: connectivity, onSent: showConfirmation(_:))
-                }
-
-                if let activeLock = store.snapshot.activeLock {
-                    ActiveLockCard(lock: activeLock, connectivity: connectivity)
-                } else {
-                    StartLockCard(store: store, connectivity: connectivity, onSent: showConfirmation(_:))
-                }
-
-                if let error = connectivity.lastSendError {
-                    Text(error)
-                        .font(WatchTheme.Typography.caption)
-                        .foregroundStyle(WatchTheme.Colors.warning)
-                        .multilineTextAlignment(.center)
-                }
-
-                if let lastConfirmation {
-                    Text(lastConfirmation)
-                        .font(WatchTheme.Typography.captionEmphasized)
-                        .foregroundStyle(WatchTheme.Colors.accent)
-                }
-            }
-            .padding(.horizontal, WatchTheme.Spacing.xs)
-            .padding(.vertical, WatchTheme.Spacing.sm)
+        VStack(spacing: WatchTheme.Spacing.md) {
+            focusCard
+            lockCard
+            statusLines
         }
-        .background(WatchTheme.Colors.background)
-        .navigationTitle(Copy.watch.actionsTab)
+    }
+
+    @ViewBuilder
+    private var focusCard: some View {
+        if let focusSession = store.snapshot.focusSession {
+            RunningFocusCard(session: focusSession)
+        } else {
+            StartFocusCard(store: store, connectivity: connectivity, onSent: showConfirmation(_:))
+        }
+    }
+
+    @ViewBuilder
+    private var lockCard: some View {
+        if let activeLock = store.snapshot.activeLock {
+            ActiveLockCard(lock: activeLock, connectivity: connectivity)
+        } else {
+            StartLockCard(store: store, connectivity: connectivity, onSent: showConfirmation(_:))
+        }
+    }
+
+    @ViewBuilder
+    private var statusLines: some View {
+        if let error = connectivity.lastSendError {
+            Text(error)
+                .font(WatchTheme.Typography.caption)
+                .foregroundStyle(WatchTheme.Colors.warning)
+                .multilineTextAlignment(.center)
+        }
+
+        if let lastConfirmation {
+            Text(lastConfirmation)
+                .font(WatchTheme.Typography.captionEmphasized)
+                .foregroundStyle(WatchTheme.Colors.accent)
+        }
     }
 
     private func showConfirmation(_ text: String) {
@@ -106,7 +114,7 @@ private struct StartFocusCard: View {
     private func start(minutes: Int) {
         guard let goalID = store.snapshot.suggestedFocusGoalID else { return }
         connectivity.send(.startFocusSession(goalID: goalID, plannedMinutes: minutes))
-        store.markFocusSessionPending(goalTitle: store.snapshot.suggestedFocusGoalTitle ?? "Focus", plannedMinutes: minutes)
+        store.markFocusSessionPending(goalTitle: store.snapshot.suggestedFocusGoalTitle ?? Copy.watch.focusFallbackTitle, plannedMinutes: minutes)
         HapticsPlayer.playActionSent()
         onSent(Copy.watch.focusRequestedConfirmation)
     }
@@ -260,7 +268,7 @@ private struct ActiveLockCard: View {
 }
 
 #Preview {
-    NavigationStack {
+    ScrollView {
         StartActionsView()
     }
     .environment(WatchStateStore.shared)

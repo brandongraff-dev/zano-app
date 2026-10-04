@@ -15,7 +15,7 @@ mkdir -p "$OUT/shots"
   echo "build: ${CM_BUILD_ID:-local}"
   date -u "+finished: %Y-%m-%dT%H:%M:%SZ"
 } > "$OUT/STATUS.txt"
-for f in build.log test.log; do
+for f in build.log watch.log test.log; do
   [ -f "$f" ] || continue
   echo "=== $f: unique errors ===" >> "$OUT/errors.txt"
   grep -E "error:" "$f" | sed -E 's|^.*/clone/||; s|^.*/zano-app/||' | sort -u | head -150 >> "$OUT/errors.txt"

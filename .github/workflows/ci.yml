@@ -60,6 +60,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build.log
 
+      # The Apple Watch app (session 13b). Not embedded in ZANO yet, so the build above doesn't
+      # compile it; this builds the standalone ZANOWatch scheme, unsigned, for the watchOS
+      # Simulator SDK. Runs even when the iOS build failed so both error lists show up at once.
+      - name: Build ZANOWatch (watchOS Simulator)
+        id: watch
+        if: always()
+        run: |
+          set -o pipefail
+          xcodebuild -project ZANO.xcodeproj -scheme ZANOWatch \
+            -destination 'generic/platform=watchOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee watch.log
+
       - name: Run Core unit tests (iOS Simulator)
         id: tests
         if: always()
@@ -212,7 +226,7 @@ jobs:
       - name: Summarize errors (deduplicated)
         if: always()
         run: |
-          for f in build.log test.log uitests.log; do
+          for f in build.log watch.log test.log uitests.log; do
             [ -f "$f" ] || continue
             echo "=================== $f: unique errors ==================="
             grep -E "error:" "$f" | sed -E 's|^.*/zano-app/zano-app/||' | sort -u | head -150
@@ -239,6 +253,7 @@ jobs:
           name: build-logs
           path: |
             build.log
+            watch.log
             test.log
             uitests.log
           if-no-files-found: ignore

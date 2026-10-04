@@ -84,6 +84,35 @@ public enum WatchTheme {
         }
     }
 
+    // MARK: - Buddy colours (mirrors `Theme.BuddyColors`' signature colours)
+
+    public enum Buddy {
+        /// Each buddy's signature colour: its glow and XP bar on the wrist. Copied by hand from
+        /// `Theme.BuddyColors.colors(for:)` (the first value of each trio); keep in sync.
+        static func signature(_ buddy: WatchBuddy) -> Color {
+            switch buddy {
+            case .stash: Color(watchThemeHex: 0x2B_B5_A0)
+            case .zib: Color(watchThemeHex: 0x3F_7B_FF)
+            case .lox: Color(watchThemeHex: 0xFF_8A_3D)
+            case .pip: Color(watchThemeHex: 0x8F_5B_FF)
+            case .moko: Color(watchThemeHex: 0x2F_B8_6B)
+            case .brick: Color(watchThemeHex: 0xE5_48_4D)
+            case .tank: Color(watchThemeHex: 0xC8_F0_4A)
+            case .volt: Color(watchThemeHex: 0x1F_A2_FF)
+            case .howl: Color(watchThemeHex: 0x5B_7B_FF)
+            }
+        }
+
+        /// Mirrors `Theme.Colors.ember` (dark `#FF8A3D`).
+        static let ember = Color(watchThemeHex: 0xFF_8A_3D)
+
+        /// The Scroll Monster's HP bar, as on the phone's Progress tab: danger while it has more
+        /// than half its health, ember after that.
+        static func monsterHP(fraction: Double) -> Color {
+            fraction > 0.5 ? Colors.danger : ember
+        }
+    }
+
     // MARK: - Spacing (mirrors `Theme.Spacing`, spec §15: "4, 8, 12, 16, 24, 32")
 
     public enum Spacing {

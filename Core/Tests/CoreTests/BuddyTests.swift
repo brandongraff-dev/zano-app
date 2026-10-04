@@ -181,4 +181,16 @@ struct BuddyTests {
         #expect(buddy.gearPixels(.bare, slumped: false) == nil)
         #expect(buddy.image(pose: .happy, gear: .crown) != nil)
     }
+
+    @Test func nextGearShowsHowCloseItIs() {
+        let fresh = BuddyProgress(earnedUnlocks: 0, bestStreak: 0)
+        #expect(fresh.nextGear == .partyHat)
+        #expect(fresh.nextGearProgress?.have == 0 && fresh.nextGearProgress?.need == 1)
+        let mid = BuddyProgress(earnedUnlocks: 12, bestStreak: 9)
+        #expect(mid.nextGear == .beanie)
+        #expect(mid.nextGearProgress?.have == 9 && mid.nextGearProgress?.need == 14)
+        let done = BuddyProgress(earnedUnlocks: 40, bestStreak: 45)
+        #expect(done.nextGear == nil)
+        #expect(done.nextGearProgress == nil)
+    }
 }

@@ -23,6 +23,7 @@ struct BuddyGearSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             levelRow
+            nextReward
             gearHeader
             gearGrid
         }
@@ -74,6 +75,51 @@ struct BuddyGearSection: View {
             }
         }
         .frame(height: 8)
+        .accessibilityHidden(true)
+    }
+
+    // MARK: Next reward
+
+    /// The next item to earn, the buddy already trying it on (dimmed), and how close it is.
+    @ViewBuilder
+    private var nextReward: some View {
+        if let next = progress.nextGear, let step = progress.nextGearProgress {
+            HStack(spacing: Theme.Spacing.sm) {
+                BuddySprite(buddy, pose: .excited, size: 48, gear: next)
+                    .opacity(0.55)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(Copy.buddy.nextGear(next))
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Text(Copy.buddy.nextGearProgress(next, have: step.have, need: step.need))
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    miniBar(Double(step.have) / Double(max(1, step.need)))
+                }
+            }
+            .padding(Theme.Spacing.sm)
+            .background {
+                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                    .fill(Theme.Colors.glassFill)
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            Text(Copy.buddy.allGearUnlocked)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(buddy.color)
+        }
+    }
+
+    private func miniBar(_ fraction: Double) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Theme.Colors.track)
+                Capsule()
+                    .fill(Theme.Colors.ember)
+                    .frame(width: max(6, proxy.size.width * min(1, fraction)))
+            }
+        }
+        .frame(height: 6)
         .accessibilityHidden(true)
     }
 

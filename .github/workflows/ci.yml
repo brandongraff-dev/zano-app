@@ -123,7 +123,7 @@ jobs:
           # One launch per screen: -ZANOScreen <name> is read by ScreenshotGallery.swift, which seeds
           # demo data and renders that screen through the real code paths.
           SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7 onboarding-8
-                   buddy-picker buddy-gear paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
+                   buddy-picker paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
                    locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing
                    celebration lockedout recap
                    gym-setup gym-checkin nfc-tags lock-card goals-editor lock-schedule earn-settings

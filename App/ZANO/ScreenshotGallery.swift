@@ -121,13 +121,6 @@ struct ScreenshotHost: View {
         switch name {
         case "paywall":
             PaywallView(flowState: OnboardingFlowState())
-        case "buddy-gear":
-            // Settings > Buddy, scrolled to growth: level and gear (demo progress).
-            ScrollView {
-                BuddyGearSection(buddy: .stash)
-                    .padding(Theme.Spacing.md)
-            }
-            .zanoBackdrop()
         case "buddy-picker":
             // As pushed from Settings > Buddy (onboarding-2 shows it inside the flow's chrome).
             NavigationStack { BuddyPickerView(context: .settings) }

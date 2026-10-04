@@ -54,11 +54,12 @@ struct BuddyPickerView: View {
             VStack(spacing: Theme.Spacing.lg) {
                 header
                 BuddyHeroStage(buddy: buddy, hopTick: hopTick, size: Self.heroSize)
-                grid
                 if context == .settings {
-                    // Growth: level + earned gear (not in onboarding: nothing is earned yet).
+                    // Growth (level, next reward, earned gear) right under your buddy; not in
+                    // onboarding, where nothing is earned yet.
                     BuddyGearSection(buddy: buddy)
                 }
+                grid
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.md)

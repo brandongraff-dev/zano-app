@@ -305,6 +305,36 @@ struct SettingsView: View {
         subscription?.status?.lowercased().contains("trial") == true
     }
 
+    /// "ZANO Pro" on one line with its info button, and the streak pill pinned to the trailing
+    /// edge of the same row (it used to sit beside the whole block, which squeezed the title onto
+    /// two lines).
+    private var planTitleRow: some View {
+        HStack(spacing: Theme.Spacing.xxs) {
+            Text(Copy.settings.planProLabel)
+                .zanoText(.titleLarge)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .layoutPriority(1)
+            // The Apple-billing sentence lives here now instead of under the card.
+            ZanoInfoButton(
+                Copy.settings.planManagedByAppleNote,
+                accessibilityLabel: Copy.settings.sectionInfoLabel(Copy.settings.planProLabel)
+            )
+            Spacer(minLength: Theme.Spacing.xs)
+            // Hidden at 0 so a brand-new user isn't greeted by a zero (spec §8).
+            if currentStreak > 0 {
+                StreakPill(
+                    count: currentStreak,
+                    accessibilityLabelOverride: CoachVoiceTone.streakClause(
+                        currentUser?.coachVoice ?? .hype,
+                        streak: currentStreak
+                    )
+                )
+            }
+        }
+    }
+
     private var planCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             HStack(alignment: .center, spacing: Theme.Spacing.sm) {
@@ -312,35 +342,14 @@ struct SettingsView: View {
                 // 2026-10-03). Never the crown by default: gear is earned, not bought.
                 StoredBuddySprite(pose: .happy, size: 64)
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    HStack(spacing: Theme.Spacing.xxs) {
-                        Text(Copy.settings.planProLabel)
-                            .zanoText(.titleLarge)
-                            .foregroundStyle(Theme.Colors.text)
-                        // The Apple-billing sentence lives here now instead of under the card.
-                        ZanoInfoButton(
-                            Copy.settings.planManagedByAppleNote,
-                            accessibilityLabel: Copy.settings.sectionInfoLabel(Copy.settings.planProLabel)
-                        )
-                    }
+                    planTitleRow
                     ZanoStatusCapsule(
                         dotColor: Theme.Colors.Ring.steps,
                         text: isOnTrial ? Copy.settings.planStatusTrial : Copy.settings.planStatusActive,
                         systemImage: "checkmark.seal.fill"
                     )
                 }
-
-                Spacer(minLength: Theme.Spacing.sm)
-
-                // Hidden at 0 so a brand-new user isn't greeted by a zero (spec §8).
-                if currentStreak > 0 {
-                    StreakPill(
-                        count: currentStreak,
-                        accessibilityLabelOverride: CoachVoiceTone.streakClause(
-                            currentUser?.coachVoice ?? .hype,
-                            streak: currentStreak
-                        )
-                    )
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let renewsAt = subscription?.renewsAt {

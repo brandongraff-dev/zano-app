@@ -298,3 +298,12 @@ earned only, which keeps it clear of the purchasable cosmetics in `CosmeticsStor
   `levelFollowsEarnedUnlocks`, `gearUnlocksFromPlay`, `newGearIsPutOnOnce`, `everyBuddyHasEveryGearOverlay`.
 - **Reward beat:** when `adoptNewGear` puts something on, Today shows `BuddyGearToast` above its
   action bar for 6s: the buddy (ecstatic, wearing it) and "Stash put on the shades! 7-day streak."
+
+### Founder polish pass (2026-10-04)
+
+- **Settings > ZANO Pro card:** the title wrapped to "ZANO / Pro" because the streak pill sat beside the
+  whole block. The pill now sits at the trailing end of the title row; the title is one line.
+- **Buddy growth card:** it sat alone under the 3x3 grid with empty space below it. It now sits right
+  under your buddy in Settings > Buddy and has a "next reward" row (the buddy trying on the next item,
+  "9 of 14 streak days", a mini bar). `BuddyProgress.nextGear` / `nextGearProgress` + test. The
+  duplicate `buddy-gear` screenshot was dropped (`buddy-picker` now shows the card).

@@ -89,6 +89,18 @@ public struct BuddyProgress: Sendable, Equatable {
 
     public var unlockedGear: [BuddyGear] { BuddyGear.wearable.filter { $0.isUnlocked(by: self) } }
 
+    /// The next item to earn (in unlock order), nil once everything is unlocked.
+    public var nextGear: BuddyGear? { BuddyGear.wearable.first { !$0.isUnlocked(by: self) } }
+
+    /// How far along the next item is: (have, need), e.g. (9, 14) days.
+    public var nextGearProgress: (have: Int, need: Int)? {
+        switch nextGear?.requirement {
+        case .earnedUnlocks(let count): (min(earnedUnlocks, count), count)
+        case .bestStreak(let days): (min(bestStreak, days), days)
+        case .none: nil
+        }
+    }
+
     /// Screenshots and previews: Lv 4, party hat and shades unlocked.
     public static let preview = BuddyProgress(earnedUnlocks: 12, bestStreak: 9)
 

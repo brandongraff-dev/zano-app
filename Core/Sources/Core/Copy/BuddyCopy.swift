@@ -141,5 +141,15 @@ extension Copy {
         public static func gearAdopted(_ buddy: Buddy, gear: BuddyGear) -> String {
             "\(name(buddy)) put on the \(gearName(gear).lowercased())! \(gearRequirement(gear))."
         }
+        /// "Next: Beanie" and "9 of 14 days" under it.
+        public static func nextGear(_ gear: BuddyGear) -> String { "Next: \(gearName(gear))" }
+        public static func nextGearProgress(_ gear: BuddyGear, have: Int, need: Int) -> String {
+            switch gear.requirement {
+            case .earnedUnlocks: "\(have) of \(need) earned unlocks"
+            case .bestStreak: "\(have) of \(need) streak days"
+            case .none: ""
+            }
+        }
+        public static let allGearUnlocked = "Every piece of gear unlocked. Legend."
     }
 }

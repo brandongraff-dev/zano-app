@@ -74,7 +74,7 @@ struct Screen1Hook: View {
         HookCenteredScroll {
             VStack(spacing: Theme.Spacing.lg) {
                 // The brand's first appearance: the wordmark, then the star it names.
-                ZanoWordmark(height: 15)
+                ZanoWordmark(height: 22)
                     .opacity(isShown ? 1 : 0)
                     .animation(reveal(delay: 0), value: revealed)
 

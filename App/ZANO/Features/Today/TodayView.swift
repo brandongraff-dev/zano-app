@@ -397,7 +397,7 @@ struct TodayView: View {
     /// own clock says it; one fewer small grey line).
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-            ZanoWordmark(height: 12)
+            ZanoWordmark(height: 18)
             Spacer(minLength: Theme.Spacing.sm)
             StreakPill(
                 count: streak?.current ?? 0,

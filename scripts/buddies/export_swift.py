@@ -144,34 +144,52 @@ for name in ORDER:
                'info': {'author': 'xcode', 'version': 1}}, open(os.path.join(path, 'Contents.json'), 'w'), indent=2)
     print('wrote', os.path.relpath(path, ROOT))
 
+# The friendly wordmark (2026-10-04): lowercase "zano" in Nunito Black (fonts/, SIL OFL), pearl
+# letters with the "o" in Stash teal. The app draws the same thing with SF Rounded (`ZanoWordmark`),
+# where the "o" takes the user's buddy colour; images use Nunito because there's no SF Rounded here.
+from PIL import ImageFont
+FONT = os.path.join(HERE, 'fonts', 'Nunito.ttf')
+PEARL = (242, 244, 255)
+TEAL = (43, 181, 160)
+
+def wordmark(width, ink=PEARL, accent=TEAL):
+    """'zano', tight-cropped, `width` pixels wide, transparent background."""
+    size = 400
+    font = ImageFont.truetype(FONT, size)
+    font.set_variation_by_name('Black')
+    big = Image.new('RGBA', (size * 4, size * 2), (0, 0, 0, 0))
+    d = ImageDraw.Draw(big)
+    x = size // 4
+    for ch in 'zano':
+        d.text((x, size // 4), ch, font=font, fill=(accent if ch == 'o' else ink) + (255,))
+        x += d.textlength(ch, font=font) - size * 0.025
+    big = big.crop(big.getbbox())
+    return big.resize((width, round(big.size[1] * width / big.size[0])), Image.LANCZOS)
+
+wordmark(1200).save(os.path.join(ROOT, 'docs/brand/zano-wordmark-friendly.png'))
+wordmark(1200, ink=(19, 20, 43)).save(os.path.join(ROOT, 'docs/brand/zano-wordmark-friendly-light.png'))
+print('wrote docs/brand/zano-wordmark-friendly(.png, -light.png)')
+
 # Launch screen (buddy everywhere, 2026-10-03): Stash (the default buddy; a launch screen is static,
-# so it can't show the user's own pick), beaming, above the ZANO wordmark, on the `LaunchBackground`
-# ink. 120pt wide: the sprite is 96pt (2x/4x/6x whole-pixel scaling at @1x/@2x/@3x, so it stays
-# crisp), a 20pt gap, then the wordmark 120pt wide. The wordmark comes from the brand PNG (light
-# letters on ink): its brightness becomes the alpha of pearl letters, so it sits on any background.
-LAUNCH_W, SPRITE_PT, GAP_PT = 120, 96, 20
-PEARL = (242, 241, 237)
-WORDMARK = os.path.join(ROOT, 'docs/brand/zano-wordmark-1200.png')
+# so it can't show the user's own pick), beaming, above the friendly wordmark, on the
+# `LaunchBackground` ink. 120pt wide: the sprite is 96pt (whole-pixel scaling at every scale), a
+# 20pt gap, then the wordmark 110pt wide.
+LAUNCH_W, SPRITE_PT, GAP_PT, WORD_PT = 120, 96, 20, 110
 launch_path = os.path.join(ASSETS, 'LaunchLogo.imageset')
-wordmark_src = Image.open(WORDMARK).convert('L')
-lo, hi = wordmark_src.getextrema()
 stash_img = buddies.B['Stash']('happy').render()
 files = []
 for scale in (1, 2, 3):
     width = LAUNCH_W * scale
-    wm_h = round(wordmark_src.size[1] * width / wordmark_src.size[0])
+    word = wordmark(WORD_PT * scale)
     sprite_px = SPRITE_PT * scale
-    height = sprite_px + GAP_PT * scale + wm_h
+    height = sprite_px + GAP_PT * scale + word.size[1]
     canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     cell = sprite_px // N
     ox = (width - N * cell) // 2
     d = ImageDraw.Draw(canvas)
     for (x, y), c in stash_img.items():
         d.rectangle((ox + x * cell, y * cell, ox + (x + 1) * cell - 1, (y + 1) * cell - 1), fill=c)
-    alpha = wordmark_src.resize((width, wm_h), Image.LANCZOS).point(lambda v: max(0, min(255, round((v - lo) * 255 / (hi - lo)))))
-    letters = Image.new('RGBA', (width, wm_h), PEARL + (255,))
-    letters.putalpha(alpha)
-    canvas.alpha_composite(letters, (0, sprite_px + GAP_PT * scale))
+    canvas.alpha_composite(word, ((width - word.size[0]) // 2, sprite_px + GAP_PT * scale))
     name = f'LaunchLogo@{scale}x.png'
     canvas.save(os.path.join(launch_path, name))
     files.append({'filename': name, 'idiom': 'universal', 'scale': f'{scale}x'})

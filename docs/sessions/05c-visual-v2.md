@@ -335,3 +335,13 @@ Today's gear toast became `BuddyToast` (gear / level up / perfect day / monster 
 one at a time for 5 s. Tests: BuddyTests (XP levels, new gear rules, diamond memory, layers) and new
 GamificationTests (boss damage/target/states/days left/art, perfect-day runs).
 Unverified until CI: everything above. Device-only: nothing new beyond the existing list.
+
+### Friendlier logo (2026-10-04)
+
+Founder: "redesign logo to be more friendly". The traced geometric "ZΛNO" wordmark is replaced by
+lowercase **zano** in a rounded black face: SF Rounded in the app (`ZanoWordmark`, same API), with the
+"o" in the user's buddy colour; Nunito Black (SIL OFL, vendored in `scripts/buddies/fonts/` with its
+licence) for generated images: `docs/brand/zano-wordmark-friendly.png` / `-light.png` and the launch
+screen (Stash over "zano"). Call sites sized up for the lowercase mark (Today header 18, onboarding
+hook 22, posters 15–16, Settings footer 14). The swoosh-star `ZanoMark` stays only where it already
+remained (Lock Screen widgets, NFC artwork, the small poster mark). Unverified until CI screenshots.

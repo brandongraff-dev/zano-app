@@ -173,7 +173,7 @@ struct PosterChassis<Content: View>: View {
                 if let footerLabel {
                     HStack(spacing: Theme.Spacing.xs) {
                         // The real wordmark (docs/brand/brand-kit.md), not the name typed in a font.
-                        ZanoWordmark(height: 12)
+                        ZanoWordmark(height: 16)
                             .accessibilityLabel(footerLabel)
                         Spacer(minLength: 0)
                         ZanoMark(height: 14, style: .brand)

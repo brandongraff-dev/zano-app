@@ -143,7 +143,7 @@ private struct BuddyGearTile: View {
                     .multilineTextAlignment(.center)
             }
             .padding(.vertical, Theme.Spacing.xs)
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .top)
+            .frame(maxWidth: .infinity, minHeight: 132, maxHeight: 132, alignment: .top)
             .background { shape.fill(isWorn ? buddy.color.opacity(0.18) : Theme.Colors.glassFill) }
             .overlay { shape.strokeBorder(isWorn ? buddy.color : Theme.Colors.hairline, lineWidth: isWorn ? 2 : 1) }
             .contentShape(shape)

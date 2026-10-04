@@ -6,7 +6,9 @@ moves Moko's head.
 """
 from engine import Sprite
 
-GEAR = ['partyHat', 'shades', 'beanie', 'crown']
+GEAR = ['partyHat', 'shades', 'beanie', 'crown', 'cape', 'jetpack', 'diamond']
+# Gear drawn BEHIND the buddy (the rest is drawn over it).
+UNDER = {'cape', 'jetpack'}
 
 # name -> hat (cx, base_y), eyes (left x, right x, y, w, h); low-variant tweaks in LOW.
 ANCHORS = {
@@ -22,6 +24,13 @@ ANCHORS = {
 }
 LOW = {'Moko': 2}   # rows the head drops in the slumped faces
 
+# name -> body (centre x, shoulder row, half width) for gear worn on the body (cape, jetpack).
+BODY = {
+    'Stash': (22, 31, 10), 'Zib': (24, 25, 15), 'Lox': (23, 28, 8), 'Pip': (24, 24, 13),
+    'Moko': (24, 31, 15), 'Brick': (24, 33, 13), 'Tank': (24, 32, 12), 'Volt': (24, 24, 15),
+    'Howl': (24, 33, 12),
+}
+
 def rowsR(s, x0, y0, rows, key):
     for j, row in enumerate(rows):
         for i, ch in enumerate(row):
@@ -32,12 +41,14 @@ def rowsR(s, x0, y0, rows, key):
 PARTY = ["....w....", "...www...", "....p....", "...pyp...", "...ypy...", "..pypyp..", "..ypypy..", ".pypypyp.", "bbbbbbbbb"]
 BEANIE = ["......www......", ".....wwwww.....", "....bbbbbbb....", "..bbbbbbbbbbb..", ".bbbbbbbbbbbbb.",
           "bbbbbbbbbbbbbbb", "ccccccccccccccc", "ccccccccccccccc"]
+DIAMOND = ["..ddddd..", ".dwwdddd.", "dwdddddde", ".ddddddde", "..dddde..", "...dde...", "....e...."]
 CROWN = ["g.....g.....g", "gg...ggg...gg", "ggg.ggggg.ggg", "ggggggggggggg", "ggrgggbgggrgg", "ggggggggggggg"]
 
 def overlay(name, gear, low=False):
     s = Sprite({'white': '#F4F6FF', 'pink': '#FF6F91', 'sun': '#FFD447', 'band': '#3F7BFF',
                 'beanie': '#3F7BFF', 'cuff': '#7FA6FF', 'gold': '#FFC94A', 'ruby': '#FF5C7A',
-                'gem': '#5BC8FF', 'lens': '#1E1A3A'})
+                'gem': '#5BC8FF', 'lens': '#1E1A3A', 'cape': '#E5484D', 'capeIn': '#9C2F4E',
+                'metal': '#B9C2D6', 'flame': '#FF8A3D'})
     (hx, hy), (lx, rx, ey, ew, eh) = ANCHORS[name]
     d = LOW.get(name, 0) if low else 0
     hy += d
@@ -51,6 +62,19 @@ def overlay(name, gear, low=False):
     elif gear == 'crown':
         rowsR(s, hx - 6, hy - len(CROWN) + 1, CROWN,
               {'g': ('gold', 'crown'), 'r': ('ruby', '_r'), 'b': ('gem', '_g')})
+    elif gear == 'diamond':
+        rowsR(s, hx - 4, hy - len(DIAMOND) - 1, DIAMOND,
+              {'d': ('gem', 'diamond'), 'w': ('white', '_shine'), 'e': ('lens', '_edge')})
+    elif gear == 'cape':
+        cx, sy, hw = BODY[name]
+        s.poly([(cx - hw + 1, sy), (cx + hw - 1, sy), (cx + hw + 6, 47), (cx - hw - 6, 47)], 'cape', 'cape')
+        s.poly([(cx - hw + 3, sy + 3), (cx + hw - 3, sy + 3), (cx + hw + 3, 47), (cx - hw - 3, 47)], 'capeIn', '_in')
+    elif gear == 'jetpack':
+        cx, sy, hw = BODY[name]
+        for tx in (cx - hw - 5, cx + hw):
+            rowsR(s, tx, sy - 4, [".rrr.", "rrrrr", "mmmmm", "mmwmm", "mmwmm", "mmmmm", "mmmmm", "mmmmm", "mmmmm", "mmmmm", ".kkk."],
+                  {'r': ('band', '_cap'), 'm': ('metal', 'tank'), 'w': ('white', '_glint'), 'k': ('lens', '_nozzle')})
+            rowsR(s, tx, sy + 7, [".fff.", "ffyff", ".fyf.", ".fyf.", "..f.."], {'f': ('flame', '_fl'), 'y': ('sun', '_fy')})
     elif gear == 'shades':
         lh = max(4, eh - 1)
         for x0 in (lx - 1, rx - 1):

@@ -483,3 +483,8 @@ user picks from. All nine ship; **Stash** (the raccoon, also the app icon) is th
 Everything until CI builds it and the tour (`buddy-picker`, `onboarding-2`, `buddy-brick-today`,
 `light-buddy-picker`) has been looked at; the report extension picking up a buddy/pose change made in
 the app (cross-process `@AppStorage` on App Group defaults); widget rendering modes on a device.
+
+- **Gamification (2026-10-04):** Today shows the buddy's level and XP bar under it; reward beats
+  (gear, level up, perfect day, boss beaten) are glass capsule toasts with pixel art, one at a time.
+  The weekly Scroll Monster is pixel art in the buddies' style (phone-shaped, face on the screen);
+  its HP bar is danger-red above half, ember below. One glow per screen still applies.

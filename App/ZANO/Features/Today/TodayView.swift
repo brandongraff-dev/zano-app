@@ -117,8 +117,12 @@ struct TodayView: View {
     @State private var screenTimeStatus: AuthorizationStatus
     /// The undo toast after a quick-log. Cleared after `undoDuration` or on undo.
     @State private var pendingUndo: QuickLogUndo?
-    /// Gear the buddy just put on (buddy growth); shown as a toast for a few seconds.
-    @State private var newBuddyGear: BuddyGear?
+    /// Reward beats waiting to show (gear, level up, perfect day, boss beaten), one at a time.
+    @State private var buddyToasts: [BuddyToast] = []
+    /// The buddy's XP and level, for the strip under the hero.
+    @State private var buddyProgress = BuddyProgress(earnedUnlocks: 0, bestStreak: 0)
+    /// The last level the user has been shown (App Group), so a level-up toasts once.
+    private static let buddyLevelSeenKey = "shared.buddyLevelSeen"
     /// An honor-system goal waiting on its one confirmation before it's logged.
     @State private var confirmingLogGoal: Goal?
 
@@ -316,7 +320,7 @@ struct TodayView: View {
             }
             .task(id: completedGoalCount) {
                 ghostComparison = await GhostMode.shared.ghostComparison(for: .now)
-                adoptNewBuddyGear()
+                await refreshBuddyGrowth()
             }
             .task {
                 // spec §23: "every screen view... (count only, on device → aggregate)".
@@ -528,7 +532,17 @@ struct TodayView: View {
 
     /// The buddy on its stage (the star until 2026-10-03). Tapping it spins it and shows a line from the coach; a completed goal
     /// makes it jump and throws a burst in the goal's colour.
+    /// The buddy, then its level and XP bar.
     private var heroStage: some View {
+        VStack(spacing: Theme.Spacing.xxs) {
+            heroStageCore
+            BuddyLevelStrip(progress: buddyProgress, color: buddy.color)
+                .frame(width: Self.heroStageWidth - Theme.Spacing.lg)
+                .padding(.leading, Theme.Spacing.xs)
+        }
+    }
+
+    private var heroStageCore: some View {
         heroStar
             .zanoMascot(
                 mood: mascotMood,
@@ -681,16 +695,52 @@ struct TodayView: View {
     private static let heroStageWidth: CGFloat = 168
     private static let heroMarkHeight: CGFloat = 96
 
-    /// Buddy growth: the first time a gear item unlocks (first earned unlock, 7/14/30-day best
-    /// streak) the buddy puts it on, once. Screenshot runs keep the buddy bare.
-    private func adoptNewBuddyGear() {
-        guard ScreenshotMode.screen == nil else { return }
-        guard let gear = BuddyProgress.adoptNewGear(BuddyProgress.load(from: modelContext)) else { return }
-        WidgetRefresh.reloadAll()
-        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { newBuddyGear = gear }
+    /// Buddy growth and the gamification beats, after every goal change: XP for the level strip,
+    /// a level-up, newly unlocked gear (put on once), a perfect day (all of today's goals done: the
+    /// buddy does a victory spin), and the weekly Scroll Monster's loot once it's beaten. Screenshot
+    /// runs show demo progress and no toasts.
+    private func refreshBuddyGrowth() async {
+        guard ScreenshotMode.screen == nil else {
+            buddyProgress = .preview
+            return
+        }
+        BuddyProgress.recordRank(await SeasonsAndRanks.shared.currentRank().rank)
+        let progress = BuddyProgress.load(from: modelContext)
+        let defaults = SharedDefaults.store
+        var beats: [BuddyToast] = []
+
+        let week = ScrollMonster.current(context: modelContext)
+        if let coins = ScrollMonster.claimLoot(for: week, context: modelContext) {
+            beats.append(.monsterBeaten(coins: coins, variant: week.variant))
+        }
+        let seenLevel = defaults.integer(forKey: Self.buddyLevelSeenKey)
+        if seenLevel > 0, progress.level > seenLevel { beats.append(.levelUp(progress.level)) }
+        defaults.set(progress.level, forKey: Self.buddyLevelSeenKey)
+        if let gear = BuddyProgress.adoptNewGear(progress) {
+            beats.append(.gear(gear))
+            WidgetRefresh.reloadAll()
+        }
+        if mascotMood == .charged, PerfectDay.record() {
+            beats.append(.perfectDay(streak: PerfectDay.streak()))
+            heroBurstTick += 1
+            mascotSpinTick += 1
+        }
+
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { buddyProgress = progress }
+        showBuddyToasts(beats)
+    }
+
+    /// Queues `beats` and shows each for 5 seconds.
+    private func showBuddyToasts(_ beats: [BuddyToast]) {
+        guard !beats.isEmpty else { return }
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { buddyToasts.append(contentsOf: beats) }
         Task {
-            try? await Task.sleep(for: .seconds(6))
-            withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { newBuddyGear = nil }
+            for _ in beats {
+                try? await Task.sleep(for: .seconds(5))
+                withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+                    if !buddyToasts.isEmpty { buddyToasts.removeFirst() }
+                }
+            }
         }
     }
 
@@ -1449,11 +1499,12 @@ struct TodayView: View {
 
     @ViewBuilder
     private var bottomBar: some View {
-        if barState != .none || actionError != nil || pendingUndo != nil || newBuddyGear != nil {
+        if barState != .none || actionError != nil || pendingUndo != nil || !buddyToasts.isEmpty {
             StickyActionBar(extendsToBottomEdge: false) {
                 VStack(spacing: Theme.Spacing.xs) {
-                    if let newBuddyGear {
-                        BuddyGearToast(gear: newBuddyGear)
+                    if let toast = buddyToasts.first {
+                        BuddyToastView(toast: toast)
+                            .id(toast.id)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     if let pendingUndo {

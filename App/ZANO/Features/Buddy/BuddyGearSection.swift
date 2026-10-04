@@ -1,8 +1,8 @@
 // BuddyGearSection.swift
 // App / ZANO / Features / Buddy
 //
-// Buddy growth on the Buddy screen (Settings > Buddy, 2026-10-03): the buddy's level (from
-// lifetime earned unlocks) with a bar to the next one, and its gear: four items earned by playing
+// Buddy growth on the Buddy screen (Settings > Buddy, 2026-10-03): the buddy's level (from XP:
+// completed goals and earned unlocks) with a bar to the next one, and its gear: four items earned by playing
 // (first earned unlock, 7/14/30-day best streak), never bought. Unlocked items are tapped to wear
 // (tap again to take off); locked ones show what unlocks them. What's worn is stored in the App
 // Group (`BuddyGear.storageKey`), so every buddy in the app, the widgets and the shield wear it.
@@ -56,12 +56,15 @@ struct BuddyGearSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             levelBar
+            Text(Copy.buddy.xpHowTo)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
         }
         .accessibilityElement(children: .combine)
     }
 
     private var levelCaption: String {
-        guard let remaining = progress.unlocksToNextLevel else { return Copy.buddy.maxLevel }
+        guard let remaining = progress.xpToNextLevel else { return Copy.buddy.maxLevel }
         return Copy.buddy.toNextLevel(remaining, next: progress.level + 1)
     }
 

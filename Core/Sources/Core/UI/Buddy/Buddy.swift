@@ -146,7 +146,7 @@ extension Buddy {
     /// The buddy in `pose` wearing `gear`, as one image (UIKit callers such as the shield).
     public func image(pose: BuddyPose, gear: BuddyGear = .bare) -> CGImage? {
         let slumped = pose == .drained || pose == .sad
-        let layers = [pixels(pose)] + [gearPixels(gear, slumped: slumped)].compactMap { $0 }
+        let layers = [gearUnderPixels(gear, slumped: slumped), pixels(pose), gearPixels(gear, slumped: slumped)].compactMap { $0 }
         return BuddyPixels.image(layers: layers)
     }
 }

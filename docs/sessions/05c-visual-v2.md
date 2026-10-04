@@ -307,3 +307,31 @@ earned only, which keeps it clear of the purchasable cosmetics in `CosmeticsStor
   under your buddy in Settings > Buddy and has a "next reward" row (the buddy trying on the next item,
   "9 of 14 streak days", a mini bar). `BuddyProgress.nextGear` / `nextGearProgress` + test. The
   duplicate `buddy-gear` screenshot was dropped (`buddy-picker` now shows the card).
+
+### Gamification: XP on Today, weekly boss, perfect days, more gear (2026-10-04)
+
+Founder: "build 1, 2, 3 and 4".
+
+1. **XP and level on Today.** `BuddyProgress` is now XP-based: 10 XP per completed goal, 30 per earned
+   unlock (`levelThresholds` 0, 30, 80, 160, 280, 450, 680, 1000, 1400, 1900, 2500, 3200 → Lv 1–12; about a
+   week of steady days reaches Lv 5, a month Lv 10). Today shows `BuddyLevelStrip` ("Lv 5" + thin bar)
+   under the buddy; a level-up toasts once (`shared.buddyLevelSeen`). Settings > Buddy shows "N XP to
+   Lv X" and how XP is earned.
+2. **Weekly boss: the Scroll Monster** (`Core/Retention/ScrollMonster.swift`). HP = a target of locked
+   minutes (10% above last week's damage, 300–2400, 600 the first week); damage = locked minutes this
+   week (overlaps once) + 20 per completed goal. States healthy / hurt (≤50% HP) / defeated; three colour
+   variants by week number. Pixel art in `scripts/buddies/monster.py` → `ScrollMonster.pixels`. Beaten →
+   +75 coins once per week (fire-once ledger `shared.scrollMonsterBeaten`, claim-then-pay like
+   VariableReward), paid from Today with a toast. Progress gets a "This week's boss" section (monster,
+   HP bar, days left, loot) right under Time reclaimed. Losing costs nothing.
+3. **Perfect days** (`Core/Retention/PerfectDay.swift`): all of today's goals done → recorded once
+   (`shared.perfectDays`), the buddy jumps and spins, and Today toasts "Perfect day! 3 in a row." The run
+   (ending today or yesterday) and total show under the boss on Progress.
+4. **More gear:** cape (Lv 5) and jetpack (Lv 10), drawn *behind* the buddy (`gearUnderPixels`, a new
+   layer under the face), and a floating diamond (reached Diamond rank; remembered across seasons via
+   `shared.buddyReachedDiamond`, recorded from Today). Seven items now, two rows on Settings > Buddy.
+
+Today's gear toast became `BuddyToast` (gear / level up / perfect day / monster beaten), queued and shown
+one at a time for 5 s. Tests: BuddyTests (XP levels, new gear rules, diamond memory, layers) and new
+GamificationTests (boss damage/target/states/days left/art, perfect-day runs).
+Unverified until CI: everything above. Device-only: nothing new beyond the existing list.

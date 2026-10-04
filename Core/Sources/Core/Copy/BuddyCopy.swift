@@ -106,10 +106,10 @@ extension Copy {
 
         public static func level(_ level: Int) -> String { "Lv \(level)" }
         public static func levelSpoken(_ level: Int) -> String { "Level \(level)" }
-        /// "3 more earned unlocks to Lv 6".
-        public static func toNextLevel(_ remaining: Int, next: Int) -> String {
-            remaining == 1 ? "1 more earned unlock to Lv \(next)" : "\(remaining) more earned unlocks to Lv \(next)"
-        }
+        /// "40 XP to Lv 6".
+        public static func toNextLevel(_ xp: Int, next: Int) -> String { "\(xp) XP to Lv \(next)" }
+        /// How XP is earned, under the bar.
+        public static let xpHowTo = "+10 XP per goal, +30 per earned unlock"
         public static let maxLevel = "Max level. Legend status."
         public static let gearTitle = "Gear"
         public static let gearSubtitle = "Earned, never bought. Tap to wear."
@@ -120,6 +120,9 @@ extension Copy {
             case .shades: "Shades"
             case .beanie: "Beanie"
             case .crown: "Crown"
+            case .cape: "Cape"
+            case .jetpack: "Jetpack"
+            case .diamond: "Diamond"
             }
         }
         /// How to unlock it: "7-day streak".
@@ -128,6 +131,8 @@ extension Copy {
             case .none: ""
             case .earnedUnlocks(let count): count == 1 ? "First earned unlock" : "\(count) earned unlocks"
             case .bestStreak(let days): "\(days)-day streak"
+            case .level(let level): "Reach Lv \(level)"
+            case .diamondRank: "Reach Diamond rank"
             }
         }
         public static let gearWearing = "Wearing"
@@ -147,9 +152,38 @@ extension Copy {
             switch gear.requirement {
             case .earnedUnlocks: "\(have) of \(need) earned unlocks"
             case .bestStreak: "\(have) of \(need) streak days"
+            case .level: "Lv \(have) of \(need)"
+            case .diamondRank: "Your rank climbs with consistency"
             case .none: ""
             }
         }
         public static let allGearUnlocked = "Every piece of gear unlocked. Legend."
+
+        // MARK: - Gamification beats (2026-10-04)
+
+        public static func levelUp(_ buddy: Buddy, level: Int) -> String { "\(name(buddy)) reached Lv \(level)!" }
+        public static func perfectDay(streak: Int) -> String {
+            streak > 1 ? "Perfect day! \(streak) in a row." : "Perfect day! Every goal done."
+        }
+        public static func monsterBeaten(coins: Int) -> String { "You beat the Scroll Monster! +\(coins) coins" }
+
+        // Weekly boss card (Progress)
+        public static let monsterTitle = "This week's boss"
+        public static let monsterName = "The Scroll Monster"
+        public static func monsterHP(_ hp: Int, of target: Int) -> String { "\(hp) / \(target) HP" }
+        public static func monsterDaysLeft(_ days: Int) -> String { days == 1 ? "Last day" : "\(days) days left" }
+        public static let monsterHowTo = "Every minute your apps stay locked hits it. Every goal you finish lands a critical hit (+20)."
+        public static func monsterLoot(_ coins: Int) -> String { "Beat it for +\(coins) coins" }
+        public static let monsterDefeated = "Defeated! A new monster shows up next week."
+        public static func monsterBeatenCount(_ count: Int) -> String { count == 1 ? "1 monster beaten" : "\(count) monsters beaten" }
+        public static func monsterSpoken(hp: Int, target: Int, days: Int) -> String {
+            "Scroll Monster, \(hp) of \(target) health left, \(monsterDaysLeft(days).lowercased())"
+        }
+
+        // Perfect days (Progress)
+        public static let perfectTitle = "Perfect days"
+        public static func perfectRun(_ streak: Int) -> String { streak == 1 ? "1 day in a row" : "\(streak) days in a row" }
+        public static let perfectHowTo = "Finish every goal in a day for a perfect day."
+        public static func perfectTotal(_ total: Int) -> String { "\(total) all time" }
     }
 }

@@ -136,16 +136,17 @@ struct BuddyTests {
 
     // MARK: - Growth (levels and gear)
 
-    @Test func levelFollowsEarnedUnlocks() {
+    @Test func levelFollowsXP() {
         #expect(BuddyProgress(earnedUnlocks: 0, bestStreak: 0).level == 1)
+        #expect(BuddyProgress(goalCompletions: 3, earnedUnlocks: 0, bestStreak: 0).xp == 30)
+        #expect(BuddyProgress(goalCompletions: 3, earnedUnlocks: 0, bestStreak: 0).level == 2)
         #expect(BuddyProgress(earnedUnlocks: 1, bestStreak: 0).level == 2)
-        #expect(BuddyProgress(earnedUnlocks: 2, bestStreak: 0).level == 2)
-        #expect(BuddyProgress(earnedUnlocks: 3, bestStreak: 0).level == 3)
-        #expect(BuddyProgress(earnedUnlocks: 12, bestStreak: 0).level == 4)
-        #expect(BuddyProgress(earnedUnlocks: 12, bestStreak: 0).unlocksToNextLevel == 3)
-        #expect(BuddyProgress(earnedUnlocks: 999, bestStreak: 0).isMaxLevel)
-        #expect(BuddyProgress(earnedUnlocks: 999, bestStreak: 0).unlocksToNextLevel == nil)
-        let mid = BuddyProgress(earnedUnlocks: 11, bestStreak: 0).levelFraction
+        #expect(BuddyProgress.preview.xp == 310)
+        #expect(BuddyProgress.preview.level == 5)
+        #expect(BuddyProgress.preview.xpToNextLevel == 140)
+        #expect(BuddyProgress(goalCompletions: 999, earnedUnlocks: 999, bestStreak: 0).isMaxLevel)
+        #expect(BuddyProgress(goalCompletions: 999, earnedUnlocks: 999, bestStreak: 0).xpToNextLevel == nil)
+        let mid = BuddyProgress(goalCompletions: 22, earnedUnlocks: 0, bestStreak: 0).levelFraction // 220 XP: 160...280
         #expect(mid > 0.49 && mid < 0.51)
     }
 
@@ -153,7 +154,13 @@ struct BuddyTests {
         #expect(BuddyProgress(earnedUnlocks: 0, bestStreak: 0).unlockedGear.isEmpty)
         #expect(BuddyProgress(earnedUnlocks: 1, bestStreak: 0).unlockedGear == [.partyHat])
         #expect(BuddyProgress(earnedUnlocks: 1, bestStreak: 7).unlockedGear == [.partyHat, .shades])
-        #expect(BuddyProgress(earnedUnlocks: 30, bestStreak: 30).unlockedGear == BuddyGear.wearable)
+        // Lv 5 (280 XP) brings the cape.
+        #expect(BuddyProgress(goalCompletions: 25, earnedUnlocks: 1, bestStreak: 7).unlockedGear == [.partyHat, .shades, .cape])
+        // Everything, the diamond only with Diamond rank.
+        let all = BuddyProgress(goalCompletions: 200, earnedUnlocks: 30, bestStreak: 30, reachedDiamond: true)
+        #expect(all.unlockedGear == BuddyGear.wearable)
+        let noDiamond = BuddyProgress(goalCompletions: 200, earnedUnlocks: 30, bestStreak: 30)
+        #expect(!noDiamond.unlockedGear.contains(.diamond))
     }
 
     @Test func newGearIsPutOnOnce() throws {
@@ -173,9 +180,11 @@ struct BuddyTests {
     func everyBuddyHasEveryGearOverlay(_ buddy: Buddy) {
         for gear in BuddyGear.wearable {
             for slumped in [false, true] {
-                let overlay = buddy.gearPixels(gear, slumped: slumped)
-                #expect(overlay != nil, "\(buddy) \(gear) slumped=\(slumped)")
-                #expect(overlay?.rows.count == BuddyPixels.size)
+                let over = buddy.gearPixels(gear, slumped: slumped)
+                let under = buddy.gearUnderPixels(gear, slumped: slumped)
+                // Each item is exactly one layer: worn over the buddy, or behind it.
+                #expect((over == nil) != (under == nil), "\(buddy) \(gear) slumped=\(slumped)")
+                #expect((over ?? under)?.rows.count == BuddyPixels.size)
             }
         }
         #expect(buddy.gearPixels(.bare, slumped: false) == nil)
@@ -186,11 +195,21 @@ struct BuddyTests {
         let fresh = BuddyProgress(earnedUnlocks: 0, bestStreak: 0)
         #expect(fresh.nextGear == .partyHat)
         #expect(fresh.nextGearProgress?.have == 0 && fresh.nextGearProgress?.need == 1)
-        let mid = BuddyProgress(earnedUnlocks: 12, bestStreak: 9)
-        #expect(mid.nextGear == .beanie)
-        #expect(mid.nextGearProgress?.have == 9 && mid.nextGearProgress?.need == 14)
-        let done = BuddyProgress(earnedUnlocks: 40, bestStreak: 45)
+        let mid = BuddyProgress(goalCompletions: 5, earnedUnlocks: 3, bestStreak: 9) // Lv 3
+        #expect(mid.nextGear == .cape)
+        #expect(mid.nextGearProgress?.have == 3 && mid.nextGearProgress?.need == 5)
+        let done = BuddyProgress(goalCompletions: 300, earnedUnlocks: 40, bestStreak: 45, reachedDiamond: true)
         #expect(done.nextGear == nil)
         #expect(done.nextGearProgress == nil)
+    }
+
+    @Test func diamondIsRememberedAcrossSeasons() throws {
+        let defaults = try #require(UserDefaults(suiteName: "BuddyTests.rank.\(UUID().uuidString)"))
+        BuddyProgress.recordRank(.gold, defaults: defaults)
+        #expect(!defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
+        BuddyProgress.recordRank(.diamond, defaults: defaults)
+        #expect(defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
+        BuddyProgress.recordRank(.bronze, defaults: defaults)
+        #expect(defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
     }
 }

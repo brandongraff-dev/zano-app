@@ -55,26 +55,49 @@ for name in ORDER:
         defs.append(f'    static let {ident} = BuddyPixels(\n        palette: [{p}],\n        rows: [\n            {r},\n        ]\n    )')
 out += ['        }', '    }', '']
 # Gear overlays: one per buddy and item, plus a slumped-face variant where the head moves (Moko).
+# Items in gear.UNDER are drawn behind the buddy (`gearUnderPixels`), the rest over it.
 import gear as gearlib
-out += ['    /// The overlay for `gear`, drawn over any face; `slumped` is the drained/sad head position.',
-        '    public func gearPixels(_ gear: BuddyGear, slumped: Bool) -> BuddyPixels? {',
-        '        switch (self, gear, slumped) {']
-for name in ORDER:
-    for g in gearlib.GEAR:
-        normal = gearlib.overlay(name.capitalize(), g).render()
-        low = gearlib.overlay(name.capitalize(), g, low=True).render()
-        # The slumped variant first: its `true` case must precede the catch-all `_` case.
-        for variant, img in (('Low', low), ('', normal)):
-            if variant and img == normal:
-                continue
-            pal, rows = encode(img)
-            ident = f'{name}Gear{g[0].upper()}{g[1:]}{variant}'
-            p = ', '.join('0x%02X%02X%02X' % c for c in pal)
-            r = ',\n            '.join(swift_string(row) for row in rows)
-            defs.append(f'    static let {ident} = BuddyPixels(\n        palette: [{p}],\n        rows: [\n            {r},\n        ]\n    )')
-            cond = 'true' if variant else '_'
-            out.append(f'        case (.{name}, .{g}, {cond}): BuddySpriteData.{ident}')
-out += ['        case (_, .bare, _): nil', '        }', '    }', '}', '', 'enum BuddySpriteData {']
+import monster as monsterlib
+
+def gear_function(fname, items, doc):
+    global out
+    out += [f'    /// {doc}', f'    public func {fname}(_ gear: BuddyGear, slumped: Bool) -> BuddyPixels? {{',
+            '        switch (self, gear, slumped) {']
+    for name in ORDER:
+        for g in items:
+            normal = gearlib.overlay(name.capitalize(), g).render()
+            low = gearlib.overlay(name.capitalize(), g, low=True).render()
+            # The slumped variant first: its `true` case must precede the catch-all `_` case.
+            for variant, img in (('Low', low), ('', normal)):
+                if variant and img == normal:
+                    continue
+                pal, rows = encode(img)
+                ident = f'{name}Gear{g[0].upper()}{g[1:]}{variant}'
+                p = ', '.join('0x%02X%02X%02X' % c for c in pal)
+                r = ',\n            '.join(swift_string(row) for row in rows)
+                defs.append(f'    static let {ident} = BuddyPixels(\n        palette: [{p}],\n        rows: [\n            {r},\n        ]\n    )')
+                cond = 'true' if variant else '_'
+                out.append(f'        case (.{name}, .{g}, {cond}): BuddySpriteData.{ident}')
+    out += ['        default: nil', '        }', '    }', '']
+
+gear_function('gearPixels', [g for g in gearlib.GEAR if g not in gearlib.UNDER],
+              'The overlay for `gear` drawn over any face (`slumped`: the drained/sad head position); nil for gear worn behind.')
+gear_function('gearUnderPixels', [g for g in gearlib.GEAR if g in gearlib.UNDER],
+              'The layer for `gear` drawn behind the buddy (cape, jetpack); nil for gear worn over.')
+out += ['}', '', 'extension ScrollMonster {', '    /// The boss in `state`; `variant` (0...2) changes its colours week to week.',
+        '    public static func pixels(_ state: ScrollMonster.State, variant: Int) -> BuddyPixels {',
+        '        switch (state, ((variant % 3) + 3) % 3) {']
+for st in monsterlib.STATES:
+    for v in range(3):
+        pal, rows = encode(monsterlib.monster(st, v).render())
+        ident = f'monster{st.capitalize()}{v}'
+        p = ', '.join('0x%02X%02X%02X' % c for c in pal)
+        r = ',\n            '.join(swift_string(row) for row in rows)
+        defs.append(f'    static let {ident} = BuddyPixels(\n        palette: [{p}],\n        rows: [\n            {r},\n        ]\n    )')
+        cond = str(v) if v < 2 else '_'
+        out.append(f'        case (.{st}, {cond}): BuddySpriteData.{ident}')
+out += ['        }', '    }', '}', '', 'enum BuddySpriteData {']
+
 out.append('\n\n'.join(defs))
 out += ['}', '']
 open(OUT, 'w').write('\n'.join(out))

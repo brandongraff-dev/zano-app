@@ -210,6 +210,8 @@ struct ProgressView: View {
             // names and the groups read as groups without divider lines (better-layout 2).
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 timeReclaimedHero
+                // The weekly boss and perfect days (gamification, 2026-10-04).
+                ScrollMonsterSection()
                 streakSection
                 rankSection
                 badgesSection

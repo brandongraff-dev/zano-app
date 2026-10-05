@@ -462,3 +462,41 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .feat--flip .feat__text { order: 0; }
   .nfc, .sun { width: min(380px, 100%); margin-inline: auto; }
 }
+
+/* made-up hero screen: one goal from unlocking (illustration, not an app capture) */
+.mock--home { background: #f3f1ff; color: #0b0d14; justify-content: flex-start; align-items: stretch; text-align: left; gap: 3.4cqw; padding: 13% 5% 0; }
+.home__top { display: flex; justify-content: space-between; align-items: center; }
+.home__logo { font-size: 9cqw; letter-spacing: -0.05em !important; }
+.home__logo i { font-style: normal; color: #1fb8a4; }
+.home__streak { display: inline-flex; align-items: center; gap: 1cqw; background: #fff1e2; color: #e0690c; font-weight: 800; font-size: 5cqw; padding: 1.6cqw 3.4cqw; border-radius: 99px; }
+.home__streak svg { width: 5cqw; height: 5cqw; }
+.home__hero { position: relative; display: flex; align-items: center; gap: 2cqw; margin-top: 2cqw; }
+.home__hero img { width: 42cqw; flex: none; filter: drop-shadow(0 2cqw 2cqw rgba(60, 40, 120, 0.25)); animation: bobY 3s ease-in-out infinite; }
+.home__num { display: grid; gap: 0.6cqw; }
+.home__num b { font-size: 32cqw; line-height: 0.85; letter-spacing: -0.06em !important; }
+.home__num > span:not(.seg) { font-size: 5.6cqw; font-weight: 700; }
+.home__num .seg { margin-top: 2cqw; gap: 1.4cqw; }
+.home__num .seg i { width: 8cqw; height: 2cqw; background: #d9d4ee; }
+.home__num .seg i.on { background: #7cc21b; }
+.home__bub { position: absolute; left: 24cqw; top: -4cqw; background: #fff; font-weight: 800; font-size: 4.4cqw; padding: 1.6cqw 3.4cqw; border-radius: 4cqw 4cqw 4cqw 1cqw; box-shadow: 0 2cqw 4cqw -2cqw rgba(60, 40, 120, 0.4); z-index: 2; }
+.home__cards { display: grid; grid-template-columns: 1fr 1fr; gap: 3cqw; }
+.hc { position: relative; border-radius: 5cqw; padding: 3.4cqw; display: grid; gap: 0.4cqw; }
+.hc b { font-size: 5cqw; } .hc small { font-size: 4cqw; color: rgba(11, 13, 20, 0.62); font-weight: 600; }
+.hc__ic { width: 8.5cqw; height: 8.5cqw; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.7); margin-bottom: 1cqw; }
+.hc__ic svg { width: 4.8cqw; height: 4.8cqw; }
+.hc--gym { background: #e3f4c4; } .hc--pro { background: #fde2c8; } .hc--foc { background: #e2dafd; box-shadow: 0 0 0 0.6cqw #8b6bff; } .hc--wat { background: #d2eefb; }
+.home__ok { position: absolute; top: 3cqw; right: 3cqw; width: 6cqw; height: 6cqw; border-radius: 50%; background: #3fb950; color: #fff; display: grid; place-items: center; }
+.home__ok svg { width: 3.6cqw; height: 3.6cqw; }
+.hc__bar { height: 1.8cqw; border-radius: 99px; background: rgba(139, 107, 255, 0.2); overflow: hidden; margin-top: 1.4cqw; }
+.hc__bar i { display: block; height: 100%; border-radius: inherit; background: #8b6bff; animation: barfill 6s ease-in-out infinite; }
+@keyframes barfill { 0% { width: 80%; } 60%, 100% { width: 100%; } }
+.home__lock { position: relative; height: 10.5cqw; border-radius: 99px; background: #fff; box-shadow: 0 2cqw 5cqw -3cqw rgba(60, 40, 120, 0.4); font-weight: 800; font-size: 4.8cqw; }
+.home__lock span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2cqw; border-radius: inherit; }
+.home__lock svg { width: 5cqw; height: 5cqw; }
+.home__lock .a { animation: lockA 6s ease-in-out infinite; }
+.home__lock .b { background: #3fb950; color: #fff; opacity: 0; animation: lockB 6s ease-in-out infinite; }
+@keyframes lockA { 0%, 58% { opacity: 1; } 66%, 94% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes lockB { 0%, 58% { opacity: 0; } 66%, 94% { opacity: 1; } 100% { opacity: 0; } }
+.home__tabs { margin: auto 0 5cqw; align-self: center; display: flex; gap: 4cqw; align-items: center; padding: 2.4cqw 5cqw; border-radius: 99px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 2cqw 5cqw -3cqw rgba(60, 40, 120, 0.4); }
+.home__tabs i { width: 4.4cqw; height: 4.4cqw; border-radius: 50%; background: #cfc9e6; }
+.home__tabs i.on { width: 13cqw; border-radius: 99px; background: #2f6bff; }

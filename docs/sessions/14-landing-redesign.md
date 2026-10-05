@@ -45,3 +45,7 @@
 ### 2026-10-05 — Hero screens + NFC tags + Sunrise alarm sections
 
 - **What changed:** hero centre phone is now the real dark Today screen (buddy + goals), flanked by the real 30-day streak card and the illustrated "Unlocked" screen. New sections: "Tap to log." (NFC tags: animated tag ripple + phone logging +750 ml) and "Get up to turn it off." (Sunrise alarm: rising sun, tag on the mirror, buddy waking up). Copy follows spec §5.10 / §6 (Sunrise Tag dismisses the alarm; tags log water/protein/focus/gym). The "+750 ml" and "6:30" screens are illustrations, not app captures.
+
+### 2026-10-05 — Hero centre screen: made-up "1 goal to unlock"
+
+- Light-theme illustrated screen (not an app capture): happy buddy, "1 goal to unlock", three goals done, Focus in progress with a filling bar, "Social locked" chip that flips to "Social open". Built in HTML/CSS (`.mock--home`). Gotcha: cqw padding on a container element resolves against the *parent* container (or svw), so padding on `.mock--home` uses %.

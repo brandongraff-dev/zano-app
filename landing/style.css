@@ -659,3 +659,17 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: 
 .hero3 { background: transparent; }
 .hero3::after { background: rgba(214, 228, 255, 0.55); }
 .nav { background: rgba(255, 255, 255, 0.78); }
+
+/* hero without the phone peek: centre the stack in the first screen */
+.hero3 { justify-content: center; padding-bottom: 72px; }
+.hero3::after { display: none; }
+.hero3 .hero2__cta { margin-bottom: 0; }
+
+/* story: one clean phone; the buddy and its bubble stay outside the screen */
+.story__ghost { display: none; }
+.story__buddy { left: -118px; bottom: 6%; }
+.story__buddy .bubble { left: auto; right: 0; bottom: 106px; }
+@media (max-width: 860px) {
+  .story__buddy { left: -50px; bottom: 3%; }
+  .story__buddy .bubble { left: auto; right: -6px; bottom: 80px; }
+}

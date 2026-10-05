@@ -510,3 +510,18 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .crowd { flex-wrap: wrap; max-width: 380px; margin-inline: auto; }
   .crowd img { width: 20%; margin-inline: 0; max-width: 76px; flex: 0 0 20%; }
 }
+
+/* calmer hero: fewer layers, nothing sitting on top of the phones */
+.stage2 .ic, .ring i { display: none; }
+.ph--l, .ph--r { --w: calc(var(--cw) * 0.66); top: max(190px, 30svh); opacity: 0.96; }
+.ph--l { left: calc(50% - var(--cw) * 0.5 - var(--w) * 0.78); rotate: -6deg; }
+.ph--r { left: calc(50% + var(--cw) * 0.5 - var(--w) * 0.22); rotate: 6deg; }
+.ph .confetti, .ph .mock__pill { display: none; }
+.bd--lox { left: calc(50% - var(--cw) * 1.35 - 70px); top: 20%; --s: 124px; }
+.bd--pip { right: auto; left: calc(50% + var(--cw) * 1.35 - 50px); top: 18%; --s: 118px; }
+.home__bub { display: none; }
+@media (max-width: 1000px) { .bd { display: none; } }
+@media (max-width: 700px) {
+  .bd--lox, .bd--pip { display: block; top: 12%; --s: 54px; }
+  .bd--lox { left: 2%; } .bd--pip { left: auto; right: 2%; }
+}

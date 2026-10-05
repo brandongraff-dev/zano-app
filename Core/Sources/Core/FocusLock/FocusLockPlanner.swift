@@ -31,7 +31,7 @@ public enum FocusLockPlanner {
         var items: [FocusLockProposal] = []
         for event in events.sorted(by: { $0.start < $1.start }) {
             guard qualifies(event, settings: settings, now: now, horizon: horizon),
-                  let reason = reason(for: event, settings: settings)
+                  let kind = lockReason(for: event, settings: settings)
             else { continue }
             let key = FocusLockPattern.key(forTitle: event.title)
             let decision = memory.decision(for: key)
@@ -40,7 +40,7 @@ public enum FocusLockPlanner {
                 id: windowID(patternKey: key, start: event.start),
                 start: event.start,
                 end: event.end,
-                reason: reason,
+                reason: kind,
                 patternKey: key,
                 title: event.title
             )
@@ -58,7 +58,7 @@ public enum FocusLockPlanner {
         return (FocusLockSettings.minMinutes...FocusLockSettings.maxMinutes).contains(event.minutes)
     }
 
-    static func reason(for event: FocusCalendarEvent, settings: FocusLockSettings) -> FocusLockReason? {
+    static func lockReason(for event: FocusCalendarEvent, settings: FocusLockSettings) -> FocusLockReason? {
         if settings.includeFocusBlocks, matchesKeyword(event.title, keywords: settings.keywords) { return .focusBlock }
         if settings.includeMeetings, event.hasOtherAttendees { return .meeting }
         return nil

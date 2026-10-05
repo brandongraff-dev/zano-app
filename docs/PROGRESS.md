@@ -60,6 +60,12 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 15 | Buddy emotions (10 activity faces x 9 buddies) + Buddy Closet (108 cosmetics: skins, hats, eyewear, neckwear, back items, backdrops) | `claude/quirky-wozniak-bf8h1v` | §5.17, §15, §24 | Scaffolded — Unverified. Art checked as rendered sheets; Swift awaits its first CI run. Faces mapped (`BuddyPose(goal:moment:)`) but not yet switched on by Today/Fuel/Focus. Widgets/shield do not wear outfits yet. | 2026-10-05 | [15-buddy-emotions-closet.md](sessions/15-buddy-emotions-closet.md) |
 | 16 | Age rating 13+ and the Family Link design (docs only) | `claude/quirky-wozniak-bf8h1v` | §24, §5.23 | Done (documents). Needs counsel review before submission; no code yet | 2026-10-05 | [16-age-13-and-family-link.md](sessions/16-age-13-and-family-link.md) |
 | 17 | Work-hours focus lock: calendar meetings and focus blocks lock apps, learns which events to lock | `claude/quirky-wozniak-bf8h1v` | §5.24, §9.7, §24 | Scaffolded — Unverified. Planner, learning memory, monitor hand-off and Settings screen written; not yet compiled. Asks only inside Settings (no Today card or notification yet); no background refresh | 2026-10-05 | [17-focus-lock.md](sessions/17-focus-lock.md) |
+| 18 | Sleep wind-down check-in and on-device insights | `claude/quirky-wozniak-bf8h1v` | §5.25 | Scaffolded — Unverified. Compiles only after CI | 2026-10-05 | [18-sleep-wind-down.md](sessions/18-sleep-wind-down.md) |
+| 19 | Smart unlock rules by context (3 rules, suggester) | `claude/quirky-wozniak-bf8h1v` | §5.26 | Scaffolded — Unverified. Whole-app only; monitor boundary needs a device | 2026-10-05 | [19-context-rules.md](sessions/19-context-rules.md) |
+| 20 | Workout auto-unlock observer (Health/Strava via Health) and Year in Review | `claude/quirky-wozniak-bf8h1v` | §5.1, §5.21 | Scaffolded — Unverified. No direct Strava link | 2026-10-05 | [20-health-observer-year-recap.md](sessions/20-health-observer-year-recap.md) |
+| 21 | Earned It video clip with the chosen buddy | `claude/quirky-wozniak-bf8h1v` | §5.27 | Scaffolded — Unverified | 2026-10-05 | [21-earned-it-clip.md](sessions/21-earned-it-clip.md) |
+| 22 | Starter plans (goal templates) | `claude/quirky-wozniak-bf8h1v` | §5.28 | Scaffolded — Unverified | 2026-10-05 | [22-goal-templates.md](sessions/22-goal-templates.md) |
+| 23 | Family Link: parent tasks, view-once photo proof | `claude/quirky-wozniak-bf8h1v` | §5.23, §24 | Scaffolded — Unverified. Blocked: no Supabase project/Auth wired, no Apple enrollment; screen shows not-available | 2026-10-05 | [23-family-link.md](sessions/23-family-link.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.
@@ -128,9 +134,3 @@ build**, before chasing anything else the compiler flags.
 | Lock Card | Not Started | Weeks 13-20 |
 | Shaker | Not Started | Weeks 13-20 |
 | Protein/electrolyte | Not Started | Week 21+ |
-| 18 | Sleep wind-down check-in and on-device insights | `claude/quirky-wozniak-bf8h1v` | §5.25 | Scaffolded — Unverified. Compiles only after CI | 2026-10-05 | [18-sleep-wind-down.md](sessions/18-sleep-wind-down.md) |
-| 19 | Smart unlock rules by context (3 rules, suggester) | `claude/quirky-wozniak-bf8h1v` | §5.26 | Scaffolded — Unverified. Whole-app only; monitor boundary needs a device | 2026-10-05 | [19-context-rules.md](sessions/19-context-rules.md) |
-| 20 | Workout auto-unlock observer (Health/Strava via Health) and Year in Review | `claude/quirky-wozniak-bf8h1v` | §5.1, §5.21 | Scaffolded — Unverified. No direct Strava link | 2026-10-05 | [20-health-observer-year-recap.md](sessions/20-health-observer-year-recap.md) |
-| 21 | Earned It video clip with the chosen buddy | `claude/quirky-wozniak-bf8h1v` | §5.27 | Scaffolded — Unverified | 2026-10-05 | [21-earned-it-clip.md](sessions/21-earned-it-clip.md) |
-| 22 | Starter plans (goal templates) | `claude/quirky-wozniak-bf8h1v` | §5.28 | Scaffolded — Unverified | 2026-10-05 | [22-goal-templates.md](sessions/22-goal-templates.md) |
-| 23 | Family Link: parent tasks, view-once photo proof | `claude/quirky-wozniak-bf8h1v` | §5.23, §24 | Scaffolded — Unverified. Blocked: no Supabase project/Auth wired, no Apple enrollment; screen shows not-available | 2026-10-05 | [23-family-link.md](sessions/23-family-link.md) |

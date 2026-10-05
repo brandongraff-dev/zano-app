@@ -58,8 +58,9 @@ struct WakeMomentOverlay: View {
 
     var body: some View {
         ZStack {
-            // Light enough on the verified side that the sun behind it (now beaming) still shows.
-            Theme.Colors.background.opacity(kind == .verified ? 0.72 : 0.9).ignoresSafeArea()
+            // Nearly opaque: the ringing screen underneath (headline, tag prompt) must not show
+            // through behind the title and subtitle.
+            Theme.Colors.background.opacity(0.97).ignoresSafeArea()
 
             VStack(spacing: Theme.Spacing.lg) {
                 switch kind {

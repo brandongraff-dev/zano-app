@@ -68,12 +68,17 @@ struct SunCharacter: View {
     let mood: SunMood
     var pulse: Bool = false
     var animated: Bool = true
+    /// The faint disc behind the sun. Off where the sun is clipped to a horizon: the disc is wider
+    /// than the sun, so the clip left it with flat vertical edges.
+    var halo: Bool = true
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(mood.glow.opacity(0.18))
-                .scaleEffect(1.12)
+            if halo {
+                Circle()
+                    .fill(mood.glow.opacity(0.18))
+                    .scaleEffect(1.12)
+            }
 
             RetroSun(tint: mood.colors[0], colors: mood.colors)
 

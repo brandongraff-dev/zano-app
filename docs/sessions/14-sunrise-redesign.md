@@ -38,6 +38,15 @@ escape hatch, VoiceOver actions, escalation phases, pulse loop and haptics are u
   - Subtitle says "Morning goal done" only; it does not claim the lock armed, since that was only
     confirmed for the tag path.
   - Check colour is `Ring.workout` (volt green) so it reads as "verified" and not as the sun.
+- **Second pass (after the first CI screenshots, 2026-10-05):** fixed the "you're up" scrim (now
+  near-opaque so the screen underneath no longer shows through), the sun's flat clipped edges (no halo
+  disc when clipped to the horizon), the clock width (58pt), the yawning mouth sitting on the horizon
+  (window 0.86, sink 0.20/0.09/0), the Scan button (amber `.warning` tint; it also looked dimmed in the
+  simulator because NFC is unavailable there), the Snooze row hidden behind the dock fade (more bottom
+  padding, tighter top and card padding), and the Save bar letting text show through (opaque local bar
+  in the Sunrise folder; Core's shared `StickyActionBar` is unchanged). CI: `screens` input on
+  `workflow_dispatch` for focused screenshot runs, a 35-minute step limit and a 150s limit per
+  simulator command in the tour.
 - **Known issues / TODOs left behind:**
   - Pending: collapse the tag help / troubleshooting on the setup screen; Save bar still lets text
     show behind it (Core `StickyActionBar`, not touched); a mood for the snooze moment itself (the cover

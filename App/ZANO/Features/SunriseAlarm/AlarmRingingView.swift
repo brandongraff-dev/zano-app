@@ -108,7 +108,7 @@ struct AlarmRingingView: View {
     /// length, so the size lives here as a Dynamic-Type-scaled metric. Migrate to a
     /// `Theme.Typography.numeralHero` if/when that token lands
     /// (docs/design/competitive-research.md §0 punch list #2).
-    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 68
+    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 58
 
     /// The container is short (an SE-class phone): tighter layout. Set from the root geometry.
     @State private var isCompact = false
@@ -175,8 +175,9 @@ struct AlarmRingingView: View {
                         .padding(.top, Theme.Spacing.xs)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, isCompact ? Theme.Spacing.sm : Theme.Spacing.xl)
-                .padding(.bottom, Theme.Spacing.lg)
+                .padding(.top, isCompact ? Theme.Spacing.sm : Theme.Spacing.md)
+                // Room under the last row so it scrolls clear of the dock's fade.
+                .padding(.bottom, Theme.Spacing.xl)
                 .frame(maxWidth: .infinity)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -291,7 +292,7 @@ struct AlarmRingingView: View {
         let diameter = isCompact ? AlarmMetrics.sunDiameterCompact : AlarmMetrics.sunDiameter
         let window = diameter * AlarmMetrics.sunWindow
         let sink = wakeKind == nil ? phase.sunSink : 0
-        return SunCharacter(mood: sunMood, pulse: isPulsing, animated: !reduceMotion)
+        return SunCharacter(mood: sunMood, pulse: isPulsing, animated: !reduceMotion, halo: false)
             .frame(width: diameter, height: diameter)
             .offset(y: diameter * sink)
             .frame(width: diameter, height: window, alignment: .top)
@@ -386,7 +387,10 @@ struct AlarmRingingView: View {
             PrimaryButton(
                 title: Copy.alarmRinging.tagScanButtonLabel,
                 systemImage: "wave.3.right",
-                isEnabled: !isScanningTag && NFCReader.isAvailable
+                isEnabled: !isScanningTag && NFCReader.isAvailable,
+                // The one main action on this screen, in the alarm's amber rather than the blue that
+                // the quiet Snooze and the setup screens use.
+                tint: .warning
             ) {
                 scanTagAndDismiss()
             }
@@ -512,7 +516,7 @@ struct AlarmRingingView: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .padding(isCompact ? Theme.Spacing.md : Theme.Spacing.lg)
+        .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity)
         .zanoCard(radius: Theme.Radius.large, tint: Theme.Colors.Ring.sunriseAlarm)
     }
@@ -947,8 +951,8 @@ private enum RingingPhase: Sendable, Equatable {
     /// waking, nearly full when critical.
     var sunSink: CGFloat {
         switch self {
-        case .waking: 0.22
-        case .urgent: 0.10
+        case .waking: 0.20
+        case .urgent: 0.09
         case .critical: 0
         }
     }
@@ -980,9 +984,9 @@ private enum AlarmMetrics {
     /// Below this container height the screen uses its compact layout (SE-class phones).
     static let compactHeight: CGFloat = 700
     /// The sun above the clock, and the share of it that shows above the horizon line.
-    static let sunDiameter: CGFloat = 170
-    static let sunDiameterCompact: CGFloat = 120
-    static let sunWindow: CGFloat = 0.84
+    static let sunDiameter: CGFloat = 150
+    static let sunDiameterCompact: CGFloat = 110
+    static let sunWindow: CGFloat = 0.86
 }
 
 /// A retro arcade sun: a disc in a vertical gradient (tint at the top, ember, then pink) with

@@ -894,9 +894,25 @@ struct SleepSetupSaveBar: View {
     let action: () -> Void
 
     var body: some View {
-        StickyActionBar {
-            PrimaryButton(title: title, isEnabled: isEnabled, action: action)
-        }
+        // Not `StickyActionBar`: its ground is 92% opaque, so the text scrolling underneath showed
+        // through behind the button. Same fade and gutters, fully opaque below the fade.
+        PrimaryButton(title: title, isEnabled: isEnabled, action: action)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.lg)
+            .padding(.bottom, Theme.Spacing.sm)
+            .frame(maxWidth: .infinity)
+            .background {
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [Theme.Colors.backgroundDeep.opacity(0), Theme.Colors.backgroundDeep],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Theme.Spacing.lg)
+                    Theme.Colors.backgroundDeep
+                }
+                .ignoresSafeArea(edges: .bottom)
+            }
     }
 }
 

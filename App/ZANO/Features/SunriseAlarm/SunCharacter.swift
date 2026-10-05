@@ -124,14 +124,6 @@ private enum FaceArt {
     private static let blush = Color(red: 1, green: 0.44, blue: 0.68)
     private static let drop = Color(red: 0.5, green: 0.83, blue: 1)
 
-    var body: some View {
-        Canvas { ctx, size in
-            let scale = size.width / 200
-            ctx.scaleBy(x: scale, y: scale)
-            draw(&ctx)
-        }
-    }
-
     static func draw(_ mood: SunMood, in ctx: inout GraphicsContext) {
         switch mood {
         case .asleep:

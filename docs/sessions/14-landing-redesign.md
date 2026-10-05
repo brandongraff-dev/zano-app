@@ -31,3 +31,8 @@
 
 - **Files touched:** `landing/index.html`, `landing/style.css`
 - **What changed:** hero has no copy (h1 kept sr-only): giant "zano" wordmark, disc + orbiting ring, three phones at different depths, six floating buddies, glass icon chips, glass sign-up bar over the cropped phone. Pointer + scroll parallax on every `.fl` layer. Goals/CTA are stacked rounded "sheets" with buddies peeking over the edge; story has ghost phones behind; picker stage has a disc; CTA shows all nine buddies. Reduced-motion disables animation and parallax.
+
+### 2026-10-05 — Hero/story polish
+
+- **What changed:** removed the giant "zano" backdrop text; replaced the blurred side phones with illustrated screens (blue "zano" splash, "Social is locked", "Unlocked"). These three are marketing illustrations built in HTML/CSS, NOT captures of the real app. Story now has 5 steps (locked, today, unlocked, streak, settings). Mobile hero is one clean phone. Bottom-of-page buddies bob 4px and barely parallax.
+- **Still needed:** real captures of more screens (workout/focus session, protein logging, buddy picker, Live Activity). CI's screenshot gallery (`App/ZANO/ScreenshotGallery.swift`) is the likely source.

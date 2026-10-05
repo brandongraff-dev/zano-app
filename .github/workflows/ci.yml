@@ -108,9 +108,8 @@ jobs:
       # Everything lands in shots/ (screenshots, the app's own log, any crash reports) so a failed
       # launch is diagnosable without a Mac.
       - name: Screenshot tour (iOS Simulator)
-        if: ${{ github.event.inputs.skip_tour != 'true' }}
         id: shots
-        if: always() && steps.build.outcome == 'success'
+        if: always() && steps.build.outcome == 'success' && github.event.inputs.skip_tour != 'true'
         continue-on-error: true
         run: |
           mkdir -p shots

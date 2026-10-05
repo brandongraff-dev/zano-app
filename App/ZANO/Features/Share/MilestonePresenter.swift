@@ -162,6 +162,8 @@ private struct MilestoneMomentsModifier: ViewModifier {
                     switch milestone {
                     case .monthlyStory(let story):
                         MonthlyStoryView(story: story, onDismiss: { presenter.dismiss() })
+                    case .yearInReview(let review):
+                        YearInReviewView(review: review, onDismiss: { presenter.dismiss() })
                     default:
                         MilestoneMomentView(milestone: milestone, onDismiss: { presenter.dismiss() })
                     }

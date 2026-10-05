@@ -11,6 +11,8 @@
 //     saved": real screen time is only visible inside the Screen Time report extension.
 //   - Earned unlocks: the 1st, 10th, 50th and 100th lock that ended `.earned`.
 //   - Early bird: the first gym goal `.complete` event logged between 5:00 and 7:00 local time.
+//   - Year in review: from December 1 to January 7, "Your <year>" (the calendar year just ending, or the
+//     one that ended on New Year's Eve), only if the year had at least 14 earned days.
 //   - Monthly story: on the first evaluation in a new month, "Your <Month>" for the previous month,
 //     only if that month had at least 3 earned days (days with an earned unlock).
 //
@@ -65,6 +67,44 @@ public struct MonthlyStory: Codable, Sendable, Hashable {
     public var lockedHours: Int { lockedMinutes / 60 }
 }
 
+/// The calendar year's summary for the "Your <year>" story (December and the first week of January).
+public struct YearInReview: Codable, Sendable, Hashable {
+    public let year: Int
+    /// Distinct days in the year with at least one earned unlock.
+    public let earnedDays: Int
+    public let earnedUnlocks: Int
+    /// Minutes apps were locked in the year (overlapping locks counted once, clipped to the year).
+    public let lockedMinutes: Int
+    /// The longest run of consecutive earned days inside the year.
+    public let bestStreak: Int
+    /// The goal completed most often in the year, `nil` when no completion names a goal.
+    public let topGoalTitle: String?
+    /// The month (1...12) with the most earned days, and how many it had. 0 when there was none.
+    public let bestMonth: Int
+    public let bestMonthDays: Int
+
+    public init(year: Int, earnedDays: Int, earnedUnlocks: Int, lockedMinutes: Int, bestStreak: Int,
+                topGoalTitle: String?, bestMonth: Int, bestMonthDays: Int) {
+        self.year = year
+        self.earnedDays = earnedDays
+        self.earnedUnlocks = earnedUnlocks
+        self.lockedMinutes = lockedMinutes
+        self.bestStreak = bestStreak
+        self.topGoalTitle = topGoalTitle
+        self.bestMonth = bestMonth
+        self.bestMonthDays = bestMonthDays
+    }
+
+    public var lockedHours: Int { lockedMinutes / 60 }
+
+    /// The best month's standalone name in the user's locale ("March"). Locale data, not app copy.
+    public func bestMonthName(calendar: Calendar = .current) -> String {
+        let symbols = calendar.standaloneMonthSymbols
+        guard (1...symbols.count).contains(bestMonth) else { return "" }
+        return symbols[bestMonth - 1]
+    }
+}
+
 /// One shareable milestone.
 public enum Milestone: Sendable, Hashable, Identifiable {
     case streak(days: Int)
@@ -73,11 +113,14 @@ public enum Milestone: Sendable, Hashable, Identifiable {
     /// `checkInAt` is the qualifying gym completion's timestamp.
     case earlyBird(checkInAt: Date)
     case monthlyStory(MonthlyStory)
+    case yearInReview(YearInReview)
 
     /// Ladder families share an id prefix; `markCelebrated` marks the lower rungs too.
     public enum Family: Int, Sendable, Comparable, CaseIterable {
-        // Raw value is presentation priority: a monthly story is time-sensitive, so it goes first.
-        case monthlyStory = 0
+        // Raw value is presentation priority: the year in review is rare, so it goes first; a monthly
+        // story is time-sensitive, so it goes next.
+        case yearInReview = 0
+        case monthlyStory
         case streak
         case earnedUnlocks
         case lockedHours
@@ -91,7 +134,7 @@ public enum Milestone: Sendable, Hashable, Identifiable {
             case .streak: MilestoneEngine.streakThresholds
             case .lockedHours: MilestoneEngine.lockedHourThresholds
             case .earnedUnlocks: MilestoneEngine.earnedUnlockThresholds
-            case .earlyBird, .monthlyStory: []
+            case .earlyBird, .monthlyStory, .yearInReview: []
             }
         }
 
@@ -102,6 +145,7 @@ public enum Milestone: Sendable, Hashable, Identifiable {
             case .earnedUnlocks: "unlocks"
             case .earlyBird: "early-bird"
             case .monthlyStory: "month"
+            case .yearInReview: "year"
             }
         }
 
@@ -115,6 +159,7 @@ public enum Milestone: Sendable, Hashable, Identifiable {
         case .earnedUnlocks: .earnedUnlocks
         case .earlyBird: .earlyBird
         case .monthlyStory: .monthlyStory
+        case .yearInReview: .yearInReview
         }
     }
 
@@ -124,7 +169,7 @@ public enum Milestone: Sendable, Hashable, Identifiable {
         case .streak(let days): days
         case .lockedHours(let hours): hours
         case .earnedUnlocks(let count): count
-        case .earlyBird, .monthlyStory: nil
+        case .earlyBird, .monthlyStory, .yearInReview: nil
         }
     }
 
@@ -136,6 +181,8 @@ public enum Milestone: Sendable, Hashable, Identifiable {
         case .monthlyStory(let story):
             let month = story.month < 10 ? "0\(story.month)" : "\(story.month)"
             return "\(Family.monthlyStory.idPrefix)-\(story.year)-\(month)"
+        case .yearInReview(let review):
+            return "\(Family.yearInReview.idPrefix)-\(review.year)"
         default:
             return family.ladderID(threshold ?? 0)
         }
@@ -189,6 +236,8 @@ public final class MilestoneEngine {
     public nonisolated static let earnedUnlockThresholds = [1, 10, 50, 100]
     /// A month needs this many earned days for a "Your <Month>" story.
     public nonisolated static let monthlyStoryMinimumEarnedDays = 3
+    /// A year needs this many earned days for a "Your <year>" story.
+    public nonisolated static let yearInReviewMinimumEarnedDays = 14
     /// Early bird window, local hours: 5:00 up to (not including) 7:00.
     public nonisolated static let earlyBirdHours = 5..<7
 
@@ -247,6 +296,9 @@ public final class MilestoneEngine {
 
         if let story = monthlyStory(now: now, snapshot: snapshot, calendar: calendar) {
             result.append(.monthlyStory(story))
+        }
+        if let review = yearInReview(now: now, snapshot: snapshot, calendar: calendar) {
+            result.append(.yearInReview(review))
         }
         return result
     }
@@ -364,6 +416,57 @@ public final class MilestoneEngine {
         )
     }
 
+    /// The year in review: in December it is this year, from January 1 to 7 it is last year, otherwise
+    /// `nil`; also `nil` with fewer than `yearInReviewMinimumEarnedDays` earned days that year.
+    public nonisolated static func yearInReview(now: Date, snapshot: MilestoneSnapshot, calendar: Calendar) -> YearInReview? {
+        let parts = calendar.dateComponents([.year, .month, .day], from: now)
+        guard let nowYear = parts.year, let nowMonth = parts.month, let nowDay = parts.day else { return nil }
+        let year: Int
+        if nowMonth == 12 {
+            year = nowYear
+        } else if nowMonth == 1, nowDay <= 7 {
+            year = nowYear - 1
+        } else {
+            return nil
+        }
+        guard let start = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
+              let end = calendar.date(byAdding: .year, value: 1, to: start) else { return nil }
+        let span = DateInterval(start: start, end: end)
+        func inYear(_ date: Date) -> Bool { date >= start && date < end }
+
+        let earned = snapshot.earnedUnlockDates.filter(inYear)
+        let earnedDays = Set(earned.map { calendar.startOfDay(for: $0) })
+        guard earnedDays.count >= yearInReviewMinimumEarnedDays else { return nil }
+
+        let clipped = snapshot.lockIntervals.compactMap { $0.intersection(with: span) }
+        let lockedMinutes = Int(lockedSeconds(clipped) / 60)
+
+        var perMonth: [Int: Int] = [:]
+        for day in earnedDays { perMonth[calendar.component(.month, from: day), default: 0] += 1 }
+        // Most earned days wins; ties go to the earlier month so the result is stable.
+        let best = perMonth.max { lhs, rhs in lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key }
+
+        var counts: [String: Int] = [:]
+        for completion in snapshot.goalCompletions where inYear(completion.date) {
+            guard let title = completion.goalTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { continue }
+            counts[title, default: 0] += 1
+        }
+        let topGoal = counts.max { lhs, rhs in
+            lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
+        }?.key
+
+        return YearInReview(
+            year: year,
+            earnedDays: earnedDays.count,
+            earnedUnlocks: earned.count,
+            lockedMinutes: lockedMinutes,
+            bestStreak: longestRun(of: earned, calendar: calendar),
+            topGoalTitle: topGoal,
+            bestMonth: best?.key ?? 0,
+            bestMonthDays: best?.value ?? 0
+        )
+    }
+
     // MARK: Snapshot (SwiftData)
 
     /// Reads local state into plain values. Predicates compare dates and ids only.
@@ -393,7 +496,9 @@ public final class MilestoneEngine {
         // Goal events: by date only. All of history while Early bird is still unclaimed, otherwise
         // just from the previous month's start (all the monthly story needs).
         let lowerBound: Date
-        if includeAllGoalEvents {
+        // December and early January also need the whole year for the year in review.
+        let month = calendar.component(.month, from: now)
+        if includeAllGoalEvents || month == 12 || month == 1 {
             lowerBound = .distantPast
         } else if let thisMonth = calendar.dateInterval(of: .month, for: now),
                   let previous = calendar.date(byAdding: .month, value: -1, to: thisMonth.start) {

@@ -204,6 +204,12 @@ struct ScreenshotHost: View {
                                     lockedMinutes: 84 * 60, bestStreak: 12, topGoalTitle: "Gym session"),
                 onDismiss: {}
             )
+        case "year-in-review":
+            YearInReviewView(
+                review: YearInReview(year: 2026, earnedDays: 212, earnedUnlocks: 260, lockedMinutes: 900 * 60,
+                                     bestStreak: 41, topGoalTitle: "Gym session", bestMonth: 3, bestMonthDays: 27),
+                onDismiss: {}
+            )
         default:
             ContentUnavailableView("Unknown screen", systemImage: "questionmark.square.dashed",
                                    description: Text(name))

@@ -57,6 +57,7 @@ struct MilestoneCardContent: Equatable, Sendable {
         case .earnedUnlocks: .volt
         case .earlyBird: .sun
         case .monthlyStory: .sky
+        case .yearInReview: .volt
         }
     }
 }

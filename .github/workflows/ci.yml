@@ -149,7 +149,7 @@ jobs:
                    celebration lockedout recap
                    gym-setup gym-checkin nfc-tags lock-card goals-editor lock-schedule earn-settings
                    tier-editor nudge-settings health-pause solo-duel squad-create referral
-                   gym-leaderboard autofocus milestone monthly-story"
+                   gym-leaderboard autofocus milestone monthly-story year-in-review"
           for SCREEN in $SCREENS; do
             xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
             xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"

@@ -159,7 +159,7 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 }
 
 /* scroll story: tall section, sticky stage, content swaps by scroll position */
-.story { height: 520vh; position: relative; }
+.story { height: 440vh; position: relative; }
 .story__stick { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; align-items: center; overflow: hidden; }
 .story__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; width: 100%; padding-top: 64px; }
 .story__copy { position: relative; min-height: 190px; }
@@ -196,7 +196,7 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 .pick__thumb img { width: 100%; image-rendering: pixelated; }
 
 @media (max-width: 860px) {
-  .story { height: 500vh; }
+  .story { height: 420vh; }
   .story__grid { grid-template-columns: 1fr; gap: 20px; padding-top: 72px; justify-items: center; text-align: center; }
   .story__text { display: grid; justify-items: center; order: 2; width: 100%; }
   .story__phone { order: 1; }
@@ -500,3 +500,6 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 .home__tabs { margin: auto 0 5cqw; align-self: center; display: flex; gap: 4cqw; align-items: center; padding: 2.4cqw 5cqw; border-radius: 99px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 2cqw 5cqw -3cqw rgba(60, 40, 120, 0.4); }
 .home__tabs i { width: 4.4cqw; height: 4.4cqw; border-radius: 50%; background: #cfc9e6; }
 .home__tabs i.on { width: 13cqw; border-radius: 99px; background: #2f6bff; }
+
+/* sunrise bubble sits beside the buddy's face, inside the phone */
+.mock--alarm .mock__bub { position: absolute; z-index: 4; left: 57cqw; top: 83cqw; background: #fff; color: #1a1230; font-weight: 800; font-size: 5.4cqw; padding: 2cqw 3.6cqw; border-radius: 4cqw 4cqw 4cqw 1cqw; box-shadow: 0 2cqw 5cqw -2cqw rgba(0, 0, 0, 0.5); white-space: nowrap; animation: pop 0.5s cubic-bezier(.2, 1.4, .4, 1) both; }

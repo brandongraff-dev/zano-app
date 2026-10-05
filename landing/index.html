@@ -92,9 +92,8 @@
               <div class="copy"><h2>Earn it.</h2><p>Train, focus, eat protein, drink water. ZANO checks it for real.</p></div>
               <div class="copy"><h2>Get it back.</h2><p>Apps open the second you finish.</p></div>
               <div class="copy"><h2>Keep the streak.</h2><p>Every day you earn it, the number grows.</p></div>
-              <div class="copy"><h2>Make it yours.</h2><p>Your goals, your gym, your buddy.</p></div>
             </div>
-            <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+            <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
           </div>
           <div class="story__phone">
             <div class="story__disc" data-d="0.2"></div>
@@ -106,7 +105,6 @@
                 <img src="assets/screen-today-dark.webp" alt="Today screen with 2 goals left" />
                 <div class="mock mock--win"><span class="confetti" aria-hidden="true"><i style="left:10%;top:12%;--c:#ff8a2b;--d:3.1s"></i><i style="left:24%;top:6%;--c:#8b6bff;--d:4s"></i><i style="left:40%;top:14%;--c:#2f6bff;--d:3.4s"></i><i style="left:58%;top:5%;--c:#ff5c8a;--d:4.4s"></i><i style="left:76%;top:12%;--c:#7cc21b;--d:3.7s"></i><i style="left:88%;top:22%;--c:#ff8a2b;--d:3.2s"></i><i style="left:8%;top:40%;--c:#2db7f5;--d:4.2s"></i><i style="left:92%;top:48%;--c:#8b6bff;--d:3.5s"></i><i style="left:16%;top:70%;--c:#ff5c8a;--d:3.9s"></i><i style="left:84%;top:74%;--c:#2f6bff;--d:3.3s"></i></span><img src="assets/buddies/volt-ecstatic.webp" alt="" /><b>Unlocked</b><span class="mock__pill">Open Social</span></div>
                 <img src="assets/screen-streak.webp" alt="30 day streak card" />
-                <img src="assets/screen-settings.webp" alt="Settings screen" />
               </div>
             </div>
             <div class="story__buddy">
@@ -188,8 +186,7 @@
           <div class="sun">
             <div class="sun__sky"><span class="sun__orb"></span><span class="sun__ground"></span></div>
             <div class="sun__mirror"><span class="sun__tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
-            <div class="sun__phone"><div class="phone"><div class="mock mock--alarm"><b class="mock__time">6:30</b><img id="sunBuddy" src="assets/buddies/stash-sleepy.webp" alt="" /><span class="mock__pill mock__pill--o">Tap your tag</span></div></div></div>
-            <div class="bubble sun__bubble" id="sunBubble">Zzz</div>
+            <div class="sun__phone"><div class="phone"><div class="mock mock--alarm"><b class="mock__time">6:30</b><span class="mock__bub" id="sunBubble">Zzz</span><img id="sunBuddy" src="assets/buddies/stash-sleepy.webp" alt="" /><span class="mock__pill mock__pill--o">Tap your tag</span></div></div></div>
           </div>
         </div>
       </div>
@@ -298,7 +295,7 @@
 
     // ---- scroll story ----
     const story = document.getElementById("story");
-    const bubbleLines = ["Locked in.", "Two to go.", "Unlocked!", "30 days!", "Pick me."];
+    const bubbleLines = ["Locked in.", "Two to go.", "Unlocked!", "30 days!"];
     const sImgs = story.querySelectorAll(".screens > *"), sCopy = story.querySelectorAll(".copy"), sDots = story.querySelectorAll(".dots i");
     const sBubble = document.getElementById("storyBubble");
     let cur = -1;

@@ -295,7 +295,7 @@ All actions are **App Intents** (§14). Build each once, reuse everywhere.
 **NFC (Core NFC + Shortcuts)**
 - App reads NDEF tags. Each tag encodes a URL like `zano://tag/<uuid>` mapped to an action in-app (Lock, Log Water 750ml, Log Shake 25g, Sunrise Key, Creatine).
 - Background tag reading: iPhone shows a notification → tap → app runs the action. For truly no-touch logging, guide users to create a Shortcuts Automation ("When NFC tag is scanned → Run ZANO: Log Water") — one screen, 20 seconds.
-- Ship a printable "tag setup" guide and sell tag packs (§25).
+- **Works with any tag (decision 2026-10-05).** The app must pair *and write* any generic NTAG213/215 sticker (Core NFC NDEF write), so users never need ZANO-branded hardware. At launch there is no ZANO tag pack: NFC Setup links to generic tags plus a printable "tag setup" guide. Branded tag packs come later (§25.7).
 
 **Siri / Shortcuts**
 - App Shortcuts with phrases: "Lock in with ZANO", "Log a shake", "Log water", "How am I doing today"
@@ -745,7 +745,7 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 - Price tests (RevenueCat/Superwall): $6.99/mo, $39.99/yr (highlight), $59.99 lifetime (test only). Start higher than feels comfortable; lower if conversion is weak.
 - 7-day trial with pre-expiry reminder (trust + fewer refunds). Test 3-day vs 7-day.
 
-**Physical add-ons (see §25):** NFC tag pack, Lock Card, Shaker bottle with built-in tag. Sell via Shopify/TikTok Shop; link from Settings → "Gear."
+**Physical add-ons (see §25):** NFC tag pack, Lock Card, Shaker bottle with built-in tag. Sell via Shopify/TikTok Shop; link from Settings → "Gear." **None of these ship at launch (decision 2026-10-05, §25.7):** the annual plan launches without a free tag pack, and Gear links to generic tags until a branded pack is pre-sold.
 
 **Never sell:** unlocks, streak restores, or anything that lets money bypass the goal. The moment you do, the product's promise breaks.
 
@@ -823,9 +823,11 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 Funding rule: each product is pre-sold to the existing app audience (waitlist → limited drop) so the production run is paid for before it's ordered. Never carry inventory you haven't sold.
 
+**Launch with zero hardware (decision 2026-10-05).** No ZANO-made physical product exists at launch. Users bring their own generic tags; the branded Tag Pack starts only after the demand gate in §25.7.
+
 ### 25.1 Tag Pack (Product 1)
 - 5 NTAG215 adhesive tags, branded, in a small folded card with placement guide: **Sunrise** (mirror), **Bottle**, **Shaker/Protein**, **Desk** (focus), **Gym bag**.
-- Sold at cost + margin, free with annual plan (turns the tag into a subscription upsell, not a cost center).
+- Sold at cost + margin. "Free with annual" is **deferred, not at launch** (decision 2026-10-05). At $39.99/yr, a free pack costs ~$3–7 shipped (8–18% of first-year revenue), so turn it on only once the Tag Pack sells on its own. Claim flow when it does: §25.7.
 - Also the cheapest possible market test: run it before the Lock Card exists.
 - Setup: tag writes `zano://tag/<uuid>`; app maps it to an action in one screen.
 
@@ -873,6 +875,33 @@ Don't just sell the Lock Card — make the best versions **unsellable**.
 ### 25.6 In-app store behavior
 The app is the store and the CRM: Settings → Gear, contextual offers ("You've logged 40 shakes — here's the bottle that logs itself"), Sunrise Alarm setup prompting a tag pack, reorder prompts when a tub is likely empty, and earned-card shipping prompts at milestones.
 
+### 25.7 Tag distribution & fulfillment (decision 2026-10-05)
+
+**Stage 0: launch, no inventory.**
+- The app is fully usable with no tags: every NFC goal has a widget/button path, and the Sunrise Alarm has the steps dismiss (§5.10).
+- NFC Setup and Settings → Gear link to **generic NTAG215 stickers** (an Amazon listing, optionally an affiliate link) plus the printable placement guide. ZANO writes `zano://tag/<uuid>` onto whatever tag the user buys. Cost to us: $0.
+- No Shopify store yet. Put a **"Notify me when ZANO tags drop"** waitlist in Gear (email or an in-app flag), which becomes the demand signal for Stage 1.
+
+**Why not print-on-demand / dropship:** as of 2026-10-05, no POD platform (Printful, Printify, Prodigi, etc.) offers NFC-embedded stickers with automatic Shopify fulfillment; they print paper/vinyl stickers only. A plain printed logo sticker without a chip doesn't work with the app. The closest no-inventory option is a **low-MOQ custom NFC vendor** (e.g., Seritag printed labels from 10 units, TagStand small-batch with no minimum, TapTag from 10). These print and encode to order but ship to *you*, not your customer, so you still pack and ship. Re-check this before Stage 1; if a vendor starts offering drop-shipping, it replaces self-shipping below.
+
+**Stage 1: branded Tag Pack. Gate: ~200 waitlist sign-ups, or users regularly asking for tags.**
+1. Order 3–5 samples (low-MOQ vendor above, or Alibaba for custom print). Test read range on a real iPhone through the adhesive, on a mirror, a bottle, and a desk.
+2. Open a Shopify store; list the pack as a **pre-order** to the waitlist. Order the run (100–500) only after pre-orders cover it (§25.0 funding rule).
+3. Self-ship: flat pack in a rigid/padded envelope, USPS Ground Advantage via Shopify Shipping or Pirate Ship (~$4–5). Check whether a thin pack qualifies for letter postage, but expect a non-machinable surcharge. **US only** until international demand shows up.
+4. Payments: physical goods go through Shopify checkout, never Apple IAP. The subscription stays IAP (RevenueCat). Linking to the store from Gear is allowed.
+
+**Stage 2: free pack with annual. Gate: Stage 1 selling, and unit cost known.**
+1. User buys annual (RevenueCat).
+2. RevenueCat webhook → Supabase Edge Function marks the user `tag_pack_eligible` **only once the trial has converted to a paid charge** (not at trial start), plus a short delay (~7 days) to absorb refund abuse.
+3. The app shows "Claim your free tag pack." Tapping it calls an Edge Function that creates a **single-use 100%-off Shopify discount code** (Shopify Admin API; key lives only in the Edge Function) and opens Shopify checkout.
+4. The user enters their address **on Shopify**. Our backend never stores home addresses (local-first; keeps that PII out of Postgres). Store only `claimed_at` and the Shopify order ID.
+5. One claim per Apple account, ever. A refund after claiming does not trigger clawback (not worth chasing ~$5), but blocks a re-claim.
+6. Paid and $0 orders fulfill identically from the same Shopify queue.
+
+**Stage 3: 3PL.** When packing eats meaningful time each week, move inventory to a Shopify-integrated 3PL (ShipBob / ShipMonk / Amplifier class). Expect setup fees and monthly minimums, so not before volume justifies it.
+
+**Unverified, check before Stage 2:** that bundling a physical bonus with an IAP subscription is fine under the current App Review Guidelines §3.1 (common practice, not confirmed against the current text).
+
 ---
 
 ## 26. Roadmap
@@ -883,7 +912,7 @@ The app is the store and the CRM: Settings → Gear, contextual offers ("You've 
 | 3–4 | Sessions 3–6: verification, intents/widgets, UI, onboarding, paywall. TestFlight. |
 | 5–6 | Session 7–8: backend sync, meal AI, recaps. Fix funnel. App Store submission. |
 | 7–8 | Launch. Creators. Session 9–10: retention systems, Earn Mode. |
-| 9–12 | Session 11: squads, duels, share loops. **Tag Pack on sale (Product 1); Lock Card samples ordered.** |
+| 9–12 | Session 11: squads, duels, share loops. **Tag Pack pre-sale only if the §25.7 Stage 1 gate is met;** Lock Card samples after that. |
 | 13–20 | Session 12–13: ML, Watch, seasons, leaderboards. **Lock Card drop (pre-sold), Earned Cards live, shaker sampling.** |
 | 21+ | Protein/electrolyte pre-sale if the audience is there. Android evaluation. |
 
@@ -922,5 +951,7 @@ Milestone goals (in order): first paying user → $1k MRR → 1,000 weekly earne
 - Whether to ship the Watch app before or after squads.
 
 ---
+
+*Version 2.1 — October 5, 2026 — no hardware at launch: generic tags supported, branded Tag Pack gated on demand, free-with-annual deferred (§25.7, §25.0–25.1, §6, §21, §26).*
 
 *Version 2.0 — September 22, 2026 — brand set to ZANO (added §5.10 Sunrise Alarm, rebuilt §25 hardware plan with Lock Card stand + Earned Cards, new gotchas). Update the version line when decisions change.*

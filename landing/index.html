@@ -52,31 +52,34 @@
       </div>
     </section>
 
-    <section class="section section--soft" id="how">
-      <div class="wrap">
-        <div class="head reveal">
-          <p class="eyebrow">How it works</p>
-          <h2>Lock it. Earn it. Get it back.</h2>
-        </div>
-        <div class="steps">
-          <div class="step reveal"><span class="step__n">1</span><h3>Lock it</h3><p>Pick the apps that waste your time.</p></div>
-          <div class="step reveal" style="--d:.1s"><span class="step__n">2</span><h3>Earn it</h3><p>Train, focus, eat protein, drink water.</p></div>
-          <div class="step reveal" style="--d:.2s"><span class="step__n">3</span><h3>Get it back</h3><p>Apps open the moment you finish.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="wrap">
-        <div class="head reveal">
-          <p class="eyebrow">The app</p>
-          <h2>Simple to open daily.</h2>
-        </div>
-        <div class="shots">
-          <figure class="reveal"><div class="phone"><img src="assets/screen-welcome.webp" alt="Welcome screen" loading="lazy" /></div><figcaption>Welcome</figcaption></figure>
-          <figure class="reveal" style="--d:.08s"><div class="phone"><img src="assets/screen-today-dark.webp" alt="Today screen, dark" loading="lazy" /></div><figcaption>Today</figcaption></figure>
-          <figure class="reveal" style="--d:.16s"><div class="phone"><img src="assets/screen-streak.webp" alt="30 day streak card" loading="lazy" /></div><figcaption>Streaks</figcaption></figure>
-          <figure class="reveal" style="--d:.24s"><div class="phone"><img src="assets/screen-settings.webp" alt="Settings screen" loading="lazy" /></div><figcaption>Setup</figcaption></figure>
+    <!-- Scroll story: phone stays put, screens + buddy change as you scroll -->
+    <section class="story" id="story" data-step="0" style="--steps:4">
+      <div class="story__stick">
+        <div class="wrap story__grid">
+          <div class="story__text">
+            <p class="eyebrow">How it works</p>
+            <div class="story__copy">
+              <div class="copy on"><h2>Lock it.</h2><p>Pick the apps that waste your time. They go dark.</p></div>
+              <div class="copy"><h2>Earn it.</h2><p>Train, focus, eat protein, drink water. ZANO checks it for real.</p></div>
+              <div class="copy"><h2>Get it back.</h2><p>Apps open the second you finish. Keep the streak going.</p></div>
+              <div class="copy"><h2>Make it yours.</h2><p>Your goals, your gym, your buddy.</p></div>
+            </div>
+            <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="story__phone">
+            <div class="phone">
+              <div class="screens">
+                <img class="on" src="assets/screen-welcome.webp" alt="Welcome screen" />
+                <img src="assets/screen-today-dark.webp" alt="Today screen with 2 goals left" />
+                <img src="assets/screen-streak.webp" alt="30 day streak card" />
+                <img src="assets/screen-settings.webp" alt="Settings screen" />
+              </div>
+            </div>
+            <div class="story__buddy">
+              <div class="orb"><img src="assets/buddy.webp" alt="Zano the raccoon" /></div>
+              <div class="bubble" id="storyBubble">Locked in.</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -96,16 +99,21 @@
       </div>
     </section>
 
-    <section class="section">
-      <div class="wrap buddy">
-        <div class="buddy__art reveal">
-          <div class="orb orb--lg" id="buddyOrb"><img src="assets/buddy.webp" alt="Zano the raccoon" loading="lazy" /></div>
-          <div class="bubble" id="bubble">Let&rsquo;s go!</div>
-        </div>
-        <div class="reveal">
+    <!-- Buddy picker -->
+    <section class="section" id="buddy">
+      <div class="wrap">
+        <div class="head reveal">
           <p class="eyebrow">Your buddy</p>
-          <h2>A raccoon in your corner.</h2>
-          <p class="lede">It levels up when you do, and cheers you on in the voice you pick.</p>
+          <h2>Pick who keeps you honest.</h2>
+          <p class="lede">Choose a buddy. It levels up with your streak.</p>
+        </div>
+        <div class="picker reveal">
+          <div class="picker__stage">
+            <div class="orb orb--xl" id="pickOrb"></div>
+            <div class="bubble" id="pickBubble"></div>
+            <div class="picker__meta"><b id="pickName"></b><span id="pickTrait"></span></div>
+          </div>
+          <div class="picker__list" role="radiogroup" aria-label="Choose your buddy" id="pickList"></div>
         </div>
       </div>
     </section>
@@ -125,6 +133,40 @@
   </footer>
 
   <script>
+// 16x16 pixel buddies, drawn as left halves (mirrored) + patches. Placeholder art, not final app assets.
+const SPRITES = {
+  fox: {
+    pal: { d: "#9a3d12", o: "#ff8a2b", w: "#fff4e6", k: "#1a1020", n: "#2b1a1a", p: "#ffb38a" },
+    rows: [
+      "..d.....", ".dod....", ".dood...", ".dpood..", ".doooood", "dooooooo", "doookooo", "doookooo",
+      "dowwwwww", ".dwwwwwn", "..dwwwww", "..dooowo", ".dooowww", ".dooowww", ".dddooww", "..dddddd"],
+    patch: [[12,11,"o"],[13,11,"o"],[13,12,"o"],[14,12,"o"],[14,13,"w"],[13,13,"o"],[12,12,"o"],[15,13,"w"]],
+  },
+  frog: {
+    pal: { d: "#1f6b34", g: "#5ccf6e", l: "#c9f5a8", w: "#ffffff", k: "#12201a", p: "#ff7f9a" },
+    rows: [
+      "........", "..dddd..", ".dwwwwd.", ".dwkkwd.", ".dwkkwdd", "ddgggggg", "dgggggggg".slice(0,8), "dggggggg",
+      "dgdddddd", "dgggpppp", ".dgllllg", ".dglllll", ".dglllll", "dgglllll", "dggdgggg", ".dddddd."],
+    patch: [],
+  },
+  cat: {
+    pal: { d: "#4a3a78", l: "#b9a6ff", p: "#ff9ec4", y: "#ffe45c", k: "#1a1030", w: "#ffffff", n: "#ff6f9c" },
+    rows: [
+      "........", ".d......", ".dld....", ".dpld...", ".dlllddd", "dlllllll", "dllyyllll".slice(0,8), "dllykllll".slice(0,8),
+      "dlllllll", "dlllllwn", ".dllllww", "..dlllww", ".dlllwww", ".dlllwww", ".dddlwww", "..dddddd"],
+    patch: [],
+  },
+};
+function drawSprite(canvas, key) {
+  const s = SPRITES[key], ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 16, 16);
+  s.rows.forEach((row, y) => {
+    const full = row + row.split("").reverse().join("");
+    full.split("").forEach((c, x) => { if (c !== ".") { ctx.fillStyle = s.pal[c] || "#000"; ctx.fillRect(x, y, 1, 1); } });
+  });
+  s.patch.forEach(([x, y, c]) => { ctx.fillStyle = s.pal[c]; ctx.fillRect(x, y, 1, 1); });
+}
+
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const io = new IntersectionObserver((es) => es.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
@@ -132,11 +174,66 @@
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
     document.querySelectorAll(".bar").forEach((el) => io.observe(el.closest(".goal")));
 
-    const lines = ["Let’s go!", "Gym first, scroll later.", "One rep at a time.", "2 goals left today."];
-    const bubble = document.getElementById("bubble"); let li = 0;
-    const say = () => { li = (li + 1) % lines.length; bubble.textContent = lines[li]; bubble.style.animation = "none"; void bubble.offsetWidth; bubble.style.animation = ""; };
-    if (!reduce) setInterval(say, 3200);
-    document.getElementById("buddyOrb").addEventListener("click", say);
+
+
+    // ---- scroll story ----
+    const story = document.getElementById("story");
+    const bubbleLines = ["Locked in.", "Two to go.", "30 days!", "Pick me."];
+    const sImgs = story.querySelectorAll(".screens img"), sCopy = story.querySelectorAll(".copy"), sDots = story.querySelectorAll(".dots i");
+    const sBubble = document.getElementById("storyBubble");
+    let cur = -1;
+    function setStep(i) {
+      if (i === cur) return; cur = i; story.dataset.step = i;
+      [sImgs, sCopy, sDots].forEach((l) => l.forEach((el, j) => el.classList.toggle("on", j === i)));
+      sBubble.textContent = bubbleLines[i];
+      sBubble.style.animation = "none"; void sBubble.offsetWidth; sBubble.style.animation = "";
+    }
+    function onScroll() {
+      const r = story.getBoundingClientRect(), total = r.height - innerHeight;
+      const p = Math.min(0.999, Math.max(0, -r.top / total));
+      setStep(Math.floor(p * 4));
+    }
+    addEventListener("scroll", onScroll, { passive: true }); addEventListener("resize", onScroll); onScroll();
+    sDots.forEach((d, i) => d.addEventListener("click", () => {
+      const r = story.getBoundingClientRect(), total = r.height - innerHeight;
+      scrollTo({ top: scrollY + r.top + total * ((i + 0.5) / 4), behavior: "smooth" });
+    }));
+
+    // ---- buddy picker ----
+    const BUDDIES = [
+      { key: "raccoon", name: "Raccoon", trait: "Hype. Loud about every win.", line: "Gym first, scroll later!", img: "assets/buddy.webp" },
+      { key: "fox", name: "Fox", trait: "Tough love. No excuses.", line: "You said 45 minutes. Go." },
+      { key: "frog", name: "Frog", trait: "Chill. One rep at a time.", line: "Easy does it. Keep going." },
+      { key: "cat", name: "Cat", trait: "Data. Quiet and exact.", line: "72% done. 2 goals left." },
+    ];
+    const pickOrb = document.getElementById("pickOrb"), pickList = document.getElementById("pickList");
+    function art(b, cls) {
+      if (b.img) { const i = document.createElement("img"); i.src = b.img; i.alt = ""; i.className = cls || ""; return i; }
+      const c = document.createElement("canvas"); c.width = c.height = 16; c.className = (cls || "") + " px"; drawSprite(c, b.key); return c;
+    }
+    function pick(i) {
+      const b = BUDDIES[i];
+      pickOrb.replaceChildren(art(b));
+      document.getElementById("pickName").textContent = b.name;
+      document.getElementById("pickTrait").textContent = b.trait;
+      const bub = document.getElementById("pickBubble"); bub.textContent = b.line;
+      bub.style.animation = "none"; void bub.offsetWidth; bub.style.animation = "";
+      pickList.querySelectorAll("button").forEach((el, j) => { el.setAttribute("aria-checked", j === i); el.tabIndex = j === i ? 0 : -1; });
+    }
+    BUDDIES.forEach((b, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.setAttribute("role", "radio"); btn.className = "pick";
+      const thumb = document.createElement("span"); thumb.className = "pick__thumb"; thumb.appendChild(art(b));
+      const label = document.createElement("span"); label.textContent = b.name;
+      btn.append(thumb, label);
+      btn.addEventListener("click", () => pick(i));
+      btn.addEventListener("keydown", (e) => {
+        const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+        if (d) { e.preventDefault(); const n = (i + d + BUDDIES.length) % BUDDIES.length; pick(n); pickList.children[n].focus(); }
+      });
+      pickList.appendChild(btn);
+    });
+    pick(0);
 
     document.getElementById("cta-btn").addEventListener("click", () => {
       setTimeout(() => document.getElementById("email").focus({ preventScroll: true }), 600);

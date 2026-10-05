@@ -305,6 +305,9 @@ Up to three rules that keep a lock set's apps open at chosen days and hours, eve
 ### 5.27 Earned It clip
 After an unlock, "Make my Earned It clip" makes a 5-second vertical video on the phone: LOCKED (the buddy asleep, the goal filling), the lock opening in a burst, then EARNED IT with the goal, the streak day and the buddy celebrating (its goal emotion: flexing for a workout), with the zano name at the bottom. Made and kept on the device, shared through the normal share sheet. The same thinking gives the **Year in Review** (December 1 to January 7, for a year with 14+ earned days: days earned, hours locked, best month, best streak, top goal) alongside the monthly story.
 
+### 5.28 Starter plans (goal templates)
+One-tap plans for real weeks: **Student** (four 25-minute study blocks, reading, water, a walk), **Exam week**, **Remote work day** (two hours of deep work), **Night shift**, **New parent**, **Back to the gym**, **Gentle start**. They add goals through the normal goal path (targets clamped, tiers set, verifiers started) and leave any goal already on the plan alone; nothing is removed. Every item is additive (§24), modest (§8 rule 1) and adaptive (§9.1), and a test keeps the catalog to goal types that can gate a lock. A "Pomodoro" is the 25-minute focus block; a 100-minute focus target is four of them. A break-by-break coach is not built.
+
 ## 6. Widgets, Controls, Live Activities, NFC, Siri
 
 All actions are **App Intents** (§14). Build each once, reuse everywhere.

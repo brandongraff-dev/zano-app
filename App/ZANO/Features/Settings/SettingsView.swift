@@ -546,6 +546,17 @@ struct SettingsView: View {
 
                 SettingsRowDivider()
 
+                SettingsNavRow(
+                    Copy.sleep.rowLabel,
+                    systemImage: "bed.double.fill",
+                    tint: SettingsPalette.sleep,
+                    value: SleepStore.settings.checkInEnabled ? Copy.focusLock.rowValueOn : nil
+                ) {
+                    SleepInsightsView()
+                }
+
+                SettingsRowDivider()
+
                 // Spec §5.12 one-tap setup guide (Wave 3L).
                 SettingsNavRow(
                     Copy.settings.autoFocusRowLabel,

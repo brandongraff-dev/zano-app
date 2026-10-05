@@ -229,6 +229,8 @@ struct TodayView: View {
                     TrialEarnedCard()
                     // First week only: one tip a day from the buddy (draws nothing otherwise).
                     BuddyTipCard()
+                    // Mornings only, and only when the sleep check-in is on (draws nothing otherwise).
+                    SleepCheckInCard()
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist

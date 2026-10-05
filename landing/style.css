@@ -242,7 +242,7 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 }
 
 /* ---------- layered hero ---------- */
-.hero2 { position: relative; height: max(640px, 100svh); overflow: hidden; --cw: min(300px, 34svh, 54vw); background: #fff; }
+.hero2 { position: relative; height: max(560px, 100svh); overflow: hidden; --cw: min(300px, 34svh, 54vw); background: #fff; }
 .hero2__word { position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-weight: 800; font-size: min(34vw, 420px); line-height: 0.8; letter-spacing: -0.06em; color: #eef2fc; pointer-events: none; user-select: none; }
 .hero2__word i { font-style: normal; color: #dfe8ff; }
 .stage2 { position: absolute; inset: 0; }
@@ -372,12 +372,11 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 .store__btn small { font-size: 0.6rem; }
 .store__btn { font-size: 1.1rem; }
 @media (max-width: 700px) {
-  .hero2__cta { flex-direction: column; align-items: stretch; border-radius: 30px; padding: 10px; gap: 10px; bottom: 16px; }
+  .hero2__cta { flex-direction: column; align-items: stretch; border-radius: 28px; padding: 8px; gap: 8px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: calc(100% - 24px); }
   .hero2__cta .waitlist-form__row { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px; }
-  .hero2__cta .waitlist-form__input { height: 48px; }
-  .hero2__cta .waitlist-form .btn { height: 48px; padding: 0 22px; }
-  .hero2__cta .store { display: flex; justify-content: center; }
-  .hero2__cta .store__btn { height: 48px; }
-  .hero2__cta .store { align-items: center; gap: 10px; }
-  .hero2__cta .store__note { position: static; box-shadow: none; }
+  .hero2__cta .waitlist-form__input { height: 48px; padding-left: 18px; }
+  .hero2__cta .waitlist-form .btn { height: 48px; padding: 0 24px; }
+  .hero2__cta .store { display: block; width: 100%; }
+  .hero2__cta .store__btn { width: 100%; height: 48px; justify-content: flex-start; padding: 0 18px; }
+  .hero2__cta .store__note { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); box-shadow: none; font-size: 0.7rem; padding: 4px 10px; }
 }

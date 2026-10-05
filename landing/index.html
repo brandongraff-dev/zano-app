@@ -16,7 +16,7 @@
 
   <header class="nav glass" id="nav">
     <div class="wrap nav__in">
-      <a href="#top" class="logo"><img class="logo__buddy" src="assets/buddies/stash-happy.webp" alt="" />zan<i>o</i></a>
+      <a href="#top" class="logo"><img class="logo__buddy" src="assets/buddies/stash-happy.webp" alt="" /><span class="logo__w">zan<i>o</i></span></a>
       <nav class="nav__links" aria-label="Sections">
         <a href="#story">How it works</a>
         <a href="#boss">Scroll Monster</a>
@@ -81,6 +81,7 @@
                 <img src="assets/screen-streak.webp" alt="30 day streak card" />
               </div>
             </div>
+            <span class="story__chip" id="storyChip">Social locked</span>
             <div class="story__buddy">
               <div class="orb"><img src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
               <div class="bubble" id="storyBubble">Locked in.</div>
@@ -118,10 +119,10 @@
           <h2>Four ways to earn.</h2>
         </div>
         <div class="goals">
-          <div class="goal reveal"><img class="goal__buddy goal__buddy--curl" src="assets/buddies/brick-gym.webp" alt="Brick lifting dumbbells" loading="lazy" /><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M3 10v4M18 7v10M21 10v4M6 12h12"/></svg></span><b>Gym</b><span>45 min, verified</span><div class="bar"><i style="--w:30%"></i></div></div>
-          <div class="goal reveal" style="--d:.08s"><img class="goal__buddy goal__buddy--toast" src="assets/buddies/tank-shake.webp" alt="Tank with a protein shaker" loading="lazy" /><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3v5a2 2 0 0 0 4 0V3M7 10v11M17 3c-2 2.5-3 5-3 8h3v10"/></svg></span><b>Protein</b><span>150g a day</span><div class="bar"><i style="--w:48%"></i></div></div>
-          <div class="goal reveal" style="--d:.16s"><img class="goal__buddy goal__buddy--think" src="assets/buddies/pip-focus.webp" alt="Pip with a focus timer" loading="lazy" /><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg></span><b>Focus</b><span>50 min blocks</span><div class="bar"><i style="--w:50%"></i></div></div>
-          <div class="goal reveal" style="--d:.24s"><img class="goal__buddy goal__buddy--sway" src="assets/buddies/volt-water.webp" alt="Volt with a water bottle" loading="lazy" /><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><b>Water</b><span>3 L a day</span><div class="bar"><i style="--w:50%"></i></div></div>
+          <div class="goal reveal"><img class="goal__buddy goal__buddy--curl" src="assets/buddies/brick-gym.webp" alt="Brick lifting dumbbells" loading="lazy" /><span class="goal__pop">+45 min</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M3 10v4M18 7v10M21 10v4M6 12h12"/></svg></span><b>Gym</b><span>45 min, verified</span><div class="bar"><i style="--w:30%"></i></div></div>
+          <div class="goal reveal" style="--d:.08s"><img class="goal__buddy goal__buddy--toast" src="assets/buddies/tank-shake.webp" alt="Tank with a protein shaker" loading="lazy" /><span class="goal__pop">+150g</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3v5a2 2 0 0 0 4 0V3M7 10v11M17 3c-2 2.5-3 5-3 8h3v10"/></svg></span><b>Protein</b><span>150g a day</span><div class="bar"><i style="--w:48%"></i></div></div>
+          <div class="goal reveal" style="--d:.16s"><img class="goal__buddy goal__buddy--think" src="assets/buddies/pip-focus.webp" alt="Pip with a focus timer" loading="lazy" /><span class="goal__pop">+50 min</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg></span><b>Focus</b><span>50 min blocks</span><div class="bar"><i style="--w:50%"></i></div></div>
+          <div class="goal reveal" style="--d:.24s"><img class="goal__buddy goal__buddy--sway" src="assets/buddies/volt-water.webp" alt="Volt with a water bottle" loading="lazy" /><span class="goal__pop">+3 L</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><b>Water</b><span>3 L a day</span><div class="bar"><i style="--w:50%"></i></div></div>
         </div>
       </div>
     </section>
@@ -160,6 +161,7 @@
           <div class="sun">
             <div class="sun__sky"><span class="sun__orb"></span><span class="sun__ground"></span></div>
             <div class="sun__mirror"><span class="sun__tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <span class="sun__chip" id="sunChip">Alarm off!</span>
             <div class="sun__phone"><div class="phone"><div class="mock mock--alarm"><b class="mock__time">6:30</b><span class="mock__bub" id="sunBubble">Zzz</span><img id="sunBuddy" src="assets/buddies/stash-sleepy.webp" alt="" /><span class="mock__pill mock__pill--o">Tap your tag</span></div></div></div>
           </div>
         </div>
@@ -278,9 +280,64 @@
     }
     addEventListener("scroll", navScroll, { passive: true }); addEventListener("resize", navScroll); navScroll();
 
+    // ---- hero crew: pop in, hop + say hi when tapped ----
+    const crew = document.querySelector(".crew");
+    const hi = { Stash: "Gym first!", Lox: "Door's locked.", Pip: "Focus time.", Zib: "Aww, nice!", Moko: "We grow!", Brick: "One more rep!", Tank: "Can't stop us.", Volt: "Zap! Unlocked.", Howl: "Quiet work." };
+    let chipT = 0;
+    crew.querySelectorAll(".crew__b").forEach((img, i) => {
+      img.style.setProperty("--pi", i);
+      const go = () => {
+        img.classList.remove("hop"); void img.offsetWidth; img.classList.add("hop");
+        let chip = crew.querySelector(".crew__chip");
+        if (!chip) { chip = document.createElement("span"); chip.className = "crew__chip"; crew.appendChild(chip); }
+        chip.textContent = hi[img.alt] || "Hi!";
+        const cr = crew.getBoundingClientRect(), ir = img.getBoundingClientRect();
+        chip.style.left = (ir.left - cr.left + ir.width / 2) + "px"; chip.style.top = (ir.top - cr.top - 6) + "px";
+        chip.classList.remove("show"); void chip.offsetWidth; chip.classList.add("show");
+        clearTimeout(chipT); chipT = setTimeout(() => chip.classList.remove("show"), 1400);
+      };
+      img.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") go(); });
+      img.addEventListener("click", go);
+    });
+
+    // ---- goals: when the cards come into view each buddy does its task, one after another ----
+    const goalsEl = document.querySelector(".goals");
+    const goalCards = [...goalsEl.querySelectorAll(".goal")];
+    let goalT = [];
+    new IntersectionObserver(([e]) => {
+      goalT.forEach(clearTimeout); goalT = [];
+      if (e.isIntersecting) goalCards.forEach((c, i) => goalT.push(setTimeout(() => { c.classList.remove("hit"); void c.offsetWidth; c.classList.add("hit"); }, 250 + i * 420)));
+      else goalCards.forEach((c) => c.classList.remove("hit"));
+    }, { threshold: 0.45 }).observe(goalsEl);
+
+    // ---- sunrise: the sun rises as you scroll; the buddy wakes up and the alarm turns off ----
+    const sunEl = document.getElementById("sunrise"), sunBuddy = document.getElementById("sunBuddy"), sunBubble = document.getElementById("sunBubble");
+    let sunAwake = null;
+    function sunScroll() {
+      const r = sunEl.getBoundingClientRect();
+      const p = Math.min(1, Math.max(0, (innerHeight * 0.85 - r.top) / (innerHeight * 0.85 + r.height * 0.1 - innerHeight * 0.2)));
+      sunEl.style.setProperty("--sun", p.toFixed(3));
+      const awake = p > 0.7;
+      sunEl.classList.toggle("done", p > 0.9);
+      if (awake !== sunAwake) {
+        sunAwake = awake;
+        sunBuddy.src = "assets/buddies/stash-" + (awake ? "ecstatic" : "sleepy") + ".webp";
+        sunBubble.textContent = awake ? "I\u2019m up!" : "Zzz";
+        sunBubble.style.animation = "none"; void sunBubble.offsetWidth; sunBubble.style.animation = "";
+      }
+    }
+    addEventListener("scroll", sunScroll, { passive: true }); addEventListener("resize", sunScroll); sunScroll();
+
+    // ---- closing panel: the whole crew does a wave when it appears ----
+    const panel = document.querySelector(".cta__panel");
+    new IntersectionObserver(([e]) => {
+      panel.querySelectorAll(".crowd img").forEach((img, i) => { img.classList.remove("wave"); if (e.isIntersecting) { img.style.setProperty("--wd", (i * 90) + "ms"); void img.offsetWidth; img.classList.add("wave"); } });
+    }, { threshold: 0.5 }).observe(panel);
+
     // ---- scroll story ----
     const story = document.getElementById("story");
     const bubbleLines = ["Locked in.", "Two to go.", "Unlocked!", "30 days!"];
+    const stepChips = ["Social locked", "+25g protein", "Social open!", "Day 30"];
     const sImgs = story.querySelectorAll(".screens > *"), sCopy = story.querySelectorAll(".copy"), sDots = story.querySelectorAll(".dots i");
     const sBubble = document.getElementById("storyBubble");
     let cur = -1;
@@ -288,6 +345,8 @@
       if (i === cur) return; cur = i; story.dataset.step = i;
       [sImgs, sCopy, sDots].forEach((l) => l.forEach((el, j) => el.classList.toggle("on", j === i)));
       sBubble.textContent = bubbleLines[i];
+      const sc = document.getElementById("storyChip"); sc.textContent = stepChips[i]; sc.classList.remove("pop"); void sc.offsetWidth; sc.classList.add("pop");
+      const so = story.querySelector(".story__buddy .orb"); so.classList.remove("lunge"); void so.offsetWidth; so.classList.add("lunge");
       sBubble.style.animation = "none"; void sBubble.offsetWidth; sBubble.style.animation = "";
     }
     function onScroll() {

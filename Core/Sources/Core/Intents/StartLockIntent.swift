@@ -12,6 +12,7 @@
 // `DeviceActivityMonitor` firing on its own, `.nfc` is `SunriseKeyIntent`'s tag-triggered lock
 // arm, and `.auto` is v2 geofence automation (spec §2) — none of those go through this intent.
 
+import ActivityKit
 import AppIntents
 import Foundation
 import SwiftData
@@ -47,7 +48,10 @@ public enum LockModeOption: String, AppEnum, Sendable {
     }
 }
 
-public struct StartLockIntent: AppIntent {
+/// `LiveActivityIntent` (not plain `AppIntent`) so a run from a widget button or Control Center
+/// executes in the app's process, which holds the Family Controls entitlement; the widget
+/// extension doesn't, so shielding from there would fail. Siri/Shortcuts behave the same.
+public struct StartLockIntent: LiveActivityIntent {
     public static let title: LocalizedStringResource = "Lock In"
 
     public static var description: IntentDescription {
@@ -115,12 +119,15 @@ public struct StartLockIntent: AppIntent {
             resolvedLockSetID = defaultSet.id
         }
 
-        let resolvedGoalIDs: [UUID]
+        let requestedGoalIDs: [UUID]
         if let requiredGoals, !requiredGoals.isEmpty {
-            resolvedGoalIDs = requiredGoals.map(\.id)
+            requestedGoalIDs = requiredGoals.map(\.id)
         } else {
-            resolvedGoalIDs = try IntentSupport.activeGoalIDs(for: user.id, in: context)
+            requestedGoalIDs = try IntentSupport.activeGoalIDs(for: user.id, in: context)
         }
+        // Spec §5.18 travel mode: the gym is optional while traveling (kept when it's the only
+        // goal, so the lock can still be earned). Same rule as Today and scheduled locks.
+        let resolvedGoalIDs = TravelMode.shared.requiredGoalIDs(for: requestedGoalIDs)
 
         _ = try await LockEngineManager.shared.startLock(
             lockSetID: resolvedLockSetID,

@@ -85,6 +85,12 @@ public enum LockEngineError: Error, Sendable, LocalizedError {
     case sessionAlreadyEnded(UUID)
     /// No local `User` row exists yet to attribute this session to.
     case noSignedInUser
+    /// A Time Bank spend needs an active Earn Mode lock (full-mode locks can't be bought out).
+    case noActiveEarnLock
+    /// A Time Bank borrow needs a running lock (any mode).
+    case noActiveLock
+    /// A schedule/auto lock was refused because a health pause is on (spec §24).
+    case healthPauseActive
     /// `DeviceActivityCenter.startMonitoring` threw for a schedule-triggered lock. The lock and
     /// its shield are still applied — see `startLock` — this only means the extra "keep
     /// monitoring even if the app is killed" registration didn't take.
@@ -106,6 +112,12 @@ public enum LockEngineError: Error, Sendable, LocalizedError {
             "LockSession \(id) has already ended."
         case .noSignedInUser:
             "No local User row exists yet."
+        case .noActiveEarnLock:
+            "No active Earn Mode lock to spend Time Bank minutes on."
+        case .noActiveLock:
+            "No active lock to borrow Time Bank minutes for."
+        case .healthPauseActive:
+            "A health pause is on, so scheduled locks don't start."
         case .deviceActivitySchedulingFailed(let reason):
             "Could not schedule DeviceActivity monitoring: \(reason)"
         }
@@ -128,6 +140,18 @@ extension DeviceActivityName {
     /// different target, not owned by this file) has a stable name to observe per session.
     static func zanoLockSession(_ sessionID: UUID) -> DeviceActivityName {
         DeviceActivityName("com.zano.app.lock.\(sessionID.uuidString)")
+    }
+}
+
+extension ManagedSettingsStore {
+    /// Shields exactly `selection` (apps, categories, web domains). Shared by `LockEngineManager`
+    /// and `ScheduledLockMonitor` (the `ZANOMonitor` extension) so both shield identically.
+    func applyZanoShield(_ selection: FamilyActivitySelection) {
+        shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
+        shield.applicationCategories = selection.categoryTokens.isEmpty
+            ? nil
+            : .specific(selection.categoryTokens)
+        shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
     }
 }
 
@@ -200,22 +224,33 @@ public final class LockEngineManager {
         lockSetID: UUID,
         mode: LockMode,
         requiredGoalIDs: [UUID],
-        trigger: LockTrigger
+        trigger: LockTrigger,
+        startedAt: Date = .now
     ) async throws -> UUID {
         guard AuthorizationCenter.shared.authorizationStatus == .approved else {
             throw LockEngineError.authorizationNotGranted
+        }
+        // Spec §24 health pause: nothing starts a lock by itself during a pause. Locks the user
+        // starts by hand (manual button, NFC tap) are still their choice.
+        if (trigger == .schedule || trigger == .auto) && HealthPause.isActive {
+            throw LockEngineError.healthPauseActive
         }
         guard let lockSet = try fetchLockSet(id: lockSetID) else {
             throw LockEngineError.lockSetNotFound(lockSetID)
         }
         let selection = try decodeSelection(from: lockSet)
         applyShield(selection)
+        // The screen-time report (ZANOReport) marks these apps' usage as locked-app time.
+        SharedDefaults.lockedSelectionData = lockSet.appTokensBlob
 
         let user = try fetchCurrentUser()
+        // A goal nothing can complete yet (e.g. "Sleep on time") must never gate a lock, whoever
+        // built the list (Lock tab, Today, onboarding, NFC tag, Watch, a schedule) — audit L2.
+        let requiredGoalIDs = excludingGoalsThatCannotComplete(requiredGoalIDs)
         let session = LockSession(
             userID: user.id,
             lockSetID: lockSetID,
-            startedAt: .now,
+            startedAt: startedAt,
             trigger: trigger,
             mode: mode,
             requiredGoalIDs: requiredGoalIDs
@@ -246,6 +281,13 @@ public final class LockEngineManager {
         }
 
         mirrorActiveLock(session)
+        if mode == .earn {
+            // Spec §5.11: the Dynamic Island shows the Time Bank during an Earn Mode lock.
+            await EarnMeterActivityManager.shared.startActivity(
+                lockSetName: lockSet.name,
+                goalsRemaining: requiredGoalIDs.count
+            )
+        }
         return session.id
     }
 
@@ -258,7 +300,7 @@ public final class LockEngineManager {
     /// layer's) responsibility to run before calling this with `.earned`/`.scheduleEnd`. Calling
     /// this with `.emergency` is always allowed unconditionally — see `emergencyUnlock` below —
     /// which is what keeps the emergency-unlock guarantee real.
-    public func endLock(sessionID: UUID, unlockKind: UnlockKind) async throws {
+    public func endLock(sessionID: UUID, unlockKind: UnlockKind, at endedAt: Date = .now) async throws {
         guard let session = try fetchSession(id: sessionID) else {
             throw LockEngineError.sessionNotFound(sessionID)
         }
@@ -266,7 +308,7 @@ public final class LockEngineManager {
             throw LockEngineError.sessionAlreadyEnded(sessionID)
         }
 
-        session.endedAt = .now
+        session.endedAt = endedAt
         session.unlockKind = unlockKind
         try context.save()
 
@@ -275,6 +317,18 @@ public final class LockEngineManager {
             activityCenter.stopMonitoring([.zanoLockSession(sessionID)])
         }
         clearActiveLockMirror(endedSessionID: sessionID)
+        // Everything below is cleanup that can't fail; the shield is already off.
+        if LockEngineSharedState.spendWindow?.sessionID == sessionID {
+            LockEngineSharedState.spendWindow = nil
+            activityCenter.stopMonitoring([LockScheduleActivity.spend])
+        }
+        if LockEngineSharedState.scheduleOwnedLock?.sessionID == sessionID {
+            LockEngineSharedState.scheduleOwnedLock = nil
+        }
+        if unlockKind == .earned {
+            LockEngineSharedState.lastEarnedUnlockAt = endedAt
+        }
+        await EarnMeterActivityManager.shared.endActivity()
         lastUnlockedSessionID = sessionID
     }
 
@@ -297,7 +351,219 @@ public final class LockEngineManager {
             !isGoalVerified(goalID: $0, coveringDayOf: session.startedAt)
         }
         SharedDefaults.goalsRemainingForActiveLock = remaining.count
+        WidgetRefresh.reloadAll()
+        if !remaining.isEmpty {
+            applyPartialTiers(for: session, remainingGoalIDs: Set(remaining))
+        }
         return remaining.isEmpty
+    }
+
+    /// Drops goals from a running lock's required list: travel mode starting mid-lock makes the gym
+    /// optional (spec §5.18). Only ever removes goals (never adds one to a lock already running) and
+    /// never empties the list, so the lock stays earnable; emergency unlock is untouched. Goes
+    /// through this engine's own context so `evaluateUnlockEligibility` sees the new list. Callers
+    /// then run `GoalCompletionCoordinator.goalEventRecorded` so the lock can end as earned.
+    ///
+    /// - Returns: `true` if the list changed.
+    @discardableResult
+    public func narrowRequiredGoals(sessionID: UUID, keeping goalIDs: [UUID]) throws -> Bool {
+        guard let session = try fetchSession(id: sessionID), session.isActive else { return false }
+        let keep = Set(goalIDs)
+        let narrowed = session.requiredGoalIDs.filter { keep.contains($0) }
+        guard !narrowed.isEmpty, narrowed.count < session.requiredGoalIDs.count else { return false }
+        session.requiredGoalIDs = narrowed
+        try context.save()
+        logger.notice("Lock \(sessionID.uuidString, privacy: .public) now requires \(narrowed.count, privacy: .public) goal(s).")
+        return true
+    }
+
+    // MARK: - Partial unlock tiers (spec §2 "Partial unlocks", §4 v2)
+
+    /// Lifts the apps of every partial tier the session has reached, keeping the rest shielded.
+    /// Tiers only ever *remove* apps from the shield; the final "all goals" unlock is the normal
+    /// earned `endLock`. During a spend window only the intended selection is updated.
+    private func applyPartialTiers(for session: LockSession, remainingGoalIDs: Set<UUID>) {
+        guard let lockSetID = session.lockSetID else { return }
+        let tiers = PartialUnlockTierStore.tiers(for: lockSetID)
+        guard !tiers.isEmpty, let lockSet = try? fetchLockSet(id: lockSetID) else { return }
+        let completed = PartialUnlockTiers.completedGoalIDs(
+            required: session.requiredGoalIDs,
+            remaining: remainingGoalIDs
+        )
+        let evaluation = PartialUnlockTiers.evaluate(lockSet: lockSet, tiers: tiers, completedGoalIDs: completed)
+        // `nil` = the lock set's selection didn't decode: leave the current shield alone.
+        guard let stillLocked = evaluation.remainingLockedSelection else { return }
+        if LockEngineSharedState.spendWindow?.sessionID == session.id {
+            LockEngineSharedState.intendedShieldSelection = try? JSONEncoder().encode(stillLocked)
+        } else {
+            applyShield(stillLocked)
+        }
+    }
+
+    // MARK: - Earn Mode spending (spec §5.2)
+
+    /// The active lock's id when it is an Earn Mode lock, else `nil`.
+    public func activeEarnSessionID() -> UUID? {
+        guard let session = try? fetchActiveSession(), session.mode == .earn else { return nil }
+        return session.id
+    }
+
+    /// The running lock's id (any mode), else `nil`.
+    public func activeSessionID() -> UUID? {
+        (try? fetchActiveSession())?.id
+    }
+
+    /// The running lock's mode, else `nil` (a lock with no stored mode reads as `.full`).
+    public func activeSessionMode() -> LockMode? {
+        guard let session = try? fetchActiveSession() else { return nil }
+        return session.mode ?? .full
+    }
+
+    /// Lifts the shield for `minutes` (Time Bank spending — call through
+    /// `TimeBankEngine.spendToUnlock(minutes:)`, which debits the bank first). Earn Mode only.
+    /// Re-shielding is done by whichever notices first: the `ZANOMonitor` callback of a
+    /// DeviceActivity schedule registered here, an in-process timer while the app is alive, or
+    /// `LockScheduler.reconcile` on the next foreground. A spend during an open window extends it.
+    ///
+    /// Limits: DeviceActivity intervals are at least 15 minutes, so a shorter spend registers a
+    /// 15-minute interval whose end *warning* fires at the real end (`warningTime`); callbacks can
+    /// be delayed (spec §27), so the re-shield is best-effort to the minute, never to the second.
+    ///
+    /// - Returns: when the window ends.
+    @discardableResult
+    public func beginSpendWindow(minutes: Int, now: Date = .now) throws -> Date {
+        guard minutes > 0 else { throw TimeBankEngineError.invalidMinutes(minutes) }
+        guard let sessionID = activeEarnSessionID() else { throw LockEngineError.noActiveEarnLock }
+        return openSpendWindow(sessionID: sessionID, minutes: minutes, now: now)
+    }
+
+    /// The same window for a Time Bank *borrow* ("5 minutes now"), which works on any running lock,
+    /// full or earn — call through `TimeBankEngine.borrowToUnlock(minutes:)`, which debits the bank
+    /// first and caps the amount. The lock itself is untouched: same session, same goals, same
+    /// emergency unlock; the shield simply comes back when the window ends (same re-shield paths
+    /// as `beginSpendWindow`).
+    @discardableResult
+    public func beginBorrowWindow(minutes: Int, now: Date = .now) throws -> Date {
+        guard minutes > 0 else { throw TimeBankEngineError.invalidMinutes(minutes) }
+        guard let sessionID = activeSessionID() else { throw LockEngineError.noActiveLock }
+        return openSpendWindow(sessionID: sessionID, minutes: minutes, now: now)
+    }
+
+    private func openSpendWindow(sessionID: UUID, minutes: Int, now: Date) -> Date {
+        let window = SpendWindow.opening(
+            existing: LockEngineSharedState.spendWindow,
+            sessionID: sessionID,
+            minutes: minutes,
+            now: now
+        )
+        let endsAt = window.endsAt
+        LockEngineSharedState.spendWindow = window
+        store.clearAllSettings()   // keeps `intendedShieldSelection` for the re-shield
+
+        activityCenter.stopMonitoring([LockScheduleActivity.spend])
+        let windowMinutes = Int((endsAt.timeIntervalSince(now) / 60).rounded(.up))
+        let calendar = Calendar.current
+        let intervalMinutes = max(windowMinutes, LockSchedule.minimumWindowMinutes)
+        let intervalEnd = now.addingTimeInterval(TimeInterval(intervalMinutes * 60))
+        let warning: DateComponents? = windowMinutes < LockSchedule.minimumWindowMinutes
+            ? DateComponents(minute: LockSchedule.minimumWindowMinutes - windowMinutes)
+            : nil
+        let schedule = DeviceActivitySchedule(
+            intervalStart: calendar.dateComponents([.hour, .minute, .second], from: now),
+            intervalEnd: calendar.dateComponents([.hour, .minute, .second], from: intervalEnd),
+            repeats: false,
+            warningTime: warning
+        )
+        do {
+            try activityCenter.startMonitoring(LockScheduleActivity.spend, during: schedule)
+        } catch {
+            logger.error("Spend window monitoring failed; relying on in-app/foreground re-shield: \(String(describing: error), privacy: .public)")
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, endsAt.timeIntervalSinceNow)))
+            self?.restoreShieldIfSpendWindowExpired(now: .now)
+        }
+        return endsAt
+    }
+
+    /// Puts the shield back once a spend window is over (idempotent; see `beginSpendWindow`).
+    public func restoreShieldIfSpendWindowExpired(now: Date = .now) {
+        guard let window = LockEngineSharedState.spendWindow, now >= window.endsAt else { return }
+        ScheduledLockMonitor.spendWindowDidEnd(now: now)
+        activityCenter.stopMonitoring([LockScheduleActivity.spend])
+    }
+
+    /// Puts the running lock's intended shield back (the "Fix it" in `LockHealthCheck`, and after
+    /// Screen Time access comes back). No-op with no running lock or while a Time Bank window is
+    /// open (the window's end re-shields).
+    ///
+    /// - Returns: `true` if a shield was applied.
+    @discardableResult
+    public func reapplyIntendedShield(now: Date = .now) -> Bool {
+        guard (try? fetchActiveSession()) != nil else { return false }
+        if let window = LockEngineSharedState.spendWindow, window.endsAt > now { return false }
+        guard let blob = LockEngineSharedState.intendedShieldSelection,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: blob)
+        else { return false }
+        store.applyZanoShield(selection)
+        logger.notice("Re-applied the intended shield for the running lock.")
+        return true
+    }
+
+    // MARK: - Reconciliation helpers (called by `LockScheduler.reconcile`)
+
+    /// Never trap the user: if no `LockSession` is active and the monitor has no pending hand-off,
+    /// nothing may stay shielded through ZANO's store.
+    public func removeShieldIfNoActiveLock() {
+        guard LockEngineSharedState.pendingStart == nil else { return }
+        guard (try? fetchActiveSession()) == nil else { return }
+        removeShield()
+        SharedDefaults.activeLockSessionID = nil
+        SharedDefaults.activeLockSetID = nil
+        SharedDefaults.activeLockMode = nil
+        SharedDefaults.goalsRemainingForActiveLock = 0
+        LockEngineSharedState.spendWindow = nil
+        WidgetRefresh.reloadAll()
+    }
+
+    /// Starts (or re-adopts, e.g. after the 8-hour Live Activity limit) the Earn Meter for an
+    /// active Earn Mode lock, and ends it when there is none.
+    public func syncEarnMeter() async {
+        guard let session = try? fetchActiveSession(), session.mode == .earn else {
+            await EarnMeterActivityManager.shared.endActivity()
+            return
+        }
+        let name = session.lockSetID.flatMap { try? fetchLockSet(id: $0)?.name } ?? ""
+        if EarnMeterActivityManager.shared.isActive {
+            await EarnMeterActivityManager.shared.refreshFromTimeBank()
+        } else {
+            await EarnMeterActivityManager.shared.startActivity(lockSetName: name)
+        }
+    }
+
+    /// Records a scheduled lock that started and ended while the app never ran (history + Time
+    /// Reclaimed, spec §27: "computed from lock durations").
+    public func recordFinishedScheduledLock(_ record: PendingScheduledLock) {
+        guard let user = try? fetchCurrentUser() else { return }
+        let session = LockSession(
+            userID: user.id,
+            lockSetID: record.lockSetID,
+            startedAt: record.startedAt,
+            endedAt: record.endedAt ?? .now,
+            trigger: .schedule,
+            mode: record.mode,
+            requiredGoalIDs: record.requiredGoalIDs ?? [],
+            unlockKind: .scheduleEnd
+        )
+        context.insert(session)
+        try? context.save()
+    }
+
+    /// Every active goal of this device's user — a schedule's default required goals.
+    public func activeGoalIDsForCurrentUser() throws -> [UUID] {
+        let user = try fetchCurrentUser()
+        return try IntentSupport.activeGoalIDs(for: user.id, in: context)
     }
 
     /// Always-available escape hatch (spec §24, CLAUDE.md: "Any lock/shield feature must always
@@ -312,19 +578,13 @@ public final class LockEngineManager {
     // MARK: - ManagedSettings
 
     private func applyShield(_ selection: FamilyActivitySelection) {
-        store.shield.applications = selection.applicationTokens.isEmpty
-            ? nil
-            : selection.applicationTokens
-        store.shield.applicationCategories = selection.categoryTokens.isEmpty
-            ? nil
-            : .specific(selection.categoryTokens)
-        store.shield.webDomains = selection.webDomainTokens.isEmpty
-            ? nil
-            : selection.webDomainTokens
+        store.applyZanoShield(selection)
+        LockEngineSharedState.intendedShieldSelection = try? JSONEncoder().encode(selection)
     }
 
     private func removeShield() {
         store.clearAllSettings()
+        LockEngineSharedState.intendedShieldSelection = nil
     }
 
     // MARK: - DeviceActivity
@@ -350,10 +610,43 @@ public final class LockEngineManager {
 
     // MARK: - SwiftData
 
+    /// A lock started before an update hid "Sleep on time" may still require it: drop such goals
+    /// from the running lock (never emptying it — `narrowRequiredGoals`), so it stays earnable.
+    /// Called from `LockScheduler.reconcile` on every app foreground. Audit L2.
+    public func dropGoalsThatCannotCompleteFromActiveLock() {
+        guard let session = try? fetchActiveSession() else { return }
+        let keep = excludingGoalsThatCannotComplete(session.requiredGoalIDs)
+        guard keep.count < session.requiredGoalIDs.count else { return }
+        _ = try? narrowRequiredGoals(sessionID: session.id, keeping: keep)
+    }
+
+    /// `goalIDs` minus goals whose type can't be completed yet (`GoalType.canGateLock`). Ids whose
+    /// goal can't be found are kept. Enum matched in Swift, not in `#Predicate`.
+    private func excludingGoalsThatCannotComplete(_ goalIDs: [UUID]) -> [UUID] {
+        guard !goalIDs.isEmpty else { return goalIDs }
+        let wanted = Set(goalIDs)
+        let blocked = Set(((try? context.fetch(FetchDescriptor<Goal>())) ?? [])
+            .filter { wanted.contains($0.id) && !$0.type.canGateLock }
+            .map(\.id))
+        guard !blocked.isEmpty else { return goalIDs }
+        return goalIDs.filter { !blocked.contains($0) }
+    }
+
     private func fetchLockSet(id: UUID) throws -> LockSet? {
         var descriptor = FetchDescriptor<LockSet>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
+    }
+
+    private func fetchActiveSession() throws -> LockSession? {
+        // `unlockKind` (an optional enum) is checked in Swift, not in the predicate: SwiftData's
+        // SQLite translation throws an Objective-C exception for it, which aborts the app (seen in
+        // the CI screenshot tour; in-memory test stores don't hit it).
+        let descriptor = FetchDescriptor<LockSession>(
+            predicate: #Predicate { $0.endedAt == nil },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        return try context.fetch(descriptor).first(where: { $0.unlockKind == nil })
     }
 
     private func fetchSession(id: UUID) throws -> LockSession? {
@@ -400,9 +693,9 @@ public final class LockEngineManager {
             predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= startOfDay }
         )
         guard let events = try? context.fetch(descriptor) else { return false }
+        // Same rule `GoalCompletionCoordinator` and the Today/Lock UI use (`GoalDayProgress`).
         return events.contains { event in
-            event.goal?.id == goalID
-                && (event.kind == .complete || event.kind == .planB || event.kind == .freeze)
+            event.goal?.id == goalID && GoalDayProgress.isVerifiedCompletion(event)
         }
     }
 
@@ -413,6 +706,7 @@ public final class LockEngineManager {
         SharedDefaults.activeLockSetID = session.lockSetID
         SharedDefaults.activeLockMode = session.mode
         SharedDefaults.goalsRemainingForActiveLock = session.requiredGoalIDs.count
+        WidgetRefresh.reloadAll()
     }
 
     private func clearActiveLockMirror(endedSessionID: UUID) {
@@ -421,5 +715,6 @@ public final class LockEngineManager {
         SharedDefaults.activeLockSetID = nil
         SharedDefaults.activeLockMode = nil
         SharedDefaults.goalsRemainingForActiveLock = 0
+        WidgetRefresh.reloadAll()
     }
 }

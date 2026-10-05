@@ -22,6 +22,11 @@
 // workaround), §5.10 (the alarm's ringing screen), §16 P3 / §8 rule 4 (unlock celebration), and
 // CLAUDE.md's "never ship a lock with no way out" (see `init(defaults:)`'s launch-time guard).
 //
+// v1 scope (founder decisions, 2026-10-02): Squads and referral redeeming need the backend, which
+// isn't live, so `zano://squad…` links, the `firstSquadInvite` drip and `zano://invite/<CODE>` all
+// land on Today instead of a hidden tab or screen. An invite code is still kept on the device
+// (`ReferralView`'s storage key) so it can be redeemed once referrals ship.
+//
 // Copy: none. Tab titles come from the existing per-screen `Copy.<area>.screenTitle` constants
 // (`ContentView.swift`); nothing in this file shows the user a string.
 
@@ -33,11 +38,12 @@ import Core
 
 // MARK: - Destinations
 
-/// The five tabs (docs/spec.md §15 screen list minus Squad, which has no built screen yet).
+/// The six tabs (docs/spec.md §15 screen list; Squad added in Wave 3I, spec §5.7).
 enum AppTab: Hashable, Sendable {
     case today
     case lock
     case fuel
+    case squad
     case progress
     case settings
 }
@@ -45,9 +51,12 @@ enum AppTab: Hashable, Sendable {
 /// A destination the app can be sent to from outside a view: a tapped shield notification, a
 /// widget/Live Activity `Link`, or an NFC tag URL.
 enum AppDeepLink: Equatable, Sendable {
-    /// `zano://today` (Earn Meter Live Activity's "View Today") and `zano://focus/end` (Focus Live
-    /// Activity's "End" link). Both land on Today, where the focus session's own controls live.
+    /// `zano://today` (Earn Meter Live Activity's "View Today") and `zano://focus`. Lands on Today.
     case today
+    /// `zano://focus/end` — the Focus Live Activity's "End" link. Ends the running focus session
+    /// (`FocusSessionVerifier.endActiveSession`, verified if it reached its planned time; audit L5)
+    /// and lands on Today.
+    case endFocus
     /// `zano://goals` — `ShieldActionExtension`'s "Show my goals". Today shows exactly what's left.
     case goals
     /// `zano://emergency` — `ShieldActionExtension`'s "Emergency". Lands on the Lock tab, whose
@@ -59,6 +68,19 @@ enum AppDeepLink: Equatable, Sendable {
     /// `handleNotificationTap(deepLink:isSunriseAlarm:onboardingDrip:)` builds it, for the
     /// post-onboarding drip pushes whose setup step is on that tab.
     case settings
+    /// `zano://gym` — the Settings tab with Gym setup pushed (Wave 1A). For links from gym
+    /// notifications, onboarding drips, Today's "set up your gym", etc.
+    case gymSetup
+    /// `zano://fuel` — the Fuel tab (protein nudge).
+    case fuel
+    /// `zano://progress` — the Progress tab (weekly recap nudge).
+    case progress
+    /// `zano://squad` — the Squad tab; `zano://squad/join/<CODE>` also opens the join sheet with
+    /// the invite code filled in (the link `CreateJoinSquadSheet` shares, spec §5.7).
+    case squad(joinCode: String?)
+    /// `zano://invite/<CODE>` — a friend's referral code (the link `ReferralView` shares, spec §4
+    /// v2). Opens Settings → Invite friends with the code filled in.
+    case invite(code: String)
     /// `zano://tag/<uuid>` — dispatched to `NFCTagMapper`. `url` is kept so the mapper re-parses
     /// the exact URL it was given rather than one rebuilt from `id`.
     case tag(id: UUID, url: URL)
@@ -78,9 +100,36 @@ enum AppDeepLink: Equatable, Sendable {
         let pathTarget = url.pathComponents.first(where: { $0 != "/" })
         let target = (url.host ?? pathTarget)?.lowercased()
         switch target {
-        case "today", "focus": self = .today
+        case "today": self = .today
+        case "focus":
+            // `zano://focus/end` → host "focus", path ["end"]; `zano:focus/end` → path ["focus", "end"].
+            var parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == nil, parts.first?.lowercased() == "focus" { parts.removeFirst() }
+            self = parts.first?.lowercased() == "end" ? .endFocus : .today
         case "goals": self = .goals
         case "emergency": self = .emergency
+        case "gym": self = .gymSetup
+        case "fuel": self = .fuel
+        case "progress": self = .progress
+        case "squad":
+            // `zano://squad/join/CODE` → host "squad", path ["join", "CODE"];
+            // `zano:squad/join/CODE` → no host, path ["squad", "join", "CODE"].
+            var parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == nil, parts.first?.lowercased() == "squad" { parts.removeFirst() }
+            if parts.count >= 2, parts[0].lowercased() == "join" {
+                let code = parts[1].trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                self = .squad(joinCode: code.isEmpty ? nil : code)
+            } else {
+                self = .squad(joinCode: nil)
+            }
+        case "invite":
+            // `zano://invite/CODE` → host "invite", path ["CODE"];
+            // `zano:invite/CODE` → no host, path ["invite", "CODE"].
+            var parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == nil, parts.first?.lowercased() == "invite" { parts.removeFirst() }
+            let code = (parts.first ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard !code.isEmpty else { return nil }
+            self = .invite(code: code)
         default: return nil
         }
     }
@@ -135,7 +184,7 @@ final class AppRouter {
 
     // MARK: State
 
-    /// The tab on screen. `TabView(selection:)` binds straight to this (`ContentView`).
+    /// The tab on screen. `MainTabView` (`ContentView`) shows the tab this names.
     var selectedTab: AppTab = .today
 
     /// `true` once the person has finished (or, per the launch guard below, been carried past)
@@ -147,12 +196,26 @@ final class AppRouter {
     /// `nil` otherwise — a deep link that can be applied immediately is never parked here.
     private(set) var pendingDeepLink: AppDeepLink?
 
-    /// Set when `zano://tag/<uuid>` named a tag that has no saved mapping yet. The one-screen tag
-    /// mapping flow lives in Settings (`SettingsView`'s `MapTagSheet`), so the router selects the
-    /// Settings tab and parks the id here for that screen to pick up via `consumeUnmappedTagID()`.
-    /// Nothing reads it yet — `SettingsView.swift` isn't this task's file (see this task's
-    /// `knownIssues`).
+    /// Set when `zano://tag/<uuid>` named a tag that has no saved mapping yet. `ContentView`'s
+    /// `MainTabView` presents `UnmappedTagView` over whatever tab is on screen while this is set,
+    /// and clears it with `consumeUnmappedTagID()` when that sheet closes.
     private(set) var pendingUnmappedTagID: UUID?
+
+    /// Drives `SettingsView`'s `.navigationDestination(isPresented:)` for `GymSetupView`. Set by
+    /// `openGymSetup()`; SwiftUI sets it back to `false` when the pushed screen is popped.
+    var isGymSetupPresented = false
+
+    /// An invite code from `zano://squad/join/<CODE>`, waiting for `SquadHomeView` to open its join
+    /// sheet with it. Cleared by `consumeSquadJoinCode()`.
+    private(set) var pendingSquadJoinCode: String?
+
+    /// A friend's referral code from `zano://invite/<CODE>`, waiting for `ReferralView` to prefill
+    /// its redeem field. Cleared by `consumeReferralCode()`.
+    private(set) var pendingReferralCode: String?
+
+    /// Drives `SettingsView`'s `.navigationDestination(isPresented:)` for `ReferralView`, set by an
+    /// invite link. SwiftUI sets it back to `false` when the pushed screen is popped.
+    var isReferralPresented = false
 
     /// The celebration currently queued/presented at the root. `ContentView` binds a
     /// `.fullScreenCover(item:)` to this and holds it back while the alarm is ringing.
@@ -230,7 +293,11 @@ final class AppRouter {
                 // No tag can be mapped before onboarding finishes, and replaying a tap's action
                 // minutes later would surprise the person — drop it.
                 logger.notice("Dropping a tag link received before onboarding finished.")
-            case .today, .goals, .emergency, .settings:
+            case .endFocus:
+                // The onboarding first-win screen runs its own session controls; a stale Live
+                // Activity link must not end that session behind its back.
+                logger.notice("Dropping a focus-end link received before onboarding finished.")
+            case .today, .goals, .emergency, .settings, .gymSetup, .fuel, .progress, .squad, .invite:
                 pendingDeepLink = link
             }
             return
@@ -249,12 +316,17 @@ final class AppRouter {
         }
         if let onboardingDrip, let condition = OnboardingDripCondition(rawValue: onboardingDrip) {
             switch condition {
-            case .gymSaved, .nfcTagCreated:
-                // Gym confirmation and NFC tag mapping are both Settings flows.
+            case .gymSaved:
+                // Straight to Gym setup (Wave 1A), not just the tab it lives on.
+                handle(.gymSetup)
+            case .nfcTagCreated:
                 handle(.settings)
-            case .widgetAdded, .firstSquadInvite:
-                // Widgets are added from the Home Screen and there is no Squad screen yet (spec §15
-                // lists it; none is built), so there is no better place than where the app opens.
+            case .firstSquadInvite:
+                // Squads are hidden for v1: land on Today, not a tab that isn't there.
+                handle(.today)
+            case .widgetAdded:
+                // Widgets are added from the Home Screen, so there is no better place than where
+                // the app opens.
                 break
             }
         }
@@ -271,6 +343,31 @@ final class AppRouter {
             selectedTab = .lock
         case .settings:
             selectedTab = .settings
+        case .gymSetup:
+            openGymSetup()
+        case .fuel:
+            selectedTab = .fuel
+        case .progress:
+            selectedTab = .progress
+        case .endFocus:
+            selectedTab = .today
+            Task {
+                do {
+                    _ = try await FocusSessionVerifier.shared.endActiveSession()
+                } catch {
+                    logger.error("Ending the focus session from its link failed: \(String(describing: error), privacy: .public)")
+                }
+            }
+        case .squad:
+            // Squads are hidden for v1 (no backend): a squad or join link lands on Today. The join
+            // code is dropped — nothing could redeem it yet.
+            selectedTab = .today
+        case .invite(let code):
+            // Referral redeeming needs the backend (hidden for v1). Keep the friend's code on the
+            // device under `ReferralView`'s own storage key so it can be redeemed later, and land
+            // on Today.
+            UserDefaults.standard.set(code, forKey: Self.referralInviteCodeKey)
+            selectedTab = .today
         case .tag(let id, let url):
             Task { await performTagDispatch(id: id, url: url) }
         }
@@ -280,23 +377,21 @@ final class AppRouter {
     /// `SettingsView` do for an in-app scan.
     private func performTagDispatch(id: UUID, url: URL) async {
         do {
-            let outcome = try await NFCTagMapper.shared.handleScannedURL(url)
-            switch outcome {
-            case .handled(let action, let tagID):
+            switch try await NFCTagMapper.shared.handleTap(url) {
+            case .handled(let mapping, let effect):
                 Analytics.shared.capture(event: "nfc_tag_url_handled", properties: ["outcome": "handled"])
-                // `NFCTagAction` is deliberately not `Equatable`, so pattern-match.
-                if case .sunriseKey = action {
-                    await finishSunriseAlarmIfRinging(tagID: tagID)
-                }
+                TagTapFeedback.shared.show(effect: effect)
+                if case .sunriseKey = effect { await finishSunriseAlarmIfRinging(tagID: mapping.id) }
+                if case .lockStatus = effect { selectedTab = .lock }
             case .unmapped(let tagID):
-                // First tap of an unmapped tag is the expected setup path, not a failure
-                // (`NFCTagDispatchOutcome.unmapped`'s own doc comment): send them to Settings.
+                // First tap of an unmapped tag is the expected setup path, not a failure:
+                // `ContentView` presents `UnmappedTagView` for it (Wave 1B).
                 Analytics.shared.capture(event: "nfc_tag_url_handled", properties: ["outcome": "unmapped"])
                 pendingUnmappedTagID = tagID
-                selectedTab = .settings
             }
         } catch {
             logger.error("Tag dispatch failed for \(id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)")
+            TagTapFeedback.shared.showFailure(error)
         }
     }
 
@@ -316,7 +411,29 @@ final class AppRouter {
         }
     }
 
-    /// Returns and clears `pendingUnmappedTagID`. For the (future) Settings hook noted above.
+    /// Selects Settings and pushes Gym setup (`zano://gym`, the `gymSaved` drip, or any screen that
+    /// wants to send someone to set up their gym without owning a navigation stack).
+    func openGymSetup() {
+        selectedTab = .settings
+        isGymSetupPresented = true
+    }
+
+    /// `ReferralView`'s `@AppStorage` key for a friend's invite code, kept until it's redeemed.
+    nonisolated static let referralInviteCodeKey = "zano.referral.inviteCode"
+
+    /// Returns and clears `pendingSquadJoinCode` (the Squad tab picked it up).
+    func consumeSquadJoinCode() -> String? {
+        defer { pendingSquadJoinCode = nil }
+        return pendingSquadJoinCode
+    }
+
+    /// Returns and clears `pendingReferralCode` (`ReferralView` picked it up).
+    func consumeReferralCode() -> String? {
+        defer { pendingReferralCode = nil }
+        return pendingReferralCode
+    }
+
+    /// Returns and clears `pendingUnmappedTagID` (the unmapped-tag sheet's dismissal).
     func consumeUnmappedTagID() -> UUID? {
         defer { pendingUnmappedTagID = nil }
         return pendingUnmappedTagID

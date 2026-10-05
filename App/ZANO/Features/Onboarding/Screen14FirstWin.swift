@@ -29,7 +29,7 @@
 // Real device caveat (CLAUDE.md "current environment status"): `FamilyControls`/`ManagedSettings`
 // authorization and shields do not work in Simulator/Preview. The real-shield path
 // (`applyRealLockIfPossible`) is wrapped so any failure there (no authorization yet, no apps
-// selected in Q2, Simulator) degrades to "the 10-minute focus timer and its verification still run
+// selected in Q2, Simulator) degrades to "the 2-minute focus timer and its verification still run
 // for real, just with no ManagedSettings shield backing it" rather than blocking this screen — the
 // focus-session + streak loop is the part of docs/spec.md §2 that must always work.
 //
@@ -57,7 +57,8 @@
 // and a CTA that floated up the page on the widget phase.
 //
 //   intro        the ring the user is about to fill, empty, "10 min" inside it — the same object they
-//                watch fill in the next phase — then eyebrow, display headline, subtitle.
+//                watch fill in the next phase — then a sentence-case eyebrow, display headline,
+//                subtitle.
 //   running      the same ring as a 200pt hero with the countdown in it. The exit is no longer a
 //                bar: it is a 52pt capsule (`EmergencyHoldControl`) pinned at the bottom on the
 //                shared action bar, danger-tinted, whose fill sweeps along the capsule as you hold
@@ -79,12 +80,47 @@
 //                (the spec's "animated guide"), all lit under Reduce Motion — replacing a looping
 //                pulse. Step numbers are neutral discs, not accent decoration.
 //
+// Premium pass (2026-09-24, "light is earned"): the intro is a moment, not a form — a 248pt ring in
+// the focus color over its own focus-colored halo, "10" in the compressed hero numeral inside it,
+// and a neutral ambient backdrop (no green before anything is earned). Green appears only once the
+// session verifies (celebration, week dot, streak flame). The widget mock's "+" badge is white: it is
+// an affordance, not a reward.
+//
+// Liveliness pass (2026-09-24): the payoff is the star. The celebration's hero is `ZanoLivingMark`,
+// arriving nearly charged (where the header left it) and filling to FULL charge as the session
+// verifies, with a ZANO Blue bloom that swells behind it and the accent burst firing as it lands. The
+// streak numeral now sits under the star instead of inside a ring. The intro's backdrop is the
+// scaffold's flow ambient (brightest late in the flow) instead of a flat `zanoAmbient(.neutral)`.
+//
+// SHORT FLOW (founder decision 2026-10-02: "first real win within ~3 minutes"). Step 8 of 8.
+//   - Notification priming no longer has its own screen: the intro carries spec §7.12's one line
+//     ("We'll only nudge when it matters") and tapping Start asks for notification permission once
+//     (only while undetermined), then starts the session whatever the answer.
+//   - The running phase is a big countdown under the living star (`ZanoLivingMark`), which charges
+//     from 0.1 to 0.9 as the session runs; the celebration then fills it to full as it verifies.
+//   - Permission states:
+//       Screen Time approved + apps picked: a real shield on the picked apps (`LockEngineManager.
+//         startLock`, gated on the focus goal). When the timer ends, `FocusSessionVerifier.endSession`
+//         records the verified event and `GoalCompletionCoordinator` ends the lock as `.earned` and
+//         records Day 1; this screen's own `endLock`/`recordEarnedUnlock` calls are then no-ops
+//         (already ended / same-day repeat). Exit while running: the 60-second emergency hold.
+//       Screen Time refused / no apps (or the Simulator): no shield; the same 2-minute timer runs and
+//         verifies, and Day 1 is recorded here. The intro says "to earn Day 1" instead of "to unlock".
+//         Exit while running: a plain "Do it later" button (nothing to unlock, so no wait).
+//     Either way "Do it later" on the intro skips the win and goes straight to Today.
+//
+// VISUAL PASS 2 (2026-10-03, "make it more playful"): the intro's ring now holds the living star
+// (nearly charged: the last bit is what the session earns) instead of a bare "2", and the length is
+// a focus-violet sticker on the ring's rim. The small "Your first win" eyebrow is gone (v2: no
+// eyebrows). Running, celebration and the widget guide are unchanged.
+//
 // Every animation is gated on `accessibilityReduceMotion`. The header chrome is hidden on this
 // screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
 // shared action bar.
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 import Core
 import os
 
@@ -104,6 +140,7 @@ struct Screen14FirstWin: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     @State private var phase: Phase = .intro
     @State private var focusSessionID: UUID?
     @State private var lockSessionID: UUID?
@@ -111,14 +148,16 @@ struct Screen14FirstWin: View {
     @State private var countdownTask: Task<Void, Never>?
     @State private var emergencyUnlock: EmergencyUnlock?
     @State private var isStarting = false
-    @State private var errorMessage: String?
+    /// The start failed. The alert shows Copy, never `error.localizedDescription` (system text
+    /// in the wrong voice, sometimes a raw domain/code); the error itself goes to the log.
+    @State private var showsStartError = false
 
-    /// Spec §7.14's own worked example ("10-minute focus to unlock") — deliberately not one of
-    /// `FocusSessionPreset`'s 25/50/90 presets (`FocusSessionVerifier.swift`): a first win needs to
-    /// be reachable in onboarding itself, and `startSession(plannedMinutes:)` accepts any positive
-    /// value by design (see that type's own doc comment) precisely so a custom-duration entry point
-    /// like this one isn't blocked on the preset list.
-    private static let plannedMinutes = 10
+    /// Two minutes, not spec §7.14's example of 10: spec §17 wants the first earned unlock in under
+    /// 4 minutes, and a 10-minute lock at the end of onboarding blocked entry to the app (its only
+    /// exit was the 60-second emergency hold). Deliberately not one of `FocusSessionPreset`'s
+    /// 25/50/90 presets: `startSession(plannedMinutes:)` accepts any positive value by design.
+    /// Keep `Copy.onboarding.firstWinSubtitle` in step with this.
+    private static let plannedMinutes = 2
     private static let logger = Logger(subsystem: "com.zano.app", category: "OnboardingFirstWin")
 
     private enum Phase: Equatable {
@@ -133,21 +172,18 @@ struct Screen14FirstWin: View {
         content
             .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: phase)
             .alert(
-                "",
-                isPresented: Binding(
-                    get: { errorMessage != nil },
-                    set: { isPresented in if !isPresented { errorMessage = nil } }
-                )
+                Copy.onboarding.firstWinStartErrorTitle,
+                isPresented: $showsStartError
             ) {
-                Button(Copy.common.ok, role: .cancel) { errorMessage = nil }
+                Button(Copy.common.ok, role: .cancel) { showsStartError = false }
             } message: {
-                Text(errorMessage ?? "")
+                Text(Copy.onboarding.firstWinStartErrorMessage)
             }
             .onDisappear { countdownTask?.cancel() }
             .onAppear {
                 Analytics.shared.capture(
                     event: "onboarding_screen_viewed",
-                    properties: ["screen": "first_win", "screen_number": 14]
+                    properties: OnboardingStep.firstWin.viewedProperties
                 )
             }
     }
@@ -172,23 +208,16 @@ struct Screen14FirstWin: View {
 
     // MARK: - Intro
 
-    /// The ring the user is about to fill — empty, with the length of the session inside it. The
-    /// running phase is this same ring, filling, so the promise and the thing are one object.
+    /// The ring the user is about to fill — empty, with the length of the session inside it. (Since
+    /// the short flow the running phase shows the charging star and a big countdown instead.)
     private var introView: some View {
         OnboardingKit.CenteredScroll {
             VStack(spacing: Theme.Spacing.xl) {
-                GoalRing(
-                    progress: 0,
-                    color: Theme.Colors.Ring.focus,
-                    size: .hero,
-                    center: .value("\(Self.plannedMinutes)", unit: Copy.onboardingReveal.firstWinRingUnit)
-                )
-                .accessibilityHidden(true)
+                FirstWinIntroRing(minutes: Self.plannedMinutes)
 
                 VStack(spacing: Theme.Spacing.sm) {
-                    OnboardingKit.Eyebrow(text: Copy.onboarding.firstWinEyebrow)
                     OnboardingKit.DisplayTitle(text: Copy.onboarding.firstWinHeadline)
-                    Text(Copy.onboarding.firstWinSubtitle)
+                    Text(flowState.hasAppSelection ? Copy.onboarding.firstWinSubtitle : Copy.onboarding.firstWinSubtitleNoLock)
                         .font(Theme.Typography.body)
                         .foregroundStyle(Theme.Colors.muted)
                         .multilineTextAlignment(.center)
@@ -196,24 +225,38 @@ struct Screen14FirstWin: View {
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
                 .accessibilityElement(children: .combine)
+
+                // The notification priming line (its own screen before the short flow). Start asks.
+                ZanoGlassChip(Copy.onboarding.firstWinNotificationLine, systemImage: "bell.badge.fill", tint: Theme.Colors.Ring.sunriseAlarm)
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.10)
-        }
         .onboardingKitActionBar {
-            PrimaryButton(
-                title: Copy.onboarding.firstWinStartButton,
-                isEnabled: !isStarting
-            ) {
-                Task { await start() }
+            VStack(spacing: Theme.Spacing.xs) {
+                PrimaryButton(
+                    title: Copy.onboarding.firstWinStartButton,
+                    isEnabled: !isStarting
+                ) {
+                    Task { await start() }
+                }
+                // Never a trap at the door: the first win is an invitation, not a gate.
+                PrimaryButton(
+                    title: Copy.onboarding.firstWinLaterButton,
+                    style: .secondary,
+                    isEnabled: !isStarting
+                ) {
+                    Analytics.shared.capture(event: "onboarding_first_win_skipped")
+                    finishOnboarding()
+                }
             }
         }
     }
 
     // MARK: - Running
+
+    /// The buddy's size while the session runs (the star's until 2026-10-03): 4x its 32px grid.
+    private static let runningStarHeight: CGFloat = 128
 
     private var runningView: some View {
         OnboardingKit.CenteredScroll {
@@ -223,12 +266,33 @@ struct Screen14FirstWin: View {
                     .foregroundStyle(Theme.Colors.text)
                     .accessibilityAddTraits(.isHeader)
 
-                GoalRing(
-                    progress: progressFraction,
-                    color: Theme.Colors.Ring.focus,
-                    size: .hero,
-                    center: .text(formattedCountdown)
+                // The buddy keeping the user company while they stay off their phone (the star
+                // charged here until 2026-10-03); the bloom behind it brightens with the session,
+                // opacity only. The buddy is decorative; the charge is spoken on this element.
+                BuddySprite(buddy, pose: .idle, size: Self.runningStarHeight)
+                .zanoMascot(mood: .perky, size: Self.runningStarHeight, showsGlow: false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Copy.buddy.name(buddy))
+                .accessibilityValue(
+                    Copy.onboarding.firstWinStarAccessibilityValue(
+                        percent: Int((progressFraction * 100).rounded())
+                    )
                 )
+                .background {
+                    OnboardingKit.StarBloom(diameter: Self.runningStarHeight * 3)
+                        .opacity(0.25 + 0.75 * progressFraction)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 1), value: progressFraction)
+                }
+                .padding(.vertical, Theme.Spacing.sm)
+
+                // The big countdown.
+                OnboardingKit.HeroNumeral(text: formattedCountdown, color: Theme.Colors.text)
+                    .accessibilityLabel(
+                        Copy.onboarding.firstWinCountdownAccessibilityLabel(
+                            minutes: secondsRemaining / 60,
+                            seconds: secondsRemaining % 60
+                        )
+                    )
 
                 Text(Copy.onboarding.firstWinRunningDetail)
                     .font(Theme.Typography.caption)
@@ -246,6 +310,12 @@ struct Screen14FirstWin: View {
         .onboardingKitActionBar {
             if let emergencyUnlock {
                 EmergencyHoldControl(emergencyUnlock: emergencyUnlock)
+            } else {
+                // No shield went up (no Screen Time access or no apps, e.g. the Simulator), so
+                // there is nothing to unlock: leaving is a plain button, never a wait.
+                PrimaryButton(title: Copy.onboarding.firstWinLaterButton, style: .secondary) {
+                    Task { await leaveUnshieldedSession() }
+                }
             }
         }
         .onChange(of: emergencyUnlock?.phase) { _, newPhase in
@@ -304,6 +374,10 @@ struct Screen14FirstWin: View {
         isStarting = true
         defer { isStarting = false }
 
+        // The notification ask that used to be its own screen: once, only while undetermined, and
+        // the session starts whatever the answer.
+        await Self.requestNotificationsIfUndetermined()
+
         do {
             let user = try onboardingResolveOrCreateUser(coachVoice: flowState.coachVoice, in: modelContext)
             let goal = try resolveFocusGoal(for: user)
@@ -329,7 +403,8 @@ struct Screen14FirstWin: View {
                 try? await LockEngineManager.shared.endLock(sessionID: lockSessionID, unlockKind: .manual)
                 self.lockSessionID = nil
             }
-            errorMessage = error.localizedDescription
+            Self.logger.error("First-win start failed: \(String(describing: error), privacy: .public)")
+            showsStartError = true
         }
     }
 
@@ -402,6 +477,22 @@ struct Screen14FirstWin: View {
         }
     }
 
+    /// `nonisolated` so the notification center's completion handlers (called off the main queue)
+    /// carry no main-actor isolation; only `Bool`/`Void` cross back.
+    nonisolated private static func requestNotificationsIfUndetermined() async {
+        let isUndetermined = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus == .notDetermined)
+            }
+        }
+        guard isUndetermined else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+                continuation.resume()
+            }
+        }
+    }
+
     // MARK: - Countdown
 
     private func startCountdown() {
@@ -461,9 +552,88 @@ struct Screen14FirstWin: View {
         phase = .notVerified
     }
 
+    /// The running phase's exit when no lock was applied: close the focus session unverified and
+    /// go into the app.
+    private func leaveUnshieldedSession() async {
+        countdownTask?.cancel()
+        if let sessionID = focusSessionID {
+            focusSessionID = nil
+            _ = try? await FocusSessionVerifier.shared.endSession(sessionID: sessionID)
+        }
+        Analytics.shared.capture(event: "onboarding_first_win_skipped")
+        finishOnboarding()
+    }
+
     private func finishOnboarding() {
         Analytics.shared.capture(event: "onboarding_completed")
         onFinished()
+    }
+}
+
+// MARK: - Intro ring
+
+/// The first win's promise: the ring the user is about to fill, empty, in the focus color over a
+/// static halo of the same color, with the session length as the hero numeral inside it. The
+/// running phase is this ring filling. Decorative for VoiceOver (the headline and subtitle say it).
+private struct FirstWinIntroRing: View {
+    let minutes: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
+    @State private var appeared = false
+
+    /// Shared with the running phase's ring, so the promise and the timer are one object.
+    static let diameter: CGFloat = 228
+    /// The halo is wider than the ring; a `background` never affects layout.
+    private static let haloDiameter: CGFloat = 420
+
+    private var isShown: Bool { reduceMotion || appeared }
+
+    var body: some View {
+        GoalRing(
+            progress: 0,
+            color: Theme.Colors.Ring.focus,
+            size: .custom(Self.diameter),
+            center: .none
+        )
+        .overlay {
+            // Visual pass 2: the hero waits inside the ring it is about to fill. Since 2026-10-03
+            // it is the user's buddy (64 = 2x its pixel grid; the star was ~0.32 of the ring).
+            BuddySprite(buddy, pose: .idle, size: 64)
+        }
+        .overlay(alignment: .bottom) {
+            // The session length as a sticker on the ring's rim: "2 min".
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xxs) {
+                Text("\(minutes)")
+                    .font(Theme.Typography.score(size: 30))
+                Text(Copy.onboardingReveal.firstWinRingUnit)
+                    .font(Theme.Typography.headline.weight(.heavy))
+            }
+            .foregroundStyle(Theme.Colors.background)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xxs)
+            .background(Capsule().fill(Theme.Colors.Ring.focus))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.5), lineWidth: 1))
+            .offset(y: Theme.Spacing.md)
+        }
+        .background {
+            // Static: only its opacity changes, once, as the ring arrives (never an animated blur).
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Theme.Colors.Ring.focus.opacity(0.32), Theme.Colors.Ring.focus.opacity(0)],
+                        center: .center,
+                        startRadius: Self.diameter * 0.3,
+                        endRadius: Self.haloDiameter / 2
+                    )
+                )
+                .frame(width: Self.haloDiameter, height: Self.haloDiameter)
+                .opacity(isShown ? 1 : 0)
+        }
+        .scaleEffect(isShown ? 1 : 0.94)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: appeared)
+        .onAppear { appeared = true }
+        .accessibilityHidden(true)
     }
 }
 
@@ -590,18 +760,24 @@ private struct FirstWinCelebration: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sealProgress: Double = 0
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
+    /// The star arrives where the running countdown left it and fills to full on the win.
+    /// (Buddies: `charge` reaching 1 is when the buddy turns happy.)
+    @State private var starCharge: Double = 0.9
     @State private var shownStreak = 0
     @State private var showText = false
     @State private var showBurst = false
     @State private var weekDone = false
     @State private var hapticTick = 0
 
-    /// Where the particles radiate from: a frame centred on the ring, bigger than it.
+    /// Where the particles radiate from: a frame centred on the star, bigger than it.
     private static let burstFrame: CGFloat = 320
+    private static let starHeight: CGFloat = 128
+    /// `ZanoLivingMark` eases a charge change over 1.2s; the burst fires as the fill lands.
+    private static let fillLandMilliseconds = 850
 
     /// Reduce Motion shows the final state from the first frame, with no flash of the unearned one.
-    private var progress: Double { reduceMotion ? 1 : sealProgress }
+    private var charge: Double { reduceMotion ? 1 : starCharge }
     private var streakValue: Int { reduceMotion ? streak : shownStreak }
     private var isTextShown: Bool { reduceMotion || showText }
     private var isWeekDone: Bool { reduceMotion || weekDone }
@@ -616,6 +792,8 @@ private struct FirstWinCelebration: View {
                     .accessibilityAddTraits(.isHeader)
 
                 seal
+
+                streakBadge
 
                 Text(Copy.onboardingReveal.firstWinCelebrationBody)
                     .font(Theme.Typography.body)
@@ -645,33 +823,47 @@ private struct FirstWinCelebration: View {
         .task { await play() }
     }
 
-    /// The streak ring: the burst behind it, the ring closing, the streak numeral inside it.
+    /// The star reaching full charge: the blue bloom swelling behind it, the burst from it.
     private var seal: some View {
         ZStack {
+            OnboardingKit.StarBloom(diameter: Self.burstFrame * 1.2)
+                .opacity(showBurst ? 1 : 0.35)
+                .scaleEffect(showBurst || reduceMotion ? 1 : 0.8)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showBurst)
+
             if showBurst {
                 // Mounted at the unlock beat so the burst fires exactly once, from the moment the
-                // ring closes. Accent-only; it handles Reduce Motion itself (in-place cross-fade).
+                // star fills. Accent-only; it handles Reduce Motion itself (in-place cross-fade).
                 CelebrationBurst(trigger: 0)
                     .frame(width: Self.burstFrame, height: Self.burstFrame)
             }
 
-            GoalRing(progress: progress, color: Theme.Colors.accent, size: .hero, center: .none)
+            // The buddy (the star until 2026-10-03), happy once the win lands.
+            BuddySprite(buddy, pose: charge >= 1 ? .ecstatic : .idle, size: Self.starHeight)
+                .scaleEffect(showBurst && !reduceMotion ? 1.04 : 1)
+                .animation(reduceMotion ? nil : Theme.Motion.springCelebration, value: showBurst)
                 .accessibilityHidden(true)
-
-            VStack(spacing: 0) {
-                OnboardingKit.HeroNumeral(text: "\(streakValue)", color: Theme.Colors.text)
-                Text(Copy.onboardingReveal.firstWinStreakUnit)
-                    .zanoText(.unit)
-                    .foregroundStyle(Theme.Colors.muted)
-            }
-            .accessibilityElement(children: .combine)
         }
+        .frame(height: Self.burstFrame * 0.62)
     }
 
-    /// 0.25s beat (the ring is seen empty while the phase cross-fades in) -> the ring fills over
-    /// 0.6s -> at ~0.85s the burst fires, the streak ticks 0 to 1, today's dot checks, and one
-    /// success haptic lands. Inside `Theme.Motion.unlockCelebrationMaxDuration`, and nothing here
-    /// gates the "Done" button.
+    /// The streak: the hero numeral counting 0 to 1, its unit beside it.
+    private var streakBadge: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+            OnboardingKit.HeroNumeral(text: "\(streakValue)", color: Theme.Colors.text, tier: .large)
+                .fixedSize()
+            Text(Copy.onboardingReveal.firstWinStreakUnit)
+                .zanoText(.unit)
+                .foregroundStyle(Theme.Colors.muted)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 0.25s beat (the nearly-charged star is seen while the phase cross-fades in) -> the star fills to
+    /// full (it eases the fill itself) -> as it lands (~1.1s) the burst fires, the bloom swells, the
+    /// streak ticks 0 to 1, today's dot checks, and one success haptic lands. Inside
+    /// `Theme.Motion.unlockCelebrationMaxDuration` (give or take the star's own ease tail), and
+    /// nothing here gates the "Done" button.
     private func play() async {
         guard !reduceMotion else {
             showBurst = true
@@ -681,10 +873,10 @@ private struct FirstWinCelebration: View {
 
         try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
-        withAnimation(Theme.Motion.ringFill) { sealProgress = 1 }
+        starCharge = 1
         withAnimation(Theme.Motion.springStandard) { showText = true }
 
-        try? await Task.sleep(for: .milliseconds(600))
+        try? await Task.sleep(for: .milliseconds(Self.fillLandMilliseconds))
         guard !Task.isCancelled else { return }
         showBurst = true
         hapticTick += 1
@@ -750,7 +942,7 @@ private struct FirstWinWeekRow: View {
                     .overlay {
                         Image(systemName: "checkmark")
                             .font(Theme.Typography.icon(.small))
-                            .foregroundStyle(Theme.Colors.onFill)
+                            .foregroundStyle(Theme.Colors.onAccent)
                     }
                     .scaleEffect(isDone ? 1 : 0.4)
                     .opacity(isDone ? 1 : 0)
@@ -827,9 +1019,9 @@ private struct FirstWinWidgetPrompt: View {
 
             Image(systemName: "plus")
                 .font(Theme.Typography.icon(.small))
-                .foregroundStyle(Theme.Colors.onFill)
+                .foregroundStyle(Theme.Colors.onAccent)
                 .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                .background(Theme.Colors.accent, in: Circle())
+                .background(Theme.Colors.interactive, in: Circle())
                 .overlay(Circle().strokeBorder(Theme.Colors.background, lineWidth: 3))
                 .offset(x: Theme.Spacing.xxs, y: Theme.Spacing.xxs)
         }

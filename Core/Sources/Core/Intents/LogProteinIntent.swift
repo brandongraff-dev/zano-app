@@ -20,7 +20,11 @@ import AppIntents
 import Foundation
 import SwiftData
 
-public struct LogProteinIntent: AppIntent {
+/// `LiveActivityIntent` (not plain `AppIntent`) so a tap on the Home widget button runs in the
+/// app's process, like `StartLockIntent`: the log may complete the last goal of a lock the
+/// `ZANOMonitor` extension armed while the app was closed, and adopting and ending that lock
+/// touches the shield, which only the app (Family Controls entitlement) can do (audit L1).
+public struct LogProteinIntent: LiveActivityIntent {
     public static let title: LocalizedStringResource = "Log Protein"
 
     public static var description: IntentDescription {
@@ -78,6 +82,7 @@ public struct LogProteinIntent: AppIntent {
         )
         context.insert(event)
         try context.save()
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goal.id)
 
         // Instrumentation (spec §23: "Instrument from day one: ... every intent").
         Analytics.shared.capture(

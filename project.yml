@@ -31,6 +31,12 @@ settings:
 packages:
   Core:
     path: Core
+  # RevenueCat purchases-ios (audit M1, 2026-10-02). Core/Package.swift declares the same URL and
+  # lower bound (Core's RevenueCatManager is the only code that imports it), so Xcode resolves one
+  # copy; it is listed here too so the app target links it explicitly. `from:` keeps it on 5.x.
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios
+    from: 5.92.0
 
 targets:
   ZANO:
@@ -60,9 +66,14 @@ targets:
       #     regenerates. Redundant-but-maybe-harmful is the less safe choice; do nothing extra.
       # If a Mac run of `xcodegen generate` ever shows Assets.xcassets missing from the ZANO
       # target's Copy Bundle Resources phase, only then add a second entry (and drop this comment).
+      # Same for App/ZANO/PrivacyInfo.xcprivacy (and each Extensions/*/PrivacyInfo.xcprivacy): the
+      # group scan adds a file it doesn't compile to Copy Bundle Resources, so no explicit
+      # `resources` entry. UNVERIFIED until a generate run — check each target's Resources phase.
       - path: App/ZANO
     dependencies:
       - package: Core
+      - package: RevenueCat
+        product: RevenueCat
       - target: ZANOWidgets
         embed: true
       - target: ZANOShieldConfig
@@ -76,37 +87,60 @@ targets:
     info:
       path: App/ZANO/Info.plist
       properties:
-        UILaunchScreen: {}
+        # Launch screen: the ZANO wordmark centred on the app background (docs/brand/brand-kit.md).
+        UILaunchScreen:
+          UIImageName: LaunchLogo
+          UIColorName: LaunchBackground
+          UIImageRespectsSafeAreaInsets: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        NSLocationWhenInUseUsageDescription: "ZANO uses your location to verify gym visits so you can earn your apps back."
+        NSLocationWhenInUseUsageDescription: "ZANO uses your location to verify gym visits so you can earn your apps back, and to notice when you're traveling so your gym goal can wait."
         NSLocationAlwaysAndWhenInUseUsageDescription: "ZANO uses background location to verify gym visits even when the app isn't open."
-        NSHealthShareUsageDescription: "ZANO reads workouts, steps, and sleep to verify goals automatically, without you having to log them."
+        # Matches what Core actually reads: step count (StepsVerifier requests it), workouts
+        # (HomeWorkoutVerifier) and heart rate (GymVerifier / GymAutoDetect / HomeWorkoutVerifier).
+        # Nothing reads sleep, so it is not mentioned.
+        NSHealthShareUsageDescription: "ZANO reads your steps, workouts, and heart rate to verify goals automatically, without you having to log them."
+        # Nothing writes to Health yet (every requestAuthorization passes `toShare: []`). Kept so a
+        # HealthKit-linked binary never trips a missing-purpose-string check; no prompt shows it today.
         NSHealthUpdateUsageDescription: "ZANO may save workouts you start from inside the app."
         NFCReaderUsageDescription: "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock."
-        NSCameraUsageDescription: "ZANO uses your camera to estimate protein from meal photos."
+        NSCameraUsageDescription: "ZANO uses the camera to scan food barcodes and photograph meals to log protein."
         NSMotionUsageDescription: "ZANO uses motion data to verify workouts and prevent goal spoofing."
-        # Background execution the verifiers depend on. Without these declared, iOS never launches
-        # or wakes the app for the events below and the verifiers silently never fire:
-        #   location            - GymVerifier (Core/Sources/Core/Verification/GymVerifier.swift):
-        #                         CLMonitor geofence + dwell tracking, and GymAutoDetect's visit
-        #                         monitoring, keep working with the app backgrounded/suspended.
-        #   fetch               - periodic background refresh (BGAppRefreshTask / legacy fetch).
-        #   remote-notification - silent pushes (aps-environment is already in the entitlements).
-        #   processing          - BGProcessingTask work (e.g. sync outbox flush, recap jobs).
+        # CalendarAwareness (Core/Sources/Core/Retention) can call EKEventStore.requestFullAccessToEvents()
+        # from its opt-in; nothing in the app calls that opt-in yet, but EventKit is linked and
+        # iOS 17+ traps a full-access request with no purpose string, so declare it up front.
+        NSCalendarsFullAccessUsageDescription: "ZANO checks how busy your day is so it can go easier on your goals on packed days."
+        # AlarmKit (iOS 26+) — SunriseAlarmManager calls AlarmManager.shared.requestAuthorization().
+        # UNVERIFIED key name: believed to be NSAlarmKitUsageDescription per Apple's AlarmKit docs;
+        # confirm against the iOS 26 SDK on first Mac/CI run.
+        NSAlarmKitUsageDescription: "ZANO schedules your Sunrise Alarm so it rings even when your phone is on silent or in Focus."
+        # ActivityKit: FocusSessionVerifier / BedtimeGateManager / SunriseAlarmManager call
+        # Activity.request, which fails without this key.
+        NSSupportsLiveActivities: true
+        # Only HTTPS/system crypto (URLSession, Supabase over TLS) — exempt, so no export-compliance
+        # questionnaire on every upload.
+        ITSAppUsesNonExemptEncryption: false
+        # RevenueCat public SDK key (App Store app key, `appl_...`), read by ZANOApp ->
+        # RevenueCatManager.configure. Expands the REVENUECAT_API_KEY build setting below, which is
+        # EMPTY in the repo on purpose: never commit a key. Supply it at build time, e.g.
+        # `xcodebuild ... REVENUECAT_API_KEY=appl_xxx` in CI/Codemagic from a secret. Empty = the
+        # not-configured path: the paywall can't load plans, and onboarding offers the grace period.
+        REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)
+        # Background execution the verifiers depend on. Without this declared, iOS never wakes the
+        # app for geofence/visit events and the gym verifier silently never fires:
+        #   location - GymVerifier (Core/Sources/Core/Verification/GymVerifier.swift): CLMonitor
+        #              geofence + dwell tracking, and GymAutoDetect's visit monitoring, keep working
+        #              with the app backgrounded/suspended.
+        # Deliberately NOT declared (grep'd Core/ and App/, nothing uses them): `fetch` and
+        # `processing` (no BGTaskScheduler.register — and `processing` without a matching
+        # BGTaskSchedulerPermittedIdentifiers array fails App Store validation) and
+        # `remote-notification` (no registerForRemoteNotifications; all notifications are local).
+        # Add each back only together with the code that needs it.
         # NOTE: HealthKit has no UIBackgroundModes value. StepsVerifier's HKObserverQuery +
         # enableBackgroundDelivery wakes the app through the
-        # `com.apple.developer.healthkit.background-delivery` entitlement instead — added to the
-        # entitlements block below for exactly that reason.
-        # NOTE: nothing calls BGTaskScheduler.register yet (grep'd Core/ and App/). The moment
-        # something does, its task identifiers must ALSO be listed under a
-        # `BGTaskSchedulerPermittedIdentifiers` array in this Info block, or the registration
-        # traps at launch. Not added here because there are no identifiers to list yet.
+        # `com.apple.developer.healthkit.background-delivery` entitlement instead.
         UIBackgroundModes:
           - location
-          - fetch
-          - remote-notification
-          - processing
         # Registers the `zano://` URL scheme (added in the 2026-09-23 wiring-wave review).
         # `ZANOApp`'s `.onOpenURL` -> `AppRouter.handle(url:)` already routes `zano://tag/<uuid>`
         # (NFC tag URLs, spec §6/§14), `zano://goals` / `zano://emergency` (ShieldAction
@@ -143,8 +177,13 @@ targets:
         # XcodeGen's own iOS-application preset already defaults ASSETCATALOG_COMPILER_APPICON_NAME
         # to AppIcon; it is set explicitly anyway so the wiring is visible here instead of implicit.
         # GLOBAL_ACCENT_COLOR_NAME is NOT a XcodeGen default — without it the catalog's
-        # AccentColor.colorset is not applied as the app's tint (spec §15: #B8FF3C, ONE accent).
+        # AccentColor.colorset is not applied as the app's tint (ONE accent: ZANO Blue,
+        # matching `Theme.Colors.accent` in Core).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Buddies (2026-10-03): the app icon becomes the user's buddy. Stash is the primary AppIcon;
+        # the other eight are alternate icon sets (generated by scripts/buddies/export_swift.py),
+        # switched with `UIApplication.setAlternateIconName` when the user teams up with a buddy.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Zib AppIcon-Lox AppIcon-Pip AppIcon-Moko AppIcon-Brick AppIcon-Tank AppIcon-Volt AppIcon-Howl"
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         # Pinned explicitly (added in the 2026-09-23 wiring-wave review). Without it XcodeGen derives
         # `bundleIdPrefix + "." + target name` = "com.zano.app.ZANO" for this target, which breaks
@@ -160,6 +199,8 @@ targets:
         # docs/sessions/00 mentions; whichever spelling is registered in the Apple developer portal
         # must match what is generated here, so reconcile before registering (UNVERIFIED — no Mac).
         PRODUCT_BUNDLE_IDENTIFIER: com.zano.app
+        # Placeholder for the Info.plist key above. Leave empty here; override per build.
+        REVENUECAT_API_KEY: ""
 
   ZANOWidgets:
     type: app-extension
@@ -224,6 +265,11 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOMonitor
+    # Core for `ScheduledLockMonitor` (scheduled locks, spend windows) and the App Group mirrors it
+    # reads. Same dependency ZANOShieldConfig/ZANOShieldAction already carry; the monitor only
+    # touches UserDefaults + ManagedSettings at runtime (spec §27 memory limits).
+    dependencies:
+      - package: Core
     info:
       path: Extensions/ZANOMonitor/Info.plist
       properties:
@@ -242,6 +288,9 @@ targets:
     platform: iOS
     sources:
       - path: Extensions/ZANOReport
+    # Core for the shared ScreenTimeSummaryView and the SharedDefaults locked-apps mirror.
+    dependencies:
+      - package: Core
     settings:
       base:
         # Swift 5 language mode for this one placeholder extension only. CI showed Apple's
@@ -296,6 +345,12 @@ targets:
   #      already flagged there as a choice, not confirmed against an actual Xcode-resolved bundle
   #      ID). If ZANO's real resolved PRODUCT_BUNDLE_IDENTIFIER ever turns out to differ, this
   #      value must be updated to match exactly, or Xcode will refuse to pair the two apps.
+  #
+  # Session 13b (2026-10-04): CI now builds this target on its own (the `ZANOWatch` scheme at the
+  # bottom of this file, `generic/platform=watchOS Simulator`, unsigned). Gap 1 (embedding) is
+  # still deliberately open: embedding changes the main ZANO build and needs signing + a paired
+  # device to mean anything. Gap 2 stands; the watch has its own generated copy of the buddy art
+  # (Watch/ZANOWatch/Generated, from scripts/buddies/export_swift.py) instead of importing Core.
   ZANOWatch:
     type: application
     platform: watchOS
@@ -388,3 +443,13 @@ schemes:
         # to look.
         - package: Core/CoreTests
         - ZANOUITests
+
+  # The watch app on its own (session 13b), so CI can build it: `xcodebuild -scheme ZANOWatch
+  # -destination 'generic/platform=watchOS Simulator'`. XcodeGen only writes the schemes listed
+  # here, and xcodebuild doesn't auto-create one for a target once shared schemes exist.
+  ZANOWatch:
+    build:
+      targets:
+        ZANOWatch: all
+    run:
+      config: Debug

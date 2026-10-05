@@ -19,7 +19,7 @@
 //     card reads as "your apps go here" before it is read. A dashed outline is the empty-slot idiom
 //     (competitive-research §3.10).
 //   - Filled: an overlapped row of the user's real app icons, then a check + the count summary, in a
-//     `zanoCard` with the static accent glow ("active element", spec §16) and a 2pt accent edge.
+//     `zanoCard` with a 2pt white selection edge (no glow: selection is not earned, 2026-09-24).
 //     Icons are FamilyControls' own `Label(token).labelStyle(.iconOnly)`: the system renders them,
 //     so the privacy rule holds (tokens are opaque; nothing here can read an app name or bundle id).
 //     API verified against Apple's Developer Forums / sample code, not compiled.
@@ -29,12 +29,22 @@
 //     icons carries the text. Icons can also intermittently render as three dots (thread 723651), so
 //     the icon row is additive and the summary never depends on it. Capped at 5 tiles + "+N" to keep
 //     the number of live token views small (thread 727437 reports freezes with many).
-//   - The card carries no accent *wash* (only the glow): the icon tiles are cut out of each other
+//   - The card carries no *wash*: the icon tiles are cut out of each other
 //     with a `surface`-colored ring, which only matches the card fill if nothing tints it.
-//   - Real tokens: `hairlineStrong` dash, `accentWash` add-slot, `PressableStyle` press state,
+//   - Real tokens: `hairlineStrong` dash, white add-slot, `PressableStyle` press state,
 //     `chevron.forward` (mirrors in RTL), selection haptic, Reduce-Motion-gated transitions.
 //
-// Handoff idea (needs a Copy key, not editable here): one privacy line under the subtitle, e.g.
+// Denied access is not a dead end (2026-09-24 audit, P0): the alert offers "Open Settings", and
+// once access has been refused an inline card under the picker repeats the message with a
+// "Try again" that re-runs the request and the picker. Continue stays gated on a real selection,
+// and (short flow, 2026-10-02) a second "Continue without locking" button appears once access was
+// refused: the first win then runs as a plain timer with no lock, so nobody is stuck here.
+//
+// VISUAL PASS 2 (2026-10-03): the guide star sits above the picker ("Pick your villains...") and
+// reacts once apps are in; the live "+" slot glows, leans and bounces twice when the screen opens.
+// The privacy line below is now part of the subtitle (`q2Subtitle`). Authorization is unchanged.
+//
+// Handoff idea (done in pass 2, kept for history): one privacy line under the subtitle, e.g.
 // "Your app list never leaves this phone." It is true (CLAUDE.md: tokens never leave the device) and
 // it is the moment users are about to see a system permission prompt.
 
@@ -44,20 +54,25 @@ import ManagedSettings
 import ManagedSettingsUI
 import Core
 
-/// Screen 4 of 14 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
+/// Step 5 of 8 (spec §7.4) - Q2, the onboarding-embedded app picker. This is also v1's
 /// FamilyControls authorization request (spec §7.4's parenthetical), primed with one sentence
 /// (`Copy.onboarding.q2Subtitle`) before the system picker/permission sheet appears.
 struct Screen4AppSelection: View {
     @Bindable var flowState: OnboardingFlowState
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
 
     @State private var isPickerPresented = false
     @State private var authorizationAlert: Screen4AuthorizationAlert?
+    /// Set when the last request ended without access; shows the inline "Try again" card.
+    @State private var authorizationDenied = false
     /// Tracks a same-session dismiss of `AlwaysAllowedWarningView` below, so tapping its close
     /// button hides it immediately without waiting for `AlwaysAllowedCheck.hasAcknowledgedWarning`
     /// (a `UserDefaults`-backed value, not `@Observable`) to be re-read on the next render.
     @State private var alwaysAllowedWarningDismissed = false
+    /// Bumped once on appear (not under Reduce Motion) so the "+" slot bounces to say "tap me".
+    @State private var plusBounce = 0
 
     private let tileSize = Theme.Metrics.iconBadgeMedium
     private let maxIconTiles = 5
@@ -100,7 +115,20 @@ struct Screen4AppSelection: View {
     var body: some View {
         OnboardingQuestion(title: Copy.onboarding.q2Title, subtitle: Copy.onboarding.q2Subtitle) {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                // Visual pass 2: the guide star asks for the "villains", then reacts once they're in.
+                OnboardingGuideStar(
+                    line: hasSelection ? Copy.onboarding.guideAppsPicked : Copy.onboarding.guideAppsPrompt,
+                    charge: hasSelection ? 0.7 : 0.5,
+                    tint: hasSelection ? Theme.Colors.Ring.steps : Theme.Colors.accent,
+                    mood: hasSelection ? .perky : .idle
+                )
+
                 pickerCard
+
+                if authorizationDenied && !hasSelection {
+                    deniedCard
+                        .transition(.opacity)
+                }
 
                 // spec §20.2 / §27: surface the Always Allowed gotcha right where the user is
                 // picking apps, not buried in a settings screen they may never visit.
@@ -112,8 +140,20 @@ struct Screen4AppSelection: View {
                 }
             }
         }
-        .onboardingPinnedContinue(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
-            flowState.advance()
+        .onboardingEntrance()
+        .onboardingKitActionBar {
+            PrimaryButton(title: Copy.common.continueButtonLabel, isEnabled: hasSelection) {
+                flowState.advance()
+            }
+            // Refused Screen Time access is never a dead end: the first win still runs (as a plain
+            // timer, no lock) and Today's first-day checklist offers to pick apps again.
+            if authorizationDenied && !hasSelection {
+                PrimaryButton(title: Copy.onboarding.q2ContinueWithoutLockButton, style: .secondary) {
+                    Analytics.shared.capture(event: "onboarding_continued_without_screen_time")
+                    flowState.advance()
+                }
+                .transition(.opacity)
+            }
         }
         .familyActivityPicker(isPresented: $isPickerPresented, selection: $flowState.selectedApps)
         .alert(
@@ -124,17 +164,54 @@ struct Screen4AppSelection: View {
             ),
             presenting: authorizationAlert
         ) { _ in
+            Button(Copy.onboarding.q2OpenSettingsButton) {
+                authorizationAlert = nil
+                openAppSettings()
+            }
             Button(Copy.common.ok, role: .cancel) { authorizationAlert = nil }
         } message: { alert in
             Text(alert.message)
         }
-        .preferredColorScheme(.dark)
         .onAppear {
+            if !reduceMotion { plusBounce += 1 }
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "app_selection", "screen_number": 4]
+                properties: OnboardingStep.appSelection.viewedProperties
             )
         }
+    }
+
+    // MARK: - Denied card
+
+    /// Shown under the picker once access was refused: what happened, and a way to try again.
+    private var deniedCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                Image(systemName: "hourglass")
+                    .font(Theme.Typography.icon(.medium))
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .accessibilityHidden(true)
+                Text(Copy.onboarding.q2AuthorizationErrorMessage)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            PrimaryButton(
+                title: Copy.onboarding.q2TryAgainButton,
+                systemImage: "arrow.clockwise",
+                style: .secondary
+            ) {
+                Task { await requestAuthorizationThenPresentPicker() }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoCard(radius: Theme.Radius.medium)
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
     }
 
     // MARK: - Picker card
@@ -173,12 +250,17 @@ struct Screen4AppSelection: View {
                         )
                         .frame(width: tileSize, height: tileSize)
                 }
-                // The one live slot: the action. Accent is right here (the affordance on the screen).
+                // The one live slot: the action, on the ZANO Blue fill with a white glyph
+                // (`onAccent`: near-black on blue read muddy).
                 Image(systemName: "plus")
                     .font(Theme.Typography.icon(.large, weight: .bold))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.onAccent)
+                    // A periodic nudge on the one live slot (still under Reduce Motion).
+                    .symbolEffect(.bounce, options: .repeat(2), value: plusBounce)
                     .frame(width: tileSize, height: tileSize)
-                    .background(Theme.Colors.accentWash, in: slotShape)
+                    .background(Theme.Colors.interactive, in: slotShape)
+                    .shadow(color: Theme.Colors.accent.opacity(0.55), radius: 10)
+                    .rotationEffect(.degrees(reduceMotion ? 0 : 4))
             }
             .accessibilityHidden(true)
 
@@ -210,7 +292,7 @@ struct Screen4AppSelection: View {
 
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.interactive)
                 Text(selectionSummary)
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
@@ -219,9 +301,10 @@ struct Screen4AppSelection: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Static glow on the active (selected) card, no wash (see the file header).
-        .zanoCard(radius: Theme.Radius.medium, active: true)
-        .overlay { cardShape.strokeBorder(Theme.Colors.accent, lineWidth: 2) }
+        // Selected = the white selection edge (decision 2026-09-24). No glow: the glow is the
+        // reward, and picking apps is not one.
+        .zanoCard(radius: Theme.Radius.medium)
+        .overlay { cardShape.strokeBorder(Theme.Colors.interactive, lineWidth: Theme.Metrics.selectedStroke) }
         .contentShape(cardShape)
     }
 
@@ -293,10 +376,14 @@ struct Screen4AppSelection: View {
     private func requestAuthorizationThenPresentPicker() async {
         let center = AuthorizationCenter.shared
 
-        if center.authorizationStatus == .notDetermined {
+        // Ask again after a refusal too: "Try again" must re-run the request, not just re-read a
+        // stored `.denied`. (UNVERIFIED on device: whether `.individual` re-prompts after a denial
+        // or throws straight away; either way the card and "Open Settings" remain.)
+        if center.authorizationStatus != .approved {
             do {
                 try await center.requestAuthorization(for: .individual)
             } catch {
+                authorizationDenied = true
                 authorizationAlert = Screen4AuthorizationAlert(
                     title: Copy.onboarding.q2AuthorizationErrorTitle,
                     message: Copy.onboarding.q2AuthorizationErrorMessage
@@ -307,8 +394,10 @@ struct Screen4AppSelection: View {
 
         switch center.authorizationStatus {
         case .approved:
+            authorizationDenied = false
             isPickerPresented = true
         case .denied, .notDetermined:
+            authorizationDenied = true
             authorizationAlert = Screen4AuthorizationAlert(
                 title: Copy.onboarding.q2AuthorizationDeniedTitle,
                 message: Copy.onboarding.q2AuthorizationDeniedMessage

@@ -146,9 +146,11 @@ public final class ComebackMode {
         else { return false }
 
         let day = calendar.startOfDay(for: date)
-        let gap = calendar.dateComponents(
-            [.day], from: calendar.startOfDay(for: lastEarned), to: day
-        ).day ?? 0
+        let lastEarnedDay = calendar.startOfDay(for: lastEarned)
+        let rawGap = calendar.dateComponents([.day], from: lastEarnedDay, to: day).day ?? 0
+        // Health pause (spec §24): paused days are a chosen break, not time away — they never
+        // count toward the inactivity threshold.
+        let gap = rawGap - HealthPause.pausedDayCount(strictlyBetween: lastEarnedDay, and: day, calendar: calendar, now: date)
         return gap >= Self.inactivityThresholdDays
     }
 

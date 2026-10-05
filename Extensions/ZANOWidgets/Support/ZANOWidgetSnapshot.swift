@@ -65,6 +65,11 @@ public struct ZANOWidgetSnapshot: Sendable {
     public let lockMode: LockMode?
     public let goalsRemainingForActiveLock: Int
     public let lockSetName: String?
+    /// Titles of the active lock's required goals not yet verified today ("Gym", "Protein"), in
+    /// the lock's order. Empty when unlocked, and for a scheduled lock the app hasn't adopted yet
+    /// (no `LockSession` row to read the goal list from); the count above still comes from the
+    /// mirror either way.
+    public let remainingGoalTitles: [String]
 
     // Time Bank (spec §5.2 Earn Rate) — mirrors `SharedDefaults.earnedMinutesRemainingToday`,
     // already zeroed out by the loader when the mirror is stale (see
@@ -93,6 +98,7 @@ public struct ZANOWidgetSnapshot: Sendable {
         lockMode: LockMode?,
         goalsRemainingForActiveLock: Int,
         lockSetName: String?,
+        remainingGoalTitles: [String] = [],
         earnedMinutesRemainingToday: Int,
         nextScheduledLockAt: Date?,
         protein: ZANORingProgress,
@@ -108,6 +114,7 @@ public struct ZANOWidgetSnapshot: Sendable {
         self.lockMode = lockMode
         self.goalsRemainingForActiveLock = goalsRemainingForActiveLock
         self.lockSetName = lockSetName
+        self.remainingGoalTitles = remainingGoalTitles
         self.earnedMinutesRemainingToday = earnedMinutesRemainingToday
         self.nextScheduledLockAt = nextScheduledLockAt
         self.protein = protein
@@ -128,6 +135,7 @@ public struct ZANOWidgetSnapshot: Sendable {
         lockMode: .earn,
         goalsRemainingForActiveLock: 2,
         lockSetName: "Distractions",
+        remainingGoalTitles: ["Gym", "Protein"],
         earnedMinutesRemainingToday: 35,
         nextScheduledLockAt: Calendar.current.date(byAdding: .hour, value: 3, to: .now),
         protein: ZANORingProgress(goalID: nil, title: "Protein", current: 72, target: 150, unit: "g"),
@@ -204,6 +212,27 @@ public enum ZANOWidgetDataStore {
             }
         }
 
+        // Which required goals still stand between the user and an unlock. Same rule the lock
+        // engine uses (`GoalDayProgress.isVerifiedCompletion` since the start of the session's
+        // day), read from the goals already fetched above. UUID-only predicate: no enum compares.
+        var remainingGoalTitles: [String] = []
+        if let sessionID = SharedDefaults.activeLockSessionID {
+            var descriptor = FetchDescriptor<LockSession>(
+                predicate: #Predicate<LockSession> { $0.id == sessionID }
+            )
+            descriptor.fetchLimit = 1
+            if let session = (try? context.fetch(descriptor))?.first {
+                let sessionDayStart = calendar.startOfDay(for: session.startedAt)
+                remainingGoalTitles = session.requiredGoalIDs.compactMap { goalID in
+                    guard let goal = activeGoals.first(where: { $0.id == goalID }) else { return nil }
+                    let verified = goal.events.contains { event in
+                        event.ts >= sessionDayStart && GoalDayProgress.isVerifiedCompletion(event)
+                    }
+                    return verified ? nil : goal.title
+                }
+            }
+        }
+
         let remainingMinutes = SharedDefaults.earnedMinutesMirrorIsForToday
             ? SharedDefaults.earnedMinutesRemainingToday
             : 0
@@ -212,10 +241,11 @@ public enum ZANOWidgetDataStore {
             asOf: .now,
             currentStreak: SharedDefaults.currentStreak,
             bestStreak: SharedDefaults.bestStreak,
-            isLocked: SharedDefaults.activeLockSessionID != nil,
+            isLocked: ZANOLockState.isLocked,
             lockMode: SharedDefaults.activeLockMode,
-            goalsRemainingForActiveLock: SharedDefaults.goalsRemainingForActiveLock,
+            goalsRemainingForActiveLock: ZANOLockState.goalsRemaining,
             lockSetName: activeLockSetName,
+            remainingGoalTitles: remainingGoalTitles,
             earnedMinutesRemainingToday: remainingMinutes,
             nextScheduledLockAt: SharedDefaults.nextScheduledLockAt,
             protein: ring(for: .protein, title: "Protein", defaultUnit: "g"),

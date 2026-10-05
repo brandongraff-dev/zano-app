@@ -114,12 +114,13 @@ public enum IntentSupport {
     /// active session is unambiguous.
     @MainActor
     public static func activeLockSession(for userID: UUID, in context: ModelContext) throws -> LockSession? {
+        // `unlockKind` is checked in Swift: an optional-enum comparison in `#Predicate` throws in
+        // SwiftData's SQLite translation (see `LockEngineManager.fetchActiveSession`).
         var descriptor = FetchDescriptor<LockSession>(
-            predicate: #Predicate { $0.userID == userID && $0.endedAt == nil && $0.unlockKind == nil }
+            predicate: #Predicate { $0.userID == userID && $0.endedAt == nil }
         )
         descriptor.sortBy = [SortDescriptor(\.startedAt, order: .reverse)]
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        return try context.fetch(descriptor).first(where: { $0.unlockKind == nil })
     }
 
     /// The user's currently active `Goal` of a given type, if any. `active == true` mirrors
@@ -128,22 +129,25 @@ public enum IntentSupport {
     /// `StartFocusIntent`) that need to pick one without asking the user.
     @MainActor
     public static func activeGoal(ofType type: GoalType, for userID: UUID, in context: ModelContext) throws -> Goal? {
+        // `type` (an enum) is matched in Swift, not in the predicate — see `activeLockSession`.
         var descriptor = FetchDescriptor<Goal>(
-            predicate: #Predicate { $0.user?.id == userID && $0.active && $0.type == type }
+            predicate: #Predicate { $0.user?.id == userID && $0.active }
         )
         descriptor.sortBy = [SortDescriptor(\.createdAt, order: .reverse)]
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        return try context.fetch(descriptor).first(where: { $0.type == type })
     }
 
-    /// All of the user's currently active goal ids, used as `StartLockIntent`'s default
-    /// `requiredGoalIDs` when the caller doesn't specify which goals gate the lock.
+    /// All of the user's currently active goal ids that can gate a lock, used as `StartLockIntent`'s
+    /// (and every schedule's / bedtime's) default `requiredGoalIDs` when the caller doesn't specify
+    /// which goals gate the lock. Goal types nothing can complete yet
+    /// (`GoalType.canGateLock == false`, e.g. an older "Sleep on time" goal) are left out so they
+    /// never trap a lock (audit L2). The type is matched in Swift, never in `#Predicate`.
     @MainActor
     public static func activeGoalIDs(for userID: UUID, in context: ModelContext) throws -> [UUID] {
         let descriptor = FetchDescriptor<Goal>(
             predicate: #Predicate { $0.user?.id == userID && $0.active }
         )
-        return try context.fetch(descriptor).map(\.id)
+        return try context.fetch(descriptor).filter { $0.type.canGateLock }.map(\.id)
     }
 
     /// A specific `Goal` by id, scoped to `userID`. Used by intents that take a `GoalEntity`
@@ -199,6 +203,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
     case manual
     case siri
     case barcode
+    case photo
 
     public static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(name: "Log Source")
@@ -210,6 +215,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
         .manual: DisplayRepresentation(title: "Manual"),
         .siri: DisplayRepresentation(title: "Siri"),
         .barcode: DisplayRepresentation(title: "Barcode"),
+        .photo: DisplayRepresentation(title: "Meal photo"),
     ]
 
     /// Converts to the `Models/GoalEvent.swift` enum actually stored on `GoalEvent.source`.
@@ -220,6 +226,7 @@ public enum GoalLogSource: String, AppEnum, Sendable {
         case .manual: .manual
         case .siri: .siri
         case .barcode: .barcode
+        case .photo: .photo
         }
     }
 }
@@ -365,4 +372,17 @@ public struct MealQuery: EntityQuery, EnumerableEntityQuery {
         }
         return name
     }
+}
+
+// MARK: - Goal types that can't complete yet
+
+extension GoalType {
+    /// Goal types nothing in this version can verify: no verifier ever writes their completion.
+    /// "Sleep on time" needs Health sleep data, which v1 stopped reading (audit L2). They're hidden
+    /// from every goal picker, and an existing one never gates a lock — as a required goal it
+    /// would leave emergency unlock as the only way out.
+    public static let notYetCompletable: Set<GoalType> = [.sleepOnTime]
+
+    /// `false` for `notYetCompletable` types: never offered, never required by a lock.
+    public var canGateLock: Bool { !Self.notYetCompletable.contains(self) }
 }

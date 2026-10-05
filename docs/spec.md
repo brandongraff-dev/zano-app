@@ -197,7 +197,7 @@ Users who save the same gym form an anonymous leaderboard: "You're #4 most consi
 ### 5.9 Seasons, Ranks, Monthly Challenges
 - Ranks: Bronze → Silver → Gold → Platinum → Diamond based on 4-week consistency (not volume, so a 3x/week person can hit Diamond).
 - Seasons (quarterly) reset rank with a "season badge" kept forever.
-- Monthly challenges themed to fresh starts: "January Lock-In," "Summer Shred Consistency," "No-Skip November." Shareable challenge cards.
+- Monthly challenges themed to fresh starts: "January Lock-In," "Summer Strong," "No-Skip November." Shareable challenge cards.
 
 ### 5.10 ★ Bedtime Gate & Sunrise Alarm (tap-to-dismiss)
 
@@ -305,7 +305,7 @@ All actions are **App Intents** (§14). Build each once, reuse everywhere.
 
 ## 7. Onboarding Flow (screen by screen)
 
-Target: 10–14 screens, under 3 minutes, paywall at peak motivation. Every screen has one job.
+Target: 7 steps (cut from 15 on 2026-10-02, founder-approved), under 3 minutes, paywall at peak motivation, ending in a real first earned unlock. **Buddy step (2026-10-03, founder-approved):** right after the Hook, "Pick your buddy" picks one of 9 pixel-art mascots (default Stash) that replaces the ZANO star as the app's character, making the flow 8 steps (changeable later in Settings; see `docs/design/visual-direction-v2.md` §11). Setup that isn't needed for the first win (tags, gym, Sunrise alarm, coach voice, squads) lives on Today's "Finish setup" card. Every screen has one job.
 
 1. **Hook** — Full-bleed. "Your phone is fighting your goals. Let's flip that." CTA: "I'm ready."
 2. **Social proof strip** — 3 rotating quotes (real ones once you have them; placeholder copy marked clearly until then).
@@ -527,11 +527,11 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 **Feel:** dark, confident, game-progress energy without being childish. Think: fitness tracker × ranked mode in a game × premium minimal.
 
 **Tokens (starting point, tune after image-gen exploration)**
-- Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
-- Text: `#F5F5F7` ; Muted: `#8E8E93`
-- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only
-- Danger: `#FF453A` (real failures and the emergency exit only) ; Warning: `#FFB020`. **Locked is shown `muted`, not red** (decision 2026-09-23: a routine locked day should read calm; only failures are red)
-- Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
+- Background: `#050506` ; Surface: `#111113` ; Surface-2: `#19191C` (darkened 2026-09-24: the old greys read faint)
+- Text: `#F2F1ED` (pearl) ; Muted: `#8E8E93`
+- Accent: `#3F7BFF` (ZANO Blue) — primary accent (founder decision 2026-09-24: the all-silver app felt dull). Primary buttons (white label), selection, the tab bar's lit tab, the workout ring, earned moments and the living star's glow. Silver (`metallic`) stays the logo's metal. Supersedes the same-day platinum accent, which replaced acid green `#B8FF3C`.
+- Danger: `#DE5A52` (real failures and the emergency exit only) ; Warning: `#D9A55B`. **Locked is shown `muted`, not red** (decision 2026-09-23: a routine locked day should read calm; only failures are red)
+- Ring colors (muted, low-chroma): workout = accent, protein = `#C8936A` (bronze), focus = `#8E96C8` (slate), water = `#86B4C4` (glacier)
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32
 - Type: SF Pro (or one variable display font for numerals, e.g., a condensed grotesque); big numerals for grams/minutes/streak
 - Motion: spring animations; ring fills ease-out 600ms; unlock celebration ≤ 1.2s; haptics on every verified event
@@ -547,7 +547,7 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 Use image generation for **direction**, not final pixels. Generate 4–6 variants, pick one, then reuse the same style paragraph in every prompt. Feed the winners to Claude with the tokens above to build real SwiftUI components.
 
 **Style paragraph (paste into every prompt after choosing):**
-> Premium dark-mode iOS app, deep black background, one vivid acid-green accent, large rounded progress rings, chunky bold numerals, generous spacing, subtle inner glow on active elements, crisp 1px hairline dividers, SF Pro–like typography, no clutter, realistic iPhone 15 Pro frame, high fidelity, no lorem ipsum.
+> Premium dark-mode iOS app, deep black background, monochrome black / pearl / brushed-silver palette with muted metal accents, large rounded progress rings, chunky bold numerals, generous spacing, subtle inner glow on active elements, crisp 1px hairline dividers, SF Pro–like typography, no clutter, realistic iPhone 15 Pro frame, high fidelity, no lorem ipsum.
 
 **P1 — Today screen**
 > iPhone app screen "Today" for a discipline app where users earn back distracting apps by completing goals. Top: streak pill "14 🔥" and lock status card "Locked · TikTok, Instagram, YouTube" with a small padlock. Center: three progress rings labeled Workout, Protein (72/150g), Focus (25/50 min). Bottom: a single primary button "Go to gym · 6 min away". Tab bar: Today, Lock, Fuel, Progress, Squad. [style paragraph]
@@ -589,7 +589,7 @@ Do Session 0 and 1 first, alone. Then parallelize on branches. Each session has 
 | 3 | Verification: gym geofence + dwell + HealthKit check, auto-detect suggestion, focus timer + Live Activity, Core Motion anti-cheat | `feat/verify` | Gym visit auto-verifies; focus session verifies |
 | 4 | App Intents catalog + widgets (S/M/L, lock screen) + Controls + Siri phrases + NFC reader & tag mapping | `feat/intents` | Log water from widget without opening app; NFC tag starts lock |
 | 5 | Design system + screens: Today, Lock, Fuel (protein/water), Progress, Settings | `feat/ui` | All screens navigable with real data |
-| 6 | Onboarding (14 screens) + permission priming + RevenueCat paywall + first-win flow | `feat/onboarding` | New install → paywall → first earned unlock in < 4 min |
+| 6 | Onboarding (7 steps) + permission priming + RevenueCat paywall + first-win flow | `feat/onboarding` | New install → paywall → first earned unlock in < 4 min |
 | 7 | Supabase: schema, RLS, auth (anon → Apple), storage, sync Edge Function, RevenueCat webhook | `feat/backend` | Two devices sync; subscription status reflects in app |
 | 8 | AI: meal-vision Edge Function, quick repeats, weekly recap job + card + share image | `feat/ai` | Photo → protein estimate → confirm; Sunday recap appears |
 | 9 | Streak logic: freezes, Never Miss Twice, Plan B, Comeback; adaptive engine v1 (rules) | `feat/retention` | Simulated 30-day history behaves per §8/§9 |
@@ -795,7 +795,7 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 - **Family Controls entitlement:** apply to Apple on day one. Approval is per bundle ID, so file 4 requests (main app + ShieldConfig + ShieldAction + Monitor extensions). Explain the use case clearly; approval can take days to weeks and you cannot ship without it. While waiting, use the **Family Controls (Development)** capability in Xcode: fully functional on a real device, but cannot go to TestFlight or the App Store.
 - **Emergency access:** calls and Emergency SOS are never affected by shields (Apple guarantees this), but also provide an in-app emergency unlock with a short hold. Never trap users.
-- **Age:** rate 17+ initially (avoid COPPA/teen data complexity). No under-13 users. Reassess later with a parent-managed mode.
+- **Age:** rate 16+ (founder decision 2026-10-02; Apple's 2025 scale has no 17+, and 18+ would exclude 17-year-olds). No under-13 users. Reassess later with a parent-managed mode.
 - **Health data:** HealthKit data stays on device except aggregated goal completion; never sell or share it. Clear privacy policy and privacy nutrition labels.
 - **No restrictive goals:** no calorie ceilings, weight targets, or fasting. Protein and water are additive. Include a "pause for health reasons" option and disordered-eating-safe copy. Refuse to add "eat less" goals even if requested.
 - **Location:** request "When in Use" first; "Always" only at gym setup with a clear explanation. Provide a manual check-in fallback.

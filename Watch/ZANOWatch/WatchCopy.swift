@@ -24,12 +24,6 @@ enum Copy {}
 extension Copy {
     enum watch {
 
-        // MARK: - Tab titles
-
-        static let todayTab = "Today"
-        static let actionsTab = "Actions"
-        static let gymTab = "Gym"
-
         // MARK: - Today / rings
 
         static let todayTitle = "Today"
@@ -85,6 +79,45 @@ extension Copy {
         static let workoutRunningFormat = "Tracking · %d bpm"
         static let workoutRunningNoHR = "Tracking · waiting for HR…"
         static let workoutEndedConfirmation = "Workout saved"
+
+        static let healthUnavailable = "Health data isn't available on this watch."
+        static let heartRateUnavailable = "Heart rate isn't available on this watch."
+        static let healthNotAuthorized = "ZANO needs Health access to track your workout."
+        static let focusFallbackTitle = "Focus"
+
+        // MARK: - Buddy (mirrors Copy.buddy on the phone)
+
+        static func buddyName(_ buddy: WatchBuddy) -> String {
+            switch buddy {
+            case .stash: "Stash"
+            case .zib: "Zib"
+            case .lox: "Lox"
+            case .pip: "Pip"
+            case .moko: "Moko"
+            case .brick: "Brick"
+            case .tank: "Tank"
+            case .volt: "Volt"
+            case .howl: "Howl"
+            }
+        }
+
+        static func level(_ level: Int) -> String { "Lv \(level)" }
+        static func buddySpoken(_ buddy: WatchBuddy, level: Int) -> String { "\(buddyName(buddy)), level \(level)" }
+        static let celebration = "Nice!"
+
+        // MARK: - Weekly boss (mirrors Copy.buddy's monster lines on the phone)
+
+        static let monsterTab = "Boss"
+        static let monsterTitle = "This week's boss"
+        static let monsterName = "The Scroll Monster"
+        static func monsterHP(_ hp: Int, of target: Int) -> String { "\(hp) / \(target) HP" }
+        static func monsterDaysLeft(_ days: Int) -> String { days == 1 ? "Last day" : "\(days) days left" }
+        static let monsterHowTo = "Locked minutes hit it. Finished goals land critical hits."
+        static let monsterDefeated = "Defeated! A new monster shows up next week."
+        static let monsterNotSynced = "Open ZANO on your iPhone to meet this week's boss."
+        static func monsterSpoken(hp: Int, target: Int, days: Int) -> String {
+            "Scroll Monster, \(hp) of \(target) health left, \(monsterDaysLeft(days).lowercased())"
+        }
 
         // MARK: - Connectivity
 

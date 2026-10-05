@@ -30,6 +30,12 @@ public final class WatchStateStore {
 
     public private(set) var snapshot: WatchStateSnapshot
 
+    /// True for a few seconds after a goal completes or a lock is earned: the buddy shows its
+    /// ecstatic face while it's set (`BuddyHeroView`).
+    public private(set) var isCelebrating = false
+    @ObservationIgnored private var celebrationTask: Task<Void, Never>?
+    private static let celebrationDuration: Duration = .seconds(3)
+
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.zano.app.watch", category: "WatchStateStore")
 
@@ -61,12 +67,42 @@ public final class WatchStateStore {
         let isNowVerified = newSnapshot.gymDwell?.isVerified ?? false
         let crossedThreshold = isNowVerified && !wasVerified
 
+        let earnedSomething = Self.isWin(from: snapshot, to: newSnapshot)
+
         snapshot = newSnapshot
         persist(newSnapshot)
 
         if crossedThreshold {
             logger.notice("Gym dwell threshold reached (\(newSnapshot.gymDwell?.elapsedMinutes ?? -1, privacy: .public) min) — playing verified haptic.")
+        }
+        if earnedSomething {
+            celebrate()
+        }
+        // One haptic per snapshot, even when the dwell threshold and a completed goal land together.
+        if crossedThreshold || earnedSomething {
             HapticsPlayer.playVerified()
+        }
+    }
+
+    /// A goal ring reached 100% or a lock was earned between two snapshots. Never on the very
+    /// first sync (an old snapshot from `.empty` would read every finished ring as "just done").
+    private static func isWin(from old: WatchStateSnapshot, to new: WatchStateSnapshot) -> Bool {
+        guard old.hasSynced else { return false }
+        if let before = old.earnedUnlocks, let after = new.earnedUnlocks, after > before {
+            return true
+        }
+        let doneBefore = Set(old.rings.filter { $0.progress >= 1 }.map(\.kind))
+        return new.rings.contains { $0.progress >= 1 && !doneBefore.contains($0.kind) }
+    }
+
+    /// Shows the ecstatic buddy for `celebrationDuration`, restarting the timer on a repeat win.
+    private func celebrate() {
+        isCelebrating = true
+        celebrationTask?.cancel()
+        celebrationTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.celebrationDuration)
+            guard !Task.isCancelled else { return }
+            self?.isCelebrating = false
         }
     }
 

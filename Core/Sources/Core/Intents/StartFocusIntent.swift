@@ -16,7 +16,12 @@ import AppIntents
 import Foundation
 import SwiftData
 
-public struct StartFocusIntent: AppIntent {
+/// `LiveActivityIntent` (not plain `AppIntent`) so a run from the Home widget, Control Center, an
+/// NFC tag or Siri executes in the app's process, like `StartLockIntent`: the session, its tick
+/// loop and its persisted record live there, so it can end itself (verified) at zero and be
+/// re-adopted after a relaunch. A session started in a widget's own process was never verified
+/// (audit L4).
+public struct StartFocusIntent: LiveActivityIntent {
     public static let title: LocalizedStringResource = "Start Focus Session"
 
     public static var description: IntentDescription {
@@ -69,7 +74,13 @@ public struct StartFocusIntent: AppIntent {
         }
 
         let clampedMinutes = max(1, minutes)
-        _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: clampedMinutes)
+        // Started outside the app (Siri, widget, Control Center, NFC): the person isn't in the app
+        // to leave it, so the session doesn't pause on app background.
+        _ = try await FocusSessionVerifier.shared.startSession(
+            goalID: goalID,
+            plannedMinutes: clampedMinutes,
+            pausesWhenAppLeaves: false
+        )
 
         // Instrumentation (spec §23: "Instrument from day one: ... every intent").
         Analytics.shared.capture(

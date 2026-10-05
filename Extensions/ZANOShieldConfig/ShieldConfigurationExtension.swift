@@ -1,6 +1,7 @@
 import ManagedSettings
 import ManagedSettingsUI
 import UIKit
+import SwiftUI
 import Core
 
 // The Living Shield (docs/spec.md §5.1): "The block screen isn't static. It reflects state and
@@ -39,31 +40,97 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     // MARK: - Shared build
 
+    /// Look (shield redesign, brand tokens from `Core/Sources/Core/UI/Theme.swift`): near-black
+    /// base over a dark blur, the user's buddy napping as the icon (buddy everywhere, 2026-10-03;
+    /// the silver ZANO star is the fallback), a pearl title that states what's
+    /// left, a softer pearl coach line, ONE ZANO Blue button with a white label, and a quiet
+    /// secondary button.
+    ///
+    /// One sec-style shield (2026-10-02, research item 3 in
+    /// docs/design/growth-and-ml-research.md): the primary button is "Close app", the easy and
+    /// rewarding choice (each tap counts as a reclaimed open), and the secondary is "Use Time
+    /// Bank", which opens ZANO's Lock tab through the notification hand-off. That tab holds the
+    /// Time Bank card AND the emergency unlock, and the notification says so, so the way out is
+    /// still one tap from the shield (CLAUDE.md: never ship a lock with no way out). The labels are
+    /// never conditional on any state read below.
+    ///
+    /// Not possible here: a timed pause before the buttons work. `ShieldConfiguration` is a static
+    /// value (labels, colours, icon) with no animation or delay, so the one sec "breath" can't be
+    /// reproduced on the shield itself (unverified for iOS 26+; true for the iOS 18.5 SDK).
     private func configuration(shieldedName: String?) -> ShieldConfiguration {
-        let content = ShieldCopy.content(for: Self.makeContext(shieldedName: shieldedName))
+        // spec §23: count every rendered shield on device; the app flushes it later. Read after
+        // the increment, it also rotates the coach line per view.
+        SharedDefaults.incrementShieldImpressionCount()
+        let rotation = SharedDefaults.shieldImpressionCount
+        // spec §5.16: one attempt for the locked-out moment (display name only, never a token).
+        LockedOutAttemptTracker.recordAttempt(appName: shieldedName)
+
+        let content = ShieldCopy.content(for: Self.makeContext(shieldedName: shieldedName), rotation: rotation)
 
         return ShieldConfiguration(
-            backgroundBlurStyle: .systemMaterialDark,
-            title: ShieldConfiguration.Label(text: content.title, color: .white),
-            subtitle: ShieldConfiguration.Label(
-                text: content.subtitle,
-                color: UIColor(white: 1, alpha: 0.72)
-            ),
-            primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.showGoals, color: .black),
-            primaryButtonBackgroundColor: Self.accentColor,
-            secondaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.emergency, color: .white)
+            backgroundBlurStyle: .systemUltraThinMaterialDark,
+            backgroundColor: Self.background,
+            icon: Self.buddyIcon ?? Self.starIcon,
+            title: ShieldConfiguration.Label(text: content.title, color: Self.pearl),
+            subtitle: ShieldConfiguration.Label(text: content.subtitle, color: Self.pearlSoft),
+            primaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.closeApp, color: Self.onAccent),
+            primaryButtonBackgroundColor: Self.accent,
+            secondaryButtonLabel: ShieldConfiguration.Label(text: ShieldCopy.Buttons.useTimeBank, color: Self.muted)
         )
     }
 
-    /// spec §15 Design System token: "Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent
-    /// only." Reused here rather than a plain white/system button so the shield's one visible
-    /// call-to-action matches the rest of the app instead of introducing a second accent color.
-    private static let accentColor = UIColor(
-        red: CGFloat(0xB8) / 255,
-        green: CGFloat(0xFF) / 255,
-        blue: CGFloat(0x3C) / 255,
-        alpha: 1
-    )
+    // MARK: - Brand tokens (UIKit bridges of `Theme.Tones`; ShieldConfiguration takes UIColor)
+    //
+    // Light mode (2026-10-03): the shield stays DARK in both appearances, on purpose. The
+    // configuration is a static value handed to the system, which draws it in another process; a
+    // dynamic `UIColor` provider is not guaranteed to survive that hand-off, and the blur style is
+    // fixed per value (`.systemUltraThinMaterialDark`). So every colour is the dark tone resolved
+    // explicitly (`uiColor(for: .dark)`, never the adaptive `Theme.Colors` value, which would
+    // resolve light in a light-mode process). A dark blocked-app screen reads correctly over any
+    // app in either appearance, and the pre-rendered silver `ShieldMark` icon is drawn for dark.
+    // Unverified: whether iOS would honour a dynamic UIColor here (no device to test).
+
+    /// `Theme.Tones.background` (dark ink) at 92% so the dark blur reads as depth, not grey.
+    private static let background = Theme.Tones.background.uiColor(for: .dark).withAlphaComponent(0.92)
+    /// `Theme.Tones.text` (dark): pearl.
+    private static let pearl = Theme.Tones.text.uiColor(for: .dark)
+    /// Pearl, softened for the coach line so the title stays the one thing read first.
+    private static let pearlSoft = Theme.Tones.text.uiColor(for: .dark).withAlphaComponent(0.74)
+    /// `Theme.Tones.muted` (dark): the emergency button is always there, never shouting.
+    private static let muted = Theme.Tones.muted.uiColor(for: .dark)
+    /// ZANO Blue (dark tone, `#3F7BFF`) — the one accent.
+    private static let accent = Theme.Tones.accent.uiColor(for: .dark)
+    /// White labels on blue.
+    private static let onAccent = UIColor.white
+
+    /// The silver swoosh-star, pre-rendered from `docs/brand/zano-mark.svg` into this
+    /// extension's own `Assets.xcassets` (`ShieldMark`, 90pt square canvas @1x/2x/3x,
+    /// original rendering). A bundled PNG is the cheapest possible icon for an extension with a
+    /// tight memory/time budget (spec §27) — no drawing at render time. Computed rather than a
+    /// stored `static let` so Swift 6 never has to reason about `UIImage`'s Sendability;
+    /// `UIImage(named:)` keeps its own system cache, so repeat lookups are cheap. `nil` only if
+    /// the asset is missing from the build, in which case the shield shows no icon.
+    private static var starIcon: UIImage? { UIImage(named: "ShieldMark") }
+
+    /// The user's buddy (`Buddy.stored`, one App Group defaults read), napping (`.sleepy`): the
+    /// apps are locked and it's guarding them. The 48px sprite is drawn 6x with no interpolation
+    /// into a 96pt @3x canvas (288px square, about 330 KB while drawing, then released), so every
+    /// pixel stays crisp. Drawn per shield render rather than cached: it's a few microseconds of
+    /// work and the user can swap buddies at any time. `nil` if the sprite can't be built, in
+    /// which case the caller falls back to the star.
+    private static var buddyIcon: UIImage? {
+        guard let sprite = Buddy.stored.image(pose: .sleepy, gear: BuddyGear.stored) else { return nil }
+        let side: CGFloat = 96
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+        return renderer.image { context in
+            context.cgContext.interpolationQuality = .none
+            context.cgContext.setShouldAntialias(false)
+            UIImage(cgImage: sprite).draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+        }
+    }
 
     /// Builds a `ShieldCopy.ShieldContext` from `SharedDefaults` — the one place this extension
     /// touches the App Group.
@@ -75,10 +142,11 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             goalsRemaining: SharedDefaults.goalsRemainingForActiveLock,
             mode: SharedDefaults.activeLockMode,
             earnedMinutesRemainingToday: SharedDefaults.earnedMinutesRemainingToday,
-            earnedMinutesMirrorIsForToday: SharedDefaults.earnedMinutesMirrorIsForToday
-            // `recentMiss` intentionally left at its default (`false`) — see the TODO on
-            // `ShieldCopy.ShieldContext.recentMiss` for the still-missing SharedDefaults mirror
-            // of `Streak.neverMissTwiceArmed` that would drive the after-a-miss moment for real.
+            earnedMinutesMirrorIsForToday: SharedDefaults.earnedMinutesMirrorIsForToday,
+            // Mirrored by `StreakEngine` on every streak write (spec §5.6 after-a-miss moment).
+            recentMiss: SharedDefaults.neverMissTwiceArmed,
+            // One small App Group dictionary read (`ShieldActionExtension` writes it).
+            reclaimedThisWeek: ReclaimedOpens.countThisWeek()
         )
     }
 }

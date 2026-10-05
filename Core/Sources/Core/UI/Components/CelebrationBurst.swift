@@ -1,9 +1,9 @@
 // CelebrationBurst.swift
 // Core / UI / Components
 //
-// A lightweight, self-contained particle/confetti burst, per docs/spec.md §16's P3 mockup ("burst
-// of acid-green particles") and §8 rule 4 (variable reward: "1 in ~6 unlocks triggers a surprise
-// [...] Keep it tasteful"). Pure SwiftUI — no external animation library: `docs/dependencies.md`
+// A lightweight, self-contained particle/confetti burst, per docs/spec.md §16's P3 mockup (a burst
+// of particles in the accent; the spec's original acid green is now ZANO Blue, 2026-09-24) and §8
+// rule 4 (variable reward: "1 in ~6 unlocks triggers a surprise [...] Keep it tasteful"). Pure SwiftUI — no external animation library: `docs/dependencies.md`
 // lists Lottie as planned for "Session 5 or 9 (first celebration animation)" but it is not yet
 // added to `project.yml`, so this file cannot depend on it (per this task's brief). Every
 // particle's motion is derived from a single animated `progress` value rather than a per-particle
@@ -36,7 +36,7 @@ public struct CelebrationBurst: View {
     /// their positions on every SwiftUI re-render of the parent (which happens far more often than
     /// an actual new burst), not just when a fresh burst should actually fire.
     private struct Particle: Identifiable, Sendable {
-        enum Kind: CaseIterable, Sendable { case circle, strip, square }
+        enum Kind: CaseIterable, Sendable { case circle, strip, square, sparkle }
 
         let id: Int
         /// Direction of travel from the burst's center, in radians.
@@ -70,13 +70,14 @@ public struct CelebrationBurst: View {
     /// - Parameters:
     ///   - trigger: Change this value to fire another burst without the view disappearing and
     ///     reappearing (e.g. a second surprise moment layered later in the same screen).
-    ///   - colors: Particle fill colors, sampled per-particle. Defaults to a single-color burst in
-    ///     `Theme.Colors.accent` — spec §16 P3's "burst of acid-green particles". Pass more than
-    ///     one color for an occasion that wants a slightly richer mix; empty input falls back to
-    ///     the same accent default rather than rendering invisible particles.
+    ///   - colors: Particle fill colors, sampled per-particle. Pass 2 (playful, 2026-10-03): defaults
+    ///     to the confetti box (`Theme.Colors.confetti`: ZANO Blue plus volt, apricot, pink, sky and
+    ///     sun), because a win should look like one. Pass `[Theme.Colors.accent]` for the old
+    ///     single-hue burst, or a goal's colours for a burst in that goal's colour; empty input falls
+    ///     back to the accent rather than rendering invisible particles.
     ///   - particleCount: How many particles per burst. Defaults to 28 — enough to read as a
     ///     "burst" without tipping into clutter (spec §8 rule 4: "Keep it tasteful").
-    public init(trigger: Int, colors: [Color] = [Theme.Colors.accent], particleCount: Int = 28) {
+    public init(trigger: Int, colors: [Color] = Theme.Colors.confetti, particleCount: Int = 28) {
         self.trigger = trigger
         self.colors = colors.isEmpty ? [Theme.Colors.accent] : colors
         self.particleCount = max(0, particleCount)
@@ -170,6 +171,9 @@ public struct CelebrationBurst: View {
         switch particle.kind {
         case .circle, .square:
             CGSize(width: particle.size, height: particle.size)
+        case .sparkle:
+            // Pass 2: the arcade sparkle reads at a slightly bigger size than a dot.
+            CGSize(width: particle.size * 1.5, height: particle.size * 1.5)
         case .strip:
             // A "confetti strip" reads better as an elongated rectangle than a square dot.
             CGSize(width: particle.size * 1.8, height: particle.size * 0.55)
@@ -187,6 +191,8 @@ public struct CelebrationBurst: View {
             RoundedRectangle(cornerRadius: particle.size * 0.22, style: .continuous)
         case .strip:
             Capsule()
+        case .sparkle:
+            ZanoSparkleShape()
         }
     }
 

@@ -28,8 +28,8 @@ public struct StreakPill: View {
     /// communicates "protected", not "broken" (spec §8 rule 3: "should feel protective, not
     /// fragile").
     private let isFrozen: Bool
-    /// Optional VoiceOver label override. When `nil`, falls back to just the numeral (data, not a
-    /// composed sentence) so this component never hardcodes accessibility copy; callers that want
+    /// Optional VoiceOver label override. When `nil`, falls back to
+    /// `Copy.common.streakSpoken(days:frozen:)` ("14 days" / "14 days, frozen"); callers that want
     /// a full spoken phrase (e.g. "14 day streak") should supply it from `Copy`.
     private let accessibilityLabelOverride: String?
 
@@ -63,14 +63,23 @@ public struct StreakPill: View {
                 }
             }
             .font(Theme.Typography.icon(.medium))
-            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.accent)
+            .symbolRenderingMode(.hierarchical)
+            // v2: the flame is ember (streak and fire moments are ember's only job).
+            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.ember)
 
             NumeralText("\(count)", size: .small)
         }
-        .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, Theme.Spacing.xxs)
-        .background(Theme.Colors.surface2, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+        .padding(.horizontal, Theme.Spacing.sm + 2)
+        .padding(.vertical, Theme.Spacing.xs - 2)
+        // Pass 2 (playful): the pill warms with the streak, an ember tint that grows to full at 30
+        // days (the same curve as the aurora's warmth). Paint over the glass, never the label.
+        // Pass 3 (restraint): one flat tint (up to 18%), no gradient, no flame glow.
+        .background {
+            Capsule(style: .continuous)
+                .fill(Theme.Colors.ember.opacity(0.18 * emberWarmth))
+        }
+        // v2: chrome glass, like every floating capsule.
+        .zanoGlass()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelOverride ?? defaultAccessibilityLabel)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isFrozen)
@@ -83,17 +92,17 @@ public struct StreakPill: View {
         }
     }
 
-    /// The un-overridden fallback VoiceOver label. Previously just `"\(count)"` regardless of
-    /// `isFrozen`, silently dropping the one piece of state this pill's whole visual (flame vs.
-    /// snowflake, tint) exists to communicate — a VoiceOver user got the bare number either way
-    /// unless every caller remembered to pass a hand-authored override. `"frozen"` here is a short,
-    /// factual state word attached to a numeral, in the same spirit as this file's existing
-    /// "data, not a composed sentence" fallback (see `accessibilityLabelOverride`'s doc comment)
-    /// rather than narrative copy — still no full sentence, and a caller that wants one still
-    /// supplies it via `accessibilityLabelOverride` from `Copy`. See
-    /// `docs/design/ui-stress-test-findings.md` §3.1.
+    private var emberWarmth: Double {
+        isFrozen ? 0 : ZanoAuroraWarmth.forStreak(days: count)
+    }
+
+    /// The un-overridden fallback VoiceOver label: the day count plus the frozen state (the one
+    /// piece of state the flame/snowflake swap exists to communicate), from
+    /// `Copy.common.streakSpoken(days:frozen:)`. A caller that wants a fuller sentence still
+    /// supplies it via `accessibilityLabelOverride`. See `docs/design/ui-stress-test-findings.md`
+    /// §3.1.
     private var defaultAccessibilityLabel: String {
-        isFrozen ? "\(count), frozen" : "\(count)"
+        Copy.common.streakSpoken(days: count, frozen: isFrozen)
     }
 }
 

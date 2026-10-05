@@ -96,7 +96,7 @@ public final class WatchWorkoutSessionController: NSObject {
     public func start() {
         guard !isRunning else { return }
         guard HKHealthStore.isHealthDataAvailable() else {
-            state = .failed("HealthKit is not available on this device.")
+            state = .failed(Copy.watch.healthUnavailable)
             return
         }
 
@@ -107,24 +107,26 @@ public final class WatchWorkoutSessionController: NSObject {
         // initializer sugar this task could not confirm is available at this target's
         // `deploymentTarget: "10.0"` (watchOS 10 / iOS 17) — see this file's header note.
         guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
-            state = .failed("Heart rate is not a supported HealthKit type on this device.")
+            state = .failed(Copy.watch.heartRateUnavailable)
             return
         }
         let workoutType = HKObjectType.workoutType()
 
-        healthStore.requestAuthorization(toShare: [workoutType], read: [heartRateType, workoutType]) { [weak self] success, error in
+        // HealthKit calls this on its own queue: `@Sendable` (never inferred main-actor-isolated)
+        // and back to the main actor through the singleton, carrying only Sendable values.
+        healthStore.requestAuthorization(toShare: [workoutType], read: [heartRateType, workoutType]) { @Sendable success, error in
             Task { @MainActor in
-                guard let self else { return }
+                let controller = WatchWorkoutSessionController.shared
                 if let error {
-                    self.logger.error("HealthKit authorization failed: \(String(describing: error), privacy: .public)")
-                    self.state = .failed(error.localizedDescription)
+                    controller.logger.error("HealthKit authorization failed: \(String(describing: error), privacy: .public)")
+                    controller.state = .failed(error.localizedDescription)
                     return
                 }
                 guard success else {
-                    self.state = .failed("HealthKit authorization was not granted.")
+                    controller.state = .failed(Copy.watch.healthNotAuthorized)
                     return
                 }
-                self.beginSession()
+                controller.beginSession()
             }
         }
     }
@@ -147,15 +149,15 @@ public final class WatchWorkoutSessionController: NSObject {
 
             let now = Date.now
             session.startActivity(with: now)
-            builder.beginCollection(withStart: now) { [weak self] success, error in
+            builder.beginCollection(withStart: now) { @Sendable _, error in
                 Task { @MainActor in
-                    guard let self else { return }
+                    let controller = WatchWorkoutSessionController.shared
                     if let error {
-                        self.logger.error("beginCollection failed: \(String(describing: error), privacy: .public)")
-                        self.state = .failed(error.localizedDescription)
+                        controller.logger.error("beginCollection failed: \(String(describing: error), privacy: .public)")
+                        controller.state = .failed(error.localizedDescription)
                         return
                     }
-                    self.state = .running(startedAt: now)
+                    controller.state = .running(startedAt: now)
                     HapticsPlayer.playWorkoutStart()
                 }
             }
@@ -181,21 +183,27 @@ public final class WatchWorkoutSessionController: NSObject {
             return
         }
         let endDate = Date.now
-        builder.endCollection(withEnd: endDate) { [weak self] success, error in
+        builder.endCollection(withEnd: endDate) { @Sendable _, error in
             Task { @MainActor in
-                guard let self else { return }
+                let controller = WatchWorkoutSessionController.shared
                 if let error {
-                    self.logger.error("endCollection failed: \(String(describing: error), privacy: .public)")
+                    controller.logger.error("endCollection failed: \(String(describing: error), privacy: .public)")
                 }
-                builder.finishWorkout { [weak self] workout, error in
+                // Re-read the builder on the main actor rather than capturing it in the
+                // `@Sendable` closure above (`HKLiveWorkoutBuilder` isn't known to be Sendable).
+                guard let builder = controller.builder else {
+                    controller.state = .ended
+                    return
+                }
+                builder.finishWorkout { @Sendable _, error in
                     Task { @MainActor in
-                        guard let self else { return }
+                        let controller = WatchWorkoutSessionController.shared
                         if let error {
-                            self.logger.error("finishWorkout failed: \(String(describing: error), privacy: .public)")
+                            controller.logger.error("finishWorkout failed: \(String(describing: error), privacy: .public)")
                         }
-                        self.state = .ended
-                        self.session = nil
-                        self.builder = nil
+                        controller.state = .ended
+                        controller.session = nil
+                        controller.builder = nil
                         HapticsPlayer.playWorkoutStop()
                     }
                 }
@@ -210,11 +218,9 @@ public final class WatchWorkoutSessionController: NSObject {
 // nonisolated-then-hop pattern as `WatchConnectivityBridge`'s `WCSessionDelegate` conformance, for
 // the same Swift 6 strict-concurrency reason (see that file's header comment).
 
-// `@preconcurrency` on both HealthKit delegate conformances below, same reasoning as
-// `WatchConnectivityBridge`'s `@preconcurrency WCSessionDelegate` conformance (see that file's
-// comment) — `HKWorkoutSession`/`HKLiveWorkoutBuilder` callbacks also arrive off-main-thread from a
-// pre-Swift-6 delegate protocol.
-extension WatchWorkoutSessionController: @preconcurrency HKWorkoutSessionDelegate {
+// Both HealthKit delegate conformances below are plain (no `@preconcurrency`): every method is
+// `nonisolated` and hops to the main actor carrying only Sendable values (session 13b).
+extension WatchWorkoutSessionController: HKWorkoutSessionDelegate {
     public nonisolated func workoutSession(
         _ workoutSession: HKWorkoutSession,
         didChangeTo toState: HKWorkoutSessionState,
@@ -238,7 +244,7 @@ extension WatchWorkoutSessionController: @preconcurrency HKWorkoutSessionDelegat
 
 // MARK: - HKLiveWorkoutBuilderDelegate
 
-extension WatchWorkoutSessionController: @preconcurrency HKLiveWorkoutBuilderDelegate {
+extension WatchWorkoutSessionController: HKLiveWorkoutBuilderDelegate {
     public nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
         guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate),
               collectedTypes.contains(heartRateType)

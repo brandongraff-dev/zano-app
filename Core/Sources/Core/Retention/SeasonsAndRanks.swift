@@ -4,7 +4,7 @@
 //   "- Ranks: Bronze → Silver → Gold → Platinum → Diamond based on 4-week consistency (not
 //   volume, so a 3x/week person can hit Diamond).
 //   - Seasons (quarterly) reset rank with a 'season badge' kept forever.
-//   - Monthly challenges themed to fresh starts: 'January Lock-In,' 'Summer Shred Consistency,'
+//   - Monthly challenges themed to fresh starts: 'January Lock-In,' 'Summer Strong,'
 //   'No-Skip November.' Shareable challenge cards."
 // docs/spec.md §8 Retention Psychology Rules, rule 9 ("No shame"): "Copy never says 'you
 // failed.' Misses are 'slipped,' always followed by the next smallest step." — Bronze is a
@@ -100,6 +100,33 @@ public final class SeasonsAndRanks {
         private var sortOrder: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 
         public static func < (lhs: Rank, rhs: Rank) -> Bool { lhs.sortOrder < rhs.sortOrder }
+
+        /// The lowest 4-week consistency (`0...1`) that reaches this rank. Spec §5.9 doesn't pin
+        /// exact cutoffs; these are this file's own calibration: hitting *your own* stated cadence
+        /// roughly 9-in-10 in-season weeks running is a real stretch (Diamond), roughly 3-in-10 is
+        /// "you're doing something, just not consistently" (the Bronze/Silver line). Never a
+        /// "worse than Bronze" tier below this (spec §8 rule 9, "No shame"). Lives on the enum (not
+        /// the `@MainActor` class) so a view can show "progress to next rank" without a hop.
+        public var minimumConsistency: Double {
+            switch self {
+            case .bronze: 0
+            case .silver: 0.30
+            case .gold: 0.55
+            case .platinum: 0.75
+            case .diamond: 0.90
+            }
+        }
+
+        /// The rank above this one, or `nil` at Diamond.
+        public var next: Rank? {
+            let index = sortOrder + 1
+            return index < Self.allCases.count ? Self.allCases[index] : nil
+        }
+
+        /// The highest rank `consistency` reaches.
+        public static func forConsistency(_ consistency: Double) -> Rank {
+            allCases.last(where: { consistency >= $0.minimumConsistency }) ?? .bronze
+        }
     }
 
     /// The full result of a rank computation for one point in time — everything a UI layer needs
@@ -123,6 +150,20 @@ public final class SeasonsAndRanks {
         /// "ranked in N days" copy instead of a bare Bronze pill, without this file needing to own
         /// that copy itself.
         public let isPlacement: Bool
+
+        /// The rank above `rank`, or `nil` at Diamond.
+        public var nextRank: Rank? { rank.next }
+
+        /// How far `consistency` has climbed from `rank`'s floor toward `nextRank`'s, `0...1`.
+        /// `1` at Diamond. During placement (`rank` forced to Bronze) this still reads the live
+        /// consistency, so the bar isn't empty on day 3.
+        public var progressToNextRank: Double {
+            guard let next = nextRank else { return 1 }
+            let floor = rank.minimumConsistency
+            let span = next.minimumConsistency - floor
+            guard span > 0 else { return 0 }
+            return min(1, max(0, (consistency - floor) / span))
+        }
     }
 
     /// "not volume, so a 3x/week person can hit Diamond" (spec §5.9) — the per-user normalizer
@@ -180,26 +221,21 @@ public final class SeasonsAndRanks {
     /// doesn't specify a placement period; this task adds one so a single strong opening day can't
     /// compute a misleadingly high rank from almost no data — flagged in `decisions` as this
     /// task's own choice, not exact spec text.
-    private static let minimumSeasonDaysForRankedStatus = 7
+    public nonisolated static let minimumSeasonDaysForRankedStatus = 7
 
-    // Rank thresholds against the `0...1` consistency score. Spec §5.9 doesn't pin exact cutoffs;
-    // these are this task's own calibration, flagged in `decisions`: hitting *your own* stated
-    // cadence roughly 9-in-10 in-season weeks running is a real stretch (Diamond), roughly
-    // 3-in-10 is "you're doing something, just not consistently" (the Bronze/Silver line).
-    // Deliberately never a "worse than Bronze" tier below this — spec §8 rule 9 ("No shame").
-    private static let diamondThreshold: Double = 0.90
-    private static let platinumThreshold: Double = 0.75
-    private static let goldThreshold: Double = 0.55
-    private static let silverThreshold: Double = 0.30
+    /// Days left before `date`'s season ranks for real (`RankStatus.isPlacement` turns false).
+    /// `0` once ranked.
+    public func placementDaysRemaining(asOf date: Date = .now) -> Int {
+        let calendar = Calendar.current
+        let season = currentSeason(asOf: date)
+        let daysIntoSeason = (calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: season.startDate), to: calendar.startOfDay(for: date)
+        ).day ?? 0) + 1
+        return max(0, Self.minimumSeasonDaysForRankedStatus - daysIntoSeason)
+    }
 
     private static func rank(forConsistency consistency: Double) -> Rank {
-        switch consistency {
-        case diamondThreshold...: return .diamond
-        case platinumThreshold...: return .platinum
-        case goldThreshold...: return .gold
-        case silverThreshold...: return .silver
-        default: return .bronze
-        }
+        Rank.forConsistency(consistency)
     }
 
     /// The signed-in user's current rank, as of `date` (defaults to now), within `date`'s season
@@ -420,7 +456,7 @@ public final class SeasonsAndRanks {
     }
 
     /// Spec §5.9 names exactly 3 example challenges out of 12 months: "January Lock-In," "Summer
-    /// Shred Consistency," "No-Skip November." January and November map directly. "Summer" isn't
+    /// Strong" (renamed 2026-10-03 from a fat-loss-slang title; additive goals only), "No-Skip November." January and November map directly. "Summer" isn't
     /// pinned to one month — this task places it at July (Northern-hemisphere midsummer, matching
     /// spec §1's target audience with no stated hemisphere qualifier), flagged as a placement
     /// choice, not spec text, in `decisions`. The remaining 9 months have no spec-given theme at
@@ -431,7 +467,7 @@ public final class SeasonsAndRanks {
     private static func themeKey(forMonth month: Int) -> String {
         switch month {
         case 1: return "january_lock_in"
-        case 7: return "summer_shred_consistency"
+        case 7: return "summer_strong"
         case 11: return "no_skip_november"
         default: return "monthly_lock_in_\(month)"
         }

@@ -1,3 +1,4 @@
+@font-face { font-family: "Nunito Display"; src: url("assets/fonts/nunito-var.woff2") format("woff2"); font-weight: 700 900; font-style: normal; font-display: swap; }
 /* ZANO landing — plain white, clean, light glass accents. No build step. */
 
 :root {
@@ -562,4 +563,92 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .hero3 .hero2__cta .store__btn { width: auto; justify-content: center; padding: 0 20px 0 16px; border-radius: 999px; }
   .hero3 .hero2__cta .store__note { top: -17px; right: 2px; transform: none; padding: 3px 9px; background: #b6e84a; }
   .hero3__phone { width: 300px; height: min(30svh, 250px); margin-top: 34px; }
+}
+
+
+/* =====================================================================
+   DESIGN PASS: brand type (Nunito, same face as the app wordmark), blue + lime accents,
+   floating nav, stacked tinted sheets, pastel goal cards, bold blue closing panel.
+   ===================================================================== */
+:root { --lime: #c5f06a; --lime-d: #8fd01f; --display: "Nunito Display", "Nunito", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+body { font-family: var(--font); }
+h1, h2, h3, .logo, .btn, .eyebrow, .mock b, .mock__logo, .mock__time, .home__logo, .goal b, .picker__meta b, .store__note, .chip, .pick { font-family: var(--display); }
+h1, h2 { font-weight: 900; letter-spacing: -0.035em; }
+.section { padding-block: clamp(72px, 9vw, 120px); }
+h2 { font-size: clamp(2.3rem, 5.4vw, 3.8rem); line-height: 1.02; }
+.lede { font-size: clamp(1.05rem, 1.6vw, 1.25rem); }
+
+/* floating pill nav */
+.nav { top: 12px; left: 50%; right: auto; transform: translateX(-50%); width: min(720px, calc(100% - 24px)); border-radius: 999px; border: 1px solid rgba(15, 20, 40, 0.07); box-shadow: 0 10px 30px -14px rgba(20, 30, 70, 0.3); }
+.nav .wrap.nav__in { width: 100%; height: 56px; padding: 0 8px 0 22px; }
+.logo { font-weight: 900; font-size: 1.7rem; letter-spacing: -0.05em; }
+.logo i { color: var(--blue); }
+
+/* buttons */
+.btn { font-weight: 800; letter-spacing: -0.01em; box-shadow: 0 8px 20px -10px rgba(11, 13, 20, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+.btn--blue { background: var(--blue); box-shadow: 0 10px 24px -10px rgba(47, 107, 255, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.btn--lime { background: var(--lime); color: #17230a; box-shadow: 0 10px 24px -10px rgba(10, 20, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5); padding: 15px 28px; font-size: 1.05rem; }
+.btn--lime:hover { background: #d3f585; }
+
+/* section label */
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 11px; border-radius: 999px; background: #eef3ff; color: #1f4fd6; font-size: 0.78rem; letter-spacing: 0.06em; margin-bottom: 18px; }
+.eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* hero */
+.hero3 { padding-top: 96px; }
+.hero3__h1 { font-size: clamp(2.7rem, 9.4vw, 6.2rem); line-height: 0.96; letter-spacing: -0.04em; margin: 22px 0 14px; max-width: 11em; }
+.hero3__h1 .hl { position: relative; display: inline-block; z-index: 0; white-space: nowrap; }
+.hero3__h1 .hl::before { content: ""; position: absolute; z-index: -1; left: -0.1em; right: -0.1em; top: 52%; bottom: 0.02em; background: var(--lime); border-radius: 0.18em; transform: rotate(-1.4deg); }
+.hero3__sub { font-size: clamp(1.05rem, 2vw, 1.3rem); color: #4a5068; max-width: 26em; }
+.hero3 .hero2__cta { margin-top: 26px; }
+.hero3 .hero2__cta .store__btn { background: #0b0d14; }
+@media (min-width: 861px) { .hero3__h1 { font-size: clamp(4rem, 6.4vw, 6.2rem); max-width: none; } .hero3__phone { height: min(28svh, 230px); } }
+
+/* story glow follows the step */
+.story__disc { transition: background 0.6s; }
+.story[data-step="0"] .story__disc { background: #ece7ff; }
+.story[data-step="1"] .story__disc { background: #e6f6cf; }
+.story[data-step="2"] .story__disc { background: #d6f5e4; }
+.story[data-step="3"] .story__disc { background: #ffe8d2; }
+.copy h2 { font-size: clamp(2.8rem, 6.4vw, 5rem); line-height: 0.98; }
+.dots i.on { background: var(--blue); }
+
+/* Scroll Monster: tinted sheet */
+.boss { background: #f5f1ff; border-radius: 48px 48px 0 0; margin-top: -48px; z-index: 2; }
+.boss__disc { background: #e9e1ff; }
+.hp i { background: #ff5c7a; }
+
+/* goals: pastel cards like the app */
+.goals { gap: 14px; }
+.goal { border: 0; border-radius: 30px; padding: 26px 24px 28px; background: var(--bg-c); }
+.goal__ic { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.75); margin-bottom: 40px; color: var(--c); }
+.goal__ic svg { width: 22px; height: 22px; }
+.goal b { font-size: 1.45rem; letter-spacing: -0.03em; }
+.goal span:not(.goal__ic) { color: rgba(11, 13, 20, 0.6); font-weight: 600; }
+.bar { background: rgba(255, 255, 255, 0.7); }
+.goal:nth-child(1) { --bg-c: #e6f6cf; --c: #5d9a0b; } .goal:nth-child(2) { --bg-c: #ffe6cf; --c: #e0690c; } .goal:nth-child(3) { --bg-c: #e8e0ff; --c: #6a4cf0; } .goal:nth-child(4) { --bg-c: #d9f0fb; --c: #1696cf; }
+.section--soft { background: #f6f8fc; }
+
+/* features: chips */
+.chips li { background: #eef3ff; color: #1f4fd6; font-family: var(--display); font-weight: 800; }
+
+/* closing panel */
+.cta .wrap { padding-block: 0; }
+.cta__panel { background: var(--blue); color: #fff; border-radius: 44px; padding: clamp(40px, 6vw, 72px) 20px clamp(44px, 6vw, 72px); text-align: center; position: relative; overflow: hidden; }
+.cta__panel h2 { color: #fff; margin: 8px 0 10px; font-size: clamp(2.4rem, 6vw, 4.2rem); }
+.cta__panel .lede { color: rgba(255, 255, 255, 0.85); margin-inline: auto; }
+.cta__panel .crowd { margin-bottom: 8px; }
+.cta__row { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 30px; }
+.cta__row .store { position: relative; display: block; margin: 0; }
+.cta__row .store__btn { height: 52px; padding: 0 22px 0 18px; border-radius: 999px; border-color: #000; }
+.cta__row .store__note { position: absolute; top: -16px; right: 4px; margin: 0; padding: 3px 9px; border-radius: 999px; background: var(--lime); color: #17230a; font-size: 0.68rem; font-weight: 900; white-space: nowrap; }
+.footer { border-top: 0; }
+@media (max-width: 860px) { .boss { border-radius: 36px 36px 0 0; margin-top: -36px; } .cta__panel { border-radius: 32px; } }
+@media (max-width: 599px) {
+  .cta__row { flex-direction: column; gap: 10px; }
+  .cta__row .btn--lime { width: 100%; max-width: 300px; }
+  .cta__row .store { width: 100%; max-width: 300px; }
+  .cta__row .store__btn { width: 100%; justify-content: flex-start; }
+  .cta__row .store__note { top: 50%; right: 12px; transform: translateY(-50%); }
 }

@@ -61,3 +61,7 @@
 ### 2026-10-05 — Hero v4: Opal-style centred stack
 
 - Reference: opalapp.com (copy/order only; fetch gave no CSS). Borrowed: text-first centred hero (short headline, one subline, one CTA row), phones kept out of the hero's main line and shown peeking below, one idea per block, a soft colour glow behind the device. Not borrowed: ratings/awards/stats/testimonials (we have no real numbers; do not invent them). Same stack at every width; desktop shows all nine buddies in a row and an inline sign-up pill.
+
+### 2026-10-05 — Design pass
+
+- Display type is now Nunito (same face as the app wordmark; `assets/fonts/nunito-var.woff2`, Latin subset of the OFL font in `scripts/buddies/fonts`) with the system font for body, so the page no longer depends on Google Fonts. Floating pill nav; hero headline with a lime highlighter on "screen time."; story glow changes colour per step; lavender Scroll Monster sheet; pastel goal cards matching the app; bold blue closing panel with the whole crew and a lime button.

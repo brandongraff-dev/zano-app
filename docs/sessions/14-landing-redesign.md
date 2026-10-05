@@ -69,3 +69,7 @@
 ### 2026-10-05 — Goal cards with buddies doing the task
 
 - Brick lifts dumbbells (Gym), Tank holds a protein shaker (Protein), Pip has a focus timer (Focus), Volt holds a water bottle (Water). Props are pixel-drawn onto the generator's 48x48 sprites (`brick-gym`, `tank-shake`, `pip-focus`, `volt-water` in `landing/assets/buddies/`) and each card animates its buddy. Also: story glow is sized from the phone (`--pw`) so it can't overlap the headline; checked at 12 viewport sizes.
+
+### 2026-10-05 — Scroll Monster v2 + top bar
+
+- Monster: four buddies (Brick, Tank, Pip, Volt) each knock off a quarter of its health as you scroll, with a lunge, a damage chip, a hit flash/shake, an HP counter, a "K.O.!" banner and falling coins at 0. Top bar: Stash next to the wordmark, section links with the current section highlighted (desktop), a lime scroll-progress line along the pill's bottom edge, stronger shadow once scrolled. The "-25" damage and "+50 coins" are illustrative.

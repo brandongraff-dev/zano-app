@@ -14,11 +14,19 @@
 </head>
 <body>
 
-  <header class="nav glass">
+  <header class="nav glass" id="nav">
     <div class="wrap nav__in">
-      <a href="#top" class="logo">zan<i>o</i></a>
-      <a href="#join" class="btn btn--sm">Join waitlist</a>
+      <a href="#top" class="logo"><img class="logo__buddy" src="assets/buddies/stash-happy.webp" alt="" />zan<i>o</i></a>
+      <nav class="nav__links" aria-label="Sections">
+        <a href="#story">How it works</a>
+        <a href="#boss">Scroll Monster</a>
+        <a href="#goals">Goals</a>
+        <a href="#tags">Tags</a>
+        <a href="#buddy">Buddies</a>
+      </nav>
+      <a href="#join" class="btn btn--sm btn--blue">Join waitlist</a>
     </div>
+    <span class="nav__bar" id="navBar" aria-hidden="true"></span>
   </header>
 
   <main id="top">
@@ -88,20 +96,20 @@
         <div class="wrap boss__in">
           <div class="boss__stage">
             <div class="boss__disc" data-d="0.2"></div>
-            <img class="boss__side boss__side--l" src="assets/buddies/monster-1-healthy.webp" alt="" loading="lazy" />
-            <img class="boss__side boss__side--r" src="assets/buddies/monster-2-healthy.webp" alt="" loading="lazy" />
             <img class="boss__m" id="bossImg" src="assets/buddies/monster-0-healthy.webp" alt="The Scroll Monster" />
-            <div class="boss__buddy"><img id="bossBuddy" src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
+            <span class="boss__ko" id="bossKo" aria-hidden="true">K.O.!</span>
             <span class="boss__coins" id="bossCoins">+50 coins</span>
+            <span class="coinfall" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <div class="boss__team"><div class="tm" data-i="0"><span class="tm__dmg">Gym −25</span><img src="assets/buddies/brick-gym.webp" alt="Brick" loading="lazy" /></div><div class="tm" data-i="1"><span class="tm__dmg">Protein −25</span><img src="assets/buddies/tank-shake.webp" alt="Tank" loading="lazy" /></div><div class="tm" data-i="2"><span class="tm__dmg">Focus −25</span><img src="assets/buddies/pip-focus.webp" alt="Pip" loading="lazy" /></div><div class="tm" data-i="3"><span class="tm__dmg">Water −25</span><img src="assets/buddies/volt-water.webp" alt="Volt" loading="lazy" /></div></div>
           </div>
-          <div class="hp" role="img" aria-label="Scroll Monster health"><i id="hpFill"></i></div>
+          <div class="hpwrap"><span class="hpt" id="hpText">HP 100</span><div class="hp" role="img" aria-label="Scroll Monster health"><i id="hpFill"></i></div></div>
           <h2>Beat the Scroll Monster.</h2>
           <p class="lede">A new one shows up every week. Locked minutes and finished goals knock its health down.</p>
         </div>
       </div>
     </section>
 
-    <section class="section section--soft sheet">
+    <section class="section section--soft sheet" id="goals">
       <div class="fl peek peek--l" data-d="0.25"><img class="bob b3" src="assets/buddies/brick-happy.webp" alt="" loading="lazy" /></div>
       <div class="fl peek peek--r" data-d="0.25"><img class="bob b4" src="assets/buddies/tank-happy.webp" alt="" loading="lazy" /></div>
       <div class="wrap">
@@ -231,34 +239,44 @@
     }
 
 
-    // ---- Scroll Monster: health drains with scroll, mood follows ----
-    const boss = document.getElementById("boss"), bImg = document.getElementById("bossImg"), bBuddy = document.getElementById("bossBuddy"), hp = document.getElementById("hpFill");
-    let bState = "";
+    // ---- Scroll Monster: each quarter of its health is knocked off by a different buddy ----
+    const boss = document.getElementById("boss"), bImg = document.getElementById("bossImg"), hp = document.getElementById("hpFill"), hpText = document.getElementById("hpText");
+    const team = [...boss.querySelectorAll(".tm")];
+    let bState = "", lastHits = 0;
     function bossScroll() {
       const r = boss.getBoundingClientRect(), total = r.height - innerHeight;
       const p = Math.min(1, Math.max(0, -r.top / total));
       const health = Math.max(0, 1 - p * 1.25);
       hp.style.width = (health * 100).toFixed(1) + "%";
+      hpText.textContent = "HP " + Math.round(health * 100);
+      const hits = Math.min(4, Math.floor((1 - health) * 4 + 1e-6));
+      if (hits > lastHits) {
+        const t = team[hits - 1];
+        t.classList.remove("hit"); void t.offsetWidth; t.classList.add("hit");
+        bImg.classList.remove("shake"); void bImg.offsetWidth; bImg.classList.add("shake");
+      }
+      team.forEach((t, i) => t.classList.toggle("done", i < hits));
+      lastHits = hits;
       const st = health > 0.5 ? "healthy" : health > 0 ? "hurt" : "defeated";
       if (st !== bState) {
         bState = st; boss.dataset.state = st;
         bImg.src = "assets/buddies/monster-0-" + st + ".webp";
-        bBuddy.src = "assets/buddies/stash-" + (st === "defeated" ? "ecstatic" : "happy") + ".webp";
-        bImg.style.animation = "none"; void bImg.offsetWidth; bImg.style.animation = "";
       }
     }
     addEventListener("scroll", bossScroll, { passive: true }); addEventListener("resize", bossScroll); bossScroll();
 
-
-    // ---- sunrise alarm: buddy wakes up on a loop ----
-    const sunBuddy = document.getElementById("sunBuddy"), sunBubble = document.getElementById("sunBubble");
-    let awake = false;
-    if (!reduce) setInterval(() => {
-      awake = !awake;
-      sunBuddy.src = "assets/buddies/stash-" + (awake ? "ecstatic" : "sleepy") + ".webp";
-      sunBubble.textContent = awake ? "I\u2019m up!" : "Zzz";
-      sunBubble.style.animation = "none"; void sunBubble.offsetWidth; sunBubble.style.animation = "";
-    }, 3600);
+    // ---- top bar: scroll progress, active section, stronger shadow once scrolled ----
+    const nav = document.getElementById("nav"), navBar = document.getElementById("navBar");
+    const navLinks = [...nav.querySelectorAll(".nav__links a")].map((a) => ({ a, el: document.querySelector(a.getAttribute("href")) })).filter((x) => x.el);
+    function navScroll() {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      navBar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, scrollY / max) : 0).toFixed(4) + ")";
+      nav.classList.toggle("is-scrolled", scrollY > 24);
+      const mid = innerHeight * 0.45; let cur = null;
+      for (const l of navLinks) { const r = l.el.getBoundingClientRect(); if (r.top <= mid && r.bottom > mid) cur = l; }
+      navLinks.forEach((l) => l.a.classList.toggle("on", l === cur));
+    }
+    addEventListener("scroll", navScroll, { passive: true }); addEventListener("resize", navScroll); navScroll();
 
     // ---- scroll story ----
     const story = document.getElementById("story");

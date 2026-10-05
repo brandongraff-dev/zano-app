@@ -693,3 +693,49 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: 
 .goal:hover .goal__buddy { animation-duration: 0.9s; }
 @media (max-width: 860px) { .goals { gap: 14px; margin-top: 56px; row-gap: 56px; } .goal { min-height: 210px; } .goal__buddy { width: 58%; top: -46px; } .goal__ic { left: 18px; top: 18px; } }
 @media (max-width: 480px) { .goal { padding: 18px; min-height: 190px; } .goal b { font-size: 1.25rem; } .goal__ic { width: 40px; height: 40px; } }
+
+
+/* ---------- top bar ---------- */
+.nav { overflow: hidden; transition: box-shadow 0.3s, background 0.3s; }
+.nav.is-scrolled { box-shadow: 0 14px 34px -14px rgba(20, 30, 70, 0.4); background: rgba(255, 255, 255, 0.9); }
+.nav .wrap.nav__in { gap: 14px; }
+.logo { display: inline-flex; align-items: center; gap: 4px; }
+.logo__buddy { width: 34px; height: 34px; margin: 0 2px 2px -6px; image-rendering: pixelated; transition: transform 0.25s; }
+.logo:hover .logo__buddy { animation: hop 0.7s ease-in-out; }
+.nav__links { display: none; align-items: center; gap: 2px; margin-inline: auto; }
+.nav__links a { padding: 8px 14px; border-radius: 999px; text-decoration: none; font-family: var(--display); font-weight: 800; font-size: 0.9rem; color: var(--ink-2); transition: background 0.2s, color 0.2s; }
+.nav__links a:hover { color: var(--ink); background: rgba(47, 107, 255, 0.08); }
+.nav__links a.on { color: #fff; background: var(--ink); }
+.nav__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--lime); transform: scaleX(0); transform-origin: 0 50%; border-radius: 0 3px 3px 0; }
+@media (min-width: 900px) { .nav { width: min(900px, calc(100% - 24px)); } .nav__links { display: flex; } }
+
+/* ---------- Scroll Monster v2: a buddy per hit, damage numbers, K.O. ---------- */
+.boss__side, .boss__buddy { display: none; }
+.boss__stage { margin-bottom: clamp(52px, 11svh, 96px); }
+.boss__m.shake { animation: bossHit 0.5s ease-in-out 1, bossIdle 3s ease-in-out 0.5s infinite; }
+@keyframes bossHit { 0% { filter: brightness(2.2) drop-shadow(0 18px 14px rgba(40, 30, 90, 0.3)); transform: translateX(0); } 20% { transform: translateX(-12px) rotate(-5deg); } 45% { transform: translateX(12px) rotate(5deg); } 70% { transform: translateX(-6px); } 100% { filter: drop-shadow(0 18px 14px rgba(40, 30, 90, 0.3)); transform: none; } }
+.boss__team { position: absolute; left: -10%; right: -10%; bottom: -26%; display: flex; justify-content: space-between; z-index: 3; pointer-events: none; }
+.tm { position: relative; width: 24%; }
+.tm img { width: 100%; image-rendering: pixelated; filter: drop-shadow(0 10px 8px rgba(40, 30, 90, 0.3)); opacity: 0.55; transform: scale(0.88); transition: opacity 0.4s, transform 0.4s; transform-origin: 50% 90%; }
+.tm.done img { opacity: 1; transform: scale(1); }
+.tm.hit img { animation: lunge 0.7s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes lunge { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-34%) scale(1.22) rotate(-6deg); } 100% { transform: translateY(0) scale(1); } }
+.tm__dmg { position: absolute; left: 50%; top: -6%; transform: translateX(-50%); background: #ff5c7a; color: #fff; font-family: var(--display); font-weight: 900; font-size: 0.95rem; padding: 5px 12px; border-radius: 999px; white-space: nowrap; opacity: 0; z-index: 4; box-shadow: 0 8px 16px -8px rgba(255, 92, 122, 0.8); }
+.tm.hit .tm__dmg { animation: dmg 1.2s ease-out forwards; }
+@keyframes dmg { 0% { opacity: 0; transform: translate(-50%, 10px) scale(0.6); } 20% { opacity: 1; transform: translate(-50%, -6px) scale(1.1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -64px) scale(1); } }
+.hpwrap { display: flex; align-items: center; gap: 12px; margin-bottom: clamp(20px, 4svh, 34px); }
+.hpt { font-family: var(--display); font-weight: 900; font-size: 0.95rem; color: #d63a5c; min-width: 4.4em; text-align: right; font-variant-numeric: tabular-nums; }
+.hpwrap .hp { margin: 0; width: min(300px, 56vw); height: 16px; background: #fff; box-shadow: inset 0 1px 3px rgba(40, 30, 90, 0.2), 0 0 0 3px #fff; }
+.hp i { background: #ff5c7a; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12), inset 0 3px 0 rgba(255, 255, 255, 0.35); }
+.boss__ko { position: absolute; left: 50%; top: 8%; z-index: 5; font-family: var(--display); font-weight: 900; font-size: clamp(2.4rem, 8vw, 4.4rem); letter-spacing: -0.03em; color: #ffd447; -webkit-text-stroke: 3px #1a1230; paint-order: stroke fill; transform: translateX(-50%) rotate(-8deg) scale(0); opacity: 0; transition: transform 0.5s cubic-bezier(.2, 1.7, .4, 1), opacity 0.2s; text-shadow: 0 6px 0 #1a1230; }
+.boss[data-state="defeated"] .boss__ko { transform: translateX(-50%) rotate(-8deg) scale(1); opacity: 1; }
+.boss__coins { top: auto; bottom: 22%; right: 6%; font-size: 1.05rem; }
+.coinfall { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.coinfall i { position: absolute; top: -12%; width: 14px; height: 14px; border-radius: 50%; background: #ffd447; box-shadow: inset 0 0 0 3px #f0a800; opacity: 0; }
+.coinfall i:nth-child(1) { left: 14%; } .coinfall i:nth-child(2) { left: 28%; } .coinfall i:nth-child(3) { left: 42%; } .coinfall i:nth-child(4) { left: 56%; } .coinfall i:nth-child(5) { left: 68%; } .coinfall i:nth-child(6) { left: 80%; } .coinfall i:nth-child(7) { left: 90%; }
+.boss[data-state="defeated"] .coinfall i { animation: coin 1.6s ease-in infinite; }
+.coinfall i:nth-child(odd) { animation-delay: 0.3s !important; } .coinfall i:nth-child(3n) { animation-delay: 0.7s !important; }
+@keyframes coin { 0% { opacity: 0; transform: translateY(0) rotate(0); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(380px) rotate(360deg); } }
+@media (max-width: 700px) { .boss__team { left: -6%; right: -6%; } .tm__dmg { font-size: 0.78rem; padding: 4px 9px; } .boss__coins { right: 0; bottom: 26%; } .hpt { font-size: 0.85rem; } }
+.boss__stage { --bs: min(420px, 78vw, 44svh); width: var(--bs); margin-bottom: calc(var(--bs) * 0.3 + 16px); }
+@media (max-width: 700px) { .boss__stage { --bs: min(300px, 74vw, 40svh); width: var(--bs); } }

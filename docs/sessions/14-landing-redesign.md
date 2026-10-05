@@ -57,3 +57,7 @@
 ### 2026-10-05 — Hero: phone-first stack on iPhone
 
 - Research: cooked.trade's page order (mascot, short headline, one-line subline, App Store badge "coming soon" + waitlist form, then screenshots; mascot only at top and bottom) plus generic app-landing guidance (benefit headline, one CTA above the fold, device mockup). Applied to <=860px: crew row of 5 -> headline -> subline -> sign-up card -> top of the phone peeking, faded. Desktop keeps crew + phone side by side with the floating sign-up bar. Checked at 393x660, 375x560, 430x780, 800x940, 1280x720.
+
+### 2026-10-05 — Hero v4: Opal-style centred stack
+
+- Reference: opalapp.com (copy/order only; fetch gave no CSS). Borrowed: text-first centred hero (short headline, one subline, one CTA row), phones kept out of the hero's main line and shown peeking below, one idea per block, a soft colour glow behind the device. Not borrowed: ratings/awards/stats/testimonials (we have no real numbers; do not invent them). Same stack at every width; desktop shows all nine buddies in a row and an inline sign-up pill.

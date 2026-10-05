@@ -65,3 +65,7 @@
 ### 2026-10-05 — Design pass
 
 - Display type is now Nunito (same face as the app wordmark; `assets/fonts/nunito-var.woff2`, Latin subset of the OFL font in `scripts/buddies/fonts`) with the system font for body, so the page no longer depends on Google Fonts. Floating pill nav; hero headline with a lime highlighter on "screen time."; story glow changes colour per step; lavender Scroll Monster sheet; pastel goal cards matching the app; bold blue closing panel with the whole crew and a lime button.
+
+### 2026-10-05 — Goal cards with buddies doing the task
+
+- Brick lifts dumbbells (Gym), Tank holds a protein shaker (Protein), Pip has a focus timer (Focus), Volt holds a water bottle (Water). Props are pixel-drawn onto the generator's 48x48 sprites (`brick-gym`, `tank-shake`, `pip-focus`, `volt-water` in `landing/assets/buddies/`) and each card animates its buddy. Also: story glow is sized from the phone (`--pw`) so it can't overlap the headline; checked at 12 viewport sizes.

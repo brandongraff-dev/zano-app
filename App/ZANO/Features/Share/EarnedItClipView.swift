@@ -49,7 +49,7 @@ struct EarnedItClipView: View {
         case .making(let progress):
             VStack(spacing: Theme.Spacing.sm) {
                 StoredBuddySprite(pose: .excited, size: 96)
-                ProgressView(value: progress)
+                SwiftUI.ProgressView(value: progress)
                     .tint(buddy.color)
                 Text(Copy.clip.making)
                     .font(Theme.Typography.caption)

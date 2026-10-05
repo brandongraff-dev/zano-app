@@ -93,7 +93,7 @@ struct BuddyStyleTests {
 
     // MARK: Catalog
 
-    @Test func catalogIsPartOfTheShopsClosedCatalog() {
+    @MainActor @Test func catalogIsPartOfTheShopsClosedCatalog() {
         let items = BuddyStyleCatalog.items
         #expect(items.count == 1 + BuddyStyleItem.allCases.count + Buddy.allCases.count * BuddySkin.allCases.count)
         #expect(Set(items.map(\.key)).count == items.count, "duplicate keys")

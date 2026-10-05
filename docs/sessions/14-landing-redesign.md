@@ -49,3 +49,7 @@
 ### 2026-10-05 — Hero centre screen: made-up "1 goal to unlock"
 
 - Light-theme illustrated screen (not an app capture): happy buddy, "1 goal to unlock", three goals done, Focus in progress with a filling bar, "Social locked" chip that flips to "Social open". Built in HTML/CSS (`.mock--home`). Gotcha: cqw padding on a container element resolves against the *parent* container (or svw), so padding on `.mock--home` uses %.
+
+### 2026-10-05 — Hero v3: the crew next to one phone
+
+- Hero is now one phone plus the nine buddies as a pyramid huddle (Stash biggest). Desktop: crew left, phone right (cropped by the sign-up bar). Mobile/tablet: crew on top, top half of the phone peeking underneath. Replaces the three-phone layered hero. Explored alternatives (not shipped): buddies lined up in front of the phone; buddies peeking out from behind the phone.

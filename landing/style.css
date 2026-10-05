@@ -525,3 +525,25 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .bd--lox, .bd--pip { display: block; top: 12%; --s: 54px; }
   .bd--lox { left: 2%; } .bd--pip { left: auto; right: 2%; }
 }
+
+/* ---------- hero v3: the crew next to one phone ---------- */
+.hero3 { position: relative; height: max(560px, 100svh); overflow: hidden; background: #fff; }
+.hero3::before { content: ""; position: absolute; left: 50%; top: 52%; width: min(900px, 120vw); aspect-ratio: 1; margin: calc(min(900px, 120vw) / -2) 0 0 calc(min(900px, 120vw) / -2); border-radius: 50%; background: #f1f5ff; }
+.hero3__stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: clamp(8px, 3vw, 48px); padding: 64px 24px 0; }
+.crew { width: min(600px, 46vw); display: grid; justify-items: center; position: relative; z-index: 1; margin-bottom: 70px; }
+.crew__row { display: flex; justify-content: center; width: 100%; margin-top: -9%; }
+.crew__row:first-child { margin-top: 0; }
+.crew__b { width: 24%; image-rendering: pixelated; filter: drop-shadow(0 12px 10px rgba(20, 30, 70, 0.25)); animation: bobS 4.6s ease-in-out infinite; }
+.crew__row:nth-child(1) .crew__b { width: 27%; }
+.crew__b--lead { width: 36% !important; }
+.crew__b:nth-child(2) { animation-delay: -1.1s; } .crew__b:nth-child(3) { animation-delay: -2.2s; } .crew__b:nth-child(4) { animation-delay: -3.3s; }
+.hero3__phone { width: min(330px, 44svh); align-self: flex-start; margin-top: max(8px, 3svh); position: relative; z-index: 2; flex: none; }
+.hero3__phone .phone { rotate: 3deg; box-shadow: 0 40px 70px -26px rgba(20, 30, 70, 0.5); }
+.hero3 .hero2__cta { z-index: 10; }
+@media (max-width: 860px) {
+  .hero3::before { top: 40%; }
+  .hero3__stage { flex-direction: column; justify-content: flex-start; align-items: center; gap: 4px; padding: 76px 16px 0; }
+  .crew { width: min(100%, 420px); margin-bottom: 0; }
+  .hero3__phone { width: min(66vw, 270px); align-self: center; margin-top: 6px; }
+  .hero3__phone .phone { rotate: 0deg; }
+}

@@ -175,15 +175,20 @@ struct SunriseAlarmSetupView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
 
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: Theme.Spacing.sm),
-                    GridItem(.flexible(), spacing: Theme.Spacing.sm),
-                ],
-                spacing: Theme.Spacing.sm
-            ) {
-                ForEach(Self.visibleVariants, id: \.self) { variant in
-                    variantTile(variant)
+            // Two per row; an odd last tile spans the row instead of sitting alone at half width
+            // (squad is hidden, which leaves three).
+            let variants = Self.visibleVariants
+            Grid(horizontalSpacing: Theme.Spacing.sm, verticalSpacing: Theme.Spacing.sm) {
+                ForEach(Array(stride(from: 0, to: variants.count, by: 2)), id: \.self) { index in
+                    GridRow {
+                        if index + 1 < variants.count {
+                            variantTile(variants[index])
+                            variantTile(variants[index + 1])
+                        } else {
+                            variantTile(variants[index])
+                                .gridCellColumns(2)
+                        }
+                    }
                 }
             }
 
@@ -748,6 +753,8 @@ struct SleepTimeCard: View {
     @Binding private var time: Date
 
     @State private var isEditing = false
+    /// Drives the sleeping sun's slow breath (`SunCharacter.pulse`).
+    @State private var breathe = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Hero time size; scales with Dynamic Type (Theme has no numeral step this large yet).
     @ScaledMetric(relativeTo: .largeTitle) private var timeSize: CGFloat = 64
@@ -767,29 +774,38 @@ struct SleepTimeCard: View {
                     isEditing.toggle()
                 }
             } label: {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    HStack(spacing: Theme.Spacing.xs) {
-                        IconBadge(systemName: systemImage, tint: tint, size: .small)
+                HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        HStack(spacing: Theme.Spacing.xs) {
+                            IconBadge(systemName: systemImage, tint: tint, size: .small)
 
-                        Text(label)
-                            .font(Theme.Typography.captionEmphasized)
-                            .foregroundStyle(Theme.Colors.muted)
+                            Text(label)
+                                .font(Theme.Typography.captionEmphasized)
+                                .foregroundStyle(Theme.Colors.muted)
 
-                        Spacer(minLength: 0)
+                            Image(systemName: "chevron.down")
+                                .font(Theme.Typography.icon(.small))
+                                .foregroundStyle(Theme.Colors.muted)
+                                .rotationEffect(.degrees(isEditing ? 180 : 0))
+                                .accessibilityHidden(true)
 
-                        Image(systemName: "chevron.down")
-                            .font(Theme.Typography.icon(.small))
-                            .foregroundStyle(Theme.Colors.muted)
-                            .rotationEffect(.degrees(isEditing ? 180 : 0))
-                            .accessibilityHidden(true)
+                            Spacer(minLength: 0)
+                        }
+
+                        Text(time, format: .dateTime.hour().minute())
+                            .font(Theme.Typography.score(size: art == .sun ? timeSize * 0.84 : timeSize))
+                            .foregroundStyle(Theme.Colors.text)
+                            .shadow(color: tint.opacity(0.35), radius: 14)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
                     }
 
-                    Text(time, format: .dateTime.hour().minute())
-                        .font(Theme.Typography.score(size: timeSize))
-                        .foregroundStyle(Theme.Colors.text)
-                        .shadow(color: tint.opacity(0.35), radius: 14)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
+                    // The sun beside the time, not behind it (its stripes ran through the digits).
+                    // Asleep: this is the alarm at rest. Still under Reduce Motion.
+                    if art == .sun {
+                        SunCharacter(mood: .asleep, pulse: breathe, animated: !reduceMotion)
+                            .frame(width: 76, height: 76)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -808,6 +824,10 @@ struct SleepTimeCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { cornerArt }
         .zanoHero(tint: tint)
+        .onAppear {
+            guard art == .sun, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { breathe = true }
+        }
     }
 
     /// The decorative corner piece, clipped to the card so it reads as a window onto the sky.
@@ -818,10 +838,8 @@ struct SleepTimeCard: View {
             case .none:
                 EmptyView()
             case .sun:
-                RetroSun(tint: tint)
-                    .frame(width: 150, height: 150)
-                    .opacity(0.5)
-                    .offset(x: 38, y: 34)
+                // Drawn beside the time as `SunCharacter` (see `body`), not as corner art.
+                EmptyView()
             case .moon:
                 MoonAndStars(tint: tint)
                     .frame(width: 130, height: 110)

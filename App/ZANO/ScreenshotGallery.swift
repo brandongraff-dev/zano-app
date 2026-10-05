@@ -136,6 +136,23 @@ struct ScreenshotHost: View {
             NavigationStack { BedtimeGateSetupView() }
         case "alarm-ringing":
             AlarmRingingView()
+        case "wake-moment":
+            // The "you're up" payoff over the ringing screen, as it looks once the check has landed.
+            ZStack {
+                AlarmRingingView()
+                WakeMomentOverlay(kind: .verified, onSkip: {})
+            }
+        case "sun-moods":
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 20) {
+                    ForEach(SunMood.allCases, id: \.self) { mood in
+                        SunCharacter(mood: mood, animated: false)
+                            .frame(width: 96, height: 96)
+                    }
+                }
+                .padding(24)
+            }
+            .background(Theme.Colors.background)
         case "celebration":
             UnlockCelebrationView(goalName: "Gym session", verificationDetail: "42 min at the gym",
                                   timeBankRemainingMinutes: 130, timeBankTotalMinutes: 180)

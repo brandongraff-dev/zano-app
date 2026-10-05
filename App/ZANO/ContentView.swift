@@ -68,7 +68,8 @@ struct ContentView: View {
         // (a verified dismiss, the one snooze, or the 60-second escape hatch), which
         // `AlarmRingingView` itself already reacts to by dismissing. Presented over onboarding too —
         // a ringing alarm outranks everything.
-        .fullScreenCover(isPresented: Binding(get: { isAlarmRinging }, set: { _ in })) {
+        // `WakeMoment` keeps the cover up for the "you're up" payoff after a dismiss clears `isRinging`.
+        .fullScreenCover(isPresented: Binding(get: { isAlarmRinging || WakeMoment.shared.isPlaying }, set: { _ in })) {
             AlarmRingingView()
                 .preferredColorScheme(.dark)
         }

@@ -28,6 +28,10 @@ import Foundation
 extension Copy {
     public enum alarmRinging {
         public static let headline = "Rise and shine. Up you get."
+        public static let wakeTitle = "You're up."
+        public static let wakeSubtitle = "Morning goal done. Go get your day."
+        public static let escapedTitle = "Alarm off."
+        public static let escapedSubtitle = "Your morning goal didn't count. Tomorrow is a fresh start."
         public static let eyebrowWaking = "Wake up"
         public static let eyebrowUrgent = "Still asleep?"
         public static let eyebrowCritical = "Seriously, get up"

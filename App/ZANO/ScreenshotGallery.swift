@@ -136,6 +136,10 @@ struct ScreenshotHost: View {
             NavigationStack { BedtimeGateSetupView() }
         case "alarm-ringing":
             AlarmRingingView()
+        case "repeat-days":
+            NavigationStack { RepeatDaysPreviewHost() }
+        case "alarm-sound":
+            NavigationStack { AlarmSoundPreviewHost() }
         case "wake-moment":
             // The "you're up" payoff over the ringing screen, as it looks once the check has landed.
             ZStack {
@@ -389,4 +393,15 @@ enum DemoData {
         logger.notice("DemoData \(note, privacy: .public): sessions total=\(sessions.count) ended=\(ended.count) earned=\(earned.count) badges=\(badgeKeys.joined(separator: ","), privacy: .public) tz=\(TimeZone.current.identifier, privacy: .public)")
     }
 #endif
+}
+
+/// Hosts for the Repeat and Sound screens: each needs a binding, which a screenshot has no parent for.
+private struct RepeatDaysPreviewHost: View {
+    @State private var days = RepeatDays.weekdays
+    var body: some View { RepeatDaysView(days: $days) }
+}
+
+private struct AlarmSoundPreviewHost: View {
+    @State private var sound = AlarmSoundChoice.daybreak
+    var body: some View { AlarmSoundView(sound: $sound) }
 }

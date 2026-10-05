@@ -47,6 +47,40 @@ escape hatch, VoiceOver actions, escalation phases, pulse loop and haptics are u
   in the Sunrise folder; Core's shared `StickyActionBar` is unchanged). CI: `screens` input on
   `workflow_dispatch` for focused screenshot runs, a 35-minute step limit and a 150s limit per
   simulator command in the tour.
+### 2026-10-05 — repeat days, sound picker, backup alarm, time-of-day icon
+
+- **Files touched:** `Core/Sources/Core/Verification/SunriseAlarmOptions.swift` (new),
+  `SunriseAlarmManager.swift`, `Core/Sources/Core/Copy/SunriseAlarmScreenCopy.swift`,
+  `Core/Tests/CoreTests/SunriseAlarmRepeatTests.swift` (new), `App/ZANO/Features/SunriseAlarm/
+  AlarmOptionsViews.swift` (new), `TimeOfDay.swift` (new), `SunriseAlarmSetupView.swift`,
+  `AlarmRingingView.swift`, `App/ZANO/Sounds/alarm-*.wav` (6 new), `scripts/generate-alarm-sounds.py`
+  (new), `App/ZANO/ScreenshotGallery.swift`, `.github/workflows/ci.yml`
+- **What changed:**
+  - **Repeat days:** `Settings.repeatDays` (Calendar weekday numbers). The alarm rings on the checked
+    days; none checked = "Never": it rings once, then switches itself off (Clock app behaviour). Saving
+    the setup screen turns the alarm on again.
+  - **Sound picker:** six synthesized wake-up tones (Daybreak, Chimes, Marimba, Pulse, Bells, Ripple),
+    20s each, linear PCM WAV, volume rising over the clip. Used as the notification sound on the
+    iOS 17-18 tier and passed to AlarmKit as `sound: .named(...)`. The Sound list previews each tone.
+  - **Backup alarm:** optional plain second alarm 5/10/15 min after the Sunrise Alarm, on the same tier.
+    A verified dismiss or the escape hatch cancels it (both end in `scheduleAlarm`, which cancels it first).
+    Snooze leaves it in place. Off by default.
+  - **UI:** Repeat / Sound / Backup rows and Repeat / Sound checkmark screens laid out like the iOS Clock
+    app's alarm editor.
+  - **Time of day:** `TimeOfDay` picks moon / sunrise / sun / sunset for the hour; shown on the wake-time
+    card's badge and the ringing screen's "Wake up" chip.
+- **Decisions made and why:**
+  - `Settings` now has a custom `init(from:)` with `decodeIfPresent` for the new keys. Synthesized
+    decoding would have thrown on every existing saved row and `currentSettings()` would have returned
+    defaults, silently wiping people's alarms. A test covers it.
+  - The backup uses its own notification prefix (`zano.sunriseBackup.`) so snooze, which cancels the
+    main chain by prefix, does not cancel it.
+  - Sounds are synthesized (no licensing, small, regenerable) rather than recorded; they have not been
+    listened to on a device. They are placeholders in quality terms.
+- **Unverified:** AlarmKit's `sound:` accepts `.named(String)` per Apple's docs, but those pages do not say
+  where the file must live or its format limits; assumed main bundle, same as notification sounds. AlarmKit
+  `stopIntent` default was not confirmed, so the backup passes the same intent the main alarm does. Neither
+  has run on an iOS 26 device.
 - **Known issues / TODOs left behind:**
   - Pending: collapse the tag help / troubleshooting on the setup screen; Save bar still lets text
     show behind it (Core `StickyActionBar`, not touched); a mood for the snooze moment itself (the cover

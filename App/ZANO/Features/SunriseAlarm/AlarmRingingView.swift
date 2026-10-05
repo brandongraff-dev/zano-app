@@ -330,7 +330,9 @@ struct AlarmRingingView: View {
     /// means the phase is not carried by hue alone.
     private var phaseChip: some View {
         HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: phase.symbol)
+            // The waking chip shows the sky for the hour (a moon at 3 a.m., a sunrise at 6:30); the
+            // urgent and critical chips keep their warning glyphs.
+            Image(systemName: phase == .waking ? TimeOfDay(date: now).symbol : phase.symbol)
                 .font(Theme.Typography.icon(.small, weight: .bold))
             // Sentence case, no tracking (premium pass 2026-09-24: no all-caps labels).
             Text(eyebrowText)

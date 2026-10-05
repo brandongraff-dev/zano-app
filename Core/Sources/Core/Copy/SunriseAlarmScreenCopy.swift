@@ -198,3 +198,47 @@ extension Copy {
         public static let wakeAlarmLinkDetail = "Set how you turn off tomorrow's alarm"
     }
 }
+
+// MARK: - Repeat days, sounds, backup alarm (session 14)
+//
+// The three rows of the alarm editor, worded the way the iOS Clock app words them.
+
+extension Copy.sunriseAlarm {
+    // Repeat
+    public static let repeatRowLabel = "Repeat"
+    public static let repeatScreenTitle = "Repeat"
+    public static let repeatNever = "Never"
+    public static let repeatEveryDay = "Every day"
+    public static let repeatWeekdays = "Weekdays"
+    public static let repeatWeekends = "Weekends"
+    public static func repeatRowTitle(weekdayName: String) -> String { "Every \(weekdayName)" }
+    public static let repeatFooterOnce = "This alarm rings once, then turns itself off."
+    public static let repeatFooterRepeating = "The alarm rings on the days you check."
+
+    // Sound
+    public static let soundRowLabel = "Sound"
+    public static let soundScreenTitle = "Sound"
+    public static let soundSectionHeader = "Wake-up sounds"
+    public static let soundFooter = "Every sound starts soft and gets louder."
+    public static func soundName(_ sound: AlarmSoundChoice) -> String {
+        switch sound {
+        case .daybreak: "Daybreak"
+        case .chimes: "Chimes"
+        case .marimba: "Marimba"
+        case .pulse: "Pulse"
+        case .bells: "Bells"
+        case .ripple: "Ripple"
+        }
+    }
+
+    // Backup alarm
+    public static let backupRowLabel = "Backup alarm"
+    public static let backupAfterLabel = "Ring again after"
+    public static func backupMinutesLabel(_ minutes: Int) -> String { "\(minutes) min" }
+    public static let backupFooter = "A plain alarm that rings if you still haven't got up. Getting up with the Sunrise Alarm cancels it."
+    public static let backupNotificationTitle = "Backup alarm"
+    public static func backupNotificationBody(minutes: Int) -> String {
+        "Your Sunrise Alarm rang \(minutes) minutes ago. Time to get up."
+    }
+    public static let backupStopButtonLabel = "Stop"
+}

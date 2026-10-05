@@ -97,12 +97,16 @@ struct SunriseAlarmSetupView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 SleepTimeCard(
-                    systemImage: "sunrise.fill",
-                    tint: Theme.Colors.Ring.sunriseAlarm,
+                    // A moon at night, a sunrise at dawn, a sun by day: the hour you are looking.
+                    systemImage: TimeOfDay().symbol,
+                    tint: TimeOfDay().tint,
                     label: Copy.sunriseAlarm.wakeTimeLabel,
                     time: $settings.wakeTime,
                     art: .sun
                 )
+
+                // Repeat, Sound and the backup alarm, laid out like the Clock app's alarm editor.
+                AlarmOptionsCard(settings: $settings)
 
                 dismissMethodSection
 
@@ -518,6 +522,9 @@ struct SunriseAlarmSetupView: View {
     private func save() {
         guard !isSaving else { return }
         isSaving = true
+        // Saving turns the alarm on, as creating an alarm in the Clock app does. It matters for a
+        // "Never repeat" alarm, which switches itself off after it rings.
+        settings.enabled = true
         Task {
             do {
                 try await SunriseAlarmManager.shared.saveSettings(settings)

@@ -53,3 +53,7 @@
 ### 2026-10-05 — Hero v3: the crew next to one phone
 
 - Hero is now one phone plus the nine buddies as a pyramid huddle (Stash biggest). Desktop: crew left, phone right (cropped by the sign-up bar). Mobile/tablet: crew on top, top half of the phone peeking underneath. Replaces the three-phone layered hero. Explored alternatives (not shipped): buddies lined up in front of the phone; buddies peeking out from behind the phone.
+
+### 2026-10-05 — Hero: phone-first stack on iPhone
+
+- Research: cooked.trade's page order (mascot, short headline, one-line subline, App Store badge "coming soon" + waitlist form, then screenshots; mascot only at top and bottom) plus generic app-landing guidance (benefit headline, one CTA above the fold, device mockup). Applied to <=860px: crew row of 5 -> headline -> subline -> sign-up card -> top of the phone peeking, faded. Desktop keeps crew + phone side by side with the floating sign-up bar. Checked at 393x660, 375x560, 430x780, 800x940, 1280x720.

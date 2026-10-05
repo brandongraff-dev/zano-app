@@ -17,7 +17,7 @@ import EventKit
 public final class FocusLockCalendarSource {
     public static let shared = FocusLockCalendarSource()
 
-    private let store = EKEventStore()
+    private init() {}
 
     public nonisolated static func authorizationStatus() -> EKAuthorizationStatus {
         EKEventStore.authorizationStatus(for: .event)
@@ -28,18 +28,22 @@ public final class FocusLockCalendarSource {
     /// Shows the system Calendar prompt. Only the Settings toggle calls this.
     @discardableResult
     public func requestAccess() async -> Bool {
-        (try? await store.requestFullAccessToEvents()) ?? false
+        // A fresh store, not a shared one: an `EKEventStore` isn't `Sendable`, so a stored one can't be
+        // sent across the await. Access is per app, so any store sees the answer.
+        let store = EKEventStore()
+        return (try? await store.requestFullAccessToEvents()) ?? false
     }
 
     /// The user's calendars, for the "which calendars" list. Empty without access.
     public func calendars() -> [(id: String, title: String)] {
         guard Self.hasAccess else { return [] }
-        return store.calendars(for: .event).map { ($0.calendarIdentifier, $0.title) }
+        return EKEventStore().calendars(for: .event).map { ($0.calendarIdentifier, $0.title) }
     }
 
     /// Events starting between `start` and `end`. Empty without access.
     public func events(from start: Date, to end: Date) -> [FocusCalendarEvent] {
         guard Self.hasAccess else { return [] }
+        let store = EKEventStore()
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
         return store.events(matching: predicate).compactMap(Self.convert)
     }

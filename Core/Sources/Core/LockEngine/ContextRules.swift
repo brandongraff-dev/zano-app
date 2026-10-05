@@ -91,8 +91,8 @@ public enum ContextRuleStore {
 
 // MARK: - Active exemptions
 
-/// The apps, categories and web domains kept open right now.
-public struct ContextExemptTokens: Sendable {
+/// The apps, categories and web domains kept open right now. Not `Sendable`: Apple's token sets aren't.
+public struct ContextExemptTokens {
     public var applications: Set<ApplicationToken> = []
     public var categories: Set<ActivityCategoryToken> = []
     public var webDomains: Set<WebDomainToken> = []

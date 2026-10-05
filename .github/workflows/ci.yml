@@ -106,6 +106,10 @@ jobs:
         id: shots
         if: always() && steps.build.outcome == 'success'
         continue-on-error: true
+        # A hung simulator used to hold the whole job for ~90 minutes and take the already-captured
+        # screenshots with it (run 81, 2026-10-05). The tour normally takes about 20 minutes. With a
+        # step limit the step is cancelled, `if: always()` steps still run, and `shots/` still uploads.
+        timeout-minutes: 35
         run: |
           mkdir -p shots
           APP=$(find build/DerivedData/Build/Products -maxdepth 3 -name "ZANO.app" | head -1)

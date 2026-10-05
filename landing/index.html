@@ -32,9 +32,9 @@
         <div class="fl" style="--x:50%;--y:9%;--s:min(640px,86vw)" data-d="0.15"><div class="disc"></div></div>
         <div class="fl" style="--x:50%;--y:2%;--s:min(860px,118vw)" data-d="0.25"><div class="ring"><i style="--c:#ff8a2b"></i><i style="--c:#7cc21b"></i><i style="--c:#8b6bff"></i></div></div>
 
-        <div class="fl ph ph--l" data-d="0.5"><div class="phone"><div class="mock mock--splash"><b class="mock__logo">zan<i>o</i></b><img src="assets/buddies/stash-happy.webp" alt="" /></div></div></div>
+        <div class="fl ph ph--l" data-d="0.5"><div class="phone"><img src="assets/screen-streak.webp" alt="30 day streak card" /></div></div>
         <div class="fl ph ph--r" data-d="0.5"><div class="phone"><div class="mock mock--win"><span class="confetti" aria-hidden="true"><i style="left:10%;top:12%;--c:#ff8a2b;--d:3.1s"></i><i style="left:24%;top:6%;--c:#8b6bff;--d:4s"></i><i style="left:40%;top:14%;--c:#2f6bff;--d:3.4s"></i><i style="left:58%;top:5%;--c:#ff5c8a;--d:4.4s"></i><i style="left:76%;top:12%;--c:#7cc21b;--d:3.7s"></i><i style="left:88%;top:22%;--c:#ff8a2b;--d:3.2s"></i><i style="left:8%;top:40%;--c:#2db7f5;--d:4.2s"></i><i style="left:92%;top:48%;--c:#8b6bff;--d:3.5s"></i><i style="left:16%;top:70%;--c:#ff5c8a;--d:3.9s"></i><i style="left:84%;top:74%;--c:#2f6bff;--d:3.3s"></i></span><img src="assets/buddies/volt-ecstatic.webp" alt="" /><b>Unlocked</b><span class="mock__pill">Open Social</span></div></div></div>
-        <div class="fl ph ph--c" data-d="0.9"><div class="phone float"><img src="assets/screen-today-light.webp" alt="ZANO Today screen: 2 goals to unlock" /></div></div>
+        <div class="fl ph ph--c" data-d="0.9"><div class="phone float"><img src="assets/screen-today-dark.webp" alt="ZANO Today screen: 2 goals to unlock, with your buddy" /></div></div>
 
         <div class="fl ic ic--lock glass" data-d="1.3"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
         <div class="fl ic ic--flame glass" data-d="1.6"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/></svg></div>
@@ -143,6 +143,47 @@
       </div>
     </section>
 
+    <!-- NFC tags -->
+    <section class="section feat" id="tags">
+      <div class="wrap feat__grid">
+        <div class="feat__text">
+          <p class="eyebrow reveal">NFC tags</p>
+          <h2 class="reveal">Tap to log.</h2>
+          <p class="lede reveal">Stick a tag on your bottle, shaker or gym bag. One tap and it&rsquo;s logged.</p>
+          <ul class="chips reveal">
+            <li>Water</li><li>Protein</li><li>Focus</li><li>Gym</li>
+          </ul>
+        </div>
+        <div class="feat__art reveal">
+          <div class="nfc">
+            <div class="nfc__disc"></div>
+            <div class="nfc__tag"><span class="nfc__ripple"></span><span class="nfc__ripple r2"></span><span class="nfc__ripple r3"></span><span class="nfc__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <div class="nfc__phone"><div class="phone"><div class="mock mock--log"><span class="mock__drop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><b>+750 ml</b><small>Water logged</small><img src="assets/buddies/stash-happy.webp" alt="" /></div></div></div>
+            <span class="nfc__toast">Logged</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sunrise alarm -->
+    <section class="section feat feat--flip" id="sunrise">
+      <div class="wrap feat__grid">
+        <div class="feat__text">
+          <p class="eyebrow reveal">Sunrise alarm</p>
+          <h2 class="reveal">Get up to turn it off.</h2>
+          <p class="lede reveal">Put a tag across the room. The alarm only stops when you tap it.</p>
+        </div>
+        <div class="feat__art reveal">
+          <div class="sun">
+            <div class="sun__sky"><span class="sun__orb"></span><span class="sun__ground"></span></div>
+            <div class="sun__mirror"><span class="sun__tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <div class="sun__phone"><div class="phone"><div class="mock mock--alarm"><b class="mock__time">6:30</b><img id="sunBuddy" src="assets/buddies/stash-sleepy.webp" alt="" /><span class="mock__pill mock__pill--o">Tap your tag</span></div></div></div>
+            <div class="bubble sun__bubble" id="sunBubble">Zzz</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Buddy picker -->
     <section class="section" id="buddy">
       <div class="wrap">
@@ -232,6 +273,17 @@
       }
     }
     addEventListener("scroll", bossScroll, { passive: true }); addEventListener("resize", bossScroll); bossScroll();
+
+
+    // ---- sunrise alarm: buddy wakes up on a loop ----
+    const sunBuddy = document.getElementById("sunBuddy"), sunBubble = document.getElementById("sunBubble");
+    let awake = false;
+    if (!reduce) setInterval(() => {
+      awake = !awake;
+      sunBuddy.src = "assets/buddies/stash-" + (awake ? "ecstatic" : "sleepy") + ".webp";
+      sunBubble.textContent = awake ? "I\u2019m up!" : "Zzz";
+      sunBubble.style.animation = "none"; void sunBubble.offsetWidth; sunBubble.style.animation = "";
+    }, 3600);
 
     // ---- scroll story ----
     const story = document.getElementById("story");

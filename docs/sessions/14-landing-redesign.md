@@ -41,3 +41,7 @@
 
 - **Files touched:** `landing/index.html`, `landing/style.css`, `landing/assets/buddies/monster-{0,1,2}-{healthy,hurt,defeated}.webp` (rendered from `scripts/buddies/monster.py`).
 - **What changed:** sticky "Beat the Scroll Monster." section between the story and Goals. Scrolling drains its HP bar; the monster goes healthy -> hurt -> defeated, Stash cheers and a "+50 coins" tag pops. Copy follows `Copy.buddy` in the app (weekly boss; locked minutes and finished goals reduce HP; coins). The "+50" amount is illustrative, not from the app.
+
+### 2026-10-05 — Hero screens + NFC tags + Sunrise alarm sections
+
+- **What changed:** hero centre phone is now the real dark Today screen (buddy + goals), flanked by the real 30-day streak card and the illustrated "Unlocked" screen. New sections: "Tap to log." (NFC tags: animated tag ripple + phone logging +750 ml) and "Get up to turn it off." (Sunrise alarm: rising sun, tag on the mirror, buddy waking up). Copy follows spec §5.10 / §6 (Sunrise Tag dismisses the alarm; tags log water/protein/focus/gym). The "+750 ml" and "6:30" screens are illustrations, not app captures.

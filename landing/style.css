@@ -411,3 +411,54 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .boss__coins { right: -4%; }
   .boss__buddy { bottom: 0; }
 }
+
+/* NFC + sunrise features */
+.feat__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.feat--flip .feat__text { order: 2; }
+.feat h2 { margin-bottom: 12px; }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 24px 0 0; }
+.chips li { padding: 8px 16px; border-radius: 999px; background: var(--soft); font-weight: 600; font-size: 0.92rem; }
+.feat__art { display: grid; place-items: center; }
+.nfc, .sun { position: relative; width: min(460px, 100%); aspect-ratio: 1; }
+
+.nfc__disc { position: absolute; inset: 4%; border-radius: 50%; background: #eaf1ff; }
+.nfc__tag { position: absolute; left: 14%; top: 50%; width: 27%; aspect-ratio: 1; margin-top: -13.5%; border-radius: 50%; background: #2f6bff; color: #fff; display: grid; place-items: center; box-shadow: 0 16px 30px -10px rgba(47, 107, 255, 0.6); }
+.nfc__ico svg { width: 46%; height: auto; min-width: 30px; }
+.nfc__ico { display: grid; place-items: center; width: 100%; height: 100%; }
+.nfc__ripple { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #2f6bff; opacity: 0; animation: ripple 6s ease-out infinite; }
+.nfc__ripple.r2 { animation-delay: 0.25s; } .nfc__ripple.r3 { animation-delay: 0.5s; }
+@keyframes ripple { 0%, 38% { opacity: 0; transform: scale(1); } 42% { opacity: 0.7; } 70%, 100% { opacity: 0; transform: scale(2.1); } }
+.nfc__phone { position: absolute; right: 12%; top: 12%; width: 36%; animation: tap 6s ease-in-out infinite; rotate: 8deg; }
+@keyframes tap { 0%, 100% { translate: 40px 0; } 38%, 72% { translate: -34px 8px; } }
+.nfc__toast { position: absolute; left: 12%; top: 22%; background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 0.9rem; box-shadow: 0 10px 24px -10px rgba(20, 30, 70, 0.4); opacity: 0; animation: toast 6s ease-in-out infinite; }
+@keyframes toast { 0%, 40% { opacity: 0; transform: scale(0.7); } 48%, 72% { opacity: 1; transform: none; } 82%, 100% { opacity: 0; } }
+
+.sun__sky { position: absolute; inset: 0; border-radius: 40px; background: #fff1e0; overflow: hidden; }
+.sun__orb { position: absolute; left: 50%; bottom: 26%; width: 46%; aspect-ratio: 1; margin-left: -23%; border-radius: 50%; background: #ffb347; box-shadow: 0 0 0 5% rgba(255, 179, 71, 0.25), 0 0 0 10% rgba(255, 179, 71, 0.14); animation: rise 8s ease-in-out infinite alternate; }
+@keyframes rise { from { translate: 0 36%; } to { translate: 0 0; } }
+.sun__ground { position: absolute; left: 0; right: 0; bottom: 0; height: 28%; background: #ffe0bd; }
+.sun__mirror { position: absolute; left: 7%; top: 14%; width: 22%; aspect-ratio: 3 / 5; border-radius: 14px; background: rgba(255, 255, 255, 0.8); border: 3px solid #fff; box-shadow: 0 12px 24px -12px rgba(120, 70, 0, 0.4), inset 0 0 0 2px rgba(255, 179, 71, 0.35); display: grid; place-items: center; }
+.sun__tag { width: 46%; aspect-ratio: 1; border-radius: 50%; background: #2f6bff; color: #fff; display: grid; place-items: center; animation: pulse 2.4s ease-in-out infinite; }
+.sun__tag svg { width: 56%; }
+@keyframes pulse { 50% { transform: scale(1.12); box-shadow: 0 0 0 8px rgba(47, 107, 255, 0.18); } }
+.sun__phone { position: absolute; right: 12%; top: 9%; width: 36%; }
+.sun__phone .phone { animation: shake 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes shake { 0%, 60%, 100% { rotate: 0deg; } 66% { rotate: -2deg; } 72% { rotate: 2deg; } 78% { rotate: -2deg; } 84% { rotate: 2deg; } 90% { rotate: 0deg; } }
+.sun__bubble { left: 26%; top: 66%; border-radius: 18px 18px 18px 4px; }
+
+.mock--log { background: #0f1a33; color: #fff; }
+.mock__drop { width: 17cqw; height: 17cqw; border-radius: 50%; display: grid; place-items: center; background: rgba(45, 183, 245, 0.2); color: #6fd3ff; }
+.mock__drop svg { width: 9cqw; height: 9cqw; }
+.mock--log b { font-size: 13cqw; }
+.mock--log small { font-size: 5.6cqw; color: #9fb3d9; }
+.mock--log img { width: 40cqw; margin-top: 4cqw; }
+.mock--alarm { background: #1a1230; color: #fff; }
+.mock__time { font-size: 24cqw; line-height: 1; letter-spacing: -0.04em !important; }
+.mock--alarm img { width: 52cqw; }
+.mock__pill--o { background: #ff8a2b; }
+
+@media (max-width: 860px) {
+  .feat__grid { grid-template-columns: 1fr; gap: 28px; }
+  .feat--flip .feat__text { order: 0; }
+  .nfc, .sun { width: min(380px, 100%); margin-inline: auto; }
+}

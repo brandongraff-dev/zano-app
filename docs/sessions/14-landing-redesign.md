@@ -36,3 +36,8 @@
 
 - **What changed:** removed the giant "zano" backdrop text; replaced the blurred side phones with illustrated screens (blue "zano" splash, "Social is locked", "Unlocked"). These three are marketing illustrations built in HTML/CSS, NOT captures of the real app. Story now has 5 steps (locked, today, unlocked, streak, settings). Mobile hero is one clean phone. Bottom-of-page buddies bob 4px and barely parallax.
 - **Still needed:** real captures of more screens (workout/focus session, protein logging, buddy picker, Live Activity). CI's screenshot gallery (`App/ZANO/ScreenshotGallery.swift`) is the likely source.
+
+### 2026-10-05 — Scroll Monster section
+
+- **Files touched:** `landing/index.html`, `landing/style.css`, `landing/assets/buddies/monster-{0,1,2}-{healthy,hurt,defeated}.webp` (rendered from `scripts/buddies/monster.py`).
+- **What changed:** sticky "Beat the Scroll Monster." section between the story and Goals. Scrolling drains its HP bar; the monster goes healthy -> hurt -> defeated, Stash cheers and a "+50 coins" tag pops. Copy follows `Copy.buddy` in the app (weekly boss; locked minutes and finished goals reduce HP; coins). The "+50" amount is illustrative, not from the app.

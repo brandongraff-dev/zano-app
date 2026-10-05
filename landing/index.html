@@ -107,6 +107,25 @@
       </div>
     </section>
 
+    <!-- Scroll Monster: its HP drains as you scroll the section -->
+    <section class="boss" id="boss">
+      <div class="boss__stick">
+        <div class="wrap boss__in">
+          <div class="boss__stage">
+            <div class="boss__disc" data-d="0.2"></div>
+            <img class="boss__side boss__side--l" src="assets/buddies/monster-1-healthy.webp" alt="" loading="lazy" />
+            <img class="boss__side boss__side--r" src="assets/buddies/monster-2-healthy.webp" alt="" loading="lazy" />
+            <img class="boss__m" id="bossImg" src="assets/buddies/monster-0-healthy.webp" alt="The Scroll Monster" />
+            <div class="boss__buddy"><img id="bossBuddy" src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
+            <span class="boss__coins" id="bossCoins">+50 coins</span>
+          </div>
+          <div class="hp" role="img" aria-label="Scroll Monster health"><i id="hpFill"></i></div>
+          <h2>Beat the Scroll Monster.</h2>
+          <p class="lede">A new one shows up every week. Locked minutes and finished goals knock its health down.</p>
+        </div>
+      </div>
+    </section>
+
     <section class="section section--soft sheet">
       <div class="fl peek peek--l" data-d="0.25"><img class="bob b3" src="assets/buddies/brick-happy.webp" alt="" loading="lazy" /></div>
       <div class="fl peek peek--r" data-d="0.25"><img class="bob b4" src="assets/buddies/tank-happy.webp" alt="" loading="lazy" /></div>
@@ -194,6 +213,25 @@
       addEventListener("pointermove", (e) => { mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; kick(); }, { passive: true });
       addEventListener("scroll", kick, { passive: true }); addEventListener("resize", kick); kick();
     }
+
+
+    // ---- Scroll Monster: health drains with scroll, mood follows ----
+    const boss = document.getElementById("boss"), bImg = document.getElementById("bossImg"), bBuddy = document.getElementById("bossBuddy"), hp = document.getElementById("hpFill");
+    let bState = "";
+    function bossScroll() {
+      const r = boss.getBoundingClientRect(), total = r.height - innerHeight;
+      const p = Math.min(1, Math.max(0, -r.top / total));
+      const health = Math.max(0, 1 - p * 1.25);
+      hp.style.width = (health * 100).toFixed(1) + "%";
+      const st = health > 0.5 ? "healthy" : health > 0 ? "hurt" : "defeated";
+      if (st !== bState) {
+        bState = st; boss.dataset.state = st;
+        bImg.src = "assets/buddies/monster-0-" + st + ".webp";
+        bBuddy.src = "assets/buddies/stash-" + (st === "defeated" ? "ecstatic" : "happy") + ".webp";
+        bImg.style.animation = "none"; void bImg.offsetWidth; bImg.style.animation = "";
+      }
+    }
+    addEventListener("scroll", bossScroll, { passive: true }); addEventListener("resize", bossScroll); bossScroll();
 
     // ---- scroll story ----
     const story = document.getElementById("story");

@@ -26,3 +26,8 @@
 - **What changed:** the picker now shows the app's real nine buddies (Stash, Zib, Lox, Pip, Moko, Brick, Tank, Volt, Howl). In `buddies.py`: Stash no longer holds a phone (paws clasped on belly); eyes enlarged on Lox, Moko, Brick, Tank, Volt, Howl; Brick's head rounder with softer jowls; Howl's hoodie lightened.
 - **Decisions:** the buddy source lives on `claude/sharp-euler-npwt08`, not `main`. These generator edits are on this branch only; the app's `BuddySprites.swift` / `WatchBuddySprites.swift` still need regenerating (`export_swift.py`) after merging the two branches. Expect a merge conflict in `scripts/buddies/buddies.py`.
 - **Known issues:** PNGs here are 48x48 upscaled 8x; the monster/gear art is untouched.
+
+### 2026-10-05 — Layered hero and page depth
+
+- **Files touched:** `landing/index.html`, `landing/style.css`
+- **What changed:** hero has no copy (h1 kept sr-only): giant "zano" wordmark, disc + orbiting ring, three phones at different depths, six floating buddies, glass icon chips, glass sign-up bar over the cropped phone. Pointer + scroll parallax on every `.fl` layer. Goals/CTA are stacked rounded "sheets" with buddies peeking over the edge; story has ghost phones behind; picker stage has a disc; CTA shows all nine buddies. Reduced-motion disables animation and parallax.

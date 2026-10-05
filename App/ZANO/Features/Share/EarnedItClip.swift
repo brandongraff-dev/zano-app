@@ -259,7 +259,10 @@ enum EarnedItClipRenderer {
             await Task.yield()
         }
         input.markAsFinished()
-        await writer.finishWriting()
+        // The completion-handler form: the async overload "sends" the non-Sendable writer.
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            writer.finishWriting { done.resume() }
+        }
         guard writer.status == .completed else { throw EarnedItClipError.writeFailed }
         return url
     }

@@ -137,7 +137,7 @@ struct SleepTests {
 
     // MARK: Night ids and asking time
 
-    @Test func aMorningBelongsToTheEveningBefore() {
+    @MainActor @Test func aMorningBelongsToTheEveningBefore() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         let morning = calendar.date(from: DateComponents(year: 2026, month: 9, day: 10, hour: 8))!

@@ -20,11 +20,11 @@ struct ContextRulesTests {
         return calendar
     }
 
-    /// A date on the given weekday (2 = Monday ... 6 = Friday, 1 = Sunday) at hour:minute, in September 2026.
+    /// A date on the given weekday (2 = Monday ... 6 = Friday, 1 = Sunday) at hour:minute, `week` weeks
+    /// after Sunday 6 September 2026 (negative weeks go back).
     private static func date(weekday: Int, hour: Int, minute: Int = 0, week: Int = 0) -> Date {
-        // 2026-09-06 is a Sunday.
-        let day = 6 + (weekday - 1) + week * 7
-        return calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+        let sunday = calendar.date(from: DateComponents(year: 2026, month: 9, day: 6, hour: hour, minute: minute))!
+        return calendar.date(byAdding: .day, value: (weekday - 1) + week * 7, to: sunday)!
     }
 
     private let setID = UUID()

@@ -652,3 +652,10 @@ h2 { font-size: clamp(2.3rem, 5.4vw, 3.8rem); line-height: 1.02; }
   .cta__row .store__btn { width: 100%; justify-content: flex-start; }
   .cta__row .store__note { top: 50%; right: 12px; transform: translateY(-50%); }
 }
+
+/* page background: soft blue waves (fixed layer so it also works on iOS, where background-attachment: fixed does not) */
+body { background: #fdfeff; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: #fdfeff url("assets/bg-waves.webp") center / cover no-repeat; pointer-events: none; }
+.hero3 { background: transparent; }
+.hero3::after { background: rgba(214, 228, 255, 0.55); }
+.nav { background: rgba(255, 255, 255, 0.78); }

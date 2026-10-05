@@ -118,3 +118,10 @@
 - [ ] Verified where the spec requires real-device/Mac verification (not just "should work")
 - [x] `docs/PROGRESS.md` row updated to match this file's Status
 - [x] No secrets committed (check `.gitignore` coverage if you added new config/env files)
+
+## CI result (2026-10-05)
+
+First watchOS compile (run 37240645584) failed on one error: `.accessibilityAction(perform:)` doesn't
+exist; fixed to `.accessibilityAction(.default, fireEmergencyUnlock)`. Run 37253141845 on 32a7779 is
+green end to end: iOS app, ZANOWatch (watchOS Simulator), Core tests, UI-test compile, screenshot tour.
+Still device-only: pairing/embedding, WatchConnectivity delivery, haptics, wrist workout, complication.

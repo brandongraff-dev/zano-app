@@ -438,6 +438,16 @@ struct SettingsView: View {
                 SettingsRowDivider()
 
                 SettingsNavRow(
+                    Copy.family.rowLabel,
+                    systemImage: "person.2.fill",
+                    tint: SettingsPalette.goals
+                ) {
+                    FamilyLinkView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
                     Copy.settings.gymSetupRowLabel,
                     systemImage: "dumbbell.fill",
                     tint: SettingsPalette.gym,

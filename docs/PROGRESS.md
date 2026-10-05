@@ -128,3 +128,9 @@ build**, before chasing anything else the compiler flags.
 | Lock Card | Not Started | Weeks 13-20 |
 | Shaker | Not Started | Weeks 13-20 |
 | Protein/electrolyte | Not Started | Week 21+ |
+| 18 | Sleep wind-down check-in and on-device insights | `claude/quirky-wozniak-bf8h1v` | §5.25 | Scaffolded — Unverified. Compiles only after CI | 2026-10-05 | [18-sleep-wind-down.md](sessions/18-sleep-wind-down.md) |
+| 19 | Smart unlock rules by context (3 rules, suggester) | `claude/quirky-wozniak-bf8h1v` | §5.26 | Scaffolded — Unverified. Whole-app only; monitor boundary needs a device | 2026-10-05 | [19-context-rules.md](sessions/19-context-rules.md) |
+| 20 | Workout auto-unlock observer (Health/Strava via Health) and Year in Review | `claude/quirky-wozniak-bf8h1v` | §5.1, §5.21 | Scaffolded — Unverified. No direct Strava link | 2026-10-05 | [20-health-observer-year-recap.md](sessions/20-health-observer-year-recap.md) |
+| 21 | Earned It video clip with the chosen buddy | `claude/quirky-wozniak-bf8h1v` | §5.27 | Scaffolded — Unverified | 2026-10-05 | [21-earned-it-clip.md](sessions/21-earned-it-clip.md) |
+| 22 | Starter plans (goal templates) | `claude/quirky-wozniak-bf8h1v` | §5.28 | Scaffolded — Unverified | 2026-10-05 | [22-goal-templates.md](sessions/22-goal-templates.md) |
+| 23 | Family Link: parent tasks, view-once photo proof | `claude/quirky-wozniak-bf8h1v` | §5.23, §24 | Scaffolded — Unverified. Blocked: no Supabase project/Auth wired, no Apple enrollment; screen shows not-available | 2026-10-05 | [23-family-link.md](sessions/23-family-link.md) |

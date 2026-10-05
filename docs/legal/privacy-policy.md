@@ -206,10 +206,17 @@ deletion, since it no longer identifies you.
 
 ## 6. Age requirement
 
-ZANO is rated **17+** on the App Store and is not intended for children under 13. We do not
+ZANO is rated **13+** on the App Store and is not intended for children under 13. We do not
 knowingly collect data from children under 13; if we learn we have, we will delete it. If you are
 under the age required by your jurisdiction to consent to this policy on your own, please do not use
 ZANO without a parent or guardian's involvement.
+
+People aged 13 to 17 use ZANO independently. For every user under 18 we do not show a public
+profile, do not use behavioural advertising, and do not sell or share personal data. A parent can
+link to a teen's account only if the teen accepts the invitation, the teen can see everything the
+parent sees, and the teen can leave the link at any time. Homework or chore proof photos are visible
+only to the linked family, are deleted after 7 days and are never used to train models.
+[CONFIRM: counsel review of this section before launch.]
 
 ## 7. No restrictive health framing
 

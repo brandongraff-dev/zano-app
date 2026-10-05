@@ -208,16 +208,17 @@ days (45 days under CCPA).
 
 ## 9. Children
 
-ZANO is not for children. You must be **at least 16 years old** to use ZANO. We don't knowingly
-collect personal information from anyone under 16. If you believe a child has given us data,
+ZANO is not for young children. You must be **at least 13 years old** to use ZANO (or the age of
+digital consent where you live, if higher). We don't knowingly collect personal information from
+anyone under 13. People aged 13 to 17 use ZANO on their own: no public profile, no behavioural
+advertising, and no sale or sharing of personal data. A parent can link only if the teen accepts. If you believe a child has given us data,
 email [CONTACT EMAIL] and we'll delete it.
 
-> Internal note on choosing the age: the spec (§24) says "rate 17+ … no under-13 users". Apple's 2025
-> age-rating system replaced 12+/17+ with 4+/9+/13+/16+/18+ [UNVERIFIED in this session, so
-> check App Store Connect]. A **16+ minimum** avoids COPPA (under 13) and the GDPR parental-consent
-> age (up to 16, depending on the EU country). It also fits the health and self-restriction nature
-> of the app. Set the App Store age rating to the matching or a higher tier, and keep the Terms of
-> Use (§2) and this section in sync.
+> Internal note on the age (founder decision 2026-10-05): **13+**, replacing 16+. Under 13 stays out
+> (COPPA). Teens 13-17 use the app on their own, so teen defaults apply to every under-18 user. In EU
+> countries where the age of digital consent is above 13 (up to 16) the minimum is that local age, as
+> the Terms say. [UNVERIFIED: counsel must review this, and check the live App Store Connect age
+> questionnaire.] Keep the Terms of Use (§2) and this section in sync.
 
 ## 10. Security
 

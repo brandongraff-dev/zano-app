@@ -272,6 +272,17 @@ A "Building ZANO" feed card (optional) linking to your content. Founder-led bran
 
 ---
 
+### 5.23 Independent use and Family Link (parents and teens)
+**Everyone uses ZANO on their own.** There is no parent role by default, and a 13-17-year-old has the same app, the same data and the same control as an adult. Nothing below changes that.
+
+**Family Link is optional and teen-consented.** A parent can invite a teen (13-17) to link; the teen sees the invite, accepts or declines, can see everything the parent sees, and can leave at any time (the parent is told they left; nothing is hidden). Linking is about support and accountability, not surveillance. Real device-level enforcement stays with Apple's own Screen Time and Family Sharing; ZANO never tries to out-restrict them.
+
+**Chores and homework.** A parent can add tasks for a linked teen (homework, practice, chores) with an optional due time. The teen finishes it and, if the parent wants proof, attaches a photo. The parent approves, and approval can count as a goal that unlocks the teen's apps (the teen's own lock, set up by the teen). The parent always has the final say: an optional on-device AI check may say "this looks like a finished worksheet" but only ever suggests, and a wrong guess never costs the teen anything.
+
+**Privacy.** Proof photos are visible only to the linked family, are deleted after 7 days, are never used for model training, and never leave the account's private storage. Screen Time data stays on the device (§24). The teen can flag any parent decision.
+
+**Not in scope:** under-13 accounts (§24), parents seeing a teen's app usage, location sharing, messaging.
+
 ## 6. Widgets, Controls, Live Activities, NFC, Siri
 
 All actions are **App Intents** (§14). Build each once, reuse everywhere.
@@ -799,7 +810,7 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 - **Family Controls entitlement:** apply to Apple on day one. Approval is per bundle ID, so file 4 requests (main app + ShieldConfig + ShieldAction + Monitor extensions). Explain the use case clearly; approval can take days to weeks and you cannot ship without it. While waiting, use the **Family Controls (Development)** capability in Xcode: fully functional on a real device, but cannot go to TestFlight or the App Store.
 - **Emergency access:** calls and Emergency SOS are never affected by shields (Apple guarantees this), but also provide an in-app emergency unlock with a short hold. Never trap users.
-- **Age:** rate 16+ (founder decision 2026-10-02; Apple's 2025 scale has no 17+, and 18+ would exclude 17-year-olds). No under-13 users. Reassess later with a parent-managed mode.
+- **Age:** rate **13+** (founder decision 2026-10-05, replacing the 2026-10-02 decision of 16+). Anyone 13 or older can use ZANO on their own, with no parent involved; the minimum is 13 or the local age of digital consent where that is higher (14-16 in some EU countries). No under-13 users, which keeps COPPA out. Because teens are in, teen defaults apply to every user under 18: no public profile or discovery, squads are invite-only, no behavioural advertising, no sale or sharing of data, and nothing in the app leans on shame or streak pressure. Optional parent linking is §5.23. **Have counsel review the Terms, Privacy Policy and the App Store age-rating answers before submission.**
 - **Health data:** HealthKit data stays on device except aggregated goal completion; never sell or share it. Clear privacy policy and privacy nutrition labels.
 - **No restrictive goals:** no calorie ceilings, weight targets, or fasting. Protein and water are additive. Include a "pause for health reasons" option and disordered-eating-safe copy. Refuse to add "eat less" goals even if requested.
 - **Location:** request "When in Use" first; "Always" only at gym setup with a clear explanation. Provide a manual check-in fallback.

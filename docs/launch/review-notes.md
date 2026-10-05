@@ -1,7 +1,7 @@
 # App Review notes and guideline pre-check (v1.0)
 
 Status: **draft, 2026-10-02** (updated the same day for the conversion pass: RevenueCat linked,
-paywall grace period, trial reminder, age rating 16+, squads hidden). Written against the code as of
+paywall grace period, trial reminder, age rating 13+, squads hidden). Written against the code as of
 today (7-step onboarding, hard paywall, 2-minute first win). It supersedes the walkthrough in `docs/setup/app-review-notes.md`,
 which still describes the old 14/15-screen flow (paywall "screen 12", notifications "screen 13",
 first win "screen 14"); update or retire that file so nobody pastes stale steps.
@@ -364,7 +364,7 @@ widgets and Controls.
       iPad in compatibility mode.
 - [ ] Privacy Policy and Terms published at real URLs; App Privacy questionnaire matches the
       manifest and the policy.
-- [ ] Age rating set to **16+** (founder decision 2026-10-02, `app-store-listing.md` §7).
+- [ ] Age rating set to **13+** (founder decision 2026-10-05, `app-store-listing.md` §7); counsel has reviewed the Terms, Privacy Policy and questionnaire answers.
 - [ ] `REVENUECAT_API_KEY` passed to the Release build; RevenueCat entitlement `pro` and a current
       offering exist; the grace path ("Continue for now") checked once in Airplane Mode (§3a).
 - [ ] Squad tab and gym leaderboard hidden in the submitted build (RISK 3).

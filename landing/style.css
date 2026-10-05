@@ -324,7 +324,6 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .hero2__cta .store--row { display: flex; justify-content: center; gap: 12px; }
   .sheet { border-radius: 36px 36px 0 0; margin-top: -36px; padding-top: 100px; }
   .peek { top: -50px; } .peek img { --s: 84px; } .peek--r img { --s: 80px; }
-  .crowd img { width: 58px; margin-inline: -4px; }
   .story__ghost { display: none; }
 }
 
@@ -503,3 +502,11 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 
 /* sunrise bubble sits beside the buddy's face, inside the phone */
 .mock--alarm .mock__bub { position: absolute; z-index: 4; left: 57cqw; top: 83cqw; background: #fff; color: #1a1230; font-weight: 800; font-size: 5.4cqw; padding: 2cqw 3.6cqw; border-radius: 4cqw 4cqw 4cqw 1cqw; box-shadow: 0 2cqw 5cqw -2cqw rgba(0, 0, 0, 0.5); white-space: nowrap; animation: pop 0.5s cubic-bezier(.2, 1.4, .4, 1) both; }
+
+/* the buddy crowd: one straight row when it fits, otherwise a balanced 5 + 4 (never a lone one underneath) */
+.crowd { flex-wrap: nowrap; justify-content: center; }
+.crowd img { width: clamp(56px, 11vw, 84px); margin-inline: -6px; flex: none; }
+@media (max-width: 599px) {
+  .crowd { flex-wrap: wrap; max-width: 380px; margin-inline: auto; }
+  .crowd img { width: 20%; margin-inline: 0; max-width: 76px; flex: 0 0 20%; }
+}

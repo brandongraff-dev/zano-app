@@ -257,7 +257,7 @@ private struct ActiveLockCard: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Copy.watch.emergencyUnlockTitle)
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction(perform: fireEmergencyUnlock)
+            .accessibilityAction(.default, fireEmergencyUnlock)
     }
 
     private func fireEmergencyUnlock() {

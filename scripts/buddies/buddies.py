@@ -36,16 +36,15 @@ def stash(expr):
     brows(s,14,29,14,5,expr,'#2A2440')
     mouth(s,24,27,expr,'cat')
     blush(s,10,36,26,expr)
-    # phone + paws
-    def phone(x,y): s.rect(x,y,x+5,y+7,'case','phone'); s.rect(x+1,y+1,x+4,y+5,'screen','_scr'); s.F(x+2,y+3,'#FFFFFF'); s.F(x+3,y+3,'#FFFFFF')
+    # paws (no phone: it read as odd). Down = little paws clasped on the belly.
     if arms=='up':
-        limb(s,15,34,7,27,'fur','armL'); limb(s,33,34,41,27,'fur','armR'); phone(38,18); s.ell(7,27,2.6,2.6,'paw','_pL'); s.ell(41,27,2.6,2.6,'paw','_pR')
+        limb(s,15,34,7,27,'fur','armL'); limb(s,33,34,41,27,'fur','armR'); s.ell(7,27,2.6,2.6,'paw','_pL'); s.ell(41,27,2.6,2.6,'paw','_pR')
     elif arms=='wave':
-        limb(s,15,34,6,28,'fur','armL'); s.ell(6,28,2.6,2.6,'paw','_pL'); phone(22,33); s.ell(28,37,2.6,2.4,'paw','_pR')
+        limb(s,15,34,6,28,'fur','armL'); s.ell(6,28,2.6,2.6,'paw','_pL'); s.ell(26.5,37.5,2.5,2.3,'fur','pR')
     elif arms=='droop':
-        phone(19,38); s.ell(17,41.5,2.6,2.4,'paw','_pL'); s.ell(27,41.5,2.6,2.4,'paw','_pR')
+        s.ell(17.5,42,2.5,2.3,'fur','pL'); s.ell(26.5,42,2.5,2.3,'fur','pR')
     else:
-        phone(19,33); s.ell(17,37,2.6,2.4,'paw','_pL'); s.ell(29,37,2.6,2.4,'paw','_pR')
+        s.ell(17.5,37.5,2.5,2.3,'fur','pL'); s.ell(26.5,37.5,2.5,2.3,'fur','pR')
     extras(s,expr,top_right=(42,3),top_left=(1,1),cheek=(30,27))
     return s
 
@@ -98,7 +97,7 @@ def lox(expr):
     s.poly([(12,19),(3,25),(13,26)],'fur','tuftL'); s.poly(mpts([(12,19),(3,25),(13,26)]),'fur','tuftR')
     s.poly([(5,24),(12,20),(24,22),(36,20),(43,24),(34,29),(24,30),(14,29)],'cream','mask')
     s.rowsF(23,21,["KK"],{'K':'#2A2440'}); s.F(23,21,'#6E6890')
-    eyes(s,15,28,15,6,4,expr,'#FFB347',('fur','head'))
+    eyes(s,14,28,14,6,6,expr,'#FFB347',('fur','head'))
     brows(s,15,28,12,6,expr,'#B3561A')
     mouth(s,24,24,expr)
     blush(s,10,36,23,expr)
@@ -161,7 +160,7 @@ def moko(expr):
             if x%2==0 and s.get(x,hy-8) and s.get(x,hy-8)[1]=='cap': s.put(x,hy-8,'skin','head')
     s.ell(24,hy+7,7.5,4,'mint','muzzle')
     s.F(21,hy+4,'#3E9E66'); s.F(26,hy+4,'#3E9E66')
-    eyes(s,15,28,hy-4,5,6,expr,'#2FB86B',('skin','head'))
+    eyes(s,14,28,hy-5,6,7,expr,'#2FB86B',('skin','head'))
     brows(s,15,28,hy-7,5,expr,'#3E9E66')
     mouth(s,24,hy+7,expr)
     blush(s,10,35,hy+4,expr)
@@ -193,8 +192,8 @@ def brick(expr):
         limb(s,12,35,5,30,'fur','aL',3); limb(s,5,30,8,22,'fur','aL',3); s.ell(39,40,3.2,3.2,'fur','aR')
     elif arms=='droop': s.ell(9,42,3.2,3.2,'fur','aL'); s.ell(39,42,3.2,3.2,'fur','aR')
     else: s.ell(9,39,3.2,3.2,'fur','aL'); s.ell(39,39,3.2,3.2,'fur','aR')
-    s.ell(13,27,6.5,5.5,'fur','jowlL'); s.ell(35,27,6.5,5.5,'fur','jowlR')
-    s.ell(24,19,17.5,12,'fur','head')
+    s.ell(14,27,5.5,5,'fur','jowlL'); s.ell(34,27,5.5,5,'fur','jowlR')
+    s.ell(24,19,16,13,'fur','head')
     if droop:
         s.poly([(6,12),(1,20),(5,22),(10,15)],'ear','eL'); s.poly(mpts([(6,12),(1,20),(5,22),(10,15)]),'ear','eR')
     else:
@@ -202,7 +201,7 @@ def brick(expr):
     s.recolor(lambda x,y,v: v[1]=='head' and y in (9,10,11),'band','band')
     s.ell(24,26,9.5,5.5,'cream','muzzle')
     s.rowsF(20,20,[".KKKKKKK."[:8],"KKKKKKKK",".KKKKKK."],{'K':'#2A2440'}); s.F(21,20,'#7C77A0'); s.F(22,20,'#7C77A0')
-    eyes(s,14,30,15,5,5,expr,'#8A5A2E',('fur','head'))
+    eyes(s,13,30,14,6,6,expr,'#8A5A2E',('fur','head'))
     brows(s,14,30,12,5,expr,'#9C6640')
     mouth(s,24,25,expr)
     if expr in ('content','meh','sleepy'):   # the underbite: two little teeth
@@ -231,7 +230,7 @@ def tank(expr):
     s.ell(24,26,9.5,5.5,'snout','snout')
     s.poly([(20.5,23),(24,9),(28,23)],'horn','horn'); s.poly([(26.5,13),(28,9.5),(29.5,14)],'horn','_h2') if False else None
     s.F(19,26,'#2A2440'); s.F(28,26,'#2A2440')
-    eyes(s,12,31,15,5,5,expr,'#5C6378',('skin','head'))
+    eyes(s,12,30,14,6,6,expr,'#5C6378',('skin','head'))
     brows(s,12,31,12,5,expr,'#6C7690')
     mouth(s,24,28,expr)
     blush(s,7,38,23,expr)
@@ -254,7 +253,7 @@ def volt(expr):
     elif arms=='droop': s.poly([(10,34),(4,42),(12,38)],'fin','aL'); s.poly(mpts([(10,34),(4,42),(12,38)]),'fin','aR')
     else: s.poly([(10,32),(3,38),(12,36)],'fin','aL'); s.poly(mpts([(10,32),(3,38),(12,36)]),'fin','aR')
     s.ell(18,44.8,3.2,1.6,'fin','fL'); s.ell(30,44.8,3.2,1.6,'fin','fR')
-    eyes(s,14,29,17,5,5,expr,'#1FA2FF',('skin','body'))
+    eyes(s,13,29,16,6,6,expr,'#1FA2FF',('skin','body'))
     if expr in ('content','happy'):
         for i in range(5): s.F(14+i,15+(1 if i>2 else 0),'#2A4F8C'); s.F(33-i,15+(1 if i>2 else 0),'#2A4F8C')
     brows(s,14,29,14,5,expr,'#2A4F8C')
@@ -270,7 +269,7 @@ def volt(expr):
 
 # ---------------------------------------------------------------- Howl, wolf in a hoodie
 def howl(expr):
-    s=Sprite({'fur':'#94A0BE','pale':'#EEF0F7','hood':'#3A4A8C','lining':'#26305F','pocket':'#33427E'})
+    s=Sprite({'fur':'#94A0BE','pale':'#EEF0F7','hood':'#4E63B5','lining':'#26305F','pocket':'#33427E'})
     arms=arms_pose(expr); droop=ears_droop(expr)
     s.ell(24,40,13,7.5,'hood','body')
     s.rect(17,40,30,44,'pocket','_pocket'); s.rect(18,40,29,40,'lining','_pl')
@@ -291,7 +290,7 @@ def howl(expr):
     s.ell(24,28,5.5,4,'pale','muzzle')
     s.rowsF(23,25,["KK"],{'K':'#1E2033'})
     for y in range(33,38): s.F(20,y,'#FFFFFF'); s.F(27,y,'#FFFFFF')
-    eyes(s,16,27,19,5,5,expr,'#FFC94A',('fur','face'))
+    eyes(s,15,27,18,6,6,expr,'#FFC94A',('fur','face'))
     brows(s,16,27,16,5,expr,'#5B6683')
     mouth(s,24,29,expr)
     blush(s,13,32,27,expr)

@@ -11,6 +11,25 @@ import SwiftUI
 import AVFoundation
 import Core
 
+// MARK: - Shared pieces
+
+/// A `zanoCard` holding rows, the same card surface the rest of the setup screens use.
+private struct AlarmOptionsGroup<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xxs)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zanoCard()
+    }
+}
+
 // MARK: - The rows card
 
 /// Repeat, Sound and the backup alarm as one grouped card of rows: label on the left, current value
@@ -20,7 +39,7 @@ struct AlarmOptionsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            SleepSetupCard {
+            AlarmOptionsGroup {
                 VStack(spacing: 0) {
                     NavigationLink {
                         RepeatDaysView(days: $settings.repeatDays)
@@ -31,7 +50,7 @@ struct AlarmOptionsCard: View {
                             chevron: "chevron.right"
                         )
                     }
-                    .buttonStyle(SleepSetupPressStyle())
+                    .buttonStyle(.pressable)
 
                     AlarmOptionDivider()
 
@@ -44,7 +63,7 @@ struct AlarmOptionsCard: View {
                             chevron: "chevron.right"
                         )
                     }
-                    .buttonStyle(SleepSetupPressStyle())
+                    .buttonStyle(.pressable)
 
                     AlarmOptionDivider()
 
@@ -72,7 +91,7 @@ struct AlarmOptionsCard: View {
                                 chevron: "chevron.up.chevron.down"
                             )
                         }
-                        .buttonStyle(SleepSetupPressStyle())
+                        .buttonStyle(.pressable)
                         .transition(.opacity)
                     }
                 }
@@ -125,6 +144,68 @@ private struct AlarmOptionDivider: View {
     }
 }
 
+// MARK: - Rows
+
+private struct RepeatDayRow: View {
+    let weekday: Int
+    let isOn: Bool
+    let showsDivider: Bool
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if showsDivider { AlarmOptionDivider() }
+            Button(action: action) {
+                HStack {
+                    Text(RepeatDays.rowTitle(weekday: weekday))
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.text)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    if isOn {
+                        Image(systemName: "checkmark")
+                            .font(Theme.Typography.icon(.small, weight: .bold))
+                            .foregroundStyle(Theme.Colors.interactive)
+                    }
+                }
+                .frame(minHeight: Theme.Metrics.minTapTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+        }
+    }
+}
+
+private struct SoundRow: View {
+    let choice: AlarmSoundChoice
+    let isSelected: Bool
+    let showsDivider: Bool
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if showsDivider { AlarmOptionDivider() }
+            Button(action: action) {
+                HStack {
+                    Text(Copy.sunriseAlarm.soundName(choice))
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.text)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(Theme.Typography.icon(.small, weight: .bold))
+                            .foregroundStyle(Theme.Colors.interactive)
+                    }
+                }
+                .frame(minHeight: Theme.Metrics.minTapTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+        }
+    }
+}
+
 // MARK: - Repeat
 
 /// "Every Sunday" ... "Every Saturday" with a checkmark on each selected day, like the Clock app's
@@ -135,30 +216,16 @@ struct RepeatDaysView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                SleepSetupCard {
+                AlarmOptionsGroup {
                     VStack(spacing: 0) {
-                        ForEach(Array(RepeatDays.orderedWeekdays().enumerated()), id: \.element) { index, weekday in
-                            if index > 0 { AlarmOptionDivider() }
-                            Button {
+                        ForEach(RepeatDays.orderedWeekdays(), id: \.self) { weekday in
+                            RepeatDayRow(
+                                weekday: weekday,
+                                isOn: days.contains(weekday),
+                                showsDivider: weekday != RepeatDays.orderedWeekdays().first
+                            ) {
                                 toggle(weekday)
-                            } label: {
-                                HStack {
-                                    Text(RepeatDays.rowTitle(weekday: weekday))
-                                        .font(Theme.Typography.body)
-                                        .foregroundStyle(Theme.Colors.text)
-                                    Spacer(minLength: Theme.Spacing.sm)
-                                    if days.contains(weekday) {
-                                        Image(systemName: "checkmark")
-                                            .font(Theme.Typography.icon(.small, weight: .bold))
-                                            .foregroundStyle(Theme.Colors.interactive)
-                                            .transition(.opacity)
-                                    }
-                                }
-                                .frame(minHeight: Theme.Metrics.minTapTarget)
-                                .contentShape(Rectangle())
                             }
-                            .buttonStyle(SleepSetupPressStyle())
-                            .accessibilityAddTraits(days.contains(weekday) ? .isSelected : [])
                         }
                     }
                 }
@@ -205,30 +272,17 @@ struct AlarmSoundView: View {
                     .padding(.horizontal, Theme.Spacing.xs)
                     .accessibilityAddTraits(.isHeader)
 
-                SleepSetupCard {
+                AlarmOptionsGroup {
                     VStack(spacing: 0) {
-                        ForEach(Array(AlarmSoundChoice.allCases.enumerated()), id: \.element) { index, choice in
-                            if index > 0 { AlarmOptionDivider() }
-                            Button {
+                        ForEach(AlarmSoundChoice.allCases) { choice in
+                            SoundRow(
+                                choice: choice,
+                                isSelected: sound == choice,
+                                showsDivider: choice != AlarmSoundChoice.allCases.first
+                            ) {
                                 sound = choice
                                 preview.play(choice)
-                            } label: {
-                                HStack {
-                                    Text(Copy.sunriseAlarm.soundName(choice))
-                                        .font(Theme.Typography.body)
-                                        .foregroundStyle(Theme.Colors.text)
-                                    Spacer(minLength: Theme.Spacing.sm)
-                                    if sound == choice {
-                                        Image(systemName: "checkmark")
-                                            .font(Theme.Typography.icon(.small, weight: .bold))
-                                            .foregroundStyle(Theme.Colors.interactive)
-                                    }
-                                }
-                                .frame(minHeight: Theme.Metrics.minTapTarget)
-                                .contentShape(Rectangle())
                             }
-                            .buttonStyle(SleepSetupPressStyle())
-                            .accessibilityAddTraits(sound == choice ? .isSelected : [])
                         }
                     }
                 }

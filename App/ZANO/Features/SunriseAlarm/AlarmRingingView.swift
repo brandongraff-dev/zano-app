@@ -108,7 +108,7 @@ struct AlarmRingingView: View {
     /// length, so the size lives here as a Dynamic-Type-scaled metric. Migrate to a
     /// `Theme.Typography.numeralHero` if/when that token lands
     /// (docs/design/competitive-research.md §0 punch list #2).
-    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 58
+    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 64
 
     /// The container is short (an SE-class phone): tighter layout. Set from the root geometry.
     @State private var isCompact = false
@@ -163,7 +163,7 @@ struct AlarmRingingView: View {
             sunriseGlow
 
             ScrollView {
-                VStack(spacing: isCompact ? Theme.Spacing.md : Theme.Spacing.lg) {
+                VStack(spacing: Theme.Spacing.md) {
                     header
                     variantContent
                     snoozeControl
@@ -261,14 +261,22 @@ struct AlarmRingingView: View {
 
             sunHero
 
-            Text(now, format: .dateTime.hour().minute())
-                // The arcade score face. Below the sun, not in front of it: the sun's stripes used to
-                // run through the digits.
-                .font(Theme.Typography.score(size: isCompact ? clockSize * 0.8 : clockSize))
-                .foregroundStyle(Theme.Colors.text)
-                .shadow(color: phase.tint.opacity(0.45), radius: 18)
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
+            // The arcade score face. Below the sun, not in front of it: the sun's stripes used to
+            // run through the digits. "AM"/"PM" is a small second run so the digits can be big
+            // without the line reaching the screen edges.
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+                Text(clockParts.digits)
+                    .font(Theme.Typography.score(size: isCompact ? clockSize * 0.8 : clockSize))
+                if let period = clockParts.period {
+                    Text(period)
+                        .font(Theme.Typography.score(size: (isCompact ? clockSize * 0.8 : clockSize) * 0.38))
+                        .foregroundStyle(Theme.Colors.muted)
+                }
+            }
+            .foregroundStyle(Theme.Colors.text)
+            .shadow(color: phase.tint.opacity(0.45), radius: 18)
+            .minimumScaleFactor(0.5)
+            .lineLimit(1)
 
             // `text`, not `muted`: this is the one instruction the screen exists to deliver, and it
             // sits close to the glow's peak (typography-color-findings C4).
@@ -343,6 +351,19 @@ struct AlarmRingingView: View {
         .padding(.vertical, Theme.Spacing.xs)
         .background(phase.tint, in: Capsule())
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: phase)
+    }
+
+    /// The time as digits plus, on a 12-hour clock, a separate "AM"/"PM".
+    private var clockParts: (digits: String, period: String?) {
+        let template = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? ""
+        let is12Hour = template.contains("a")
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateFormat = is12Hour ? "h:mm" : "HH:mm"
+        let digits = formatter.string(from: now)
+        guard is12Hour else { return (digits, nil) }
+        formatter.dateFormat = "a"
+        return (digits, formatter.string(from: now))
     }
 
     private var eyebrowText: String {
@@ -986,7 +1007,7 @@ private enum AlarmMetrics {
     /// Below this container height the screen uses its compact layout (SE-class phones).
     static let compactHeight: CGFloat = 700
     /// The sun above the clock, and the share of it that shows above the horizon line.
-    static let sunDiameter: CGFloat = 150
+    static let sunDiameter: CGFloat = 136
     static let sunDiameterCompact: CGFloat = 110
     static let sunWindow: CGFloat = 0.86
 }

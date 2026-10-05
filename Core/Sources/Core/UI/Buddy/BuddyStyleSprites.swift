@@ -8,7 +8,7 @@
 
 /// The eight colourways every buddy can buy. A skin recolours the buddy's main body ramp only
 /// (`Buddy.skinColours`), so the face, belly and props keep their own colours.
-public enum BuddySkin: String, CaseIterable, Sendable, Identifiable {
+public enum BuddySkin: String, Codable, CaseIterable, Sendable, Identifiable {
     case midnight, sunset, mint, bubblegum, gold, ghost, lava, galaxy
 
     public var id: String { rawValue }
@@ -20,7 +20,7 @@ public enum BuddyStyleSlot: String, CaseIterable, Sendable {
 }
 
 /// Every hat, pair of glasses, neckwear, back item and backdrop. Bought once, worn by any buddy.
-public enum BuddyStyleItem: String, CaseIterable, Sendable, Identifiable {
+public enum BuddyStyleItem: String, Codable, CaseIterable, Sendable, Identifiable {
     case hatCap, hatWizard, hatChef, hatCowboy, hatTophat, hatHalo, hatHeadband, hatSanta, hatPirate, hatFlowers, eyewearRoundGlasses, eyewearHeartShades, eyewearStarShades, eyewearGoggles, neckBowtie, neckScarf, neckBandana, neckGoldChain, neckCollarBell, neckTie, backAngelWings, backBatWings, backButterflyWings, backDragonWings, backLeafWings, backBackpack, backdropSunrise, backdropGym, backdropForest, backdropSpace, backdropBeach, backdropCity, backdropSnow, backdropCandy, backdropLibrary, backdropArcade
 
     public var id: String { rawValue }

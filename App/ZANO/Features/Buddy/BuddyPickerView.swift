@@ -58,6 +58,16 @@ struct BuddyPickerView: View {
                     // Growth (level, next reward, earned gear) right under your buddy; not in
                     // onboarding, where nothing is earned yet.
                     BuddyGearSection(buddy: buddy)
+                    NavigationLink {
+                        BuddyClosetView()
+                    } label: {
+                        Label(Copy.buddyStyle.openClosetButtonTitle, systemImage: "tshirt.fill")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Colors.text)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .zanoCard()
+                    }
+                    .buttonStyle(.pressable(scale: 0.97))
                 }
                 grid
             }

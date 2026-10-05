@@ -105,6 +105,32 @@ struct BuddyTests {
         #expect(BuddyPose(ZanoMascotMood(done: 0, total: 0, isLocked: false)) == .idle)
     }
 
+    @Test func activityEmotionsFollowTheGoal() {
+        #expect(BuddyPose(goal: .workoutGym, moment: .doing) == .lifting)
+        #expect(BuddyPose(goal: .workoutHomeOutdoor, moment: .done) == .flexing)
+        #expect(BuddyPose(goal: .water, moment: .needed) == .thirsty)
+        #expect(BuddyPose(goal: .water, moment: .doing) == .sipping)
+        #expect(BuddyPose(goal: .water, moment: .done) == .proud)
+        #expect(BuddyPose(goal: .protein, moment: .needed) == .hungry)
+        #expect(BuddyPose(goal: .protein, moment: .doing) == .eating)
+        #expect(BuddyPose(goal: .mealPrep, moment: .doing) == .eating)
+        #expect(BuddyPose(goal: .focusSession, moment: .doing) == .focused)
+        #expect(BuddyPose(goal: .sunriseAlarm, moment: .doing) == .yawning)
+        #expect(BuddyPose(goal: .stretchMobility, moment: .doing) == .yawning)
+        #expect(BuddyPose(goal: .custom, moment: .done) == .proud)
+        #expect(BuddyPose(goal: .custom, moment: .needed) == .idle)
+    }
+
+    @Test func everyActivityEmotionExistsForEveryBuddy() {
+        let activity: [BuddyPose] = [.lifting, .flexing, .sipping, .thirsty, .eating, .hungry, .focused, .yawning, .proud, .lovey]
+        #expect(BuddyPose.allCases.count == 18)
+        for buddy in Buddy.allCases {
+            for pose in activity {
+                #expect(buddy.image(pose: pose) != nil, "\(buddy) \(pose)")
+            }
+        }
+    }
+
     @Test func poseRoundTripsThroughItsRawValue() {
         for pose in BuddyPose.allCases {
             #expect(BuddyPose(rawValue: pose.rawValue) == pose)

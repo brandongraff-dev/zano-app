@@ -60,6 +60,31 @@ public enum BuddyPose: String, Sendable, CaseIterable {
     /// ^ ^ eyes, the biggest grin, both arms up, hearts.
     case ecstatic
 
+    // Activity emotions (session 15, 2026-10-05): how the buddy feels about the thing you're doing.
+    // Every one is encouraging: hunger and thirst read as "ready for it", never as guilt, and
+    // there is deliberately no restrictive-goal face (CLAUDE.md, spec §24).
+
+    /// Determined brows, gritted teeth, a barbell, a sweat drop: mid-workout.
+    case lifting
+    /// Smug grin, flushed, sparkles: workout done.
+    case flexing
+    /// Closed happy eyes, a small "o" mouth, a water bottle: drinking water.
+    case sipping
+    /// Heavy lids, tongue out, an empty bottle: water is behind.
+    case thirsty
+    /// Closed eyes, a big chomp, a drumstick: logging protein.
+    case eating
+    /// Big wet eyes, a little drool, an egg: protein is behind.
+    case hungry
+    /// Heavy lids, level mouth, a target: a focus session or reading.
+    case focused
+    /// Squeezed eyes, a huge yawn, "zzz", arms up: sunrise alarm and stretching.
+    case yawning
+    /// Closed eyes, a soft smile, a gold star: a goal finished.
+    case proud
+    /// Heart eyes: a friend's nudge, a squad cheer, a gift (not wired to a screen yet).
+    case lovey
+
     /// The App Group defaults key for the pose Today's hero is in. Today writes it as the day's
     /// mood changes; the `ZANOReport` extension (which draws Today's hero on a device, but knows
     /// nothing about goals) reads it, so the buddy pulls the same face in both processes.
@@ -73,6 +98,38 @@ public enum BuddyPose: String, Sendable, CaseIterable {
         case .idle: self = .idle
         case .perky: self = .happy
         case .charged: self = .ecstatic
+        }
+    }
+
+    /// What the user is doing about a goal right now.
+    public enum Moment: Sendable {
+        /// The goal is still open and the user hasn't started.
+        case needed
+        /// Starting or logging it (a set, a glass of water, a meal, a focus block).
+        case doing
+        /// The goal is complete for today.
+        case done
+    }
+
+    /// The emotion for a goal at `moment`: lifting then flexing for workouts, thirsty then sipping
+    /// for water, hungry then eating for protein, focused for focus and reading, yawning for the
+    /// sunrise alarm and stretching. Anything without its own face falls back to the plain
+    /// excited / proud / idle faces.
+    public init(goal: GoalType, moment: Moment) {
+        switch (goal, moment) {
+        case (.workoutGym, .doing), (.workoutHomeOutdoor, .doing), (.steps, .doing): self = .lifting
+        case (.workoutGym, .done), (.workoutHomeOutdoor, .done), (.steps, .done): self = .flexing
+        case (.water, .needed): self = .thirsty
+        case (.water, .doing): self = .sipping
+        case (.protein, .needed), (.mealPrep, .needed): self = .hungry
+        case (.protein, .doing), (.mealPrep, .doing): self = .eating
+        case (.focusSession, .doing), (.reading, .doing): self = .focused
+        case (.sunriseAlarm, .doing), (.stretchMobility, .doing): self = .yawning
+        case (.sunriseAlarm, .needed), (.sleepOnTime, .needed): self = .sleepy
+        case (.sunriseAlarm, .done), (.sleepOnTime, .done), (.stretchMobility, .done): self = .happy
+        case (_, .done): self = .proud
+        case (_, .doing): self = .excited
+        case (_, .needed): self = .idle
         }
     }
 
@@ -159,23 +216,34 @@ public struct BuddySprite: View {
     let size: CGFloat
     /// nil: whatever the user is wearing (`BuddyGear.storageKey`); otherwise exactly this.
     let gearOverride: BuddyGear?
+    let showsBackdrop: Bool
 
     @AppStorage(BuddyGear.storageKey, store: SharedDefaults.store) private var storedGear: BuddyGear = .bare
+    /// This buddy's saved outfit (`BuddyOutfit`, JSON). Ignored when `gear` is set explicitly, so a
+    /// gear tile shows the item on its own.
+    @AppStorage private var outfitData: Data
 
-    public init(_ buddy: Buddy, pose: BuddyPose = .idle, size: CGFloat = 96, gear: BuddyGear? = nil) {
+    /// - Parameter showsBackdrop: draws the buddy's bought backdrop behind it, clipped to a rounded
+    ///   square; for big spots (hero stages, share cards), not 32pt avatars.
+    public init(_ buddy: Buddy, pose: BuddyPose = .idle, size: CGFloat = 96, gear: BuddyGear? = nil, showsBackdrop: Bool = false) {
         self.buddy = buddy
         self.pose = pose
         self.size = size
         self.gearOverride = gear
+        self.showsBackdrop = showsBackdrop
+        _outfitData = AppStorage(wrappedValue: Data(), BuddyOutfit.storageKey(for: buddy), store: SharedDefaults.store)
     }
+
+    private var outfit: BuddyOutfit { gearOverride == nil ? BuddyOutfit.decode(outfitData) : BuddyOutfit() }
 
     public var body: some View {
         Group {
-            if let image = buddy.image(pose: pose, gear: gearOverride ?? storedGear) {
+            if let image = buddy.image(pose: pose, gear: gearOverride ?? storedGear, outfit: outfit, showsBackdrop: showsBackdrop) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.none)
                     .antialiased(false)
+                    .clipShape(RoundedRectangle(cornerRadius: showsBackdrop && outfit.backdrop != nil ? size * 0.16 : 0))
             } else {
                 Color.clear
             }
@@ -192,17 +260,19 @@ public struct StoredBuddySprite: View {
     let pose: BuddyPose
     let size: CGFloat
     let gear: BuddyGear?
+    let showsBackdrop: Bool
 
     @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
     /// - Parameter gear: nil wears whatever the user picked; set it to dress the buddy for the spot.
-    public init(pose: BuddyPose = .idle, size: CGFloat = 64, gear: BuddyGear? = nil) {
+    public init(pose: BuddyPose = .idle, size: CGFloat = 64, gear: BuddyGear? = nil, showsBackdrop: Bool = false) {
         self.pose = pose
         self.size = size
         self.gear = gear
+        self.showsBackdrop = showsBackdrop
     }
 
     public var body: some View {
-        BuddySprite(buddy, pose: pose, size: size, gear: gear)
+        BuddySprite(buddy, pose: pose, size: size, gear: gear, showsBackdrop: showsBackdrop)
     }
 }

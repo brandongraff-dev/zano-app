@@ -58,8 +58,9 @@
 // ── Hard rule: never sell power (spec §5.17, §21; CLAUDE.md) ──
 //
 // This is enforced structurally, not just documented:
-//   1. `CosmeticCategory` is a *closed* enum with exactly the four cosmetic categories §5.17
-//      names — theme, ring style, shield background, coach voice pack. There is no fifth case
+//   1. `CosmeticCategory` is a *closed* enum with exactly the five cosmetic categories §5.17
+//      names — theme, ring style, shield background, coach voice pack, and (session 15) buddy
+//      style (skins and wearables for the user's buddy). There is no sixth case
 //      (an "unlock", "streak restore", or "extra freeze") to ever add an item under.
 //   2. `CosmeticItem` (the purchasable-thing type) carries only a stable `key`, its
 //      `CosmeticCategory`, and a coin price. It has no field that could reference or trigger a
@@ -126,6 +127,11 @@ public enum CosmeticCategory: String, Codable, CaseIterable, Sendable {
     /// future work for whichever screen ends up showing it (no such screen is in this task's
     /// file list) — see `knownIssues`.
     case coachVoicePack = "coach_voice_pack"
+
+    /// Skins, hats, glasses, neckwear, back items and backdrops for the user's buddies (session 15,
+    /// the Buddy Closet; `Core/UI/Buddy/BuddyStyle.swift`). The fifth category: still purely
+    /// cosmetic, and still only ever bought from this file's closed catalog.
+    case buddyStyle = "buddy_style"
 }
 
 // MARK: - Catalog item (closed set of fields — see "Hard rule: never sell power" above)
@@ -297,7 +303,7 @@ public final class CosmeticsStore {
         CosmeticItem(key: "coachpack_zen_minimal", category: .coachVoicePack, priceCoins: 250),
         CosmeticItem(key: "coachpack_data_stream", category: .coachVoicePack, priceCoins: 250),
         CosmeticItem(key: "coachpack_hype_squad", category: .coachVoicePack, priceCoins: 250),
-    ]
+    ] + BuddyStyleCatalog.items
 
     /// `catalog` filtered to one category, in catalog order (default item first).
     public static func items(in category: CosmeticCategory) -> [CosmeticItem] {

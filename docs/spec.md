@@ -250,6 +250,10 @@ When a user tries to open a blocked app 3+ times in an hour, the shield shows a 
 ### 5.17 Trophy Case & Cosmetics
 Badges for milestones (first earned unlock, 7/30/100-day streaks, 1,000g protein week, 50 gym sessions). Coins from verified goals buy themes, ring styles, shield backgrounds, and coach voice packs. Cosmetics only; never sell power (no buying unlocks).
 
+**Buddy Closet (added 2026-10-05, session 15).** A fifth cosmetic category: skins and wearables for the user's buddy (§15). Eight skins per buddy (bought per buddy); hats, eyewear, neckwear, back items and backdrops (bought once, worn by any buddy). One free default; items are coin-priced from the same closed catalog and spend path as every other cosmetic, and never change a goal, lock, streak or the Time Bank. Earned gear (party hat, shades, cape...) stays earned and is never sold; a bought item in the same slot is worn instead and the earned one returns when it comes off. What a buddy wears is saved per buddy in the App Group so widgets and the Screen Time report draw it too.
+
+**Buddy emotions (added 2026-10-05, session 15).** Besides the eight charge faces, every buddy has ten activity emotions, all encouraging: *lifting* and *flexing* (workout), *sipping* and *thirsty* (water), *eating* and *hungry* (protein), *focused* (focus, reading), *yawning* (sunrise alarm, stretching), *proud* (any goal done) and *lovey* (a friend's nudge). Thirst and hunger read as "ready for it", never guilt, and no face exists for a restrictive goal (§24).
+
 ### 5.18 Travel & Comeback Modes
 - Travel mode (auto-suggested when the phone is in a new city): goals shift to walking/steps/focus, gym optional.
 - Comeback mode (after 5+ days inactive): streak restart with a "3-day comeback" mini-challenge at low difficulty; no guilt copy.

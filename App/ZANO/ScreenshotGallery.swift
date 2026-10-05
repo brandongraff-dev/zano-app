@@ -58,6 +58,7 @@ enum ScreenshotMode {
     static func prepare(screen name: String) {
         DemoData.seed()
         applyBuddyArgument()
+        applyOutfitArgument(screen: name)
 
         if name.hasPrefix("tab-") {
             AppRouter.shared.completeOnboarding()
@@ -81,6 +82,19 @@ enum ScreenshotMode {
             SharedDefaults.store.set(buddy.rawValue, forKey: Buddy.storageKey)
         } else {
             SharedDefaults.store.removeObject(forKey: Buddy.storageKey)
+        }
+    }
+
+    /// The Buddy Closet shot (and any run with `-ZANOOutfit demo`) shows a dressed buddy; every other
+    /// shot clears the saved outfit, so an earlier launch can't leave one behind.
+    private static func applyOutfitArgument(screen name: String) {
+        let buddy = Buddy.stored
+        let wantsDemo = name == "buddy-closet" || UserDefaults.standard.string(forKey: "ZANOOutfit") == "demo"
+        if wantsDemo {
+            BuddyOutfit(skin: .sunset, hat: .hatWizard, eyewear: .eyewearRoundGlasses, neck: .neckBowtie,
+                        backdrop: .backdropSunrise).save(for: buddy)
+        } else {
+            SharedDefaults.store.removeObject(forKey: BuddyOutfit.storageKey(for: buddy))
         }
     }
     #endif
@@ -124,6 +138,8 @@ struct ScreenshotHost: View {
         case "buddy-picker":
             // As pushed from Settings > Buddy (onboarding-2 shows it inside the flow's chrome).
             NavigationStack { BuddyPickerView(context: .settings) }
+        case "buddy-closet":
+            NavigationStack { BuddyClosetView() }
         case "locksetup":
             NavigationStack { LockSetupView() }
         case "trophy":

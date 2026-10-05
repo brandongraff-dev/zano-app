@@ -330,7 +330,7 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 
 /* illustrated phone screens (not app captures) */
 .mock { aspect-ratio: 385 / 839; border-radius: 35px; overflow: hidden; container-type: inline-size; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4cqw; text-align: center; width: 100%; }
-.screens > .mock { aspect-ratio: auto; border-radius: 0; }
+.screens > .mock { position: absolute; inset: 0; height: 100%; aspect-ratio: auto; border-radius: 0; }
 .mock::before { content: ""; position: absolute; top: 2.6cqw; left: 50%; width: 26cqw; height: 7.5cqw; margin-left: -13cqw; border-radius: 99px; background: #0b0d14; z-index: 3; }
 .mock img { width: 56cqw; aspect-ratio: auto; border-radius: 0; object-fit: contain; image-rendering: pixelated; position: relative; z-index: 1; }
 .mock b { font-weight: 800; letter-spacing: -0.03em; }
@@ -358,3 +358,26 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
 .peek img, .crowd img { animation: bobS 5s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -0.6s); }
 @keyframes bobS { 50% { translate: 0 -4px; } }
 .bob { }
+
+/* cleaner sign-up bar: one pill, equal heights, "Coming soon" as a small tag on the badge */
+.hero2__cta { width: min(660px, 100% - 32px); gap: 8px; padding: 8px; border-radius: 999px; bottom: 24px; align-items: center; background: rgba(255, 255, 255, 0.86); border-color: rgba(15, 20, 40, 0.06); }
+.hero2__cta .waitlist-form { flex: 1; min-width: 0; }
+.hero2__cta .waitlist-form__row { border: 0; background: transparent; padding: 0; gap: 8px; }
+.hero2__cta .waitlist-form__input { height: 52px; padding: 0 12px 0 20px; font-size: 1rem; }
+.hero2__cta .waitlist-form .btn { height: 52px; padding: 0 26px; font-size: 1rem; }
+.hero2__cta .waitlist-form__status { margin: 0; padding: 0 20px 6px; }
+.hero2__cta .store { position: relative; display: block; margin: 0; }
+.hero2__cta .store__btn { height: 52px; padding: 0 20px 0 16px; border-radius: 999px; }
+.hero2__cta .store__note { position: absolute; top: -17px; right: 2px; margin: 0; padding: 3px 9px; border-radius: 999px; background: #b6e84a; color: #1d2a05; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; box-shadow: 0 4px 10px -4px rgba(60, 100, 0, 0.5); }
+.store__btn small { font-size: 0.6rem; }
+.store__btn { font-size: 1.1rem; }
+@media (max-width: 700px) {
+  .hero2__cta { flex-direction: column; align-items: stretch; border-radius: 30px; padding: 10px; gap: 10px; bottom: 16px; }
+  .hero2__cta .waitlist-form__row { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px; }
+  .hero2__cta .waitlist-form__input { height: 48px; }
+  .hero2__cta .waitlist-form .btn { height: 48px; padding: 0 22px; }
+  .hero2__cta .store { display: flex; justify-content: center; }
+  .hero2__cta .store__btn { height: 48px; }
+  .hero2__cta .store { align-items: center; gap: 10px; }
+  .hero2__cta .store__note { position: static; box-shadow: none; }
+}

@@ -8,7 +8,7 @@
   <meta property="og:title" content="ZANO — Earn your screen time" />
   <meta property="og:description" content="Distracting apps stay locked until you do the work." />
   <meta property="og:type" content="website" />
-  <link rel="icon" href="assets/buddy.webp" />
+  <link rel="icon" href="assets/buddies/stash-happy.webp" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
@@ -52,7 +52,7 @@
 
         <div class="stage reveal" style="--d:.1s">
           <div class="phone float"><img src="assets/screen-today-light.webp" alt="ZANO Today screen: 2 goals to unlock" /></div>
-          <div class="orb"><img src="assets/buddy.webp" alt="Zano the raccoon" /></div>
+          <div class="orb"><img src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
           <span class="chip glass chip--a">14 day streak</span>
           <span class="chip glass chip--b">TikTok unlocked</span>
         </div>
@@ -83,7 +83,7 @@
               </div>
             </div>
             <div class="story__buddy">
-              <div class="orb"><img src="assets/buddy.webp" alt="Zano the raccoon" /></div>
+              <div class="orb"><img src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
               <div class="bubble" id="storyBubble">Locked in.</div>
             </div>
           </div>
@@ -112,7 +112,7 @@
         <div class="head reveal">
           <p class="eyebrow">Your buddy</p>
           <h2>Pick who keeps you honest.</h2>
-          <p class="lede">Choose a buddy. It levels up with your streak.</p>
+          <p class="lede">Nine buddies to choose from. Yours levels up with your streak.</p>
         </div>
         <div class="picker reveal">
           <div class="picker__stage">
@@ -127,7 +127,7 @@
 
     <section class="section section--soft cta" id="join">
       <div class="wrap">
-        <div class="orb orb--lg reveal"><img src="assets/buddy.webp" alt="" loading="lazy" /></div>
+        <div class="orb orb--lg reveal"><img src="assets/buddies/stash-happy.webp" alt="" loading="lazy" /></div>
         <h2 class="reveal">Get early access.</h2>
         <p class="lede reveal">One email when we open the doors.</p>
         <p class="reveal"><a href="#waitlist-form" class="btn btn--blue" id="cta-btn">Join the waitlist</a></p>
@@ -147,40 +147,6 @@
   </footer>
 
   <script>
-// 16x16 pixel buddies, drawn as left halves (mirrored) + patches. Placeholder art, not final app assets.
-const SPRITES = {
-  fox: {
-    pal: { d: "#9a3d12", o: "#ff8a2b", w: "#fff4e6", k: "#1a1020", n: "#2b1a1a", p: "#ffb38a" },
-    rows: [
-      "..d.....", ".dod....", ".dood...", ".dpood..", ".doooood", "dooooooo", "doookooo", "doookooo",
-      "dowwwwww", ".dwwwwwn", "..dwwwww", "..dooowo", ".dooowww", ".dooowww", ".dddooww", "..dddddd"],
-    patch: [[12,11,"o"],[13,11,"o"],[13,12,"o"],[14,12,"o"],[14,13,"w"],[13,13,"o"],[12,12,"o"],[15,13,"w"]],
-  },
-  frog: {
-    pal: { d: "#1f6b34", g: "#5ccf6e", l: "#c9f5a8", w: "#ffffff", k: "#12201a", p: "#ff7f9a" },
-    rows: [
-      "........", "..dddd..", ".dwwwwd.", ".dwkkwd.", ".dwkkwdd", "ddgggggg", "dgggggggg".slice(0,8), "dggggggg",
-      "dgdddddd", "dgggpppp", ".dgllllg", ".dglllll", ".dglllll", "dgglllll", "dggdgggg", ".dddddd."],
-    patch: [],
-  },
-  cat: {
-    pal: { d: "#4a3a78", l: "#b9a6ff", p: "#ff9ec4", y: "#ffe45c", k: "#1a1030", w: "#ffffff", n: "#ff6f9c" },
-    rows: [
-      "........", ".d......", ".dld....", ".dpld...", ".dlllddd", "dlllllll", "dllyyllll".slice(0,8), "dllykllll".slice(0,8),
-      "dlllllll", "dlllllwn", ".dllllww", "..dlllww", ".dlllwww", ".dlllwww", ".dddlwww", "..dddddd"],
-    patch: [],
-  },
-};
-function drawSprite(canvas, key) {
-  const s = SPRITES[key], ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, 16, 16);
-  s.rows.forEach((row, y) => {
-    const full = row + row.split("").reverse().join("");
-    full.split("").forEach((c, x) => { if (c !== ".") { ctx.fillStyle = s.pal[c] || "#000"; ctx.fillRect(x, y, 1, 1); } });
-  });
-  s.patch.forEach(([x, y, c]) => { ctx.fillStyle = s.pal[c]; ctx.fillRect(x, y, 1, 1); });
-}
-
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const io = new IntersectionObserver((es) => es.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
@@ -215,21 +181,23 @@ function drawSprite(canvas, key) {
 
     // ---- buddy picker ----
     const BUDDIES = [
-      { key: "raccoon", name: "Raccoon", trait: "Hype. Loud about every win.", line: "Gym first, scroll later!", img: "assets/buddy.webp" },
-      { key: "fox", name: "Fox", trait: "Tough love. No excuses.", line: "You said 45 minutes. Go." },
-      { key: "frog", name: "Frog", trait: "Chill. One rep at a time.", line: "Easy does it. Keep going." },
-      { key: "cat", name: "Cat", trait: "Data. Quiet and exact.", line: "72% done. 2 goals left." },
+      { key: "stash", name: "Stash", kind: "Cheeky, loyal raccoon", line: "Gym first, scroll later!" },
+      { key: "zib", name: "Zib", kind: "Star-antenna mochi bunny", line: "Aww, you did it!" },
+      { key: "lox", name: "Lox", kind: "Clever fox with a lock charm", line: "Door\u2019s locked. Go earn it." },
+      { key: "pip", name: "Pip", kind: "Owl-axolotl with focus eyes", line: "Focus time. I\u2019m watching." },
+      { key: "moko", name: "Moko", kind: "Hatchling dino that grows with you", line: "We grow together." },
+      { key: "brick", name: "Brick", kind: "Gym-rat bulldog", line: "One more rep. I got you." },
+      { key: "tank", name: "Tank", kind: "Gym rhino in a team jersey", line: "Nothing stops us today." },
+      { key: "volt", name: "Volt", kind: "Lightning shark", line: "Zap! Unlocked." },
+      { key: "howl", name: "Howl", kind: "Night-run wolf in a hoodie", line: "Quiet work, loud finish." },
     ];
     const pickOrb = document.getElementById("pickOrb"), pickList = document.getElementById("pickList");
-    function art(b, cls) {
-      if (b.img) { const i = document.createElement("img"); i.src = b.img; i.alt = ""; i.className = cls || ""; return i; }
-      const c = document.createElement("canvas"); c.width = c.height = 16; c.className = (cls || "") + " px"; drawSprite(c, b.key); return c;
-    }
+    function art(b, pose) { const i = document.createElement("img"); i.src = "assets/buddies/" + b.key + "-" + pose + ".webp"; i.alt = ""; return i; }
     function pick(i) {
       const b = BUDDIES[i];
-      pickOrb.replaceChildren(art(b));
+      pickOrb.replaceChildren(art(b, "happy"));
       document.getElementById("pickName").textContent = b.name;
-      document.getElementById("pickTrait").textContent = b.trait;
+      document.getElementById("pickTrait").textContent = b.kind;
       const bub = document.getElementById("pickBubble"); bub.textContent = b.line;
       bub.style.animation = "none"; void bub.offsetWidth; bub.style.animation = "";
       pickList.querySelectorAll("button").forEach((el, j) => { el.setAttribute("aria-checked", j === i); el.tabIndex = j === i ? 0 : -1; });
@@ -237,7 +205,7 @@ function drawSprite(canvas, key) {
     BUDDIES.forEach((b, i) => {
       const btn = document.createElement("button");
       btn.type = "button"; btn.setAttribute("role", "radio"); btn.className = "pick";
-      const thumb = document.createElement("span"); thumb.className = "pick__thumb"; thumb.appendChild(art(b));
+      const thumb = document.createElement("span"); thumb.className = "pick__thumb"; thumb.appendChild(art(b, "content"));
       const label = document.createElement("span"); label.textContent = b.name;
       btn.append(thumb, label);
       btn.addEventListener("click", () => pick(i));

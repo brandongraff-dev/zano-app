@@ -19,3 +19,10 @@
 - **Files touched:** `landing/index.html`, `landing/style.css`
 - **What changed:** sticky scroll story (phone stays, 4 screens + raccoon bubble swap by scroll position); buddy picker (Raccoon, Fox, Frog, Cat) with name, trait and sample coach line.
 - **Decisions:** Fox/Frog/Cat are placeholder 16x16 pixel sprites drawn in JS for the page only. They are NOT app assets and no buddy species list exists in docs/spec.md — confirm the real roster before shipping.
+
+### 2026-10-05 — Real app buddies on the landing page, no phone, cuter
+
+- **Files touched:** `scripts/buddies/*` (copied from `origin/claude/sharp-euler-npwt08`, then edited), `landing/assets/buddies/*.webp` (new, 9 buddies x content/happy), `landing/index.html`, `landing/style.css`; removed `landing/assets/buddy.webp`.
+- **What changed:** the picker now shows the app's real nine buddies (Stash, Zib, Lox, Pip, Moko, Brick, Tank, Volt, Howl). In `buddies.py`: Stash no longer holds a phone (paws clasped on belly); eyes enlarged on Lox, Moko, Brick, Tank, Volt, Howl; Brick's head rounder with softer jowls; Howl's hoodie lightened.
+- **Decisions:** the buddy source lives on `claude/sharp-euler-npwt08`, not `main`. These generator edits are on this branch only; the app's `BuddySprites.swift` / `WatchBuddySprites.swift` still need regenerating (`export_swift.py`) after merging the two branches. Expect a merge conflict in `scripts/buddies/buddies.py`.
+- **Known issues:** PNGs here are 48x48 upscaled 8x; the monster/gear art is untouched.

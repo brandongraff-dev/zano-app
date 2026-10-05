@@ -24,6 +24,8 @@ extension Copy {
 
         public static func lockStatusLine(isLocked: Bool, goalsRemaining: Int) -> String {
             guard isLocked else { return "Unlocked" }
+            // A lock with no goals is a calendar focus lock (`Copy.focusLock`): nothing left to earn.
+            if goalsRemaining == 0 { return Copy.focusLock.activeStatus }
             return goalsRemaining == 1 ? "Locked · 1 goal left" : "Locked · \(goalsRemaining) goals left"
         }
 

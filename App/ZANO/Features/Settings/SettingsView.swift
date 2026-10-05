@@ -416,6 +416,17 @@ struct SettingsView: View {
                 SettingsRowDivider()
 
                 SettingsNavRow(
+                    Copy.focusLock.rowLabel,
+                    systemImage: "calendar.badge.clock",
+                    tint: SettingsPalette.calendar,
+                    value: FocusLockStore.settings.isEnabled ? Copy.focusLock.rowValueOn : nil
+                ) {
+                    FocusLockSettingsView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
                     Copy.settings.gymSetupRowLabel,
                     systemImage: "dumbbell.fill",
                     tint: SettingsPalette.gym,

@@ -105,6 +105,8 @@ struct ContentView: View {
         await StreakEngine.shared.reconcileMissedDays()
         // Turn any lock the monitor started while the app was closed into a real session.
         await LockScheduler.shared.reconcile()
+        // Re-plan calendar focus locks against the next two days (no-op unless turned on).
+        FocusLockScheduler.shared.refresh()
         // Last known location only (never prompts): feeds travel-mode city detection.
         await TravelMode.shared.sampleLastKnownLocation()
         // Replan today's reminders against current progress, prefs and pause state.

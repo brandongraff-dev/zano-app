@@ -218,6 +218,8 @@ public struct PendingScheduledLock: Codable, Sendable, Equatable {
     public enum Source: String, Codable, Sendable {
         case schedule
         case bedtime
+        /// A calendar focus window (`FocusLockScheduler`): lock for exactly that window, no goals.
+        case focus
     }
 
     public var id: UUID
@@ -485,6 +487,22 @@ public enum ScheduledLockMonitor {
             return
         }
 
+        if FocusLockStore.armedWindow(forActivityRawName: raw) != nil {
+            // A calendar focus window: shield the apps now, with no goals to earn. It ends at the
+            // window's end (`intervalDidEnd`), by emergency unlock, or by hand.
+            let settings = FocusLockStore.settings
+            guard settings.isEnabled else { return }
+            arm(
+                source: .focus,
+                lockSetID: settings.lockSetID ?? LockEngineSharedState.defaultLockSetID,
+                activityRawName: raw,
+                mode: .full,
+                requiredGoalIDs: [],
+                now: now
+            )
+            return
+        }
+
         guard let lockSetID = LockScheduleActivity.lockSetID(fromRawName: raw) else { return }
         guard let schedule = LockEngineSharedState.schedule(for: lockSetID), schedule.isEnabled else {
             logger.notice("Ignoring stale schedule activity \(raw, privacy: .public).")
@@ -511,6 +529,12 @@ public enum ScheduledLockMonitor {
         let raw = activity.rawValue
         if raw == LockScheduleActivity.spendRawName {
             spendWindowDidEnd(now: now)
+            return
+        }
+        // A focus window's lock ends with the window, whatever was earned.
+        if FocusLockActivity.isFocusActivity(raw) {
+            endScheduledLock(activityRawName: raw, now: now)
+            LockEngineSharedState.refreshNextScheduledLockAt(now: now)
             return
         }
         // Bedtime and per-session keep-alive registrations end at 23:59 but their locks continue
@@ -739,6 +763,30 @@ public final class LockScheduler {
             } catch {
                 logger.error("Bedtime hand-off failed: \(String(describing: error), privacy: .public)")
             }
+        case .focus:
+            guard let lockSetID = pending.lockSetID else { return }
+            var sessionID: UUID?
+            do {
+                // No required goals: a timed lock nothing can "earn" (`evaluateUnlockEligibility`
+                // is false for an empty list), so it ends at the window's end or by emergency unlock.
+                sessionID = try await engine.startLock(
+                    lockSetID: lockSetID,
+                    mode: .full,
+                    requiredGoalIDs: [],
+                    trigger: .schedule,
+                    startedAt: pending.startedAt
+                )
+            } catch LockEngineError.deviceActivitySchedulingFailed {
+                sessionID = SharedDefaults.activeLockSessionID
+            } catch {
+                logger.error("Focus lock hand-off failed: \(String(describing: error), privacy: .public)")
+            }
+            guard let sessionID else { return }
+            LockEngineSharedState.scheduleOwnedLock = ScheduleOwnedLock(
+                sessionID: sessionID,
+                lockSetID: lockSetID,
+                activityRawName: pending.activityRawName
+            )
         case .schedule:
             guard let lockSetID = pending.lockSetID else { return }
             var sessionID: UUID?

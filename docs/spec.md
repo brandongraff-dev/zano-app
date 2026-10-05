@@ -283,6 +283,15 @@ A "Building ZANO" feed card (optional) linking to your content. Founder-led bran
 
 **Not in scope:** under-13 accounts (§24), parents seeing a teen's app usage, location sharing, messaging.
 
+### 5.24 Focus Lock (work hours and calendar)
+Distracting apps lock during meetings and focus blocks on the user's calendar and open again the moment the block ends. **No goals to earn**: it is a timed lock, ended by the clock, by hand, or by the emergency unlock (§24).
+
+- **Opt-in, on device.** One switch in Settings asks for Calendar access. Events are read on the phone only; titles are used locally to spot focus blocks and to ask "Lock during 'Design review'?"; nothing is uploaded or synced (§24).
+- **What locks.** Busy events with other attendees (meetings) and events whose title has a focus word (focus, deep work, heads down, study, exam, homework). Never all-day events, free events, events under 15 minutes (a DeviceActivity window can't be shorter, §27) or over 4 hours. Events under way when the app refreshes are left alone. Back-to-back events (under 5 minutes apart) join into one window. Planned two days ahead, at most 8 windows.
+- **Learns, asks first.** ZANO asks before locking for a new event. Two yes answers to the same recurring event and it locks by itself; two no answers and it stops asking; two yes against one no still locks. Ending a focus lock early with the emergency unlock counts as a no. Everything it learned can be reset per event ("Ask me again"). The memory stores a hash of the title, never the title.
+- **How it runs.** The app plans on every foreground and after any Settings change; locked windows are registered with DeviceActivity as one-off schedules, shielded by `ZANOMonitor` at the start and handed to the normal `LockSession` flow. iOS gives no background hook for calendar edits, so a meeting added while the app is closed is picked up the next time it opens.
+- **Never traps.** The emergency unlock works exactly as for any lock. A health pause (§24) blocks focus locks like every automatic lock.
+
 ## 6. Widgets, Controls, Live Activities, NFC, Siri
 
 All actions are **App Intents** (§14). Build each once, reuse everywhere.

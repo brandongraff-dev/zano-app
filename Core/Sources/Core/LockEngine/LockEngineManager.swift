@@ -322,7 +322,10 @@ public final class LockEngineManager {
             LockEngineSharedState.spendWindow = nil
             activityCenter.stopMonitoring([LockScheduleActivity.spend])
         }
-        if LockEngineSharedState.scheduleOwnedLock?.sessionID == sessionID {
+        if let owned = LockEngineSharedState.scheduleOwnedLock, owned.sessionID == sessionID {
+            // Ending a calendar focus lock early by emergency unlock tells the focus lock's memory
+            // that this event is one the user doesn't want locked (two of those and it stops asking).
+            if unlockKind == .emergency { FocusLockStore.recordEndedEarly(activityRawName: owned.activityRawName) }
             LockEngineSharedState.scheduleOwnedLock = nil
         }
         if unlockKind == .earned {

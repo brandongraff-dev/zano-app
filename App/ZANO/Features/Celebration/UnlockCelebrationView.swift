@@ -109,6 +109,7 @@ public struct UnlockCelebrationView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.requestReview) private var requestReview
+    @State private var isClipPresented = false
 
     /// The headline's size. Compressed heavy numeral face; scales with Dynamic Type.
     @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 62
@@ -212,7 +213,18 @@ public struct UnlockCelebrationView: View {
                 askForRatingIfDue()
             }
             .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, showsReferralLink ? Theme.Spacing.xs : Theme.Spacing.lg)
+            .padding(.bottom, Theme.Spacing.xs)
+
+            // The Earned It clip: a 5-second video of this unlock, starring the user's buddy.
+            Button(Copy.clip.makeButton) {
+                Analytics.shared.capture(event: "earned_it_clip_tapped", properties: ["screen": "unlock_celebration"])
+                isClipPresented = true
+            }
+            .font(Theme.Typography.captionEmphasized)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .frame(minHeight: Theme.Metrics.minTapTarget)
+            .padding(.bottom, showsReferralLink ? Theme.Spacing.xxs : Theme.Spacing.sm)
+            .opacity(showDetails ? 1 : 0)
 
             if showsReferralLink {
                 Button(Copy.share.referralPostUnlockPrompt) {
@@ -233,6 +245,10 @@ public struct UnlockCelebrationView: View {
         .sensoryFeedback(.impact(weight: .heavy), trigger: stampHapticTick)
         .sensoryFeedback(.selection, trigger: countHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: badgeHapticTick)
+        .sheet(isPresented: $isClipPresented) {
+            EarnedItClipView(goalName: goalName, doneGoal: nil)
+                .preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $isReferralPresented) {
             NavigationStack { ReferralView(showsDoneButton: true) }
                 .preferredColorScheme(.dark)

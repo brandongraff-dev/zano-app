@@ -209,3 +209,25 @@ extension Copy.share {
     /// The quiet post-unlock link on the celebration.
     public static let referralPostUnlockPrompt = "Invite a friend. You both get a freeze."
 }
+
+extension Copy {
+    /// The "Earned It" clip (session 21; docs/spec.md §5.27): a 5-second vertical video of the shield
+    /// opening, starring the user's own buddy, made on the phone.
+    public enum clip {
+        public static let makeButton = "Make my Earned It clip"
+        public static let sheetTitle = "Earned It"
+        public static let making = "Making your clip..."
+        public static let failed = "Couldn't make the clip. Try again."
+        public static let retry = "Try again"
+        public static let shareButton = "Share clip"
+        public static let doneButton = "Done"
+        public static let shareMessage = "Earned my apps back with ZANO. #zano #earnedit"
+        public static let previewTitle = "Earned It"
+
+        // On the clip itself
+        public static let locked = "LOCKED"
+        public static let earnedIt = "EARNED IT."
+        public static let tagline = "Earn your screen time"
+        public static func streakLine(days: Int) -> String { days == 1 ? "Day 1" : "Day \(days)" }
+    }
+}

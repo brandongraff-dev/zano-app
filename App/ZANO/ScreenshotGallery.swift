@@ -204,6 +204,9 @@ struct ScreenshotHost: View {
                                     lockedMinutes: 84 * 60, bestStreak: 12, topGoalTitle: "Gym session"),
                 onDismiss: {}
             )
+        case "earned-it-clip":
+            // One still frame of the clip's payoff beat (the video itself is made on a device).
+            EarnedItClipScene(buddy: Buddy.stored, goalName: "Gym session", streak: 14, doneGoal: .workoutGym, progress: 0.8)
         case "year-in-review":
             YearInReviewView(
                 review: YearInReview(year: 2026, earnedDays: 212, earnedUnlocks: 260, lockedMinutes: 900 * 60,

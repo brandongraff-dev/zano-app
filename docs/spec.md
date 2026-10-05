@@ -292,6 +292,19 @@ Distracting apps lock during meetings and focus blocks on the user's calendar an
 - **How it runs.** The app plans on every foreground and after any Settings change; locked windows are registered with DeviceActivity as one-off schedules, shielded by `ZANOMonitor` at the start and handed to the normal `LockSession` flow. iOS gives no background hook for calendar edits, so a meeting added while the app is closed is picked up the next time it opens.
 - **Never traps.** The emergency unlock works exactly as for any lock. A health pause (§24) blocks focus locks like every automatic lock.
 
+### 5.25 Sleep wind-down
+A one-tap morning check-in ("How rested do you feel?", the user's buddy's faces from drained to ecstatic), optionally paired with Apple Health sleep length, that over a few weeks shows what helps this person and suggests a gentle bedtime. **On device, opt-in, patterns not medicine.**
+- It says nothing before 10 rated nights, and a comparison needs 4 nights on each side and at least half a point (out of 5) of difference. It compares nights the phone was left alone after bedtime (§5.10), nights with 7+ hours asleep, and nights with a steady bedtime. It never says anything *hurt*.
+- Bedtime is only ever suggested, at most 30 minutes earlier than today's, never before 8:30 pm, never later; the person taps to use it.
+- After 5 low mornings in a row it stops suggesting and says something kind, with a gentle "worth mentioning to a doctor" if it stays hard.
+- Sleep data and notes never leave the phone; one button deletes them. The Health permission text names sleep.
+
+### 5.26 Smart unlock rules
+Up to three rules that keep a lock set's apps open at chosen days and hours, even while a lock is running ("Work apps, weekdays 9-5"). Rules only ever **open** more apps: they never add apps to a lock, end one, or touch the emergency unlock (§24). They hook into the single shield function the app and the monitor share, and wake the monitor at each rule's start and end. iOS can open or close a whole app, not one chat or contact; the screen says so. If someone keeps ending locks early at about the same time (3 emergency unlocks on one weekday within two hours, in 6 weeks), ZANO offers a rule for it; they choose the apps.
+
+### 5.27 Earned It clip
+After an unlock, "Make my Earned It clip" makes a 5-second vertical video on the phone: LOCKED (the buddy asleep, the goal filling), the lock opening in a burst, then EARNED IT with the goal, the streak day and the buddy celebrating (its goal emotion: flexing for a workout), with the zano name at the bottom. Made and kept on the device, shared through the normal share sheet. The same thinking gives the **Year in Review** (December 1 to January 7, for a year with 14+ earned days: days earned, hours locked, best month, best streak, top goal) alongside the monthly story.
+
 ## 6. Widgets, Controls, Live Activities, NFC, Siri
 
 All actions are **App Intents** (§14). Build each once, reuse everywhere.

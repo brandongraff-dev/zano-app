@@ -1,350 +1,143 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ZANO — Earn your screen time</title>
-  <meta name="description" content="ZANO locks distracting apps until you earn them back by training, hitting your protein, focusing, or hydrating. Tap in. Earn it. Join the waitlist." />
-
-  <meta property="og:title" content="ZANO — Tap in. Earn it." />
-  <meta property="og:description" content="The app that won't let you open TikTok until you hit the gym." />
+  <meta name="description" content="ZANO locks distracting apps until you hit the gym, hit your protein, or finish a focus session. Join the waitlist." />
+  <meta property="og:title" content="ZANO — Earn your screen time" />
+  <meta property="og:description" content="Distracting apps stay locked until you do the work." />
   <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary" />
-
   <link rel="icon" href="assets/buddy.webp" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script>document.documentElement.className = "js";</script>
 </head>
 <body>
 
-  <div class="blobs" aria-hidden="true">
-    <span class="blob blob--1"></span><span class="blob blob--2"></span>
-    <span class="blob blob--3"></span><span class="blob blob--4"></span>
-  </div>
-
-  <nav class="nav glass" id="nav">
-    <a href="#top" class="logo">zan<i>o</i></a>
-    <div class="nav__links">
-      <a href="#how">How it works</a>
-      <a href="#goals">Goals</a>
-      <a href="#buddy">Buddy</a>
-      <a href="#screens">Screens</a>
+  <header class="nav glass">
+    <div class="wrap nav__in">
+      <a href="#top" class="logo">zan<i>o</i></a>
+      <a href="#join" class="btn btn--sm">Join waitlist</a>
     </div>
-    <a href="#join" class="btn btn--sm">Join waitlist</a>
-  </nav>
+  </header>
 
   <main id="top">
-    <!-- Hero -->
     <section class="hero">
       <div class="wrap hero__grid">
         <div>
-          <span class="pill glass reveal"><span class="pill__dot"></span> Now building in public</span>
-          <h1 class="reveal" style="--d:.08s">
-            Your phone is fighting your goals.<br />
-            Let&rsquo;s <span class="swap" id="swap">flip that.</span>
-          </h1>
-          <p class="hero__sub reveal" style="--d:.16s">
-            ZANO locks the apps that eat your day and gives them back the second you
-            hit the gym, nail your protein, or finish a focus session. Verified. Instant. Offline.
-          </p>
+          <p class="tag reveal">Coming soon to iPhone</p>
+          <h1 class="reveal" style="--d:.05s">Earn your screen time.</h1>
+          <p class="sub reveal" style="--d:.1s">Distracting apps stay locked until you hit the gym, hit your protein, or finish a focus session.</p>
 
-          <form id="waitlist-form" class="waitlist-form reveal" style="--d:.24s" novalidate>
+          <form id="waitlist-form" class="waitlist-form reveal" style="--d:.15s" novalidate>
             <div class="waitlist-form__row">
               <label class="sr-only" for="email">Email address</label>
-              <input id="email" name="email" type="email" class="waitlist-form__input"
-                placeholder="you@example.com" autocomplete="email" required />
+              <input id="email" name="email" type="email" class="waitlist-form__input" placeholder="you@example.com" autocomplete="email" required />
               <input id="company" name="company" type="text" class="hp-field" tabindex="-1" autocomplete="off" />
-              <button type="submit" class="btn" id="waitlist-submit">Join the waitlist</button>
+              <button type="submit" class="btn btn--blue" id="waitlist-submit">Join waitlist</button>
             </div>
             <p id="waitlist-status" class="waitlist-form__status" role="status" aria-live="polite"></p>
           </form>
-          <p class="hero__note">No spam. One email when we open the doors.</p>
         </div>
 
-        <div class="stage reveal" style="--d:.2s" id="stage">
-          <div class="phone phone--a float" data-depth="14"><img src="assets/screen-today-light.webp" alt="ZANO Today screen in light mode showing 2 goals left to unlock" /></div>
-          <div class="phone phone--b float float--2" data-depth="26"><img src="assets/screen-welcome.webp" alt="ZANO welcome screen: Lock it, Earn it, Get it back" /></div>
-          <div class="orb orb--hero" data-depth="40"><img src="assets/buddy.webp" alt="Zano the raccoon buddy" /></div>
-          <span class="chip glass chip--streak">🔥 14 day streak</span>
-          <span class="chip glass chip--unlock">🔓 TikTok unlocked</span>
-          <span class="chip glass chip--lock">🔒 Social locked</span>
+        <div class="stage reveal" style="--d:.1s">
+          <div class="phone float"><img src="assets/screen-today-light.webp" alt="ZANO Today screen: 2 goals to unlock" /></div>
+          <div class="orb"><img src="assets/buddy.webp" alt="Zano the raccoon" /></div>
+          <span class="chip glass chip--a">14 day streak</span>
+          <span class="chip glass chip--b">TikTok unlocked</span>
         </div>
       </div>
     </section>
 
-    <!-- Marquee -->
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee__track">
-        <span class="mq glass">TikTok <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">🏋️ Gym session <b>DONE</b></span>
-        <span class="mq glass">Instagram <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">🥩 150g protein <b>DONE</b></span>
-        <span class="mq glass">YouTube <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">🎯 50 min focus <b>DONE</b></span>
-        <span class="mq glass">X <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">💧 3 L water <b>DONE</b></span>
-        <span class="mq glass">TikTok <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">🏋️ Gym session <b>DONE</b></span>
-        <span class="mq glass">Instagram <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">🥩 150g protein <b>DONE</b></span>
-        <span class="mq glass">YouTube <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">🎯 50 min focus <b>DONE</b></span>
-        <span class="mq glass">X <b>LOCKED</b></span>
-        <span class="mq glass mq--ok">💧 3 L water <b>DONE</b></span>
-      </div>
-    </div>
-
-    <!-- How it works -->
-    <section class="section" id="how">
-      <div class="wrap center">
-        <p class="eyebrow reveal">How it works</p>
-        <h2 class="title reveal">No willpower required.</h2>
-        <p class="lede reveal">Three steps. The only one that takes effort is the one that&rsquo;s good for you.</p>
-
+    <section class="section section--soft" id="how">
+      <div class="wrap">
+        <div class="head reveal">
+          <p class="eyebrow">How it works</p>
+          <h2>Lock it. Earn it. Get it back.</h2>
+        </div>
         <div class="steps">
-          <div class="step glass reveal">
-            <div class="step__n">01</div>
-            <div class="step__icon">🔒</div>
-            <h3>Lock it</h3>
-            <p>Time-wasters go dark the moment you set them. No toggling off when you feel weak.</p>
-          </div>
-          <div class="step glass reveal" style="--d:.12s">
-            <div class="step__n">02</div>
-            <div class="step__icon">💪</div>
-            <h3>Earn it</h3>
-            <p>Gym, focus, protein, water. Verified with geofence, HealthKit, NFC or a photo &mdash; not an honor system.</p>
-          </div>
-          <div class="step glass reveal" style="--d:.24s">
-            <div class="step__n">03</div>
-            <div class="step__icon">🔓</div>
-            <h3>Get it back</h3>
-            <p>Apps open the second you&rsquo;re done. Instantly, even offline.</p>
-          </div>
+          <div class="step reveal"><span class="step__n">1</span><h3>Lock it</h3><p>Pick the apps that waste your time.</p></div>
+          <div class="step reveal" style="--d:.1s"><span class="step__n">2</span><h3>Earn it</h3><p>Train, focus, eat protein, drink water.</p></div>
+          <div class="step reveal" style="--d:.2s"><span class="step__n">3</span><h3>Get it back</h3><p>Apps open the moment you finish.</p></div>
         </div>
       </div>
     </section>
 
-    <!-- Today screen feature -->
-    <section class="section" style="padding-top:20px">
-      <div class="wrap feature">
-        <div class="feature__text">
-          <p class="eyebrow reveal">Today</p>
-          <h2 class="title reveal">One number. <br />Two goals left.</h2>
-          <p class="lede reveal">Open ZANO and you instantly know what stands between you and your apps. Light, dark, whichever matches your mood.</p>
-          <ul class="ticks">
-            <li class="glass reveal"><span>🎯</span> See exactly what&rsquo;s left to unlock</li>
-            <li class="glass reveal" style="--d:.1s"><span>⚡</span> Log in one tap from a widget, NFC tag or Siri</li>
-            <li class="glass reveal" style="--d:.2s"><span>🌗</span> Gorgeous in light and dark</li>
-          </ul>
-        </div>
-        <div class="feature__art reveal" style="--glow:#cfe0ff">
-          <div class="phone float tilt"><img src="assets/screen-today-dark.webp" alt="ZANO Today screen in dark mode" loading="lazy" /></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Goals bento -->
-    <section class="section" id="goals">
+    <section class="section">
       <div class="wrap">
-        <div class="center">
-          <p class="eyebrow reveal">Goals</p>
-          <h2 class="title reveal">Earn it your way.</h2>
-          <p class="lede reveal">Every goal is additive. We&rsquo;ll never ask you to eat less &mdash; only to do more of what moves you forward.</p>
+        <div class="head reveal">
+          <p class="eyebrow">The app</p>
+          <h2>Simple to open daily.</h2>
         </div>
-        <div class="bento">
-          <article class="tile glass tile--gym reveal">
-            <span class="tile__emoji">🏋️</span>
-            <h3>Gym session</h3>
-            <p>Walk into your gym, train 45 minutes, done. Geofence + HealthKit verify it for real.</p>
-            <div class="bar"><i style="--w:0%; --fill:#8fd01f"></i></div>
-          </article>
-          <article class="tile glass tile--protein reveal" style="--d:.1s">
-            <span class="tile__emoji">🥩</span>
-            <h3>Protein</h3>
-            <p>Tap +25g from a widget after every meal. Hit 150g and you&rsquo;re through.</p>
-            <div class="bar"><i style="--w:48%; --fill:var(--orange)"></i></div>
-          </article>
-          <article class="tile glass tile--focus reveal">
-            <span class="tile__emoji">🎯</span>
-            <h3>Focus</h3>
-            <p>Deep-work blocks that count.</p>
-            <div class="bar"><i style="--w:50%; --fill:var(--purple)"></i></div>
-          </article>
-          <article class="tile glass tile--water reveal" style="--d:.1s">
-            <span class="tile__emoji">💧</span>
-            <h3>Water</h3>
-            <p>Sip to unlock. 3 L a day.</p>
-            <div class="bar"><i style="--w:50%; --fill:var(--cyan)"></i></div>
-          </article>
-          <article class="tile glass tile--nfc reveal" style="--d:.2s">
-            <span class="tile__emoji">📡</span>
-            <h3>NFC tags</h3>
-            <p>Tap your phone on the fridge, gym bag or bottle. Logged.</p>
-            <div class="bar"><i style="--w:100%; --fill:var(--blue)"></i></div>
-          </article>
+        <div class="shots">
+          <figure class="reveal"><div class="phone"><img src="assets/screen-welcome.webp" alt="Welcome screen" loading="lazy" /></div><figcaption>Welcome</figcaption></figure>
+          <figure class="reveal" style="--d:.08s"><div class="phone"><img src="assets/screen-today-dark.webp" alt="Today screen, dark" loading="lazy" /></div><figcaption>Today</figcaption></figure>
+          <figure class="reveal" style="--d:.16s"><div class="phone"><img src="assets/screen-streak.webp" alt="30 day streak card" loading="lazy" /></div><figcaption>Streaks</figcaption></figure>
+          <figure class="reveal" style="--d:.24s"><div class="phone"><img src="assets/screen-settings.webp" alt="Settings screen" loading="lazy" /></div><figcaption>Setup</figcaption></figure>
         </div>
       </div>
     </section>
 
-    <!-- Buddy -->
-    <section class="section" id="buddy">
-      <div class="wrap feature feature--flip">
-        <div class="feature__text">
-          <p class="eyebrow reveal">Meet your buddy</p>
-          <h2 class="title reveal">A raccoon that<br />keeps you honest.</h2>
-          <p class="lede reveal">Your buddy levels up when you do. It cheers when you hit a goal, nudges when you slip, and talks in whatever voice you pick: Hype, Tough Love, Chill, or Data.</p>
-          <ul class="ticks">
-            <li class="glass reveal"><span>🎤</span> Four coach voices, one raccoon</li>
-            <li class="glass reveal" style="--d:.1s"><span>📈</span> Levels up with your streak</li>
-            <li class="glass reveal" style="--d:.2s"><span>🎁</span> Collect and stash new looks</li>
-          </ul>
+    <section class="section section--soft">
+      <div class="wrap">
+        <div class="head reveal">
+          <p class="eyebrow">Goals</p>
+          <h2>Four ways to earn.</h2>
         </div>
-        <div class="feature__art reveal" style="--glow:#e3d4ff">
+        <div class="goals">
+          <div class="goal reveal"><b>Gym</b><span>45 min, verified</span><div class="bar"><i style="--w:30%"></i></div></div>
+          <div class="goal reveal" style="--d:.08s"><b>Protein</b><span>150g a day</span><div class="bar"><i style="--w:48%"></i></div></div>
+          <div class="goal reveal" style="--d:.16s"><b>Focus</b><span>50 min blocks</span><div class="bar"><i style="--w:50%"></i></div></div>
+          <div class="goal reveal" style="--d:.24s"><b>Water</b><span>3 L a day</span><div class="bar"><i style="--w:50%"></i></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap buddy">
+        <div class="buddy__art reveal">
           <div class="orb orb--lg" id="buddyOrb"><img src="assets/buddy.webp" alt="Zano the raccoon" loading="lazy" /></div>
-          <div class="bubble" id="bubble" style="top:80px; right:6%">Let&rsquo;s go! 💪</div>
-          <span class="chip glass" style="position:absolute; bottom:90px; left:8%; animation:bob 5s ease-in-out infinite">⚡ Lv 5</span>
-          <span class="chip glass" style="position:absolute; bottom:60px; right:8%; animation:bob 6s ease-in-out infinite 1s">🔋 72%</span>
+          <div class="bubble" id="bubble">Let&rsquo;s go!</div>
+        </div>
+        <div class="reveal">
+          <p class="eyebrow">Your buddy</p>
+          <h2>A raccoon in your corner.</h2>
+          <p class="lede">It levels up when you do, and cheers you on in the voice you pick.</p>
         </div>
       </div>
     </section>
 
-    <!-- Streak -->
-    <section class="section streak">
+    <section class="section section--soft cta" id="join">
       <div class="wrap">
-        <p class="eyebrow reveal">Streaks</p>
-        <div class="streak__num reveal" id="streakNum" data-to="30">0</div>
-        <h2 class="title reveal">day streak. You&rsquo;re on fire.</h2>
-        <p class="lede reveal" style="margin-inline:auto">Hit a milestone and ZANO builds you a shareable card. Show them.</p>
-        <div class="streak__row">
-          <div class="phone float" style="width:240px" data-depth="12"><img src="assets/screen-streak.webp" alt="ZANO 30 day streak milestone card" loading="lazy" /></div>
-          <div class="orb orb--sm" data-depth="30"><img src="assets/buddy.webp" alt="" loading="lazy" /></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Screens -->
-    <section class="section" id="screens">
-      <div class="wrap center">
-        <p class="eyebrow reveal">Inside the app</p>
-        <h2 class="title reveal">Built to be opened daily.</h2>
-        <p class="lede reveal">Calm, fast, and a little bit playful.</p>
-        <div class="gallery">
-          <figure class="reveal"><div class="phone float tilt"><img src="assets/screen-welcome.webp" alt="Welcome screen" loading="lazy" /></div><figcaption>Lock it. Earn it. Get it back.</figcaption></figure>
-          <figure class="reveal" style="--d:.1s"><div class="phone float float--2 tilt"><img src="assets/screen-today-light.webp" alt="Today, light" loading="lazy" /></div><figcaption>Today, light</figcaption></figure>
-          <figure class="reveal" style="--d:.2s"><div class="phone float tilt"><img src="assets/screen-today-dark.webp" alt="Today, dark" loading="lazy" /></div><figcaption>Today, dark</figcaption></figure>
-          <figure class="reveal" style="--d:.3s"><div class="phone float float--2 tilt"><img src="assets/screen-settings.webp" alt="Settings" loading="lazy" /></div><figcaption>Your setup</figcaption></figure>
-        </div>
-      </div>
-    </section>
-
-    <!-- What it isn't -->
-    <section class="section" style="padding-top:20px">
-      <div class="wrap">
-        <div class="center">
-          <p class="eyebrow reveal">Promises</p>
-          <h2 class="title reveal">What ZANO isn&rsquo;t.</h2>
-        </div>
-        <div class="nots">
-          <div class="not glass reveal"><span style="font-size:2rem">🚫</span><b>Not a calorie counter</b><p>Never restrictive goals. Only additive ones.</p></div>
-          <div class="not glass reveal" style="--d:.1s"><span style="font-size:2rem">🚪</span><b>Not a prison</b><p>Emergency unlock always exists. Calls always work.</p></div>
-          <div class="not glass reveal" style="--d:.2s"><span style="font-size:2rem">🤖</span><b>Not a chatbot</b><p>It just knows you. Local-first, instant, offline.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA -->
-    <section class="section" id="join" style="padding-top:150px">
-      <div class="wrap">
-        <div class="cta__card glass reveal">
-          <div class="orb orb--lg"><img src="assets/buddy.webp" alt="Zano the raccoon" loading="lazy" /></div>
-          <h2 class="title">Be first in when<br />we open the doors.</h2>
-          <p class="lede">We&rsquo;re building in public. Join the waitlist, then get the invite.</p>
-          <p style="margin-top:28px"><a href="#waitlist-form" class="btn" id="cta-btn">Join the waitlist ↑</a></p>
-        </div>
+        <div class="orb orb--lg reveal"><img src="assets/buddy.webp" alt="" loading="lazy" /></div>
+        <h2 class="reveal">Get early access.</h2>
+        <p class="lede reveal">One email when we open the doors.</p>
+        <p class="reveal"><a href="#waitlist-form" class="btn btn--blue" id="cta-btn">Join the waitlist</a></p>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    <div class="wrap footer__inner">
-      <span>&copy; <span id="year"></span> ZANO</span>
-      <span>Locked in. 🔒</span>
-    </div>
+    <div class="wrap"><span>&copy; <span id="year"></span> ZANO</span><span>Locked in.</span></div>
   </footer>
 
   <script>
-    // ---- fun stuff: no deps ----
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    // reveal on scroll (+ bar fills)
     const io = new IntersectionObserver((es) => es.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }), { threshold: 0.15 });
+    }), { threshold: 0.12 });
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    document.querySelectorAll(".bar").forEach((el) => io.observe(el.closest(".goal")));
 
-    // rotating headline word
-    const words = ["flip that.", "fix that.", "earn it.", "win the day."];
-    const swap = document.getElementById("swap");
-    let wi = 0;
-    if (!reduce) setInterval(() => {
-      swap.classList.add("is-out");
-      setTimeout(() => { wi = (wi + 1) % words.length; swap.textContent = words[wi]; swap.classList.remove("is-out"); }, 300);
-    }, 2600);
-
-    // streak counter
-    const sn = document.getElementById("streakNum");
-    new IntersectionObserver(([e], o) => {
-      if (!e.isIntersecting) return;
-      o.disconnect();
-      const to = +sn.dataset.to, t0 = performance.now();
-      const tick = (t) => {
-        const p = Math.min(1, (t - t0) / 1600);
-        sn.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
-        if (p < 1) requestAnimationFrame(tick);
-      };
-      reduce ? (sn.textContent = to) : requestAnimationFrame(tick);
-    }, { threshold: 0.5 }).observe(sn);
-
-    // buddy bubble cycles coach voices; click to cheer
-    const lines = ["Let's go! 💪", "Gym first. Scroll later.", "Chill. One rep at a time.", "72% battery. 2 goals left.", "Streak: 14. Don't break it."];
-    const bubble = document.getElementById("bubble"), orb = document.getElementById("buddyOrb");
-    let li = 0;
-    const say = () => {
-      li = (li + 1) % lines.length;
-      bubble.textContent = lines[li];
-      bubble.style.animation = "none"; void bubble.offsetWidth; bubble.style.animation = "";
-    };
+    const lines = ["Let’s go!", "Gym first, scroll later.", "One rep at a time.", "2 goals left today."];
+    const bubble = document.getElementById("bubble"); let li = 0;
+    const say = () => { li = (li + 1) % lines.length; bubble.textContent = lines[li]; bubble.style.animation = "none"; void bubble.offsetWidth; bubble.style.animation = ""; };
     if (!reduce) setInterval(say, 3200);
-    orb.style.cursor = "pointer";
-    orb.addEventListener("click", say);
+    document.getElementById("buddyOrb").addEventListener("click", say);
 
-    // pointer parallax + tilt
-    if (!reduce && matchMedia("(hover:hover)").matches) {
-      const px = document.querySelectorAll("[data-depth]");
-      addEventListener("pointermove", (e) => {
-        const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
-        px.forEach((el) => {
-          const d = +el.dataset.depth;
-          el.style.transform = `translate(${x * d}px, ${y * d}px)`;
-        });
-      });
-      document.querySelectorAll(".tilt").forEach((el) => {
-        el.addEventListener("pointermove", (e) => {
-          const r = el.getBoundingClientRect();
-          const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
-          el.style.transform = `perspective(700px) rotateY(${x * 18}deg) rotateX(${-y * 14}deg) scale(1.04)`;
-        });
-        el.addEventListener("pointerleave", () => { el.style.transform = ""; });
-      });
-    }
-
-    // nav lifts on scroll
-    const nav = document.getElementById("nav");
-    addEventListener("scroll", () => { nav.style.transform = `translateX(-50%) translateY(${scrollY > 40 ? -4 : 0}px)`; }, { passive: true });
-
-    // second CTA focuses the form
     document.getElementById("cta-btn").addEventListener("click", () => {
       setTimeout(() => document.getElementById("email").focus({ preventScroll: true }), 600);
     });

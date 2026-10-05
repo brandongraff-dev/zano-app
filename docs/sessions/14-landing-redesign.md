@@ -7,7 +7,7 @@
 
 ## Log
 
-### 2026-10-05 — Light glassmorphic landing page with app screenshots + buddy
+### 2026-10-05 — Simplified plain-white landing page (v2 after feedback: less copy, no gradients)
 
 - **Files touched:** `landing/index.html`, `landing/style.css` (rewritten), `landing/assets/*.webp` (new: 5 app screens + buddy crop)
 - **What changed:** light theme, glass cards/nav, animated blobs, floating phone mockups with pointer parallax/tilt, rotating headline word, LOCKED/DONE marquee, scroll reveals, bento goals with progress bars, streak counter, raccoon buddy in hero/buddy/streak/CTA sections (speech bubble cycles coach voices). Respects `prefers-reduced-motion`.

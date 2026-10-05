@@ -279,7 +279,7 @@ A "Building ZANO" feed card (optional) linking to your content. Founder-led bran
 
 **Chores and homework.** A parent can add tasks for a linked teen (homework, practice, chores) with an optional due time. The teen finishes it and, if the parent wants proof, attaches a photo. The parent approves, and approval can count as a goal that unlocks the teen's apps (the teen's own lock, set up by the teen). The parent always has the final say: an optional on-device AI check may say "this looks like a finished worksheet" but only ever suggests, and a wrong guess never costs the teen anything.
 
-**Privacy.** Proof photos are visible only to the linked family, are deleted after 7 days, are never used for model training, and never leave the account's private storage. Screen Time data stays on the device (§24). The teen can flag any parent decision.
+**Privacy: proof photos are view-once.** A proof photo can be opened one time by the parent, and is deleted for good 10 minutes after it is first opened (sooner if the parent closes it); a photo nobody opens is deleted after 24 hours. It is visible only to the linked family, is never used for model training, and is kept in private storage only until it is deleted. What stays is the answer (approved, not yet, or asked to redo, with a time), never the picture. ZANO cannot stop a screenshot, but it tells the teen when one is taken of their photo. Screen Time data stays on the device (§24). The teen can flag any parent decision.
 
 **Not in scope:** under-13 accounts (§24), parents seeing a teen's app usage, location sharing, messaging.
 

@@ -215,7 +215,7 @@ People aged 13 to 17 use ZANO independently. For every user under 18 we do not s
 profile, do not use behavioural advertising, and do not sell or share personal data. A parent can
 link to a teen's account only if the teen accepts the invitation, the teen can see everything the
 parent sees, and the teen can leave the link at any time. Homework or chore proof photos are visible
-only to the linked family, are deleted after 7 days and are never used to train models.
+only to the linked family, can be opened once and are deleted 10 minutes after they are first opened (or after 24 hours if never opened), and are never used to train models.
 [CONFIRM: counsel review of this section before launch.]
 
 ## 7. No restrictive health framing

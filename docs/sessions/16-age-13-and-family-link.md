@@ -18,5 +18,5 @@
 ## Open items
 
 - **Counsel review is required** before submission: COPPA stays out (no under-13s), but EU countries with a digital-consent age of 14-16 apply the higher local age, and teen data rules (UK Age Appropriate Design Code, US state laws) need a lawyer's read. The App Store Connect age questionnaire has not been checked live.
-- Family Link defaults chosen (change if wrong): teen-consented link, teen sees everything the parent sees, teen can leave (parent is told), proof photos kept 7 days and never used for training, parent has the final say over any AI check.
+- Family Link defaults chosen (change if wrong): teen-consented link, teen sees everything the parent sees, teen can leave (parent is told), proof photos are view-once: deleted 10 minutes after first opened, or 24 hours if never opened (founder, 2026-10-05; replaces the earlier 7 days), and never used for training, parent has the final say over any AI check.
 - Family Link needs Apple's Family Controls entitlement for any enforcement beyond ZANO's own locks, which needs Apple Developer enrollment (not done).

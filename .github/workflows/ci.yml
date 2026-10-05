@@ -13,7 +13,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_tour:
+        description: "Skip the screenshot tour (about 20 minutes): faster build and test feedback"
+        type: boolean
+        default: false
 
 jobs:
   build-and-test:
@@ -103,6 +108,7 @@ jobs:
       # Everything lands in shots/ (screenshots, the app's own log, any crash reports) so a failed
       # launch is diagnosable without a Mac.
       - name: Screenshot tour (iOS Simulator)
+        if: ${{ github.event.inputs.skip_tour != 'true' }}
         id: shots
         if: always() && steps.build.outcome == 'success'
         continue-on-error: true

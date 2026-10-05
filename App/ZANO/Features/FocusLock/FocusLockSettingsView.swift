@@ -258,9 +258,8 @@ struct FocusLockSettingsView: View {
                     return
                 }
                 Task {
-                    let granted = FocusLockCalendarSource.hasAccess
-                        ? true
-                        : await FocusLockCalendarSource.shared.requestAccess()
+                    var granted = FocusLockCalendarSource.hasAccess
+                    if !granted { granted = await FocusLockCalendarSource.shared.requestAccess() }
                     accessDenied = !granted
                     var next = settings
                     next.isEnabled = granted

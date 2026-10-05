@@ -53,7 +53,7 @@ public final class SleepManager {
         let settings = SleepStore.settings
         guard settings.checkInEnabled, Self.isAskingTime(now) else { return }
         let id = Self.nightID(for: now)
-        var night = SleepStore.night(id: id) ?? SleepNight(id: id, plannedBedtimeMinute: await plannedBedtimeMinute())
+        var night = await existingOrNewNight(id: id)
 
         if night.keptWindDown == nil, let evening = Self.dayFormatter.date(from: id) {
             let bedtime = Calendar.current.date(
@@ -69,6 +69,12 @@ public final class SleepManager {
             night.asleepMinute = reading.onsetMinuteOfDay
         }
         SleepStore.upsert(night)
+    }
+
+    /// The stored record for `id`, or a fresh one planned at the current bedtime.
+    private func existingOrNewNight(id: String) async -> SleepNight {
+        if let existing = SleepStore.night(id: id) { return existing }
+        return SleepNight(id: id, plannedBedtimeMinute: await plannedBedtimeMinute())
     }
 
     private func plannedBedtimeMinute() async -> Int {
@@ -91,7 +97,7 @@ public final class SleepManager {
     public func submitRating(_ rating: Int, now: Date = .now) async {
         guard (1...5).contains(rating) else { return }
         let id = Self.nightID(for: now)
-        var night = SleepStore.night(id: id) ?? SleepNight(id: id, plannedBedtimeMinute: await plannedBedtimeMinute())
+        var night = await existingOrNewNight(id: id)
         night.rating = rating
         SleepStore.upsert(night)
     }

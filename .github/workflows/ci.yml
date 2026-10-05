@@ -82,6 +82,8 @@ jobs:
       - name: Run Core unit tests (iOS Simulator)
         id: tests
         if: always()
+        # A hung test must end the step (and let the logs upload) instead of eating the whole job.
+        timeout-minutes: 15
         working-directory: Core
         run: |
           set -o pipefail

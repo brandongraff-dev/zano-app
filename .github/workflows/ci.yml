@@ -143,13 +143,7 @@ jobs:
           sim io "$SIM_ID" screenshot shots/00-plain-launch.png
           # One launch per screen: -ZANOScreen <name> is read by ScreenshotGallery.swift, which seeds
           # demo data and renders that screen through the real code paths.
-          SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7 onboarding-8
-                   buddy-picker paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
-                   locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing wake-moment sun-moods
-                   celebration lockedout recap
-                   gym-setup gym-checkin nfc-tags lock-card goals-editor lock-schedule earn-settings
-                   tier-editor nudge-settings health-pause solo-duel squad-create referral
-                   gym-leaderboard autofocus milestone monthly-story"
+          SCREENS="alarm-ringing wake-moment sun-moods sunrise-setup bedtime-setup"
           for SCREEN in $SCREENS; do
             sim terminate "$SIM_ID" com.zano.app 2>/dev/null || true
             sim launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"
@@ -175,7 +169,7 @@ jobs:
             sim boot "$SE_ID" || true
             sim bootstatus "$SE_ID" -b
             sim install "$SE_ID" "$APP"
-            for SCREEN in tab-today tab-lock tab-fuel tab-progress onboarding-1 onboarding-2 onboarding-4 onboarding-6 onboarding-7 alarm-ringing; do
+            for SCREEN in alarm-ringing; do
               sim terminate "$SE_ID" com.zano.app 2>/dev/null || true
               sim launch "$SE_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "SE LAUNCH FAILED: $SCREEN"
               sleep 5

@@ -107,6 +107,8 @@ struct ContentView: View {
         await LockScheduler.shared.reconcile()
         // Re-plan calendar focus locks against the next two days (no-op unless turned on).
         FocusLockScheduler.shared.refresh()
+        // Keep the unlock rules' wake-ups registered (cheap; they can be lost after a restore).
+        ContextRuleScheduler.shared.sync()
         // Last known location only (never prompts): feeds travel-mode city detection.
         await TravelMode.shared.sampleLastKnownLocation()
         // Replan today's reminders against current progress, prefs and pause state.

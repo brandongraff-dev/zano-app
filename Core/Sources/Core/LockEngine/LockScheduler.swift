@@ -153,6 +153,11 @@ public struct LockSchedule: Codable, Sendable, Hashable {
         }
     }
 
+    /// Minutes after midnight for a time picker's date (the editors in the app can't reach the internal helper).
+    public static func minuteOfDayForUI(_ date: Date, calendar: Calendar = .current) -> Int {
+        minuteOfDay(date, calendar: calendar)
+    }
+
     static func minuteOfDay(_ date: Date, calendar: Calendar) -> Int {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
@@ -469,6 +474,10 @@ public enum ScheduledLockMonitor {
     /// A scheduled window (or the Bedtime Gate's nightly schedule) started.
     public static func intervalDidStart(for activity: DeviceActivityName, now: Date = .now) {
         let raw = activity.rawValue
+        if ContextRuleActivity.isContextActivity(raw) {
+            contextRulesBoundary(now: now)
+            return
+        }
         defer { LockEngineSharedState.refreshNextScheduledLockAt(now: now) }
         // Spec §24: no scheduled or bedtime lock starts during a health pause.
         guard !HealthPause.isActive else { return }
@@ -527,6 +536,10 @@ public enum ScheduledLockMonitor {
     /// A window ended. Scheduled locks end with it; Earn Mode spend windows re-shield.
     public static func intervalDidEnd(for activity: DeviceActivityName, now: Date = .now) {
         let raw = activity.rawValue
+        if ContextRuleActivity.isContextActivity(raw) {
+            contextRulesBoundary(now: now)
+            return
+        }
         if raw == LockScheduleActivity.spendRawName {
             spendWindowDidEnd(now: now)
             return
@@ -549,6 +562,19 @@ public enum ScheduledLockMonitor {
     public static func intervalWillEndWarning(for activity: DeviceActivityName, now: Date = .now) {
         guard activity.rawValue == LockScheduleActivity.spendRawName else { return }
         spendWindowDidEnd(now: now)
+    }
+
+    /// A context rule (spec §5.26) started or ended: if a lock is running (or the monitor just armed
+    /// one), shield again with the rules as they are now, so the rule's apps open or close on time. Not
+    /// during a Time Bank window, which re-shields by itself when it ends.
+    static func contextRulesBoundary(now: Date) {
+        let lockRunning = SharedDefaults.activeLockSessionID != nil || LockEngineSharedState.pendingStart != nil
+        guard lockRunning else { return }
+        if let window = LockEngineSharedState.spendWindow, window.endsAt > now { return }
+        guard let blob = LockEngineSharedState.intendedShieldSelection,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: blob)
+        else { return }
+        ManagedSettingsStore(named: .zanoLock).applyZanoShield(selection, now: now)
     }
 
     // MARK: Internals

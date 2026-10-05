@@ -427,6 +427,17 @@ struct SettingsView: View {
                 SettingsRowDivider()
 
                 SettingsNavRow(
+                    Copy.contextRules.rowLabel,
+                    systemImage: "lock.open.rotation",
+                    tint: SettingsPalette.lockSets,
+                    value: ContextRuleStore.rules.isEmpty ? nil : "\(ContextRuleStore.rules.count)"
+                ) {
+                    ContextRulesView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
                     Copy.settings.gymSetupRowLabel,
                     systemImage: "dumbbell.fill",
                     tint: SettingsPalette.gym,

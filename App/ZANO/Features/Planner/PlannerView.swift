@@ -290,9 +290,6 @@ struct PlannerView: View {
 
     private func taskRow(_ task: PlannerTask, showsDate: Bool) -> some View {
         HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            if task.hasTime, let due = task.due, !showsDate {
-                timeColumn(start: due, end: nil)
-            }
             Button { toggle(task) } label: {
                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 24))
@@ -313,6 +310,11 @@ struct PlannerView: View {
                         Text(due.formatted(.dateTime.month(.abbreviated).day()))
                             .font(Theme.Typography.caption)
                             .foregroundStyle(Theme.Colors.danger)
+                    } else if task.hasTime, let due = task.due {
+                        // Tasks keep their checkbox at the left edge like Reminders; the time sits under the title.
+                        Text(due.formatted(date: .omitted, time: .shortened))
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.muted)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

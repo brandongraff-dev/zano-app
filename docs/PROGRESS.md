@@ -68,6 +68,7 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 23 | Family Link: parent tasks, view-once photo proof | `claude/quirky-wozniak-bf8h1v` | §5.23, §24 | Compiles + tests pass in CI (run 105). Not live: no Supabase project/Auth wired, no Apple enrollment; screen shows not-available | 2026-10-05 | [23-family-link.md](sessions/23-family-link.md) |
 | 24 | Buddy faces on Today goal tiles; focus-lock question card on Today | `claude/quirky-wozniak-bf8h1v` | §5.17, §5.24 | Compiles + Core tests pass in CI (run 112). Look in the Simulator unchecked | 2026-10-06 | [24-buddy-faces-focus-ask.md](sessions/24-buddy-faces-focus-ask.md) |
 | 25 | Focus break coach (Pomodoro-style rest nudge after focus blocks) | `claude/quirky-wozniak-bf8h1v` | §5.29 | Compiles + Core tests pass in CI (run 112). Look in the Simulator unchecked | 2026-10-06 | [25-break-coach.md](sessions/25-break-coach.md) |
+| 26 | Launch prep: privacy/permission text fixes, hide unfinished features, Supabase setup guide, final checklist | `claude/quirky-wozniak-bf8h1v` | §24, launch docs | Scaffolded — Unverified. Code edits awaiting CI; geofence without background location needs a device | 2026-10-06 | [26-launch-prep.md](sessions/26-launch-prep.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.

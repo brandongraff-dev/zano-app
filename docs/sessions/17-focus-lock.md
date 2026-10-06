@@ -18,7 +18,7 @@ Feature #1 of the founder's list (2026-10-05): lock distracting apps during cale
 - **Decisions:** reuse the existing schedule monitor and hand-off instead of a second lock path; trigger recorded as `.schedule` (no database change); ask-first by default so the feature can't surprise anyone; calendar permission is requested only from the Settings switch (the Info.plist usage string was already present).
 - **Known issues / not done:**
   - No background refresh: a meeting added while the app is closed is picked up next time the app opens.
-  - The "ask" questions only appear inside Settings > Focus lock; there is no Today card or notification yet.
+  - The "ask" questions appear inside Settings > Focus lock and (session 24) as a card on Today; there is no notification yet.
   - DeviceActivity's 20-activity cap is unverified; the feature uses at most 8.
   - One-off schedules with full dates, `EKEvent.availability`/`attendees`/`isCurrentUser` are written from memory of the API.
   - The lock tab and Live Activity still say "0 goals" in places; only the Today status line was changed.

@@ -231,6 +231,8 @@ struct TodayView: View {
                     BuddyTipCard()
                     // Mornings only, and only when the sleep check-in is on (draws nothing otherwise).
                     SleepCheckInCard()
+                    // Only while the work-hours focus lock has a question about an upcoming meeting.
+                    FocusLockAskCard()
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist

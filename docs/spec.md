@@ -266,6 +266,17 @@ Complication with rings; start focus/lock from the wrist; workout detection is m
 ### 5.22 Founder Series Inside the App
 A "Building ZANO" feed card (optional) linking to your content. Founder-led brands win; make the founder visible without being annoying.
 
+### 5.23 Mindful Pass (pause before opening) — parity with One Sec / ScreenZen
+Competitors win on *gentle friction*: instead of a hard block, a short pause makes you decide.
+ZANO keeps goals as the primary unlock, but a lock set can opt into a **Mindful Pass**:
+- The user taps through to a pause screen (breathing circle + countdown). Pause length escalates with each pass already used today (10s → 15s → … capped at 45s) so the 5th open of the day is slower than the 1st.
+- After the pause, the user may continue: the shield for that selection is lifted for a short pass (default **15 min** — DeviceActivity's minimum interval, §27) and re-applied automatically.
+- **Daily cap** (default 5 passes). Past the cap the normal shield returns (goals / emergency).
+- Opt-in per lock set; off by default for lock sets with required goals. Passes never count as verified goals, never deposit Time Bank minutes, never affect the streak.
+- Safety: does not replace or weaken Emergency Unlock (§24); emergency stays available at all times.
+- Shield buttons cannot open the app (§27), so the pause screen is reached via the existing notification → `zano://pause` deep link.
+- Logic lives in `Core/Sources/Core/LockEngine/MindfulPass.swift` (pure, unit-tested); wiring (shield button, ManagedSettings lift, re-shield via `ZANOMonitor`) is a follow-up and needs a device.
+
 ---
 
 ## 6. Widgets, Controls, Live Activities, NFC, Siri

@@ -266,10 +266,10 @@ struct AlarmRingingView: View {
             // without the line reaching the screen edges.
             HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
                 Text(clockParts.digits)
-                    .font(Theme.Typography.score(size: isCompact ? clockSize * 0.8 : clockSize))
+                    .font(Self.clockFont(isCompact ? clockSize * 0.8 : clockSize))
                 if let period = clockParts.period {
                     Text(period)
-                        .font(Theme.Typography.score(size: (isCompact ? clockSize * 0.8 : clockSize) * 0.38))
+                        .font(Self.clockFont((isCompact ? clockSize * 0.8 : clockSize) * 0.38))
                         .foregroundStyle(Theme.Colors.muted)
                 }
             }
@@ -351,6 +351,13 @@ struct AlarmRingingView: View {
         .padding(.vertical, Theme.Spacing.xs)
         .background(phase.tint, in: Capsule())
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: phase)
+    }
+
+    /// The score face without `Theme.Typography.score`'s fixed-width digits. That face gives every
+    /// digit the width of the widest one, so a "1" got a full-width slot and "11:39" read as "1 1:39".
+    /// The clock only changes once a minute, so proportional digits cost nothing here.
+    private static func clockFont(_ size: CGFloat) -> Font {
+        .system(size: size, weight: .black).width(.expanded)
     }
 
     /// The time as digits plus, on a 12-hour clock, a separate "AM"/"PM".

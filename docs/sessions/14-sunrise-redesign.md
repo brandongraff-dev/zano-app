@@ -81,6 +81,15 @@ escape hatch, VoiceOver actions, escalation phases, pulse loop and haptics are u
   where the file must live or its format limits; assumed main bundle, same as notification sounds. AlarmKit
   `stopIntent` default was not confirmed, so the backup passes the same intent the main alarm does. Neither
   has run on an iOS 26 device.
+### 2026-10-06 — clock spacing and the always-visible time wheel
+
+- **Files touched:** `AlarmRingingView.swift`, `SunriseAlarmSetupView.swift`
+- **What changed:** the ringing clock uses its own proportional-digit copy of the score font
+  (`Theme.Typography.score` forces fixed-width digits, which gave "11:39" a full-width slot for each
+  "1"). The Sunrise setup screen now shows the time wheel straight away, like the Clock app's editor,
+  with the label and the sleeping sun on one row above it; the bedtime card keeps tap-to-reveal.
+- **Needs verification on:** Simulator screenshots (`alarm-ringing`, `sunrise-setup`).
+
 - **Known issues / TODOs left behind:**
   - Pending: collapse the tag help / troubleshooting on the setup screen; Save bar still lets text
     show behind it (Core `StickyActionBar`, not touched); a mood for the snooze moment itself (the cover

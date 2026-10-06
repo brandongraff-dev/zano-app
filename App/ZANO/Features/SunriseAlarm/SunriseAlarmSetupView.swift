@@ -102,7 +102,8 @@ struct SunriseAlarmSetupView: View {
                     tint: TimeOfDay().tint,
                     label: Copy.sunriseAlarm.wakeTimeLabel,
                     time: $settings.wakeTime,
-                    art: .sun
+                    art: .sun,
+                    alwaysShowsPicker: true
                 )
 
                 // Repeat, Sound and the backup alarm, laid out like the Clock app's alarm editor.
@@ -757,6 +758,9 @@ struct SleepTimeCard: View {
     private let tint: Color
     private let label: String
     private let art: Art
+    /// The Clock app's editor shows the wheel straight away; the bedtime card keeps the big numeral
+    /// and reveals the wheel on tap.
+    private let alwaysShowsPicker: Bool
     @Binding private var time: Date
 
     @State private var isEditing = false
@@ -766,15 +770,63 @@ struct SleepTimeCard: View {
     /// Hero time size; scales with Dynamic Type (Theme has no numeral step this large yet).
     @ScaledMetric(relativeTo: .largeTitle) private var timeSize: CGFloat = 64
 
-    init(systemImage: String, tint: Color, label: String, time: Binding<Date>, art: Art = .none) {
+    init(
+        systemImage: String,
+        tint: Color,
+        label: String,
+        time: Binding<Date>,
+        art: Art = .none,
+        alwaysShowsPicker: Bool = false
+    ) {
         self.systemImage = systemImage
         self.tint = tint
         self.label = label
         self.art = art
+        self.alwaysShowsPicker = alwaysShowsPicker
         self._time = time
     }
 
     var body: some View {
+        if alwaysShowsPicker {
+            pickerCard
+        } else {
+            tapToEditCard
+        }
+    }
+
+    /// The Clock-style card: the label and the sleeping sun on one row, the time wheel under them.
+    private var pickerCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            HStack(spacing: Theme.Spacing.xs) {
+                IconBadge(systemName: systemImage, tint: tint, size: .small)
+
+                Text(label)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.muted)
+
+                Spacer(minLength: Theme.Spacing.sm)
+
+                if art == .sun {
+                    SunCharacter(mood: .asleep, pulse: breathe, animated: !reduceMotion)
+                        .frame(width: 52, height: 52)
+                }
+            }
+
+            DatePicker(label, selection: $time, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoHero(tint: tint)
+        .onAppear {
+            guard art == .sun, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { breathe = true }
+        }
+    }
+
+    private var tapToEditCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Button {
                 withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {

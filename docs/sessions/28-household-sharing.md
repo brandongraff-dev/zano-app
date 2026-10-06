@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.31 (new), §5.30 (Planner), §5.23 (Family Link, kept separate)
-- **Status:** Scaffolded — Unverified (not yet compiled in CI). Household is built but hidden and cannot run: needs the Supabase project and sign-in
+- **Status:** Compiles + Core unit tests pass in CI (run 124, 2026-10-06). Household cannot run: needs the Supabase project and sign-in
 - **Started / Last updated:** 2026-10-06
 
 ## Log

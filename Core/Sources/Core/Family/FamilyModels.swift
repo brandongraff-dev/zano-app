@@ -84,6 +84,12 @@ public struct FamilyProofRecord: Codable, Sendable, Identifiable, Equatable {
 
 // MARK: - JSON
 
+/// Whether this build shows Family Link at all. `false` until the Supabase project is live and sign-in is
+/// wired (`docs/launch/supabase-setup.md`, step 9), so a reviewer never meets a feature that does nothing.
+public enum FamilyLinkAvailability {
+    public static let isLive = false
+}
+
 public enum FamilyJSON {
     /// Postgres sends `2026-10-05T22:00:00.123456+00:00`; the stock `.iso8601` strategy rejects the
     /// fractional seconds, so try both shapes.

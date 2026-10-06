@@ -435,14 +435,16 @@ struct SettingsView: View {
                     ContextRulesView()
                 }
 
-                SettingsRowDivider()
+                if FamilyLinkAvailability.isLive {
+                    SettingsRowDivider()
 
-                SettingsNavRow(
-                    Copy.family.rowLabel,
-                    systemImage: "person.2.fill",
-                    tint: SettingsPalette.goals
-                ) {
-                    FamilyLinkView()
+                    SettingsNavRow(
+                        Copy.family.rowLabel,
+                        systemImage: "person.2.fill",
+                        tint: SettingsPalette.goals
+                    ) {
+                        FamilyLinkView()
+                    }
                 }
 
                 SettingsRowDivider()

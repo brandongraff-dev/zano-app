@@ -11,7 +11,7 @@ extension Copy {
         public static let rowLabel = "Family Link"
         public static let screenTitle = "Family Link"
         public static let intro = "A parent can set tasks, like homework, and a teen hands them in. It is optional, and the teen has to say yes."
-        public static let notAvailable = "Family Link isn't switched on yet. It needs an account, which is coming."
+        public static let notAvailable = "Family Link isn't available right now."
 
         // Choosing a side
         public static let imParent = "I'm a parent"

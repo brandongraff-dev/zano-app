@@ -201,7 +201,7 @@ extension Copy.fuel {
         public static let manualCaption = "Protein in this meal"
         public static let lowConfidenceNudge = "Rough estimate — adjust it if it looks off."
         public static let noFoodFoundNote = "Couldn't make out the food clearly. Add the protein yourself."
-        public static let notConfiguredNote = "Photo estimates are coming soon. Add the protein yourself for now."
+        public static let notConfiguredNote = "Photo estimates aren't available right now. Add the protein yourself."
         public static let offlineNote = "You're offline, so no estimate this time. Add the protein yourself."
         public static let estimateFailedNote = "Couldn't get an estimate right now. Add the protein yourself."
         public static let stepperAccessibilityLabel = "Protein"
@@ -224,7 +224,7 @@ extension Copy.fuel {
         public static let mealPrepConfirmedTitle = "Meal prep logged"
         public static let mealPrepConfirmedMessage = "This week's prep is done. Future you says thanks."
         public static let mealPrepHonorTitle = "Logged on your honor"
-        public static let mealPrepHonorMessage = "This week's prep is in. Photo checks are coming soon."
+        public static let mealPrepHonorMessage = "This week's prep is in. Photo checks aren't available right now."
         public static let mealPrepRejectedTitle = "Couldn't count that one yet"
         public static let mealPrepRejectedMessage =
             "We need to see a few containers in one shot. Try another angle."

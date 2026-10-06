@@ -88,11 +88,18 @@ struct ZanoGlass<S: Shape>: ViewModifier {
     let shape: S
 
     func body(content: Content) -> some View {
+        // `glassEffect` exists only in the iOS 26 SDK (Swift 6.2 / Xcode 26). CI's Xcode is older,
+        // so the call is compiled out there and every build gets the material — the same
+        // compile-time guard the AlarmKit code uses (`#if canImport(AlarmKit)`).
+        #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             content.glassEffect(.regular, in: shape)
         } else {
             content.background(.ultraThinMaterial, in: shape)
         }
+        #else
+        content.background(.ultraThinMaterial, in: shape)
+        #endif
     }
 }
 

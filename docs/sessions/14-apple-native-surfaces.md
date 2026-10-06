@@ -138,3 +138,10 @@ redo is split into three steps:
   Simulator (the CI screenshots are static). Screen1Hook's unlock beat still waits a fixed 0.6s,
   while the spring reaches visually full at about 0.6–0.7s and settles a little later.
 - **Needs verification on:** CI build, then Simulator/device for feel.
+
+### 2026-10-06 — CI round 1 fix
+
+- CI run 37482486400 failed with two errors, both on `glassEffect` in `ZanoSurface.swift`. CI's
+  Xcode predates the iOS 26 SDK. The call is now behind `#if compiler(>=6.2)`, so CI builds always
+  use `.ultraThinMaterial`; Liquid Glass compiles only under Xcode 26. Core failing to compile means
+  App-target errors (if any) surface on the next run.

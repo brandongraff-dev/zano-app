@@ -33,7 +33,7 @@ Requested by the founder (2026-10-05): more emotions for the nine buddies (worki
 - **Decisions:** hats/eyewear/neckwear/back/backdrops are bought once and worn by any buddy; skins are per buddy. A bought item takes its slot from earned gear (`BuddyGear.slot`). Backdrops only show on big sprites (`showsBackdrop`). Prices are placeholders (skins 300-450, wearables 120-450, backdrops 250-300).
 - **Known issues:**
   - Coin income is low for a catalog this size (boss drop 75, bonus drops 25-75). Either prices come down or a coin source is added; that is an economy decision for the founder.
-  - Widgets, the shield and notification images draw the buddy through `Buddy.image(pose:gear:)` and do not wear the outfit yet.
+  - Update 2026-10-06: the shield now wears the outfit (without the backdrop). Home and Lock Screen widgets and the Live Activity already draw `BuddySprite`, which reads the saved outfit from the App Group, so they wear it too (unchecked on a device). Notification images and the watch do not wear it.
   - `CosmeticsShopView` hides the new category chip; the closet is the only way to browse it.
   - Back items clip at the screen edge on the widest buddies (Zib, Moko).
 - **Needs verification on:** CI (compile, `BuddyStyleTests`, the `buddy-closet` screenshot); a device for feel.

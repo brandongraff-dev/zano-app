@@ -11,7 +11,7 @@ import EventKitUI
 
 struct PlannerEventEditor: UIViewControllerRepresentable {
     let day: Date
-    let onFinish: () -> Void
+    let onFinish: @MainActor () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
 
@@ -41,18 +41,19 @@ struct PlannerEventEditor: UIViewControllerRepresentable {
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
     }
 
-    @MainActor
-    final class Coordinator: NSObject, EKEventEditViewDelegate {
+    /// UIKit calls the delegate on the main thread, but `EKEventEditViewDelegate` isn't main-actor
+    /// isolated, so the method is `nonisolated` and hops to the main actor itself.
+    final class Coordinator: NSObject, EKEventEditViewDelegate, @unchecked Sendable {
         /// Kept here so the event's store outlives the editor's setup.
         let store = EKEventStore()
-        let onFinish: () -> Void
+        private let onFinish: @MainActor () -> Void
 
-        init(onFinish: @escaping () -> Void) {
+        init(onFinish: @escaping @MainActor () -> Void) {
             self.onFinish = onFinish
         }
 
-        func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
-            onFinish()
+        nonisolated func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
+            MainActor.assumeIsolated { onFinish() }
         }
     }
 }

@@ -1,8 +1,8 @@
 // RevenueCatManager.swift
 // Core / Monetization
 //
-// docs/spec.md §21 (Monetization & Paywall): Free/Pro tiers, price tests (monthly $6.99, annual
-// $39.99 highlighted, lifetime $59.99 test-only), a 7-day trial with a pre-expiry reminder, and
+// docs/spec.md §21 (Monetization & Paywall): hard paywall, plans (annual $39.99 highlighted,
+// family annual $69.99, monthly $6.99, lifetime $59.99 test-only), a 7-day trial with a pre-expiry reminder, and
 // the hard rule "Never sell: unlocks, streak restores, or anything that lets money bypass the
 // goal." This file is the **only** place in ZANO that talks to the RevenueCat SDK —
 // `PaywallViewModel` (this same directory) and every other call site go through

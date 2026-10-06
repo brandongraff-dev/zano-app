@@ -318,7 +318,7 @@ Target: 10–14 screens, under 3 minutes, paywall at peak motivation. Every scre
 9. **Wake-up moment** — Compute: "At 5h/day, that's ~76 days a year on your phone." Then: "Earning even 2h back = 30 days a year." Animated counter.
 10. **Plan reveal** — "Your Lock-In Plan": locked apps, goals, schedule, starting difficulty (deliberately below stated target). Looks bespoke. "Built for you in 2:14."
 11. **Commitment** — "Hold to commit" 2-second press with haptics. Records `committed_at`.
-12. **Paywall (hard)** — Sits directly after Commitment, at peak motivation. Free trial (7 days) with "we'll remind you 2 days before it ends." Annual highlighted. **There is no free path: the app cannot be used without starting the trial or subscribing** (decision 2026-09-23, replaces the earlier "Continue with limited free" option). Must show a restore-purchases link and a dated trial timeline. See §21.
+12. **Paywall (hard)** — Sits directly after Commitment, at peak motivation. Free trial (7 days) with "we'll remind you 2 days before it ends." Annual highlighted; Family annual shown as a second card ("Up to 6 people"); monthly smallest. Plans and trial rules: §21. **There is no free path: the app cannot be used without starting the trial or subscribing** (decision 2026-09-23, replaces the earlier "Continue with limited free" option). Must show a restore-purchases link and a dated trial timeline. See §21.
 13. **Permission priming** — Notifications (one screen: "We'll only nudge when it matters"). Moved after the paywall (decision 2026-09-23) so nothing sits between the peak and the payment ask. Location and Health are requested later, at gym setup, not here.
 14. **First win** — "Start your first lock now. 10-minute focus to unlock." Immediate loop completion. Streak = Day 1. Confetti. Prompt to add the Home Screen widget with an animated guide.
 
@@ -562,7 +562,7 @@ Use image generation for **direction**, not final pixels. Generate 4–6 variant
 > iPhone screen "Your Lock-In Plan" shown as a bespoke card: locked apps row with icons, goals list (Gym 3x/week, Protein 150g, Focus 50 min), schedule "Locks at 7:00 AM", difficulty tag "Starting easy on purpose", a hold-to-commit button at the bottom with a progress outline. [style paragraph]
 
 **P5 — Paywall**
-> iPhone paywall for a discipline app: headline "Earn your phone back", three benefit rows with icons (Unlimited goals & lock sets, Adaptive plan that learns you, Squads & duels), annual plan card highlighted "$39.99/yr · 7 days free", monthly option smaller, note "We'll remind you before your trial ends", a restore-purchases text link (no free-path link: hard paywall, decision 2026-09-23). [style paragraph]
+> iPhone paywall for a discipline app: headline "Earn your phone back", three benefit rows with icons (Unlimited goals & lock sets, Adaptive plan that learns you, Squads & duels), annual plan card highlighted "$39.99/yr · 7 days free", a family card below it "Family · $69.99/yr · up to 6 people", monthly option smallest, note "We'll remind you before your trial ends", a restore-purchases text link (no free-path link: hard paywall, decision 2026-09-23). [style paragraph]
 
 **P6 — Widgets**
 > Apple Home Screen with a medium widget for a discipline app: three small rings and three buttons "+25g", "+500ml", "Start Focus"; and a small widget showing "Locked · 2 goals left · 14🔥". Also show a Lock Screen with circular ring widgets. [style paragraph]
@@ -739,11 +739,26 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 ## 21. Monetization & Paywall
 
 **Model: hard paywall (decision 2026-09-23).** There is no free tier. Every user starts the 7-day trial or subscribes before reaching the app; the earlier Free tier (1 goal, 1 lock set, ...) and the "Continue with limited free" path are removed.
-- **Subscriber (trial or paid):** unlimited goals & lock sets, schedules, adaptive plan, Earn Mode, protein photo AI, recaps, squads/duels, 3 freezes, cosmetics.
+- **Subscriber (trial or paid, individual or family):** unlimited goals & lock sets, schedules, adaptive plan, Earn Mode, protein photo AI, recaps, squads/duels, 3 freezes, cosmetics.
 - **Safety interaction — a lapsed subscription must never trap the user.** If a subscription ends or is refunded while a lock is active, shields must be released (or at minimum the emergency unlock must keep working with no entitlement check). Never leave someone locked out of their phone because of a billing state. Enforced in `LockEngine`, not just in UI.
 - **App Review:** hard paywalls with a free trial are allowed; reviewers must be able to reach the app via a demo account or sandbox purchase (see `docs/setup/app-review-notes.md`). A free path is not required.
-- Price tests (RevenueCat/Superwall): $6.99/mo, $39.99/yr (highlight), $59.99 lifetime (test only). Start higher than feels comfortable; lower if conversion is weak.
-- 7-day trial with pre-expiry reminder (trust + fewer refunds). Test 3-day vs 7-day.
+- **Plans (decision 2026-10-06, adds Family):**
+
+  | Plan | Launch price | Trial | Notes |
+  |---|---|---|---|
+  | Individual annual | $39.99/yr | 7 days | Highlighted, default selection |
+  | **Family annual** | $69.99/yr (test $59.99) | 7 days | Apple Family Sharing turned on: the buyer + up to 5 people in their Apple family group get full access |
+  | Individual monthly | $6.99/mo | none | No trial on monthly, so the trial pushes people toward annual. Test adding one later if monthly conversion is weak |
+  | Lifetime | $59.99 | none | Price test only, not shown by default |
+
+  Start higher than feels comfortable; lower if conversion is weak (RevenueCat/Superwall price tests).
+- **Family plan mechanics:** a separate App Store product with Family Sharing turned on (Apple does not let you turn Family Sharing off once it is on for a product, which is why it must be its own product rather than a switch on the individual annual). All plans live in **one subscription group**, so people can move between individual and family as an upgrade/downgrade and get only one free trial per Apple ID. People in the buyer's family group unlock it with restore purchases, or automatically on launch; RevenueCat reports them as family-shared. The family plan is for anyone in an Apple family group (partners, roommates, adult siblings); it does **not** change the 17+ rating or add a parent/kid mode (§24). Squads (§5.7) are the natural place to promote it: "Your squad lives together? Family covers 6."
+- **Free trials, done well:**
+  - **Card on file, through Apple.** The trial is a standard App Store introductory offer, so the person confirms with Face ID and their Apple ID's payment method. That's the only native iOS trial, it's what App Review and people expect, and it converts far better to paid than a no-card trial. We never collect card details ourselves. A no-card "reverse trial" (full access for 7 days, then the paywall) can be an experiment later if trial starts are weak; it isn't the default.
+  - **7 days by default, test 3 days** (already in the experiment list, §23).
+  - **Remind 2 days before the charge** with a local notification, at the time shown on the paywall's dated timeline (today / reminder / charge date). Fewer refunds, more trust.
+  - **Make the trial earn its keep:** first earned unlock on day 0 (§7 screen 14), the widget set up by day 1, and a short "what your trial earned you" card on day 5 (hours reclaimed, streak, goals hit, §5.15) so the reminder lands after the value, not before it.
+  - **Cancelling is never punished:** no guilt copy, no post-cancel discount screens, and access runs until the trial's real end date.
 
 **Physical add-ons (see §25):** NFC tag pack, Lock Card, Shaker bottle with built-in tag. Sell via Shopify/TikTok Shop; link from Settings → "Gear." **None of these ship at launch (decision 2026-10-05, §25.7):** the annual plan launches without a free tag pack, and Gear links to generic tags until a branded pack is pre-sold.
 
@@ -944,6 +959,8 @@ Milestone goals (in order): first paying user → $1k MRR → 1,000 weekly earne
 
 - Final name and handle availability.
 - Trial length and price points (run tests, don't debate).
+- Family annual price: $69.99 vs $59.99 (run the test).
+- No-card reverse trial as an experiment, only if trial starts come in under the §23 target.
 - Earn Mode default: on or off for new users?
 - Which nutrition/restaurant API is worth paying for at launch, if any?
 - Instacart Developer Platform current availability and terms.
@@ -951,6 +968,8 @@ Milestone goals (in order): first paying user → $1k MRR → 1,000 weekly earne
 - Whether to ship the Watch app before or after squads.
 
 ---
+
+*Version 2.2 — October 6, 2026 — hard paywall kept; added Family annual plan (Apple Family Sharing, one subscription group) and the free-trial rules: card on file through Apple, trial on annual plans only, day-5 value card (§21, §7, §16, §28).*
 
 *Version 2.1 — October 5, 2026 — no hardware at launch: generic tags supported, branded Tag Pack gated on demand, free-with-annual deferred (§25.7, §25.0–25.1, §6, §21, §26).*
 

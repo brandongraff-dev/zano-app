@@ -2,9 +2,9 @@ import Foundation
 import SwiftData
 
 /// A user's subscription state as last reported by the RevenueCat webhook (spec §21). One row per
-/// user; the app reads this to gate Pro features (unlimited goals & lock sets, schedules, adaptive
-/// plan, Earn Mode, protein photo AI, recaps, squads/duels, 3 streak freezes, cosmetics) versus Free
-/// (1 goal, 1 lock set, manual/NFC lock, basic widget, 1 streak freeze/week).
+/// user; the app reads this to check the subscriber entitlement. Spec §21 is a hard paywall
+/// (decision 2026-09-23): there is no Free tier, so a trial or paid subscription (individual or
+/// family, decision 2026-10-06) is what grants access to the app at all.
 ///
 /// Mirrors the Supabase `subscriptions` table (`backend/supabase/migrations/0001_init.sql`)
 /// field-for-field. Postgres has no surrogate id there — its primary key is `user_id` itself.
@@ -33,8 +33,8 @@ public final class Subscription {
     public var status: String?
 
     /// Mirrors `subscriptions.product` — the App Store Connect / RevenueCat product identifier the
-    /// subscription is on (spec §21 price tests: monthly $6.99, annual $39.99 highlighted, lifetime
-    /// $59.99 test-only).
+    /// subscription is on (spec §21 plans: annual $39.99 highlighted, family annual $69.99, monthly
+    /// $6.99, lifetime $59.99 test-only).
     public var product: String?
 
     /// Mirrors `subscriptions.renews_at`.

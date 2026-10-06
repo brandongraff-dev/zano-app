@@ -114,7 +114,8 @@ public struct GoalRing: View {
     ///     behavior. Pass one for a ring shown standalone with no adjacent text describing it; a
     ///     ring already followed by its own title/value text (e.g. inside `RingClusterCell`/
     ///     `GoalRow`, both of which combine their own child text into one announcement) can leave
-    ///     this `nil` to avoid a doubled-up VoiceOver read. See
+    ///     this `nil`: an unlabeled ring is hidden from VoiceOver entirely, so the caller must
+    ///     speak the ring's value itself. See
     ///     `docs/design/ui-stress-test-findings.md` §2.2.
     public init(
         progress: Double,
@@ -132,10 +133,6 @@ public struct GoalRing: View {
 
     private var clampedProgress: Double {
         min(1, max(0, progress))
-    }
-
-    private var isComplete: Bool {
-        clampedProgress >= 1
     }
 
     private var isPlaceholder: Bool {
@@ -167,6 +164,9 @@ public struct GoalRing: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label ?? "")
         .accessibilityValue(Text(accessibilityValueText))
+        // No label means a caller that describes the ring itself (a row or cluster cell that
+        // speaks the goal and its value): an unlabeled ring would be a second, nameless stop.
+        .accessibilityHidden(label == nil)
         .onChange(of: clampedProgress) { oldValue, newValue in
             guard !reduceMotion, oldValue < 1, newValue >= 1 else { return }
             justCompleted = true
@@ -200,6 +200,8 @@ public struct GoalRing: View {
     /// The filled arc. Always in the view tree (faded out at 0%) rather than conditionally
     /// inserted, so the first fill from 0 animates instead of appearing already drawn — and so
     /// a zero-length round-capped stroke never draws a stray dot at 12 o'clock.
+    /// Pass 3 (restraint): the arc is one flat stroke of the goal's hue (the pass-2 angular sweep
+    /// and the per-ring glow are gone). A small lit cap rides the leading end while in progress.
     private func progressArc(lineWidth: CGFloat) -> some View {
         Circle()
             .trim(from: 0, to: clampedProgress)
@@ -207,10 +209,24 @@ public struct GoalRing: View {
                 color,
                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
+            .overlay {
+                // The lit leading cap: a small bright dot at the end of the arc. Hidden when empty
+                // or full (a full ring has no "leading end").
+                if clampedProgress > 0.02, clampedProgress < 1, lineWidth >= 6 {
+                    GeometryReader { proxy in
+                        let radius = min(proxy.size.width, proxy.size.height) / 2
+                        let angle = Angle.degrees(360 * clampedProgress)
+                        Circle()
+                            .fill(Theme.Colors.ringCap)
+                            .frame(width: lineWidth * 0.36, height: lineWidth * 0.36)
+                            .position(
+                                x: proxy.size.width / 2 + radius * cos(angle.radians),
+                                y: proxy.size.height / 2 + radius * sin(angle.radians)
+                            )
+                    }
+                }
+            }
             .rotationEffect(.degrees(-90))
-            // The static "active element" glow (spec §16): soft while in progress, stronger once
-            // earned. Never animated — a function of progress only.
-            .shadow(color: color.opacity(isComplete ? 0.5 : 0.28), radius: lineWidth * 0.7)
             .padding(lineWidth / 2)
             .opacity(clampedProgress > 0.001 && !isPlaceholder ? 1 : 0)
             // The fill itself is information (a progress fraction), not decoration, so
@@ -243,7 +259,11 @@ public struct GoalRing: View {
     /// diameter (88pt → 26, 112pt → 34, 148pt → 44, 200pt → 60), so the value scales with the ring
     /// instead of every size sharing one token.
     private func valueFont(diameter: CGFloat) -> Font {
-        diameter < 60 ? Theme.Typography.numeralSmall() : Theme.Typography.numeral(size: diameter * 0.30)
+        // v2: rounded heavy counters inside rings (friendly, game-like); `minimumScaleFactor` below
+        // keeps long values inside the ring.
+        diameter < 60
+            ? Theme.Typography.numeralSmall()
+            : Font.system(size: diameter * 0.3, weight: .heavy, design: .rounded).monospacedDigit()
     }
 
     @ViewBuilder
@@ -251,7 +271,7 @@ public struct GoalRing: View {
         switch center {
         case .icon(let systemName):
             Image(systemName: systemName)
-                .font(.system(size: diameter * 0.34, weight: .semibold))
+                .font(.system(size: diameter * 0.34, weight: .bold))
                 .foregroundStyle(color)
         case .text(let composed):
             if let parts = ProgressTextSplit.split(composed) {
@@ -287,7 +307,7 @@ public struct GoalRing: View {
                 .contentTransition(reduceMotion ? .identity : .numericText())
             if let unit, diameter >= 72 {
                 Text(unit)
-                    .font(.system(size: max(11, diameter * 0.115), weight: .semibold, design: .rounded))
+                    .font(.system(size: max(11, diameter * 0.12), weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

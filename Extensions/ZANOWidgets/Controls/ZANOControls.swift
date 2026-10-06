@@ -1,47 +1,70 @@
 // ZANOControls.swift
 // Extensions/ZANOWidgets/Controls
 //
-// iOS 18+ Controls — docs/spec.md §6:
-//   Toggle:  Lock On/Off (with confirmation for Off)
+// iOS 18+ Controls — docs/spec.md section 6:
+//   Lock:    "Start lock" button. Unlocked → starts the default lock (Core's `StartLockIntent`).
+//            Locked → shows "Locked" / "2 goals left" and a tap opens ZANO. It never ends a lock:
+//            locks end by earning them or through the app's emergency flow.
 //   Buttons: Log Water, Log Shake, Start Focus, Log Creatine
-//   Assignable to Lock Screen bottom corners and the Action Button
+//   Assignable to Control Center, the Lock Screen bottom corners and the Action Button.
 //
-// Every control is a `ControlWidget`, gated `@available(iOSApplicationExtension 18.0, *)` per
-// spec §27 ("Controls require iOS 18 and a `ControlWidget`; gate by availability") and this
-// task's instructions. They live in the same widget extension as the Home/Lock Screen widgets —
-// no separate Info.plist/extension point is needed (`ZANOWidgetsBundle.swift` composes them into
-// the same `WidgetBundle`).
+// Every control is a `ControlWidget`, gated `@available(iOSApplicationExtension 18.0, *)` and
+// composed into the same `WidgetBundle` behind `#available` (ZANOWidgetsBundle.swift), so the
+// extension still runs on this project's iOS 17 minimum.
 //
-// The 4 button controls run the exact CONTRACTS intent names from this task (`LogWaterIntent`,
-// `LogProteinIntent` — "Log Shake" in spec's own control label, since a protein shake is this
-// app's shorthand for a protein log — `StartFocusIntent`, `LogCreatineIntent`) via
-// `ControlWidgetButton(action:)`, with the same quantities as the Home widget's buttons (25g /
-// 500ml / 25 min) for one consistent "quick add" amount everywhere. The toggle control's backing
-// intent (`ZANOSetLockStateIntent`) is defined in Support/ZANOWidgetIntents.swift — see that
-// file's header comment for why it isn't one of Core's Intents.
+// The lock control keeps the old toggle's kind string, so a control someone already placed
+// becomes the new start-only button instead of disappearing. Its state comes from a
+// `ControlValueProvider` reading the App Group mirror (no SwiftData, no networking); the system
+// reloads it after its own action runs, and the app must call
+// `ControlCenter.shared.reloadControls(ofKind:)` when a lock starts or ends elsewhere.
+//
+// The 4 button controls run Core's intents with the same quantities as the Home widget's chips
+// (25g / 500ml / 25 min), one consistent "quick add" amount everywhere.
 
 import AppIntents
 import Core
 import SwiftUI
 import WidgetKit
 
+/// What the lock control draws. Read from the App Group mirror only.
+struct ZANOLockControlState: Sendable, Equatable {
+    let isLocked: Bool
+    let goalsRemaining: Int
+
+    /// "Start lock", or "2 goals left" / "Locked" while a lock runs.
+    var title: String {
+        isLocked ? WidgetCopy.controlLockedStatus(goalsRemaining: goalsRemaining) : WidgetCopy.controlLockTitle
+    }
+
+    var systemImage: String {
+        isLocked ? "lock.fill" : "lock.open.fill"
+    }
+}
+
 @available(iOSApplicationExtension 18.0, *)
-struct ZANOLockToggleControl: ControlWidget {
+struct ZANOLockControlValueProvider: ControlValueProvider {
+    var previewValue: ZANOLockControlState {
+        ZANOLockControlState(isLocked: false, goalsRemaining: 0)
+    }
+
+    func currentValue() async throws -> ZANOLockControlState {
+        ZANOLockControlState(isLocked: ZANOLockState.isLocked, goalsRemaining: ZANOLockState.goalsRemaining)
+    }
+}
+
+@available(iOSApplicationExtension 18.0, *)
+struct ZANOLockControl: ControlWidget {
+    static let kind = "com.zano.app.control.lockToggle"
+
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "com.zano.app.control.lockToggle") {
-            ControlWidgetToggle(
-                WidgetCopy.controlLockToggleTitle,
-                isOn: SharedDefaults.activeLockSessionID != nil,
-                action: ZANOSetLockStateIntent()
-            ) { isLocked in
-                Label(
-                    isLocked ? WidgetCopy.controlLockedLabel : WidgetCopy.controlUnlockedLabel,
-                    systemImage: isLocked ? "lock.fill" : "lock.open.fill"
-                )
+        StaticControlConfiguration(kind: Self.kind, provider: ZANOLockControlValueProvider()) { state in
+            ControlWidgetButton(action: LockControlIntent()) {
+                Label(state.title, systemImage: state.systemImage)
             }
+            .tint(ZANOWidgetColor.accent)
         }
-        .displayName(LocalizedStringResource(stringLiteral: WidgetCopy.controlLockToggleTitle))
-        .description(LocalizedStringResource(stringLiteral: WidgetCopy.controlLockToggleDescription))
+        .displayName(LocalizedStringResource(stringLiteral: WidgetCopy.controlLockTitle))
+        .description(LocalizedStringResource(stringLiteral: WidgetCopy.controlLockDescription))
     }
 }
 

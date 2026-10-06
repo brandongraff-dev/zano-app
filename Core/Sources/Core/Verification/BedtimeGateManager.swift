@@ -237,6 +237,10 @@ public final class BedtimeGateManager {
         content.title = copy.title
         content.body = copy.body
         content.sound = .default
+        // Wind-down: the buddy, sleepy. None if the image can't be made.
+        if let attachment = BuddyNotificationImage.attachment(pose: .sleepy) {
+            content.attachments = [attachment]
+        }
 
         let components = Calendar.current.dateComponents([.hour, .minute], from: windDownTime)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
@@ -438,6 +442,15 @@ public final class BedtimeGateManager {
         context.insert(event)
         try? context.save()
         logger.notice("Sleep goal broken by a pickup after bedtime.")
+    }
+
+    /// Whether the phone was picked up after bedtime on the night that began at `nightStart`.
+    /// `nil` when there is no user or no Sleep goal to say (the sleep wind-down treats that as unknown).
+    public func pickedUpAfterBedtime(nightStarting nightStart: Date) -> Bool? {
+        guard let user = try? fetchCurrentUser(),
+              let sleepGoal = try? IntentSupport.activeGoal(ofType: .sleepOnTime, for: user.id, in: context)
+        else { return nil }
+        return hasPickupMissLogged(goalID: sleepGoal.id, forNightOf: nightStart)
     }
 
     /// Mirrors `LockEngineManager.isGoalVerified`/`StreakEngine`'s documented `#Predicate`-

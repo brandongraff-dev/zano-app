@@ -197,7 +197,7 @@ Users who save the same gym form an anonymous leaderboard: "You're #4 most consi
 ### 5.9 Seasons, Ranks, Monthly Challenges
 - Ranks: Bronze → Silver → Gold → Platinum → Diamond based on 4-week consistency (not volume, so a 3x/week person can hit Diamond).
 - Seasons (quarterly) reset rank with a "season badge" kept forever.
-- Monthly challenges themed to fresh starts: "January Lock-In," "Summer Shred Consistency," "No-Skip November." Shareable challenge cards.
+- Monthly challenges themed to fresh starts: "January Lock-In," "Summer Strong," "No-Skip November." Shareable challenge cards.
 
 ### 5.10 ★ Bedtime Gate & Sunrise Alarm (tap-to-dismiss)
 
@@ -250,6 +250,10 @@ When a user tries to open a blocked app 3+ times in an hour, the shield shows a 
 ### 5.17 Trophy Case & Cosmetics
 Badges for milestones (first earned unlock, 7/30/100-day streaks, 1,000g protein week, 50 gym sessions). Coins from verified goals buy themes, ring styles, shield backgrounds, and coach voice packs. Cosmetics only; never sell power (no buying unlocks).
 
+**Buddy Closet (added 2026-10-05, session 15).** A fifth cosmetic category: skins and wearables for the user's buddy (§15). Eight skins per buddy (bought per buddy); hats, eyewear, neckwear, back items and backdrops (bought once, worn by any buddy). One free default; items are coin-priced from the same closed catalog and spend path as every other cosmetic, and never change a goal, lock, streak or the Time Bank. Earned gear (party hat, shades, cape...) stays earned and is never sold; a bought item in the same slot is worn instead and the earned one returns when it comes off. What a buddy wears is saved per buddy in the App Group so widgets and the Screen Time report draw it too.
+
+**Buddy emotions (added 2026-10-05, session 15).** Besides the eight charge faces, every buddy has ten activity emotions, all encouraging: *lifting* and *flexing* (workout), *sipping* and *thirsty* (water), *eating* and *hungry* (protein), *focused* (focus, reading), *yawning* (sunrise alarm, stretching), *proud* (any goal done) and *lovey* (a friend's nudge). Thirst and hunger read as "ready for it", never guilt, and no face exists for a restrictive goal (§24).
+
 ### 5.18 Travel & Comeback Modes
 - Travel mode (auto-suggested when the phone is in a new city): goals shift to walking/steps/focus, gym optional.
 - Comeback mode (after 5+ days inactive): streak restart with a "3-day comeback" mini-challenge at low difficulty; no guilt copy.
@@ -267,6 +271,57 @@ Complication with rings; start focus/lock from the wrist; workout detection is m
 A "Building ZANO" feed card (optional) linking to your content. Founder-led brands win; make the founder visible without being annoying.
 
 ---
+
+### 5.23 Independent use and Family Link (parents and teens)
+**Everyone uses ZANO on their own.** There is no parent role by default, and a 13-17-year-old has the same app, the same data and the same control as an adult. Nothing below changes that.
+
+**Family Link is optional and teen-consented.** A parent can invite a teen (13-17) to link; the teen sees the invite, accepts or declines, can see everything the parent sees, and can leave at any time (the parent is told they left; nothing is hidden). Linking is about support and accountability, not surveillance. Real device-level enforcement stays with Apple's own Screen Time and Family Sharing; ZANO never tries to out-restrict them.
+
+**Chores and homework.** A parent can add tasks for a linked teen (homework, practice, chores) with an optional due time. The teen finishes it and, if the parent wants proof, attaches a photo. The parent approves, and approval can count as a goal that unlocks the teen's apps (the teen's own lock, set up by the teen). The parent always has the final say: an optional on-device AI check may say "this looks like a finished worksheet" but only ever suggests, and a wrong guess never costs the teen anything.
+
+**Privacy: proof photos are view-once.** A proof photo can be opened one time by the parent, and is deleted for good 10 minutes after it is first opened (sooner if the parent closes it); a photo nobody opens is deleted after 24 hours. It is visible only to the linked family, is never used for model training, and is kept in private storage only until it is deleted. What stays is the answer (approved, not yet, or asked to redo, with a time), never the picture. ZANO cannot stop a screenshot, but it tells the teen when one is taken of their photo. Screen Time data stays on the device (§24). The teen can flag any parent decision.
+
+**Not in scope:** under-13 accounts (§24), parents seeing a teen's app usage, location sharing, messaging.
+
+### 5.24 Focus Lock (work hours and calendar)
+Distracting apps lock during meetings and focus blocks on the user's calendar and open again the moment the block ends. **No goals to earn**: it is a timed lock, ended by the clock, by hand, or by the emergency unlock (§24).
+
+- **Opt-in, on device.** One switch in Settings asks for Calendar access. Events are read on the phone only; titles are used locally to spot focus blocks and to ask "Lock during 'Design review'?"; nothing is uploaded or synced (§24).
+- **What locks.** Busy events with other attendees (meetings) and events whose title has a focus word (focus, deep work, heads down, study, exam, homework). Never all-day events, free events, events under 15 minutes (a DeviceActivity window can't be shorter, §27) or over 4 hours. Events under way when the app refreshes are left alone. Back-to-back events (under 5 minutes apart) join into one window. Planned two days ahead, at most 8 windows.
+- **Learns, asks first.** ZANO asks before locking for a new event. Two yes answers to the same recurring event and it locks by itself; two no answers and it stops asking; two yes against one no still locks. Ending a focus lock early with the emergency unlock counts as a no. Everything it learned can be reset per event ("Ask me again"). The memory stores a hash of the title, never the title.
+- **How it runs.** The app plans on every foreground and after any Settings change; locked windows are registered with DeviceActivity as one-off schedules, shielded by `ZANOMonitor` at the start and handed to the normal `LockSession` flow. iOS gives no background hook for calendar edits, so a meeting added while the app is closed is picked up the next time it opens.
+- **Never traps.** The emergency unlock works exactly as for any lock. A health pause (§24) blocks focus locks like every automatic lock.
+
+### 5.25 Sleep wind-down
+A one-tap morning check-in ("How rested do you feel?", the user's buddy's faces from drained to ecstatic), optionally paired with Apple Health sleep length, that over a few weeks shows what helps this person and suggests a gentle bedtime. **On device, opt-in, patterns not medicine.**
+- It says nothing before 10 rated nights, and a comparison needs 4 nights on each side and at least half a point (out of 5) of difference. It compares nights the phone was left alone after bedtime (§5.10), nights with 7+ hours asleep, and nights with a steady bedtime. It never says anything *hurt*.
+- Bedtime is only ever suggested, at most 30 minutes earlier than today's, never before 8:30 pm, never later; the person taps to use it.
+- After 5 low mornings in a row it stops suggesting and says something kind, with a gentle "worth mentioning to a doctor" if it stays hard.
+- Sleep data and notes never leave the phone; one button deletes them. The Health permission text names sleep.
+
+### 5.26 Smart unlock rules
+Up to three rules that keep a lock set's apps open at chosen days and hours, even while a lock is running ("Work apps, weekdays 9-5"). Rules only ever **open** more apps: they never add apps to a lock, end one, or touch the emergency unlock (§24). They hook into the single shield function the app and the monitor share, and wake the monitor at each rule's start and end. iOS can open or close a whole app, not one chat or contact; the screen says so. If someone keeps ending locks early at about the same time (3 emergency unlocks on one weekday within two hours, in 6 weeks), ZANO offers a rule for it; they choose the apps.
+
+### 5.27 Earned It clip
+After an unlock, "Make my Earned It clip" makes a 5-second vertical video on the phone: LOCKED (the buddy asleep, the goal filling), the lock opening in a burst, then EARNED IT with the goal, the streak day and the buddy celebrating (its goal emotion: flexing for a workout), with the zano name at the bottom. Made and kept on the device, shared through the normal share sheet. The same thinking gives the **Year in Review** (December 1 to January 7, for a year with 14+ earned days: days earned, hours locked, best month, best streak, top goal) alongside the monthly story.
+
+### 5.17a Page companions
+Characters live on the pages people actually tap, quietly, never in the way. **Cal**, the calendar character (a page-a-day calendar with a face), sits on Today's calendar button and beside the Planner's day heading: calm on an ordinary day, asleep with nothing planned, delighted when every task for the day is ticked, worried (a "!" and a sweat drop) while something is overdue. **The streak is your own buddy, not an icon:** glowing ember eyes, a big smile and raised fists while the streak is alive, pale ice eyes and snowflakes while a streak freeze holds it, asleep at zero; it pops when the count goes up. **Each tab has a small buddy in the navigation bar:** guarding with a padlock on Lock, eating on Fuel, with a bar chart on Progress, with a little hammer on Settings. All are decorative (hidden from VoiceOver), additive and never shaming (a streak of zero is a sleeping buddy, not a sad one).
+
+### 5.28 Starter plans (goal templates)
+One-tap plans for real weeks: **Student** (four 25-minute study blocks, reading, water, a walk), **Exam week**, **Remote work day** (two hours of deep work), **Night shift**, **New parent**, **Back to the gym**, **Gentle start**. They add goals through the normal goal path (targets clamped, tiers set, verifiers started) and leave any goal already on the plan alone; nothing is removed. Every item is additive (§24), modest (§8 rule 1) and adaptive (§9.1), and a test keeps the catalog to goal types that can gate a lock. A "Pomodoro" is the 25-minute focus block; a 100-minute focus target is four of them. Break nudges are §5.29.
+
+### 5.29 Focus break coach
+For 15 minutes after a verified focus block, Today shows a kind nudge to rest: 5 minutes after a 25-minute block, 10 after a 50, 15 after a 90, and a long 15 after every fourth block of the day. One suggestion rotates through water, a stretch, looking far away, and a short walk. It shows nothing while a block is running, "Done" hides it, and it never locks, delays or gates anything (§24: additive, never restrictive).
+
+### 5.30 Planner (calendar, tasks, reminders)
+A calendar that feels like the iOS Calendar: month and year at the top, a month grid (today in the accent colour, the chosen day a filled circle, a grey dot under a day with an event and an accent dot under a day with an open task), swipe or arrows to change month, and the chosen day's agenda below with a time column and a calendar-coloured bar for each item. Opened from the calendar button in Today's header. Calendar **events** are read from the iPhone's calendars (full access, asked only from the Planner's own button or the Focus lock and alert switches), drawn and never stored or uploaded. **Tasks** are ZANO's own: a title, notes, an optional date and time and a "Remind me" switch, edited in a plain grouped form like Reminders; done tasks are dropped after 30 days. "New event" opens Apple's own event editor, so it behaves like the Calendar app. Today shows a "Due today" card (up to three open tasks due today or earlier, tick to finish) only when something is due.
+**Notifications:** a reminder at a task's time (9:00 for a task with only a day) and, if turned on in Settings > Calendar & reminders, "Starts in 10 minutes" before calendar events in the next day and a half (5 to 60 minutes). They are re-planned whenever the app opens and after every edit, replace only this feature's own notifications, and never exceed 40 pending. An event added while the app is closed is picked up the next time the app opens (iOS gives apps no background calendar refresh); the setting says so. Nothing here is a goal and nothing locks or gates anything.
+
+### 5.31 Sharing: Household and share sheets
+Two ways to stay organized with other people, one that works today and one that needs the backend.
+**Works today, no account:** from the Planner, "Share this day" and "Share task" send a plain-text plan or task through the share sheet (Messages, Mail, anything), to anyone on any phone. "New event" opens Apple's own event editor, whose Invitees field shares an event through iCloud Calendar with family or colleagues, exactly like the Calendar app; ZANO keeps nothing.
+**Household (hidden until the backend and sign-in are live, `HouseholdAvailability.isLive`):** a shared task list for the people someone lives or works with (family, flatmates, a couple). Start one or join with an 8-character code (up to 8 people, up to 5 households per person). One list with "Assigned to you", "Not taken yet", "Everyone else" and "Done lately" (3 days); anyone can add a task, give it to someone, tick it off and see who finished it; the creator or owner can delete it. Members choose the name shown. A household sees tasks and who ticked them, nothing else about anyone: no photos, no location, nothing about screen time or locks. Anyone can leave at any time (their open tasks become unassigned); the owner can make a new invite code. Open tasks assigned to me with a date become local reminders (§5.30). Limits: no push when someone assigns a task (it appears and is reminded the next time the app opens), no comments, no recurring tasks. It is not Family Link (§5.23): that is a parent and a teen with homework proof.
 
 ## 6. Widgets, Controls, Live Activities, NFC, Siri
 
@@ -305,7 +360,7 @@ All actions are **App Intents** (§14). Build each once, reuse everywhere.
 
 ## 7. Onboarding Flow (screen by screen)
 
-Target: 10–14 screens, under 3 minutes, paywall at peak motivation. Every screen has one job.
+Target: 7 steps (cut from 15 on 2026-10-02, founder-approved), under 3 minutes, paywall at peak motivation, ending in a real first earned unlock. **Buddy step (2026-10-03, founder-approved):** right after the Hook, "Pick your buddy" picks one of 9 pixel-art mascots (default Stash) that replaces the ZANO star as the app's character, making the flow 8 steps (changeable later in Settings; see `docs/design/visual-direction-v2.md` §11). Setup that isn't needed for the first win (tags, gym, Sunrise alarm, coach voice, squads) lives on Today's "Finish setup" card. Every screen has one job.
 
 1. **Hook** — Full-bleed. "Your phone is fighting your goals. Let's flip that." CTA: "I'm ready."
 2. **Social proof strip** — 3 rotating quotes (real ones once you have them; placeholder copy marked clearly until then).
@@ -527,11 +582,11 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 **Feel:** dark, confident, game-progress energy without being childish. Think: fitness tracker × ranked mode in a game × premium minimal.
 
 **Tokens (starting point, tune after image-gen exploration)**
-- Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
-- Text: `#F5F5F7` ; Muted: `#8E8E93`
-- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only
-- Danger: `#FF453A` (real failures and the emergency exit only) ; Warning: `#FFB020`. **Locked is shown `muted`, not red** (decision 2026-09-23: a routine locked day should read calm; only failures are red)
-- Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
+- Background: `#050506` ; Surface: `#111113` ; Surface-2: `#19191C` (darkened 2026-09-24: the old greys read faint)
+- Text: `#F2F1ED` (pearl) ; Muted: `#8E8E93`
+- Accent: `#3F7BFF` (ZANO Blue) — primary accent (founder decision 2026-09-24: the all-silver app felt dull). Primary buttons (white label), selection, the tab bar's lit tab, the workout ring, earned moments and the living star's glow. Silver (`metallic`) stays the logo's metal. Supersedes the same-day platinum accent, which replaced acid green `#B8FF3C`.
+- Danger: `#DE5A52` (real failures and the emergency exit only) ; Warning: `#D9A55B`. **Locked is shown `muted`, not red** (decision 2026-09-23: a routine locked day should read calm; only failures are red)
+- Ring colors (muted, low-chroma): workout = accent, protein = `#C8936A` (bronze), focus = `#8E96C8` (slate), water = `#86B4C4` (glacier)
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32
 - Type: SF Pro (or one variable display font for numerals, e.g., a condensed grotesque); big numerals for grams/minutes/streak
 - Motion: spring animations; ring fills ease-out 600ms; unlock celebration ≤ 1.2s; haptics on every verified event
@@ -547,7 +602,7 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 Use image generation for **direction**, not final pixels. Generate 4–6 variants, pick one, then reuse the same style paragraph in every prompt. Feed the winners to Claude with the tokens above to build real SwiftUI components.
 
 **Style paragraph (paste into every prompt after choosing):**
-> Premium dark-mode iOS app, deep black background, one vivid acid-green accent, large rounded progress rings, chunky bold numerals, generous spacing, subtle inner glow on active elements, crisp 1px hairline dividers, SF Pro–like typography, no clutter, realistic iPhone 15 Pro frame, high fidelity, no lorem ipsum.
+> Premium dark-mode iOS app, deep black background, monochrome black / pearl / brushed-silver palette with muted metal accents, large rounded progress rings, chunky bold numerals, generous spacing, subtle inner glow on active elements, crisp 1px hairline dividers, SF Pro–like typography, no clutter, realistic iPhone 15 Pro frame, high fidelity, no lorem ipsum.
 
 **P1 — Today screen**
 > iPhone app screen "Today" for a discipline app where users earn back distracting apps by completing goals. Top: streak pill "14 🔥" and lock status card "Locked · TikTok, Instagram, YouTube" with a small padlock. Center: three progress rings labeled Workout, Protein (72/150g), Focus (25/50 min). Bottom: a single primary button "Go to gym · 6 min away". Tab bar: Today, Lock, Fuel, Progress, Squad. [style paragraph]
@@ -589,7 +644,7 @@ Do Session 0 and 1 first, alone. Then parallelize on branches. Each session has 
 | 3 | Verification: gym geofence + dwell + HealthKit check, auto-detect suggestion, focus timer + Live Activity, Core Motion anti-cheat | `feat/verify` | Gym visit auto-verifies; focus session verifies |
 | 4 | App Intents catalog + widgets (S/M/L, lock screen) + Controls + Siri phrases + NFC reader & tag mapping | `feat/intents` | Log water from widget without opening app; NFC tag starts lock |
 | 5 | Design system + screens: Today, Lock, Fuel (protein/water), Progress, Settings | `feat/ui` | All screens navigable with real data |
-| 6 | Onboarding (14 screens) + permission priming + RevenueCat paywall + first-win flow | `feat/onboarding` | New install → paywall → first earned unlock in < 4 min |
+| 6 | Onboarding (7 steps) + permission priming + RevenueCat paywall + first-win flow | `feat/onboarding` | New install → paywall → first earned unlock in < 4 min |
 | 7 | Supabase: schema, RLS, auth (anon → Apple), storage, sync Edge Function, RevenueCat webhook | `feat/backend` | Two devices sync; subscription status reflects in app |
 | 8 | AI: meal-vision Edge Function, quick repeats, weekly recap job + card + share image | `feat/ai` | Photo → protein estimate → confirm; Sunday recap appears |
 | 9 | Streak logic: freezes, Never Miss Twice, Plan B, Comeback; adaptive engine v1 (rules) | `feat/retention` | Simulated 30-day history behaves per §8/§9 |
@@ -795,7 +850,7 @@ and unit tests. Follow the existing Protein goal as the reference implementation
 
 - **Family Controls entitlement:** apply to Apple on day one. Approval is per bundle ID, so file 4 requests (main app + ShieldConfig + ShieldAction + Monitor extensions). Explain the use case clearly; approval can take days to weeks and you cannot ship without it. While waiting, use the **Family Controls (Development)** capability in Xcode: fully functional on a real device, but cannot go to TestFlight or the App Store.
 - **Emergency access:** calls and Emergency SOS are never affected by shields (Apple guarantees this), but also provide an in-app emergency unlock with a short hold. Never trap users.
-- **Age:** rate 17+ initially (avoid COPPA/teen data complexity). No under-13 users. Reassess later with a parent-managed mode.
+- **Age:** rate **13+** (founder decision 2026-10-05, replacing the 2026-10-02 decision of 16+). Anyone 13 or older can use ZANO on their own, with no parent involved; the minimum is 13 or the local age of digital consent where that is higher (14-16 in some EU countries). No under-13 users, which keeps COPPA out. Because teens are in, teen defaults apply to every user under 18: no public profile or discovery, squads are invite-only, no behavioural advertising, no sale or sharing of data, and nothing in the app leans on shame or streak pressure. Optional parent linking is §5.23. **Have counsel review the Terms, Privacy Policy and the App Store age-rating answers before submission.**
 - **Health data:** HealthKit data stays on device except aggregated goal completion; never sell or share it. Clear privacy policy and privacy nutrition labels.
 - **No restrictive goals:** no calorie ceilings, weight targets, or fasting. Protein and water are additive. Include a "pause for health reasons" option and disordered-eating-safe copy. Refuse to add "eat less" goals even if requested.
 - **Location:** request "When in Use" first; "Always" only at gym setup with a clear explanation. Provide a manual check-in fallback.

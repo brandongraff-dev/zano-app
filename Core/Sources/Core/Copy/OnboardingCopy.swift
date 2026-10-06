@@ -9,11 +9,13 @@
 // directly from those call sites, not re-derived, so every screen compiles unchanged against this
 // file. Wording is this file's own authored copy except where a comment marks it spec-verbatim.
 //
-// `Screen13Paywall.swift`'s own keys (`paywall*`-prefixed, under this same `onboarding` namespace
-// rather than `Copy.paywall`) are also included even though that screen is superseded/unwired by
-// `OnboardingContainerView.swift` (routes to the real `PaywallView`/`Copy.paywall` instead, per that
-// file's header) — `Screen13Paywall.swift` is still compiled as part of the app target, so its keys
-// must resolve to something real even though the flow never reaches it.
+// Short flow (2026-10-02): onboarding is 7 steps now. Keys for the merged screens (phone time,
+// fall-off, wake-up math, workouts, commitment) are still read by the steps that absorbed them; the
+// coach-voice and notification-screen keys are kept unchanged but unused by onboarding. New wording
+// for the short flow lives in `OnboardingShortFlowCopy.swift`.
+//
+// The paywall's strings live in `Copy.paywall` (`PaywallCopy.swift`). The superseded
+// `Screen13Paywall.swift` and its `paywall*` keys here are gone.
 
 import Foundation
 
@@ -33,11 +35,11 @@ extension Copy {
         // have them"). Until then this strip carries plain product claims, not invented quotes:
         // fabricated endorsements are a ship risk (App Review and consumer-protection), and the old
         // "(placeholder)" attribution was user-visible. Every line below is a fact about how ZANO
-        // works (CLAUDE.md, docs/spec.md §3). Screen2SocialProof renders each entry as centered
-        // headline text and expects exactly 3, so a real quote drops in as `"..." — Name`.
+        // works (CLAUDE.md, docs/spec.md §3). The hook's "How it works" strip renders each entry as one
+        // line with a glyph (three glyphs, matched by position).
         public static let socialProofQuotes: [String] = [
             "Your distracting apps stay locked until you've earned them back.",
-            "Workouts verify from your gym's location and Apple Health. No honor system.",
+            "Workouts verify from your gym's location and Apple Health. Verified by your phone.",
             "Works offline. Your apps open the second your last goal verifies.",
         ]
 
@@ -49,7 +51,7 @@ extension Copy {
         // MARK: - Screen 4: Q2 app selection (spec §7.4)
 
         public static let q2Title = "Which apps steal your time?"
-        public static let q2Subtitle = "Pick the apps and sites you want locked until you've earned them back."
+        public static let q2Subtitle = "Pick the apps you'll earn back. They never leave this phone."
         public static let q2PickerButtonLabel = "Choose apps"
 
         /// Reuses `Copy.lockSetup.selectionSummary` so apps, categories and websites are counted
@@ -67,10 +69,15 @@ extension Copy {
 
         // Same wording as `Copy.lockSetup.authorization*` — one failure, one phrasing.
         public static let q2AuthorizationErrorTitle = "Couldn't turn on Screen Time access"
-        public static let q2AuthorizationErrorMessage = "Check your connection and try again."
+        public static let q2AuthorizationErrorMessage =
+            "Screen Time access wasn't turned on. Try again, or check the iPhone Settings app > Screen Time if it's restricted."
         public static let q2AuthorizationDeniedTitle = "Screen Time access needed"
+        /// The alert's second button: opens this app's page in the iPhone Settings app.
+        public static let q2OpenSettingsButton = "Open Settings"
+        /// The inline card under the picker once access was refused: re-runs the request.
+        public static let q2TryAgainButton = "Try again"
         public static let q2AuthorizationDeniedMessage =
-            "ZANO needs Screen Time access to lock apps until you've earned them back. Turn it on in Settings, then come back."
+            "ZANO needs Screen Time access to lock apps until you've earned them back. Turn it on in the iPhone Settings app, then come back."
 
         // MARK: - Screen 5: Q3 daily phone time (spec §7.5)
 
@@ -98,6 +105,10 @@ extension Copy {
         public static func q4WorkoutsPerWeekValue(_ count: Int) -> String {
             count == 1 ? "1x/week" : "\(count)x/week"
         }
+
+        /// Accessibility labels for the counters' round buttons, so Voice Control can name them.
+        public static let q4DecrementButtonLabel = "Fewer workouts"
+        public static let q4IncrementButtonLabel = "More workouts"
 
         // MARK: - Screen 7: Q5 fall-off pattern (spec §7.7)
 
@@ -134,8 +145,8 @@ extension Copy {
         // MARK: - Screen 10: Plan reveal (spec §7.10)
 
         public static let planRevealEyebrow = "Your plan"
-        /// Spec §7.10 verbatim: "Your Lock-In Plan".
-        public static let planRevealHeadline = "Your Lock-In Plan"
+        /// Spec §7.10's "Your Lock-In Plan", in the product's sentence case.
+        public static let planRevealHeadline = "Your lock-in plan"
         public static let planLockedAppsDetailLine = "These stay locked until you earn them back."
 
         public static func planLockedAppsStatusLine(appCount: Int, categoryCount: Int, webDomainCount: Int) -> String {
@@ -171,7 +182,7 @@ extension Copy {
         }
 
         public static func planGoalStartingDetail(current: Int, target: Int, unit: String) -> String {
-            "Starting at \(current) \(unit) · target \(target) \(unit)"
+            "\(current) \(unit) to start, building to \(target)"
         }
 
         /// Spec §7.10's example was "Built for you in 2:14." — a constant, so every user "built"
@@ -219,48 +230,30 @@ extension Copy {
 
         public static let permissionEyebrow = "Stay in the loop"
         public static let permissionHeadline = "Turn on notifications"
-        /// Spec §7.12 verbatim: "We'll only nudge when it matters."
-        public static let permissionSubtitle = "We'll only nudge when it matters."
+        /// Says exactly what gets sent (spec §7.12's promise, made checkable).
+        public static let permissionSubtitle = "A reminder before a lock starts, and when your time bank runs low. Nothing else."
         public static let permissionAllowButton = "Allow notifications"
         public static let permissionSkipButton = "Not now"
-
-        // MARK: - Screen 13: Paywall placeholder (spec §7.13) — superseded by `Copy.paywall`/
-        // `PaywallView.swift`; kept because `Screen13Paywall.swift` is still compiled. See file
-        // header.
-
-        public static let paywallHeadline = "Earn your phone back"
-        public static let paywallSubtitle = "Do what you already said you'd do, and your apps open back up."
-        /// Spec §7.13's own promise: "we'll remind you 2 days before it ends."
-        public static let paywallTrialReminder = "We'll remind you 2 days before your trial ends."
-        public static let paywallCTAButton = "Start my 7-day free trial"
-        public static let paywallAutoRenewDisclaimer = "Auto-renews unless canceled. Cancel anytime in Settings."
-        public static let paywallMonthlyLabel = "Monthly"
-        public static let paywallAnnualLabel = "Annual"
-        public static let paywallLifetimeLabel = "Lifetime"
-        public static let paywallAnnualBadge = "BEST VALUE"
-
-        /// `period` is the caller's short unit: "yr", "mo", or "once" for a lifetime purchase.
-        public static func paywallPriceSuffix(period: String) -> String {
-            switch period {
-            case "once": "One-time purchase"
-            case "yr": "Billed yearly"
-            case "mo": "Billed monthly"
-            default: "Billed per \(period)"
-            }
-        }
 
         // MARK: - Screen 14: First win (spec §7.14)
 
         public static let firstWinEyebrow = "Your first win"
         /// Spec §7.14 verbatim: "Start your first lock now."
         public static let firstWinHeadline = "Start your first lock now"
-        /// Spec §7.14 verbatim: "10-minute focus to unlock."
-        public static let firstWinSubtitle = "10-minute focus to unlock."
+        /// Spec §7.14's "10-minute focus to unlock", shortened to 2 minutes so the first earned
+        /// unlock lands inside spec §17's 4-minute budget. Keep in step with
+        /// `Screen14FirstWin.plannedMinutes`.
+        public static let firstWinSubtitle = "2-minute focus to unlock."
         public static let firstWinStartButton = "Start focus session"
+        /// The intro's secondary action: skips the first win and goes straight into the app.
+        public static let firstWinLaterButton = "Do it later"
+        /// The alert when the focus session can't start (never the raw system error text).
+        public static let firstWinStartErrorTitle = "Couldn't start the session"
+        public static let firstWinStartErrorMessage = "Try again, or tap Do it later and start one from Today."
         public static let firstWinGoalTitle = "Focus session"
         public static let firstWinRunningHeadline = "Stay locked in"
         public static let firstWinRunningDetail = "Leaving the app pauses your timer. Come back to keep going."
-        public static let firstWinEmergencyLabel = "Emergency"
+        public static let firstWinEmergencyLabel = "Emergency unlock"
         public static let firstWinCelebrationTitle = "Earned."
 
         public static func firstWinCelebrationSubtitle(streak: Int) -> String {

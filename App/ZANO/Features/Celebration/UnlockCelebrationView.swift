@@ -1,64 +1,64 @@
 // UnlockCelebrationView.swift
 // App / Features / Celebration
 //
-// Owned by: this session's task (orchestrator batch, 2026-09-22; redesigned in the design-quality
-// wave, 2026-09-23). Do not edit from another session — see CLAUDE.md "Stay strictly inside your
-// assigned file list."
+// The unlock moment: the user finished their goals and their apps are back. docs/spec.md 16 P3
+// (headline "Earned.", subline "Workout verified · 42 min at the gym", a Time Bank filling to
+// "2h 10m unlocked", an occasional badge) and 8 rule 4 (the tasteful 1-in-6 surprise, the optional
+// `badge` below).
 //
-// docs/spec.md §16 P3 mockup, read verbatim before writing this file: "iPhone screen at the moment
-// of earning apps back: burst of acid-green particles, headline 'Earned.', subline 'Workout
-// verified · 42 min at the gym', a Time Bank bar filling to '2h 10m unlocked', small badge
-// 'Comeback' appearing." Also docs/spec.md §8 rule 4 (variable reward): "1 in ~6 unlocks triggers a
-// surprise (badge, coin bonus, milestone animation, coach voice line). Keep it tasteful." — the
-// optional `badge` parameter below is exactly that occasional surprise; most calls should pass
-// `nil` (see `badge`'s own doc comment).
+// This is the *moment*, not a screen with its own navigation/data-fetching: every input is plain,
+// already-resolved data, so it can be presented from anywhere (TodayView's and ContentView's
+// full-screen covers, the screenshot gallery). The public `init` is unchanged by this redesign.
 //
-// This is the *moment*, not a screen with its own navigation/data-fetching: it takes every piece
-// of state it needs as plain, already-resolved init params (a goal display name, a verification
-// detail string, a Time Bank balance, an optional badge) rather than reading `Goal`/`TimeBank`/
-// `Badge` SwiftData models itself. That keeps it trivially presentable from anywhere (a `.sheet`/
-// `.fullScreenCover` after a verifier/lock-engine call succeeds, a Live Activity tap-through, a
-// Widget deep link, a Siri intent's completion). The public `init` is unchanged by the redesign, so
-// `TodayView`'s call site is untouched.
+// DESIGN (brand wave, 2026-09-24). The brand's signature object is the living ZANO star, which
+// "charges while you're off your phone". The unlock moment is the star reaching full charge:
 //
-// Composition, not duplication: reuses `Core/Sources/Core/UI/Components/TimeBankBar.swift` for the
-// bar itself and `CelebrationBurst.swift` for the particle burst. Everything else is built from
-// `Theme` tokens.
-//
-// Copy: every string is an existing key — `Copy.celebration.*` for the moment itself and
-// `Copy.lockStatus.timeBankHeading` ("Time Bank") for the bar's caption. The reward figure is
-// formatted by the system's `Duration` style rather than a hard-coded "2h 10m", so it localizes.
-//
-// Presentation: this view reads `@Environment(\.dismiss)` for its own "Nice" button, which SwiftUI
-// resolves correctly whether the presenting screen shows this in a `.sheet`, a `.fullScreenCover`,
-// or pushes it. A `.fullScreenCover` has no system swipe-to-dismiss, so this button is the only way
-// out of that presentation style — required, not decorative — and it is tappable from the first
-// frame: it never waits for the choreography (docs/design/competitive-research.md §3.4).
-//
-// DESIGN (design-quality wave). The previous version put a 44pt word ("Earned.") on a flat black
-// screen and buried the actual reward, "2h 10m unlocked", in a 13pt label. The reward is the point
-// of the moment, so the structure is now:
-//
-//   seal        a lock inside a ring. It starts locked and muted; at the unlock beat the glyph swaps
-//               to an open lock in accent, the ring closes, the burst fires from the seal, and a
-//               soft accent glow rises behind it. The product's core mechanic, literally.
-//   "Earned."   the eyebrow, in accent.
-//   "2h 10m"    the reward as the hero numeral (76pt, Dynamic-Type scaled), counting up.
+//   stage       `UnlockStarStage`: the star charges 0.7 -> 1.0, then a flash of ZANO Blue blooms
+//               from it with a brief white specular, a blue shockwave ring expands outward and a
+//               blue particle burst fires. It settles in a soft bloom with three faint halo rings.
+//   eyebrow     "Apps unlocked", the shared sentence-case eyebrow, in blue.
+//   "Earned."   the headline, a big compressed numeral face filled with the logo's brushed silver.
+//   figure      "2h 10m  in your Time Bank", the figure in blue, counting up. Omitted when
+//               nothing is left in the bank (no "0m" hero; the eyebrow already says "Apps unlocked").
 //   subline     "Workout verified · 42 min at the gym".
-//   Time Bank   the shared bar, in a card, captioned "Time Bank".
+//   Time Bank   the shared bar in a card.
 //   badge       the occasional surprise, landing last.
+//   Done        the blue CTA, tappable from the first frame.
 //
-// Timeline (from `onAppear`; the whole thing stays inside `Theme.Motion.unlockCelebrationMaxDuration`,
-// 1.2s): 0.25s lock is seen while the full-screen cover finishes sliding up -> unlock (glyph swap,
-// ring close over 0.6s, burst, glow, "Earned.", one `.success` haptic) -> +0.12s reward count-up and
-// bar fill -> +0.32s badge (if any). Under Reduce Motion there are no delays, no springs, no
-// bounce and no rise: everything shows its final state with a short fade.
+// Timeline, from `onAppear`, all inside `Theme.Motion.unlockCelebrationMaxDuration` (1.2s):
+//   0.00  charge 0.7 -> 1.0 (ease-in, 0.42s)
+//   0.40  flash (0.75s linear, curves inside the stage), burst, one `.success` haptic
+//   0.52  eyebrow, headline, figure and subline land on the celebration spring
+//   0.66  figure/bar count up (0.5s), Time Bank card rises in, badge lands
+// Reduce Motion: no delays, no burst, no shockwave; the resting frame appears with a short fade
+// and the haptic still fires once.
 //
-// Not done here, on purpose: a separate, longer milestone tier for streak days 7/30/100/365 (a
-// number tick, week row and share button). That needs a spec note because it exceeds the 1.2s cap
-// by being user-paced (competitive-research §3.2), and this view has no streak input.
+// The resting frame is the full composition, so a still captured any time after ~1.2s (CI
+// screenshots capture at ~5s) is the finished design.
+//
+// PASS 2 (2026-10-03, "make it more playful"): winning an arcade round.
+//   * The star leaps as it charges, bursts at the apex (jackpot rays in the goal colours, marquee
+//     bulbs, shockwave) and drops back with a bounce (`UnlockStarStage`).
+//   * Confetti in the goal palette, not one blue.
+//   * "Apps unlocked" is a glass chip; "Earned." is a tilted stamp that slams down (score face,
+//     a double rim) with a heavy thud.
+//   * The Time Bank figure rolls up in steps like a score counter, a selection tick per step.
+//   * "Workout verified" and the detail are two chips (no middle-dot sentence).
+//   * Haptics: two light ticks while the star winds up, `.success` on the burst, a heavy impact on
+//     the stamp, selection ticks on the roll-up, a medium tap for a badge/surprise.
+// Reduce Motion: the resting frame, no leap/stamp/roll; one `.success` haptic.
+//
+// Presentation: `@Environment(\.dismiss)` for the Done button, which works for `.sheet`,
+// `.fullScreenCover` or a push. A full-screen cover has no swipe-to-dismiss, so this button is the
+// only way out and it never waits for the choreography.
+//
+// Rating ask (growth research #8, 2026-10-02): Done dismisses first; then, if `RatingPrompt` says
+// this unlock is one of the peak moments (3rd earned unlock, first gym-verified unlock, 7-day
+// streak) and none of its "never" rules apply, the system review prompt is requested a beat later,
+// over whatever screen is underneath. Never from a "rate us" button.
 
 import SwiftUI
+import StoreKit
 import Core
 
 /// The occasional bonus surprise this view can reveal alongside an unlock (docs/spec.md §8 rule 4:
@@ -69,10 +69,10 @@ import Core
 public struct UnlockCelebrationBadge: Equatable, Sendable {
     /// Caller-resolved display title, e.g. `"Comeback"`.
     public let title: String
-    /// SF Symbol name. `"arrow.uturn.forward.circle.fill"` matches the icon
-    /// `App/ZANO/Features/Progress/ProgressView.swift`'s `ProgressBadgeIconMap` already uses for a
-    /// `"comeback"`-prefixed `Badge.key`, though any SF Symbol name is accepted for any other badge.
-    /// Prefer the un-circled variant (`"arrow.uturn.forward"`): the badge is drawn inside its own
+    /// SF Symbol name. `"arrow.uturn.forward"` matches the icon `TrophyBadgeGlyph.forKey(_:)`
+    /// (`App/ZANO/Features/Trophy/TrophyBadgeDisc.swift`) uses for a `"comeback"`-prefixed
+    /// `Badge.key`, though any SF Symbol name is accepted for any other badge. Prefer the
+    /// un-circled variant (`"arrow.uturn.forward"`): the badge is drawn inside its own
     /// capsule, so a circled glyph is a circle inside a pill.
     public let systemImage: String
 
@@ -82,210 +82,340 @@ public struct UnlockCelebrationBadge: Equatable, Sendable {
     }
 }
 
-/// The full unlock-celebration moment (docs/spec.md §16 P3). See the file header for why every
-/// parameter is already-resolved plain data, and for the presentation contract.
+
+/// The full unlock-celebration moment (docs/spec.md 16 P3).
+///
+/// Variable reward (spec §8 rule 4, Wave 3K): on ~1 in 6 earned unlocks `GoalCompletionCoordinator`
+/// rolls a surprise through `VariableReward`. Callers don't pass it: when `surprise` is `nil` this
+/// view claims the newest unrevealed grant (`VariableReward.consumePendingReveal`) at the moment the
+/// details land, so the reveal never races the roll, and exactly one celebration shows it. The
+/// reveal (a "Bonus round!" eyebrow over a silver disc and one line) lands last, with its own haptic. See the file header for the design,
+/// the timeline and the presentation contract.
 public struct UnlockCelebrationView: View {
-    /// Caller-resolved display name for the goal that verified, e.g. `"Workout"`. Not a
-    /// `GoalType` — resolving a type to a display name is each caller's own job (e.g. an
-    /// already-existing per-screen resolver such as `Copy.onboarding.planGoalTitle(for:)`), so
-    /// this view stays decoupled from any one such resolver and from `Core.Models` entirely.
+    /// Caller-resolved display name for the goal that verified, e.g. `"Workout"`.
     private let goalName: String
-    /// Caller-composed verification detail, e.g. `"42 min at the gym"` — spec §16 P3's own
-    /// example. Optional: not every goal type has a detail worth showing.
+    /// Caller-composed verification detail, e.g. `"42 min at the gym"`. Optional.
     private let verificationDetail: String?
-    /// Minutes still available in today's Time Bank *after* this unlock — the value the hero and
-    /// the bar animate to. Same meaning as `TimeBankBar.remainingMinutes`
-    /// (`Core/Sources/Core/UI/Components/TimeBankBar.swift`).
+    /// Minutes still available in today's Time Bank *after* this unlock. Same meaning as
+    /// `TimeBankBar.remainingMinutes`.
     private let timeBankRemainingMinutes: Int
-    /// Minutes earned today, total — same meaning as `TimeBankBar.totalMinutes`.
+    /// Minutes earned today, total. Same meaning as `TimeBankBar.totalMinutes`.
     private let timeBankTotalMinutes: Int
-    /// The occasional bonus surprise (spec §8 rule 4). `nil` most of the time — see that type's
-    /// own doc comment.
+    /// The occasional bonus surprise (spec 8 rule 4). `nil` most of the time.
     private let badge: UnlockCelebrationBadge?
+    /// An explicit variable-reward grant (previews, screenshots). `nil` = claim the pending one.
+    private let surprise: VariableRewardGrant?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.requestReview) private var requestReview
+    @State private var isClipPresented = false
 
-    /// Hero reward size. The reward is the entire point of this screen (docs/design/
-    /// competitive-research.md §3.4: "the number is the reward; the word is the label"), so it is a
-    /// notch above `Theme.Typography.numeralHero` (72pt, a fixed size) and scales with Dynamic Type.
-    /// The face is still the shared numeral face (`Theme.Typography.numeral(size:weight:)`).
-    @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 76
+    /// The headline's size. Compressed heavy numeral face; scales with Dynamic Type.
+    @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 62
+    /// The Time Bank figure's size.
+    @ScaledMetric(relativeTo: .title) private var figureSize: CGFloat = 38
 
-    @State private var isOpen = false
-    @State private var sealProgress: Double = 0
+    /// When the stage's timeline started; `nil` before `onAppear`.
+    @State private var stageStart: Date?
+    /// The stage has reached its resting frame; its timeline stops.
+    @State private var stageSettled = false
     @State private var showBurst = false
     @State private var showHeadline = false
-    @State private var animatedRemainingMinutes = 0
+    @State private var showDetails = false
     @State private var showBadge = false
-    @State private var bounceTick = 0
+    @State private var animatedRemainingMinutes = 0
     @State private var unlockHapticTick = 0
+    @State private var chargeHapticTick = 0
+    @State private var stampHapticTick = 0
+    @State private var countHapticTick = 0
+    /// The stamp has hit the page (drives its slam separately from the text block's fade).
+    @State private var stampLanded = false
     @State private var badgeHapticTick = 0
+    @State private var hasPlayed = false
     @State private var playTask: Task<Void, Never>?
+    /// The surprise being revealed, once claimed.
+    @State private var revealedSurprise: VariableRewardGrant?
+    @State private var showSurprise = false
+    /// The quiet "Invite a friend" link (at most every `ReferralPrompt.minimumInterval`).
+    @State private var showsReferralLink = false
+    private static let referralsLive = false
+    @State private var isReferralPresented = false
 
     /// - Parameters:
-    ///   - goalName: Caller-resolved goal display name (see the property doc above).
+    ///   - goalName: Caller-resolved goal display name.
     ///   - verificationDetail: Caller-composed verification detail. Defaults to `nil`.
     ///   - timeBankRemainingMinutes: Today's Time Bank balance *after* this unlock.
     ///   - timeBankTotalMinutes: Today's Time Bank total earned (the bar's denominator).
-    ///   - badge: An optional bonus badge reveal. Defaults to `nil` — pass one on roughly 1-in-6
-    ///     unlocks per spec §8 rule 4, never on every unlock.
+    ///   - badge: An optional bonus badge reveal. Defaults to `nil`; pass one on roughly 1-in-6
+    ///     unlocks per spec 8 rule 4, never on every unlock.
     public init(
         goalName: String,
         verificationDetail: String? = nil,
         timeBankRemainingMinutes: Int,
         timeBankTotalMinutes: Int,
-        badge: UnlockCelebrationBadge? = nil
+        badge: UnlockCelebrationBadge? = nil,
+        surprise: VariableRewardGrant? = nil
     ) {
         self.goalName = goalName
         self.verificationDetail = verificationDetail
         self.timeBankRemainingMinutes = timeBankRemainingMinutes
         self.timeBankTotalMinutes = timeBankTotalMinutes
         self.badge = badge
+        self.surprise = surprise
     }
 
-    /// Full Mode has no Time Bank (spec §5.2: the bank only exists in Earn Mode), and `TodayView`
-    /// passes `0`/`0` when there is none. Showing "Earned. 0m" over an empty bar would be wrong, so
-    /// the reward hero and the bar are simply omitted in that case.
+    /// Full Mode has no Time Bank (spec 5.2), and callers pass `0`/`0` then. The figure and the
+    /// bar are omitted rather than showing "0m" over an empty bar.
     private var hasTimeBank: Bool {
         timeBankTotalMinutes > 0 || timeBankRemainingMinutes > 0
     }
 
     public var body: some View {
-        // `lg` (24), not `xl`: on a 667pt-tall phone with a badge present the stack is ~670pt at
-        // `xl` and would clip; `lg` keeps it inside the screen with room for the spacers.
-        VStack(spacing: Theme.Spacing.lg) {
+        VStack(spacing: 0) {
             Spacer(minLength: Theme.Spacing.md)
 
-            sealStack
+            stage
 
-            rewardBlock
+            textBlock
+                .padding(.top, Theme.Spacing.sm)
                 .opacity(showHeadline ? 1 : 0)
-                .offset(y: showHeadline || reduceMotion ? 0 : CelebrationMetrics.riseOffset)
+                .scaleEffect(showHeadline || reduceMotion ? 1 : 0.96)
+                .offset(y: showHeadline || reduceMotion ? 0 : CelebrationLayout.riseOffset)
 
             if hasTimeBank {
                 timeBankCard
-                    .opacity(showHeadline ? 1 : 0)
+                    .padding(.top, Theme.Spacing.lg)
+                    .opacity(showDetails ? 1 : 0)
+                    .offset(y: showDetails || reduceMotion ? 0 : CelebrationLayout.riseOffset)
             }
 
             if let badge {
                 badgePill(badge)
+                    .padding(.top, Theme.Spacing.md)
                     .opacity(showBadge ? 1 : 0)
-                    .scaleEffect(showBadge || reduceMotion ? 1 : 0.9)
+                    .scaleEffect(showBadge || reduceMotion ? 1 : 0.85)
+            }
+
+            if let revealedSurprise {
+                SurpriseReveal(grant: revealedSurprise)
+                    .padding(.top, Theme.Spacing.md)
+                    .padding(.horizontal, Theme.Spacing.lg)
+                    .opacity(showSurprise ? 1 : 0)
+                    .scaleEffect(showSurprise || reduceMotion ? 1 : 0.85)
             }
 
             Spacer(minLength: Theme.Spacing.lg)
 
-            PrimaryButton(title: Copy.celebration.dismissButtonLabel) {
+            // Tappable from the first frame; never gated on the choreography.
+            PrimaryButton(title: Copy.celebration.dismissButtonLabel, tint: .accent) {
                 dismiss()
+                askForRatingIfDue()
             }
             .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.lg)
+            .padding(.bottom, Theme.Spacing.xs)
+
+            // The Earned It clip: a 5-second video of this unlock, starring the user's buddy.
+            Button(Copy.clip.makeButton) {
+                Analytics.shared.capture(event: "earned_it_clip_tapped", properties: ["screen": "unlock_celebration"])
+                isClipPresented = true
+            }
+            .font(Theme.Typography.captionEmphasized)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .frame(minHeight: Theme.Metrics.minTapTarget)
+            .padding(.bottom, showsReferralLink ? Theme.Spacing.xxs : Theme.Spacing.sm)
+            .opacity(showDetails ? 1 : 0)
+
+            if showsReferralLink {
+                Button(Copy.share.referralPostUnlockPrompt) {
+                    Analytics.shared.capture(event: "referral_prompt_tapped", properties: ["screen": "unlock_celebration"])
+                    isReferralPresented = true
+                }
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .frame(minHeight: Theme.Metrics.minTapTarget)
+                .padding(.bottom, Theme.Spacing.sm)
+                .opacity(showDetails ? 1 : 0)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.Colors.background.ignoresSafeArea())
+        .zanoAmbient(.earned)
         .sensoryFeedback(.success, trigger: unlockHapticTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: chargeHapticTick)
+        .sensoryFeedback(.impact(weight: .heavy), trigger: stampHapticTick)
+        .sensoryFeedback(.selection, trigger: countHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: badgeHapticTick)
-        .onAppear { play() }
+        .sheet(isPresented: $isClipPresented) {
+            EarnedItClipView(goalName: goalName, doneGoal: nil)
+                .preferredColorScheme(.dark)
+        }
+        .sheet(isPresented: $isReferralPresented) {
+            NavigationStack { ReferralView(showsDoneButton: true) }
+                .preferredColorScheme(.dark)
+        }
+        .onAppear {
+            // Decided once per appearance; a surprise gets the spotlight on its own.
+            // Referrals need the backend (hidden for v1 with the Invite row); flip this back on
+            // with `ReferralPrompt.shouldOffer()` when redeeming goes live.
+            if Self.referralsLive, !hasPlayed, surprise == nil, ReferralPrompt.shouldOffer() {
+                showsReferralLink = true
+                ReferralPrompt.recordOffered()
+            }
+            play()
+        }
         .onDisappear { playTask?.cancel() }
-        // Fixed, dark-only design system. This full-screen cover used to set the scheme only inside
-        // `#Preview`, so it depended on the presenter's scheme (typography-color-findings C11).
+        // Deliberately dark in light mode too (docs/design/visual-direction-v2.md §10): the star's
+        // light sweep and burst are additive light on ink, and they wash out on white.
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Seal
+    // MARK: - Rating ask
 
-    /// A lock inside a ring, with the burst and glow behind it. Everything the unlock moment does
-    /// visually originates here.
-    private var sealStack: some View {
+    /// See the file header. The decision is read before the delay; the prompt follows the
+    /// dismissal so it never covers the celebration itself.
+    private func askForRatingIfDue() {
+        #if DEBUG
+        // CI screenshots and UI tests: a review sheet would cover the next screen.
+        if ScreenshotMode.screen != nil || UserDefaults.standard.bool(forKey: "ZANOSkipPaywall") { return }
+        #endif
+        guard let trigger = RatingPrompt.shared.triggerIfDue() else { return }
+        RatingPrompt.shared.recordAsked(trigger)
+        Analytics.shared.capture(event: "rating_prompt_requested", properties: ["trigger": trigger.rawValue])
+        let requestReview = requestReview
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            requestReview()
+        }
+    }
+
+    // MARK: - Stage
+
+    private var stage: some View {
         ZStack {
-            if showBurst {
-                // Mounted at the unlock beat (not at appear) so the burst fires exactly once, from
-                // the moment the lock opens. It handles Reduce Motion itself (in-place cross-fade).
-                CelebrationBurst(trigger: 0)
-                    .frame(width: CelebrationMetrics.burstFrame, height: CelebrationMetrics.burstFrame)
+            if let stageStart, !stageSettled, !reduceMotion {
+                TimelineView(.animation) { context in
+                    let elapsed = context.date.timeIntervalSince(stageStart)
+                    UnlockStarStage(
+                        charge: CelebrationTiming.charge(at: elapsed),
+                        flash: CelebrationTiming.flash(at: elapsed)
+                    )
+                }
+            } else {
+                // Before the timeline starts: the star at its starting charge. After it settles,
+                // or under Reduce Motion: the resting frame.
+                let resting = stageSettled || reduceMotion
+                UnlockStarStage(
+                    charge: resting ? 1 : CelebrationTiming.startCharge,
+                    flash: resting ? 1 : 0
+                )
             }
 
-            seal
+            if showBurst && !reduceMotion {
+                // Mounted at the flash so it fires once, from the star.
+                CelebrationBurst(
+                    trigger: 0,
+                    colors: UnlockStarStage.goalPalette + [Theme.Colors.accent, Theme.Colors.text],
+                    particleCount: 44
+                )
+                .frame(width: CelebrationLayout.burstFrame, height: CelebrationLayout.burstFrame)
+                .allowsHitTesting(false)
+            }
         }
-        .background {
-            // Static radial glow; only its opacity changes, once, at the unlock beat. No animated
-            // blur or radius (HIG Reduce Motion guidance). Being a `background` it never affects
-            // layout, so it can be far larger than the seal.
-            RadialGradient(
-                colors: [Theme.Colors.accent.opacity(0.18), Theme.Colors.accent.opacity(0)],
-                center: .center,
-                startRadius: 0,
-                endRadius: CelebrationMetrics.glowRadius
-            )
-            .frame(width: CelebrationMetrics.glowRadius * 2, height: CelebrationMetrics.glowRadius * 2)
-            .opacity(isOpen ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: isOpen)
-        }
+        .frame(maxWidth: .infinity)
+        .frame(height: StageMetrics.stageHeight)
         .accessibilityHidden(true)
     }
 
-    private var seal: some View {
-        ZStack {
-            // The ring's own-hue track (`Ring.track(for:)`, accent at 30%), the same empty ring every
-            // `GoalRing` draws, so the seal reads as a ring about to close and not a faint smudge.
-            Circle()
-                .stroke(Theme.Colors.Ring.track(for: Theme.Colors.accent), lineWidth: CelebrationMetrics.sealLine)
+    // MARK: - Text
 
-            Circle()
-                .trim(from: 0, to: sealProgress)
-                .stroke(
-                    Theme.Colors.accent,
-                    style: StrokeStyle(lineWidth: CelebrationMetrics.sealLine, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
+    private var textBlock: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            ZanoGlassChip(
+                Copy.celebration.appsUnlockedEyebrow,
+                systemImage: "lock.open.fill",
+                tint: Theme.Colors.accent
+            )
 
-            Circle()
-                .fill(Theme.Colors.surface)
-                .padding(CelebrationMetrics.sealLine + Theme.Spacing.xs)
+            stamp
 
-            Image(systemName: isOpen ? "lock.open.fill" : "lock.fill")
-                .font(.system(size: 44, weight: .semibold))
-                .foregroundStyle(isOpen ? Theme.Colors.accent : Theme.Colors.muted)
-                .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
-                .symbolEffect(.bounce, value: bounceTick)
-        }
-        .frame(width: CelebrationMetrics.sealDiameter, height: CelebrationMetrics.sealDiameter)
-    }
-
-    // MARK: - Reward
-
-    private var rewardBlock: some View {
-        VStack(spacing: Theme.Spacing.xs) {
-            Text(Copy.celebration.headline)
-                // `Theme.Colors.accent`'s own doc comment: "Reserve for primary CTAs, the workout
-                // ring, and unlock/earned states" — this eyebrow is exactly that third case. With a
-                // time-bank hero above the fold it is the label; without one it is the headline.
-                .font(hasTimeBank ? Theme.Typography.numeralMedium() : Theme.Typography.numeralLarge())
-                .foregroundStyle(Theme.Colors.accent)
-                .accessibilityAddTraits(.isHeader)
-
-            if hasTimeBank {
-                Text(Duration.seconds(animatedRemainingMinutes * 60), format: .units(allowed: [.hours, .minutes], width: .narrow))
-                    .font(Theme.Typography.numeral(size: heroSize, weight: .bold))
-                    .tracking(-1)
-                    .foregroundStyle(Theme.Colors.text)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .contentTransition(reduceMotion ? .opacity : .numericText(value: Double(animatedRemainingMinutes)))
-                    // VoiceOver hears the final figure ("2h 10m unlocked") from the first frame
-                    // instead of every intermediate value of the count-up.
-                    .accessibilityLabel(Copy.celebration.timeBankUnlockedLabel(minutes: timeBankRemainingMinutes))
+            if timeBankRemainingMinutes > 0 {
+                timeBankFigure
             }
 
-            Text(Copy.celebration.subline(goalName: goalName, detail: verificationDetail))
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.muted)
-                .multilineTextAlignment(.center)
-                .padding(.top, Theme.Spacing.xs)
+            verificationChips
         }
         .padding(.horizontal, Theme.Spacing.lg)
         .accessibilityElement(children: .combine)
+    }
+
+    /// "Earned." as a stamp: score face, tilted, inside a double rim, slammed down from above.
+    private var stamp: some View {
+        Text(Copy.celebration.headline)
+            .font(Theme.Typography.score(size: headlineSize))
+            .foregroundStyle(Theme.Colors.text) // pass 3: solid text, no metallic gradient
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xxs)
+            .background {
+                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                    .strokeBorder(Theme.Colors.Ring.sunriseAlarm, lineWidth: 3)
+                    .padding(-2)
+                RoundedRectangle(cornerRadius: Theme.Radius.small - 6, style: .continuous)
+                    .strokeBorder(Theme.Colors.Ring.sunriseAlarm.opacity(0.5), lineWidth: 1)
+                    .padding(5)
+            }
+            .shadow(color: Theme.Colors.Ring.sunriseAlarm.opacity(0.35), radius: 14)
+            .rotationEffect(.degrees(stampLanded || reduceMotion ? -5 : -14))
+            .scaleEffect(stampLanded || reduceMotion ? 1 : 1.9)
+            .opacity(stampLanded || reduceMotion ? 1 : 0)
+            .padding(.vertical, Theme.Spacing.xs)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var timeBankFigure: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+            Text(
+                Duration.seconds(animatedRemainingMinutes * 60),
+                format: .units(allowed: [.hours, .minutes], width: .narrow)
+            )
+            .font(Theme.Typography.score(size: figureSize))
+            .foregroundStyle(Theme.Colors.accent)
+            .contentTransition(
+                reduceMotion ? .opacity : .numericText(value: Double(animatedRemainingMinutes))
+            )
+
+            Text(Copy.celebration.timeBankFigureCaption)
+                .font(Theme.Typography.unit)
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.55)
+        // VoiceOver hears the final figure from the first frame, not the roll-up.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.celebration.timeBankUnlockedLabel(minutes: timeBankRemainingMinutes))
+    }
+
+    /// "Workout verified" and the detail as two chips; stacked when they don't fit side by side.
+    private var verificationChips: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.xs) { verificationChipContent }
+            VStack(spacing: Theme.Spacing.xs) { verificationChipContent }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.celebration.subline(goalName: goalName, detail: verificationDetail))
+    }
+
+    @ViewBuilder
+    private var verificationChipContent: some View {
+        ZanoGlassChip(
+            Copy.celebration.verifiedChip(goalName: goalName),
+            systemImage: "checkmark.seal.fill",
+            tint: Theme.Colors.Ring.workout
+        )
+        if let verificationDetail, !verificationDetail.isEmpty {
+            ZanoGlassChip(verificationDetail, systemImage: "bolt.fill", tint: Theme.Colors.Ring.sunriseAlarm)
+        }
     }
 
     private var timeBankCard: some View {
@@ -302,83 +432,248 @@ public struct UnlockCelebrationView: View {
     private func badgePill(_ badge: UnlockCelebrationBadge) -> some View {
         HStack(spacing: Theme.Spacing.xxs) {
             Image(systemName: badge.systemImage)
-                .font(.system(size: 12, weight: .semibold))
+                .font(Theme.Typography.icon(.small))
             Text(badge.title)
                 .font(Theme.Typography.captionEmphasized)
         }
-        // `onFill`: the one label color for anything drawn on an accent fill (16.4:1).
-        .foregroundStyle(Theme.Colors.onFill)
+        .foregroundStyle(Theme.Colors.onAccent)
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xs)
-        .background(Theme.Colors.accent, in: Capsule())
+        // `accentFill`, the fill-safe blue (white on it is 5.27:1; on `accent` it is 3.87:1).
+        .background(Theme.Colors.accentFill, in: Capsule())
+        // A sticker slapped on: a white die-cut rim and a slight tilt.
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.9), lineWidth: 2))
+        .rotationEffect(.degrees(reduceMotion ? 0 : 3))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.celebration.badgeRevealAccessibilityLabel(title: badge.title))
     }
 
     // MARK: - Choreography
 
-    /// Stages the lock -> unlock beat -> reward -> badge so the "surprise" (when present) lands
-    /// last, per spec §8 rule 4's "tasteful" framing, rather than dumping everything on screen at
-    /// once. Skips the staggered delays under Reduce Motion (`stageDelay` below) so that preference
-    /// speeds up *when* information appears, not just how it animates in, and swaps every spring for
-    /// a short ease. Nothing here gates the dismiss button.
     private func play() {
-        playTask?.cancel()
-        playTask = Task { @MainActor in
-            // The lock is on screen (locked, muted) while the full-screen cover finishes sliding
-            // up, so the swap that follows is actually seen.
-            try? await stageDelay(milliseconds: 250)
-            guard !Task.isCancelled else { return }
+        // A cover that reappears (e.g. after a system alert) keeps its settled state.
+        guard !hasPlayed else { return }
+        hasPlayed = true
 
-            // Unlock beat: glyph swap, ring close, burst, glow, "Earned.", one haptic.
+        if reduceMotion {
+            playReduced()
+            return
+        }
+
+        playTask?.cancel()
+        stageStart = Date()
+        playTask = Task { @MainActor in
+            // 0.00: the stage's timeline charges the star and it winds up its leap. Two light
+            // ticks while it rises.
+            chargeHapticTick += 1
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.secondChargeTickMs))
+            guard !Task.isCancelled else { return }
+            chargeHapticTick += 1
+
+            // Flash at the apex: the stage draws bloom, rays, shockwave; this adds the confetti
+            // and the success haptic on the same beat.
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.flashAtMs - CelebrationTiming.secondChargeTickMs))
+            guard !Task.isCancelled else { return }
             showBurst = true
             unlockHapticTick += 1
-            if !reduceMotion { bounceTick += 1 }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springCelebration) {
-                isOpen = true
+
+            // The words come in; the stamp slams down a beat later with a thud.
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.headlineAfterFlashMs))
+            guard !Task.isCancelled else { return }
+            withAnimation(Theme.Motion.springCelebration) {
                 showHeadline = true
             }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill) {
-                sealProgress = 1
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) {
+                stampLanded = true
             }
-
-            // Reward: the hero figure and the bar count up together.
-            try? await stageDelay(milliseconds: 120)
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.stampThudMs))
             guard !Task.isCancelled else { return }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill) {
-                animatedRemainingMinutes = timeBankRemainingMinutes
+            stampHapticTick += 1
+
+            // The card, badge and surprise land; the figure rolls up like a score counter.
+            withAnimation(Theme.Motion.springCelebration) {
+                showDetails = true
+                showBadge = badge != nil
             }
-
-            guard badge != nil else { return }
-            try? await stageDelay(milliseconds: 320)
+            if badge != nil { badgeHapticTick += 1 }
+            revealSurpriseIfAny()
+            await rollUpTimeBank()
             guard !Task.isCancelled else { return }
-            badgeHapticTick += 1
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springCelebration) {
-                showBadge = true
+
+            // Stop the stage's timeline once the flash has finished; the resting frame is static.
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.settleAfterRollMs))
+            guard !Task.isCancelled else { return }
+            stageSettled = true
+        }
+    }
+
+    /// Rolls the figure (and the bar) up in `rollSteps` steps with a selection tick on every
+    /// other one, so it reads as a score counter rather than a fade.
+    private func rollUpTimeBank() async {
+        let target = timeBankRemainingMinutes
+        guard target > 0 else { return }
+        let steps = CelebrationTiming.rollSteps
+        for step in 1...steps {
+            let fraction = Double(step) / Double(steps)
+            // Ease-out: big jumps first, then it ticks into place.
+            let eased = 1 - pow(1 - fraction, 2)
+            withAnimation(.snappy(duration: CelebrationTiming.rollStepSeconds)) {
+                animatedRemainingMinutes = step == steps ? target : Int((Double(target) * eased).rounded())
+            }
+            if step.isMultiple(of: 2) || step == steps { countHapticTick += 1 }
+            try? await Task.sleep(for: .milliseconds(CelebrationTiming.rollStepMs))
+            if Task.isCancelled {
+                animatedRemainingMinutes = target
+                return
             }
         }
     }
 
-    private func stageDelay(milliseconds: Int) async throws {
-        guard !reduceMotion else { return }
-        try await Task.sleep(for: .milliseconds(milliseconds))
+    /// Claims the surprise (explicit, or the pending one from `VariableReward`) and lands it.
+    /// Called once the details are up, so an unlock whose roll finished a beat after the cover
+    /// appeared is still revealed.
+    private func revealSurpriseIfAny() {
+        guard revealedSurprise == nil else { return }
+        guard let grant = surprise ?? VariableReward.shared.consumePendingReveal() else { return }
+        revealedSurprise = grant
+        showsReferralLink = false
+        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.springCelebration) {
+            showSurprise = true
+        }
+        badgeHapticTick += 1
+        Analytics.shared.capture(event: "variable_reward_revealed", properties: ["kind": grant.kind.rawValue])
+    }
+
+    /// Reduce Motion: the resting frame, faded in. No burst, no shockwave, no scale.
+    private func playReduced() {
+        stageSettled = true
+        unlockHapticTick += 1
+        withAnimation(.easeOut(duration: 0.2)) {
+            showHeadline = true
+            stampLanded = true
+            showDetails = true
+            showBadge = badge != nil
+            animatedRemainingMinutes = timeBankRemainingMinutes
+        }
+        revealSurpriseIfAny()
+        if revealedSurprise == nil {
+            // The roll can finish a moment after the cover appears; look once more.
+            playTask?.cancel()
+            playTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(CelebrationTiming.reducedMotionSurpriseRetryMs))
+                guard !Task.isCancelled else { return }
+                revealSurpriseIfAny()
+            }
+        }
     }
 }
 
-// MARK: - Local design constants
-//
-// Sizes specific to this moment's artwork (the seal, the burst frame, the glow) with no
-// `Theme.Metrics` home. The Time Bank card is the shared `zanoCard` (review pass: it used to be a
-// private `CelebrationCardSurface` with its own edge recipe, written before `zanoCard` existed).
+// MARK: - Local constants
 
-private enum CelebrationMetrics {
-    static let sealDiameter: CGFloat = 132
-    static let sealLine: CGFloat = 8
-    /// The burst's frame, centred on the seal so particles radiate from it.
-    static let burstFrame: CGFloat = 280
-    static let glowRadius: CGFloat = 300
-    /// Upward travel of the reward block as it fades in. Skipped under Reduce Motion.
-    static let riseOffset: CGFloat = 12
+/// The unlock timeline. Charge/leap 0-0.42s; flash 0.40-1.15s; words at 0.52s; stamp thud at
+/// ~0.66s; the figure rolls up 0.66-1.20s; the stage settles at ~1.3s (the resting frame).
+private enum CelebrationTiming {
+    static let startCharge: Double = 0.7
+    static let chargeDuration: TimeInterval = 0.42
+    static let secondChargeTickMs = 200
+    static let flashAtMs = 400
+    static let flashDuration: TimeInterval = 0.75
+    static let headlineAfterFlashMs = 120
+    /// The stamp's spring reaches the page about here; the heavy haptic fires on contact.
+    static let stampThudMs = 140
+    static let rollSteps = 12
+    static let rollStepMs = 45
+    static let rollStepSeconds: TimeInterval = 0.08
+    static let settleAfterRollMs = 120
+    /// Reduce Motion lands everything at once, so it re-checks for a late surprise once.
+    static let reducedMotionSurpriseRetryMs = 600
+
+    /// The star's charge `elapsed` seconds in: `startCharge` -> 1 on an ease-in, so it accelerates
+    /// into the flash.
+    static func charge(at elapsed: TimeInterval) -> Double {
+        let p = min(1, max(0, elapsed / chargeDuration))
+        return startCharge + (1 - startCharge) * p * p
+    }
+
+    /// Progress through the flash `elapsed` seconds in: 0 until `flashAtMs`, then linear to 1 over
+    /// `flashDuration`. The stage shapes its own curves from it.
+    static func flash(at elapsed: TimeInterval) -> Double {
+        let start = Double(flashAtMs) / 1000
+        return min(1, max(0, (elapsed - start) / flashDuration))
+    }
+}
+
+/// The variable-reward reveal: a "Bonus round!" eyebrow in blue over a silver (earned-metal) disc and
+/// one line. Tasteful by construction (spec §8 rule 4): one line, no second burst.
+private struct SurpriseReveal: View {
+    let grant: VariableRewardGrant
+
+    private var title: String {
+        switch grant.kind {
+        case .bonusCoins: Copy.celebration.surpriseCoinsTitle(grant.coins)
+        case .badge: Copy.celebration.surpriseBadgeTitle
+        case .coachLine:
+            Copy.celebration.surpriseCoachLine(
+                voice: CoachVoice.from(sharedDefaultsRaw: SharedDefaults.coachVoice),
+                index: grant.coachLineIndex ?? 0
+            )
+        }
+    }
+
+    private var detail: String {
+        switch grant.kind {
+        case .bonusCoins: Copy.celebration.surpriseCoinsDetail
+        case .badge: Copy.celebration.surpriseBadgeDetail
+        case .coachLine: Copy.celebration.surpriseCoachDetail
+        }
+    }
+
+    private var glyph: String {
+        switch grant.kind {
+        case .bonusCoins: "sparkles"
+        case .badge: "rosette"
+        case .coachLine: "quote.bubble.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            TrophyBadgeDisc(isEarned: true, systemImage: glyph, diameter: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Copy.celebration.surpriseEyebrow)
+                    .zanoText(.eyebrow)
+                    .foregroundStyle(Theme.Colors.Ring.creatine)
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Theme.Spacing.sm)
+        // A prize ticket: pink-washed glass with a perforated inner edge.
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                .strokeBorder(
+                    Theme.Colors.Ring.creatine.opacity(0.45),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 5])
+                )
+                .padding(Theme.Spacing.xxs)
+        }
+        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.Ring.creatine, active: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.celebration.surpriseAccessibilityLabel("\(title). \(detail)"))
+    }
+}
+
+private enum CelebrationLayout {
+    /// The burst's frame, centred on the star so particles radiate from it.
+    static let burstFrame: CGFloat = 360
+    /// Upward travel of text and card as they land. Skipped under Reduce Motion.
+    static let riseOffset: CGFloat = 18
 }
 
 #Preview("UnlockCelebrationView — with badge") {
@@ -389,7 +684,16 @@ private enum CelebrationMetrics {
         timeBankTotalMinutes: 180,
         badge: UnlockCelebrationBadge(title: "Comeback", systemImage: "arrow.uturn.forward")
     )
-    .preferredColorScheme(.dark)
+}
+
+#Preview("UnlockCelebrationView — surprise coins") {
+    UnlockCelebrationView(
+        goalName: "Workout",
+        verificationDetail: "42 min at the gym",
+        timeBankRemainingMinutes: 130,
+        timeBankTotalMinutes: 180,
+        surprise: VariableRewardGrant(id: UUID(), kind: .bonusCoins, coins: 50, grantedAt: .now)
+    )
 }
 
 #Preview("UnlockCelebrationView — no badge") {
@@ -399,7 +703,6 @@ private enum CelebrationMetrics {
         timeBankRemainingMinutes: 45,
         timeBankTotalMinutes: 60
     )
-    .preferredColorScheme(.dark)
 }
 
 #Preview("UnlockCelebrationView — Full Mode (no Time Bank)") {
@@ -409,5 +712,4 @@ private enum CelebrationMetrics {
         timeBankRemainingMinutes: 0,
         timeBankTotalMinutes: 0
     )
-    .preferredColorScheme(.dark)
 }

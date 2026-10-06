@@ -351,4 +351,18 @@ struct StoreTests {
         let names = ModelContainer.appGroupModelTypes.map { String(describing: $0) }
         #expect(names.count == Set(names).count)
     }
+
+    // MARK: - ModelContainer+AppGroup: versioned schema (audit W1)
+
+    @Test func schemaV1IsExactlyTheAppGroupModelTypes() {
+        let v1Names = Set(ZanoSchemaV1.models.map { String(describing: $0) })
+        let typeNames = Set(ModelContainer.appGroupModelTypes.map { String(describing: $0) })
+        #expect(v1Names == typeNames)
+        #expect(ZanoSchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
+    }
+
+    @Test func migrationPlanListsV1AndNoStagesYet() {
+        #expect(ZanoSchemaMigrationPlan.schemas.map { ObjectIdentifier($0) } == [ObjectIdentifier(ZanoSchemaV1.self)])
+        #expect(ZanoSchemaMigrationPlan.stages.isEmpty)
+    }
 }

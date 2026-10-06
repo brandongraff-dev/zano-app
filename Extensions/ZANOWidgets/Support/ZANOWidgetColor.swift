@@ -1,36 +1,53 @@
 // ZANOWidgetColor.swift
 // Extensions/ZANOWidgets/Support
 //
-// Hardcoded fallback color tokens, copied verbatim from docs/spec.md §15 Design System — the
-// canonical values — for use ONLY inside Extensions/ZANOWidgets.
+// The widgets' colour tokens. Originally a hand-copied mirror of the spec's first palette (the
+// near-black canvas, muted bronze/lavender/glacier rings), kept separate because Core's `Theme` did
+// not exist yet. It does now, and this extension already imports Core (`ZANOWidgetComponents` draws
+// the star with `Theme.Colors.metallic`), so since pass 2 (2026-10-03, docs/design/
+// visual-direction-v2.md "Pass 2: playful") every token here simply *points at* the v2 palette: the
+// indigo-ink canvas, ZANO Blue, ember for the streak flame, and the saturated goal colours. One
+// source of truth, so the Home Screen, StandBy and Live Activities match the app.
 //
-// Deliberately does NOT import or reference any Core/UI `Theme` type: per this session's task,
-// Session 5's `Theme` may not exist yet on disk, and this extension has to keep compiling and
-// rendering correctly regardless of when that design-system session lands. If/when
-// `Core/Sources/Core/UI/Theme.swift` ships with equivalent tokens, this file should be deleted in
-// favor of it — flagged in this task's knownIssues for the orchestrator.
+// All of these are `static let`s on non-actor enums holding `Color` (Sendable), so they are safe to
+// read from widget timeline/rendering code, which is not main-actor isolated.
 //
-// Widget chrome otherwise stays to system styles (system fonts, system materials via
-// `.containerBackground`, SF Symbols) per this task's instructions — these are the only
-// hardcoded colors in the extension, matching spec §15's "ONE accent only" rule.
+// StandBy and the accented/vibrant rendering modes strip or desaturate colour themselves
+// (`.widgetAccentable()` marks what stays lit), so nothing here needs a StandBy variant.
+//
+// Light mode (2026-10-03): every `Theme` token is now a light/dark pair, so these adapt with no
+// change here: the Home Screen widgets draw the light canvas, ink text and the deeper light goal
+// colours in light appearance. The Home widget applies `.zanoAppAppearance()` so an explicit
+// Settings > Appearance choice wins over the Home Screen's. StandBy night mode tints everything red
+// itself and is unaffected.
 
 import SwiftUI
+import Core
 
 enum ZANOWidgetColor {
-    static let background = Color(red: 0x0A / 255.0, green: 0x0A / 255.0, blue: 0x0B / 255.0)
-    static let surface = Color(red: 0x14 / 255.0, green: 0x14 / 255.0, blue: 0x16 / 255.0)
-    static let surface2 = Color(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1F / 255.0)
-    static let textPrimary = Color(red: 0xF5 / 255.0, green: 0xF5 / 255.0, blue: 0xF7 / 255.0)
-    static let textMuted = Color(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0)
+    /// Indigo ink `#0B0E24` (dark) / cool soft white `#F5F6FB` (light).
+    static let background = Theme.Colors.background
+    static let backgroundDeep = Theme.Colors.backgroundDeep
+    static let surface = Theme.Colors.surface
+    static let surface2 = Theme.Colors.surface2
+    static let textPrimary = Theme.Colors.text
+    /// `#A6A4C8` (was a 45% system grey).
+    static let textMuted = Theme.Colors.muted
 
-    /// The single accent color (spec §15: "ONE accent only") — earned/unlocked state.
-    static let accent = Color(red: 0xB8 / 255.0, green: 0xFF / 255.0, blue: 0x3C / 255.0)
-    static let danger = Color(red: 0xFF / 255.0, green: 0x45 / 255.0, blue: 0x3A / 255.0)
-    static let warning = Color(red: 0xFF / 255.0, green: 0xB0 / 255.0, blue: 0x20 / 255.0)
+    /// ZANO Blue `#3F7BFF`. For text, strokes, bars and glyphs; never under a white label.
+    static let accent = Theme.Colors.accent
+    /// `#2A62E6`: the fill under a white label (5.27:1), e.g. the start-lock capsule.
+    static let accentFill = Theme.Colors.accentFill
+    /// The second aurora light, for the widget backgrounds.
+    static let violet = Theme.Colors.Aurora.violet
+    /// The streak flame (ember is for streak and fire moments only).
+    static let ember = Theme.Colors.ember
+    static let danger = Theme.Colors.danger
+    static let warning = Theme.Colors.warning
 
-    // Ring colors (spec §15): workout = accent, protein = orange, focus = indigo, water = blue.
-    static let ringWorkout = accent
-    static let ringProtein = Color(red: 0xFF / 255.0, green: 0x7A / 255.0, blue: 0x00 / 255.0)
-    static let ringFocus = Color(red: 0x5E / 255.0, green: 0x5C / 255.0, blue: 0xE6 / 255.0)
-    static let ringWater = Color(red: 0x32 / 255.0, green: 0xAD / 255.0, blue: 0xE6 / 255.0)
+    // Goal colours (v2, saturated): workout volt, protein apricot, focus violet, water sky.
+    static let ringWorkout = Theme.Colors.Ring.workout
+    static let ringProtein = Theme.Colors.Ring.protein
+    static let ringFocus = Theme.Colors.Ring.focus
+    static let ringWater = Theme.Colors.Ring.water
 }

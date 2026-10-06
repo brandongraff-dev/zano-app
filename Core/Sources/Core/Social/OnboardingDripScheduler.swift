@@ -345,6 +345,9 @@ public final class OnboardingDripScheduler {
         content.body = copy.body
         content.sound = .default
         content.userInfo = ["zano.onboardingDrip": condition.rawValue]
+        if let attachment = BuddyNotificationImage.attachment(pose: .happy) {
+            content.attachments = [attachment]
+        }
 
         let request = UNNotificationRequest(
             identifier: "zano.onboardingDrip.\(condition.rawValue)",

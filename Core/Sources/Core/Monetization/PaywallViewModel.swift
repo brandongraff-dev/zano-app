@@ -104,9 +104,21 @@ public final class PaywallViewModel {
     public var coachVoice: CoachVoice
 
     /// Reminder window spec §7.13 promises: "we'll remind you 2 days before it ends." A single
-    /// source of truth so `PaywallView`'s copy and (once built — see knownIssues) any actual
-    /// scheduled local notification agree.
+    /// source of truth so `PaywallView`'s copy and the notification `TrialReminder` schedules agree.
     public static let trialReminderDaysBefore = 2
+
+    /// The "Remind me before my trial ends" toggle (growth research #1). ON by default; mirrors
+    /// `TrialReminder.isEnabled`. Change it through `setReminderEnabled(_:)`.
+    public private(set) var remindBeforeTrialEnds = true
+    /// Notification permission as last read, so the toggle can say when notifications are off.
+    /// `nil` until `refreshNotificationStatus()` ran.
+    public private(set) var notificationStatus: NotificationPermission.Status?
+
+    /// Plans couldn't load (offline, no key, store error): the paywall offers "Continue for now"
+    /// (`continueOnGrace()`) so it is never a dead end (audit M2).
+    public var canContinueOnGrace: Bool {
+        if case .failed = loadState { true } else { false }
+    }
 
     public var selectedPackage: SubscriptionPackage? {
         packages.first { $0.id == selectedPackageID }
@@ -140,6 +152,7 @@ public final class PaywallViewModel {
         self.coachVoice = coachVoice ?? CoachVoice.from(sharedDefaultsRaw: SharedDefaults.coachVoice)
         self.modelContainer = modelContainer
         self.revenueCat = revenueCat
+        self.remindBeforeTrialEnds = TrialReminder.isEnabled
     }
 
     // MARK: - Load
@@ -157,6 +170,8 @@ public final class PaywallViewModel {
         guard loadState != .loading else { return }
         loadState = .loading
         Analytics.shared.capture(event: "paywall_viewed")
+        // No rating ask right after a paywall (growth research #8).
+        RatingPrompt.shared.recordPaywallViewed()
 
         do {
             let offerings = try await revenueCat.fetchOfferings()
@@ -173,6 +188,18 @@ public final class PaywallViewModel {
             )
         }
     }
+
+    #if DEBUG
+    /// CI screenshots and previews only (compiled out of release builds): loads the built plan as
+    /// usual but takes `packages` instead of asking RevenueCat, which has no products in the
+    /// Simulator. Without this the only paywall CI could ever photograph was the error state.
+    public func loadDemoOfferings(_ packages: [SubscriptionPackage]) {
+        loadBuiltPlanAndLocalProStatus()
+        self.packages = packages
+        selectedPackageID = defaultSelection(in: packages)
+        loadState = .loaded
+    }
+    #endif
 
     private func defaultSelection(in packages: [SubscriptionPackage]) -> String? {
         (packages.first { $0.period == .annual } ?? packages.first)?.id
@@ -198,6 +225,8 @@ public final class PaywallViewModel {
             let granted = try await revenueCat.purchase(package)
             if granted {
                 markLocallyPro(product: package.productIdentifier)
+                SubscriptionGate.clearGrace()
+                await recordTrialIfStarted(package: package)
             }
             isProSubscriber = granted
             purchaseState = .succeeded
@@ -228,6 +257,8 @@ public final class PaywallViewModel {
             let granted = try await revenueCat.restorePurchases()
             if granted {
                 markLocallyPro(product: nil)
+                SubscriptionGate.clearGrace()
+                await TrialReminder.refresh(entitlement: revenueCat.lastProEntitlement)
             }
             isProSubscriber = granted
             purchaseState = granted ? .succeeded : .idle
@@ -239,6 +270,51 @@ public final class PaywallViewModel {
                 properties: ["reason": error.localizedDescription]
             )
         }
+    }
+
+    // MARK: - Trial reminder toggle
+
+    /// Flips the reminder toggle. Turning it on asks for notification permission right here if it
+    /// was never asked (the moment the user has a concrete reason to say yes).
+    public func setReminderEnabled(_ enabled: Bool) async {
+        remindBeforeTrialEnds = enabled
+        notificationStatus = await TrialReminder.setEnabled(enabled)
+        Analytics.shared.capture(
+            event: "paywall_reminder_toggled",
+            properties: ["enabled": enabled, "permission": notificationStatus.map { "\($0)" } ?? "unknown"]
+        )
+    }
+
+    public func refreshNotificationStatus() async {
+        notificationStatus = await NotificationPermission.status()
+    }
+
+    /// The store's own trial dates when it reported a trial; otherwise the package's trial length.
+    /// A user who isn't eligible for the introductory offer (the store says "not a trial") gets no
+    /// trial reminder.
+    private func recordTrialIfStarted(package: SubscriptionPackage) async {
+        let entitlement = revenueCat.lastProEntitlement
+        if let entitlement {
+            guard entitlement.isTrial else { return }
+            await TrialReminder.recordTrialStarted(trialDays: package.introductoryTrialDays ?? 0, entitlement: entitlement)
+        } else if let days = package.introductoryTrialDays, days > 0 {
+            await TrialReminder.recordTrialStarted(trialDays: days, entitlement: nil)
+        }
+        Analytics.shared.capture(event: "trial_started", properties: ["package": package.id])
+    }
+
+    // MARK: - Grace period (audit M2)
+
+    /// "Continue for now" while plans can't load: grants the grace (`SubscriptionGate`) and stops
+    /// `EntitlementGate` from blocking. Returns when the grace ends.
+    @discardableResult
+    public func continueOnGrace() -> Date {
+        let end = EntitlementGate.shared.continueOnGrace()
+        Analytics.shared.capture(
+            event: "paywall_grace_started",
+            properties: ["days_left": SubscriptionGate.graceDaysLeft()]
+        )
+        return end
     }
 
     /// Clears a `.failed`/`.cancelled` purchase state back to `.idle` — call after the view has

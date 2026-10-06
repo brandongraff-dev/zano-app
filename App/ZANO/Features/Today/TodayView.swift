@@ -1,90 +1,99 @@
 // TodayView.swift
 // App / ZANO / Features / Today
 //
-// The Today screen — docs/spec.md §15 ("Screens: Today, Lock, Fuel, Progress, Squad, Settings...")
-// and §16 P1 mockup: "Top: streak pill '14 🔥' and lock status card 'Locked · TikTok, Instagram,
-// YouTube' with a small padlock. Center: three progress rings labeled Workout, Protein (72/150g),
-// Focus (25/50 min). Bottom: a single primary button 'Go to gym · 6 min away'."
+// The Today screen — docs/spec.md §15/§16 P1. Premium UI + UX pass 2026-09-24
+// (docs/design/premium-ui-plan.md). What the screen is, and why:
 //
-// Design pass (2026-09-23; docs/design/composition-audit.md offender #1, better-layout H1/H6,
-// better-ui BRK-05/MOT-04/DEP-01…06, typography-color T3/C10, competitive-research 3.1/3.10/3.12,
-// 2026-ios-trends §2.3/§3.3). What the screen is now, and why, in one place:
+// - The hero is the vault (`LockVaultCard`): the lock state as one huge condensed number ("2 goals
+//   to unlock"), the locked apps themselves dimmed behind a lock (on device), and one bar segment
+//   per required goal that fills in that goal's color. Tapping it opens Lock.
+// - The screen's light follows the state (`zanoAmbient`): cool and dim while locked, warming as
+//   required goals complete, accent only once everything is earned ("light is earned").
+// - Goals are rows with their one action in place (`GoalActionList`): "+25g" protein and "+250ml"
+//   water log with one tap (App Intents, same path as widgets/NFC), focus starts from its row, a gym
+//   workout opens the check-in screen (`GymCheckInView`) from its row. The old layout made the day's most frequent action
+//   cost a tab switch ("Log the rest on Fuel") and showed only the goals gating the lock.
+// - Grouping answers "what do I still owe?": "To unlock" (required, open first) then "Also today".
+//   Nothing locked: one "Today's goals" group.
+// - The bottom bar only carries what a row can't: starting today's lock, finishing setup, and the
+//   live status of a running focus session or gym check-in. No duplicate CTA for a row's action.
+// - Begin-lock is a plain tap (holds are for commitment and the 60-second emergency unlock).
+// - Red means emergency only: a running lock is cool navy/grey, never `danger`.
+// - A quick-log shows a 5-second undo toast (longer under VoiceOver). Goals that verify on their own
+//   say so in their row; honor-system goals get a "Log" with one confirmation; a gym goal with no
+//   saved gym says "Set up your gym" and pushes `GymSetupView`.
+// - Wave 1D (docs/design/buildout-plan.md, 2026-09-25): steps and home/outdoor workout rows show live
+//   Health progress (and "Connect Apple Health" until the permission sheet has been shown); stretch
+//   opens a guided timer (`StretchTimerSheet`); undo corrects a rollup completion the undone log
+//   no longer supports (never re-locking); after the first lock a "Finish setup" card
+//   (`FinishSetupCard`) lists tags, gym, Health and widget until done or hidden.
+// - Wave 2F (2026-09-25): one suggestion card slot under the hero (`Suggestions/`): Never Miss
+//   Twice, comeback, Plan B, travel, calendar light day, locked-out moment; at most one at a time,
+//   in `TodaySuggestion.priority` order, none during a health pause, each dismissible for the day.
+//   Locks start in `LockPreferences.defaultMode`, and skip the gym goal while travel mode is on.
+//   The meal-prep row opens `MealPrepCaptureSheet`.
 //
-// - ONE hero. The lock state is a single large card whose whole job is one number, set in the
-//   design system's hero numeral tier (`NumeralText(.hero)`, 72 pt heavy rounded): "2 goals left"
-//   while locked, "3/4 done" while not. Everything else on the page is deliberately quieter than it
-//   (hero numeral 72 pt vs ring values ~26 pt vs captions 13 pt), so the eye lands once. The card
-//   carries the state in its surface, not just its label: a muted top-leading wash while a
-//   lock runs (locked is `muted`, not red — decision 2026-09-23; the numeral stays `text` so a
-//   routine locked day reads calm), accent + the static "earned" glow when
-//   every goal is done. The screen backdrop takes a faint accent wash in the same earned state.
-// - The ring row fits. `RingCluster(.row)` is equal columns (three 88 pt rings, 312 pt, in a 343 pt
-//   minimum column) — it used to be a 500 pt scroller that clipped the third ring on every iPhone.
-//   The value is inside each ring, the goal's glyph is beside its title, tracks are the ring's own
-//   hue, and an unconfigured slot is a dashed ring with a plus.
-// - The rings are the goals that gate the lock. While locked they are the session's required goals
-//   (open ones first), not three hard-coded types, so "2 goals left" can never coexist with no
-//   visible goal (better-layout H6). Overflow past three is a "+N more" link to the Lock screen.
-// - No dead CTA. Statuses (focus running, verifying at the gym, all done) are a status row or
-//   nothing, never a 50 %-opacity accent button. "Open Fuel" and "Finish setup" are real buttons
-//   once the tab shell injects `onOpenFuel` / `onFinishSetup` (`ContentView`/`AppRouter` belong to
-//   another workflow this run); until then they degrade to a status row / nothing.
-// - Begin-lock is a plain tap. The 2 s hold is the app's commitment/emergency gesture; spending it on
-//   a daily routine action dilutes it (spec only requires hold-to-commit for onboarding step 11).
-// - The bottom bar is a `StickyActionBar` gradient fade, not `.ultraThinMaterial`, so it never
-//   stacks a second translucent slab over the iOS 26 floating tab bar.
-// - Built on Core/UI, not local stand-ins: `zanoCard` (top-lit edge, tint wash, earned glow),
-//   `IconBadge`, `NumeralText`, `GoalRing`/`RingCluster`, `zanoBackdrop`, `StickyActionBar`,
-//   `PressableStyle`, `PrimaryButton`. The only private pieces left are the ghost row, the
-//   segmented progress and the status row, none of which Core has.
+// Visual direction v2 (2026-10-02, docs/design/visual-direction-v2.md §5): the aurora canvas, the
+// star as a bigger bobbing mascot that bursts on each completed goal, one score under it, one glass
+// lock capsule, goals as glass tiles (`GoalActionList`). Removed from the main surface: the date, the
+// screen-time total stack under the star (now one chip; the total is in the Screen time section),
+// the goal-names caption, the "since" time and the "Blocking …" line (both on Lock). The hero's
+// VoiceOver label is unchanged and still starts with "Locked ·".
 //
-// Every animation here is gated on `@Environment(\.accessibilityReduceMotion)` (nil animation or a
-// plain fade), and the wash/glow are dropped under Reduce Transparency; the Core components used
-// here carry their own Reduce Motion gates.
+// Every animation is gated on Reduce Motion; the ambient light and washes drop under Reduce
+// Transparency. User-facing strings live in `Copy.today` (`Core/Sources/Core/Copy/TodayCopy.swift`);
+// `beginLockStandardTitle` and `lockStatusLine` are matched by the UI tests.
 //
-// Reads SwiftData directly (this is app code, not an extension — CLAUDE.md's "no network in
-// extensions" rule doesn't apply here, and per Core/Sources/Core/Store/SharedDefaults.swift's own
-// doc comment, SwiftData — not the App-Group UserDefaults mirror meant for extensions — is the
-// source of truth for anything durable).
+// Lock trust pass (2026-10-02): under the hero's status pill, one line says what the lock is doing
+// ("Blocking 12 apps · ends when your goals are done", or "Apps open until 3:45 PM · locks again
+// after" during a Time Bank borrow), and a calm `LockHealthCard` (Features/Lock) appears under the
+// hero when `LockHealthCheck` finds Screen Time access off or the shield empty. Both are appended
+// after the existing status text, so the UI tests' "Locked ·" prefix is unchanged.
 //
-// Engine calls in this file (`LockEngineManager`, `FocusSessionVerifier`, `GymVerifier`) are used
-// exactly per this task's SYSTEM CONTRACTS shape. Nothing here has been compiled or rendered (no
-// Mac/Swift toolchain in this environment).
-//
-// Copy note: user-facing strings go through `Copy.today.*` (`Core/Sources/Core/Copy/TodayCopy.swift`).
-// The strings this pass added (`hero*`, `progressValue`, `moreGoalsLink`, `beginLockStandardTitle`, ...)
-// briefly lived in an `extension Copy.today` at the bottom of this file; the review pass moved them
-// into `TodayCopy.swift` verbatim, so call sites are unchanged. `Copy.today.beginLockStandardTitle`
-// is load-bearing: the UI tests find the begin-lock button by that exact text. Coach-voice
-// phrasing reuses `CoachVoiceTone`.
+// Pass 2 "playful" (2026-10-03, docs/design/visual-direction-v2.md "Pass 2: playful"): the hero is a
+// compact stage (star beside the score) so the first row of goal tiles is above the fold on a 6.1"
+// phone; the star is a character with moods (`zanoMascot`) that jumps on each completed goal and
+// spins when poked; goal tiles fill with their colour; the aurora warms toward ember with the streak.
 
 import Foundation
 import SwiftUI
 import SwiftData
+import DeviceActivity
+import FamilyControls
+import WidgetKit
 import Core
 
 struct TodayView: View {
 
     // MARK: - Injected navigation
 
-    /// Switches the tab shell to Fuel. `ContentView` / `AppRouter` are owned by a concurrent
-    /// workflow this run, so Today can't route there itself; the shell should pass its own
-    /// tab-switch closure. While `nil`, the "log the rest on Fuel" state renders as a status row
-    /// instead of a button that does nothing.
+    /// Switches the tab shell to Fuel. Kept for the shell's call site; Today logs protein and water
+    /// in place now, so it's no longer the fallback action.
     private let onOpenFuel: (() -> Void)?
 
-    /// Opens whichever surface finishes setup (goals, lock set). Same story as `onOpenFuel`: the
-    /// shell owns navigation. While `nil`, an incomplete setup shows no bottom action — the hero
-    /// already says "Finish setup to start locking" — rather than a button that does nothing.
+    /// Opens whichever surface finishes setup (goals, lock set). While `nil`, an incomplete setup
+    /// shows no bottom action — the hero already says "Finish setup to start locking".
     private let onFinishSetup: (() -> Void)?
 
-    init(onOpenFuel: (() -> Void)? = nil, onFinishSetup: (() -> Void)? = nil) {
+    /// No longer used: Today pushes `GymSetupView` itself (Wave 1D). Kept so the shell's call site
+    /// still compiles; the shell can drop the argument.
+    private let onOpenGymSetup: (() -> Void)?
+
+    init(
+        onOpenFuel: (() -> Void)? = nil,
+        onFinishSetup: (() -> Void)? = nil,
+        onOpenGymSetup: (() -> Void)? = nil
+    ) {
         self.onOpenFuel = onOpenFuel
         self.onFinishSetup = onFinishSetup
+        self.onOpenGymSetup = onOpenGymSetup
+        _screenTimeStatus = State(initialValue: AuthorizationCenter.shared.authorizationStatus)
     }
 
     // MARK: - Data
 
+    @State private var showPlanner = false
+    @State private var plannerReloadToken = 0
     @Query private var users: [User]
     @Query private var goals: [Goal]
     @Query private var goalEvents: [GoalEvent]
@@ -99,48 +108,150 @@ struct TodayView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
 
     // MARK: - Local state
 
-    /// Set locally the moment this screen itself starts a focus session, so the primary button can
-    /// reflect "running" immediately without waiting on a round trip. Cleared once a `.complete`/
-    /// `.verify`/`.planB` event lands for that goal today (read reactively via `goalEvents`).
+    /// Screen Time authorization, kept in state (the `AuthorizationCenter` value isn't observed by
+    /// SwiftUI) and refreshed after a request and whenever the scene becomes active.
+    @State private var screenTimeStatus: AuthorizationStatus
+    /// The undo toast after a quick-log. Cleared after `undoDuration` or on undo.
+    @State private var pendingUndo: QuickLogUndo?
+    /// Reward beats waiting to show (gear, level up, perfect day, boss beaten), one at a time.
+    @State private var buddyToasts: [BuddyToast] = []
+    /// The buddy's XP and level, for the strip under the hero.
+    @State private var buddyProgress = BuddyProgress(earnedUnlocks: 0, bestStreak: 0)
+    /// The last level the user has been shown (App Group), so a level-up toasts once.
+    private static let buddyLevelSeenKey = "shared.buddyLevelSeen"
+    /// An honor-system goal waiting on its one confirmation before it's logged.
+    @State private var confirmingLogGoal: Goal?
+
+    /// Set the moment this screen starts a focus session, so its row and the status bar reflect
+    /// "running" without waiting on a round trip. Cleared once a completion lands (read via
+    /// `goalEvents`).
     ///
-    /// TODO(cross-module, Verification/LiveActivity sessions): this only knows about sessions
-    /// *this screen* started. A focus session started from a widget, Siri, or NFC wouldn't be
-    /// reflected here until its completion event lands. A shared "is a verification in progress"
-    /// signal (e.g. mirrored in `SharedDefaults`, alongside `activeLockSessionID`) would let Today
-    /// reflect that across entry points; not part of this task's given contracts, so not guessed.
-    @State private var runningFocusGoalID: UUID?
-    @State private var trackingGymID: UUID?
-    /// Live dwell minutes for `trackingGymID`, polled from `GymVerifier` while tracking is active —
-    /// see the `.task(id: trackingGymID)` modifier in `body` below.
+    /// TODO(cross-module, Verification/LiveActivity sessions): only knows about sessions *this
+    /// screen* started; a session started from a widget, Siri, or NFC shows once it completes.
+    /// The running focus session's goal, wherever it started (Today, Siri, a widget, an NFC tag).
+    private var runningFocusGoalID: UUID? { FocusSessionVerifier.shared.activeSession?.goalID }
+    /// Live dwell minutes for the saved gym, read from `GymVerifier` (the check-in screen starts
+    /// tracking; Today only reads). `0` while not at the gym.
     @State private var gymDwellMinutes: Int = 0
 
-    @State private var isPerformingPrimaryAction = false
+    // Destinations opened from rows and the finish-setup card.
+    @State private var showGymCheckIn = false
+    @State private var showGymSetup = false
+    @State private var showNFCTags = false
+    @State private var showHealthPrimer = false
+    @State private var showWidgetHowTo = false
+    @State private var stretchTarget: StretchTarget?
+    @State private var mealPrepTarget: MealPrepTarget?
+
+    /// Suggestion slot (Wave 2F): async signals, reloaded on foreground, goal changes and actions.
+    @State private var suggestionSignals = TodaySuggestionSignals()
+    @State private var suggestionTick = 0
+    @State private var isSuggestionBusy = false
+    /// Keys hidden this session ("Not today"), on top of the persisted dismiss memory.
+    @State private var dismissedSuggestionKeys: Set<String> = []
+    @State private var lockedOutMoment: LockedOutPresentation?
+
+    /// Live Health progress for steps and home/outdoor workout rows, keyed by goal id.
+    @State private var liveSteps: [UUID: Int] = [:]
+    @State private var liveWorkoutMinutes: [UUID: Int] = [:]
+    /// `true` while the Health permission sheet was never shown for that row's data (the rows then
+    /// say "Connect Apple Health"). `nil` until checked.
+    @State private var stepsNeedsHealth: Bool?
+    @State private var workoutNeedsHealth: Bool?
+    /// Bumped on foreground and after the Health primer, restarting the Health refresh loop.
+    @State private var healthRefreshTick = 0
+
+    /// Finish-setup card state. `nil` until checked, so the card doesn't flash in.
+    @State private var hasNFCTags: Bool?
+    @State private var hasWidget: Bool?
+    @State private var setupStatusTick = 0
+    @AppStorage("today.finishSetupCardDismissed") private var finishSetupCardDismissed = false
+
+    @State private var isPerformingAction = false
     @State private var actionError: String?
     @State private var showLockDetail = false
-    /// Drives `UnlockCelebrationView`'s `.fullScreenCover` below (docs/spec.md §16 P3). Set only
-    /// for an *earned* unlock (`lastUnlockWasEarned`) by the `onChange(of: isLocked)` handler —
-    /// manual/emergency/schedule-end unlocks never get the celebration moment.
+    /// The first-day checklist's "Choose apps to lock" step pushes the same `LockSetupView` the
+    /// Settings "Lock sets" row opens.
+    @State private var showLockSetup = false
+    /// Drives `UnlockCelebrationView` (spec §16 P3). Set only for an *earned* unlock.
     ///
     /// Known gap (flagged, not built here): spec §8 rule 4's "1 in ~6 unlocks" variable-reward
-    /// surprise (`UnlockCelebrationBadge`) has no gating logic anywhere in the codebase yet, so
-    /// this always presents with `badge: nil`. Wiring the odds belongs to whichever session owns
-    /// that reward logic (not this screen's own presentation hook).
+    /// badge has no gating logic yet, so this always presents with `badge: nil`.
     @State private var showUnlockCelebration = false
-    /// Today vs. "Ghost You" (docs/spec.md §5.4), loaded/refreshed by the `.task(id:
-    /// completedGoalCount)` below. `nil` until the first load completes, which keeps the ghost row
-    /// off screen for that one frame instead of handing it a fabricated empty comparison.
+    /// Bumps each time a goal completes: the star's charge burst (v2).
+    @State private var heroBurstTick = 0
+    /// Pass 2: the star's spin on a poke, the speech bubble it shows, and which line is next.
+    @State private var mascotSpinTick = 0
+    @State private var mascotBubble: String?
+    @State private var mascotLineIndex = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.zanoTabIsSelected) private var isTabSelected
+    /// Buddies (2026-10-03): the user's buddy, the hero's character (App Group defaults, shared with
+    /// the report extension that draws the hero on a device). Its colour tints the hero's glow.
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
+    /// Today vs. "Ghost You" (spec §5.4). `nil` until the first load completes.
     @State private var ghostComparison: GhostMode.GhostComparison?
+
+    /// Lock trust pass: the blocking line's facts, the self-check, and a tick that re-reads both
+    /// on foreground / reappear.
+    @State private var blockingSummary: LockBlockingSummary?
+    @State private var lockHealth: LockHealthStatus = .ok
+    @State private var isFixingLockHealth = false
+    @State private var lockHealthMessage: String?
+    @State private var lockTrustTick = 0
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // Pass 2: `md` between sections (was `lg`), part of getting the first goal row above
+                // the fold.
+                VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                     header
                     heroCard
-                    ringsSection
+                    if ScreenshotMode.screen == nil && lockHealth.needsAttention {
+                        LockHealthCard(
+                            status: lockHealth,
+                            message: lockHealthMessage,
+                            isFixing: isFixingLockHealth,
+                            onFix: fixLockHealth
+                        )
+                        .transition(.opacity)
+                    }
+                    // Goals come straight after the hero so the first row of tiles is above the
+                    // fold; suggestions and setup follow them.
+                    goalSections
+                    // Both draw nothing unless they apply (grace period / trial ending soon).
+                    FinishTrialBanner()
+                    TrialEarnedCard()
+                    // First week only: one tip a day from the buddy (draws nothing otherwise).
+                    BuddyTipCard()
+                    // Mornings only, and only when the sleep check-in is on (draws nothing otherwise).
+                    SleepCheckInCard()
+                    // Only while the work-hours focus lock has a question about an upcoming meeting.
+                    FocusLockAskCard()
+                    // For 15 minutes after a verified focus block (draws nothing otherwise).
+                    BreakCoachCard()
+                    // Open tasks due today or earlier (draws nothing when there are none).
+                    PlannerTodayCard(reloadToken: plannerReloadToken) { showPlanner = true }
+                    suggestionSlot
+                    if showsFirstDayChecklist {
+                        firstDayChecklist
+                    } else if showsFinishSetupCard {
+                        FinishSetupCard(items: finishSetupItems) {
+                            Analytics.shared.capture(event: "today_finish_setup_hidden")
+                            withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+                                finishSetupCardDismissed = true
+                            }
+                        }
+                        .transition(.opacity)
+                    }
+                    screenTimeSection
                     if let ghostComparison {
                         ghostRow(ghostComparison)
                     }
@@ -149,49 +260,132 @@ struct TodayView: View {
                 .padding(.top, Theme.Spacing.md)
                 .padding(.bottom, Theme.Spacing.xl)
             }
-            // The screen fits on a tall phone; don't rubber-band content that has nowhere to go.
             .scrollBounceBehavior(.basedOnSize)
-            // The canvas, with a faint accent wash from the top edge in the earned state only
-            // (`accent` = earned/unlock). Static, and dropped under Reduce Transparency.
-            .zanoBackdrop(glow: reduceTransparency ? nil : backdropGlow, intensity: 0.10)
-            // Today draws its own header. Without this a `NavigationStack` with no title leaves an
-            // empty navigation-bar band above it (composition-audit #1 "Minor"). Pushed screens
-            // (`LockStatusView`) set their own bar and are unaffected.
+            .zanoAmbient(reduceTransparency ? .neutral : ambientState)
+            // Pass 2: the room warms toward ember as the streak grows.
+            .zanoAuroraWarmth(ZanoAuroraWarmth.forStreak(days: streak?.current ?? 0))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: ambientState)
+            // Today draws its own header; no empty navigation-bar band above it.
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomBar
             }
             .navigationDestination(isPresented: $showLockDetail) {
-                LockStatusView()
+                // Pushed from Today, "Go to Today" is just the way back.
+                LockStatusView(onGoToToday: { showLockDetail = false })
             }
-            .task(id: trackingGymID) {
-                await pollGymDwell()
+            .navigationDestination(isPresented: $showLockSetup) {
+                LockSetupView()
+            }
+            .navigationDestination(isPresented: $showGymCheckIn) {
+                GymCheckInView()
+            }
+            .navigationDestination(isPresented: $showGymSetup) {
+                GymSetupView()
+            }
+            .navigationDestination(isPresented: $showNFCTags) {
+                NFCTagsView()
+            }
+            .sheet(isPresented: $showPlanner, onDismiss: { plannerReloadToken += 1 }) {
+                PlannerView()
+            }
+            .sheet(isPresented: $showHealthPrimer) {
+                HealthPermissionPrimer(onFinished: {
+                    showHealthPrimer = false
+                    healthRefreshTick += 1
+                })
+            }
+            .sheet(isPresented: $showWidgetHowTo) {
+                WidgetHowToSheet()
+            }
+            .sheet(item: $stretchTarget) { target in
+                StretchTimerSheet(goalID: target.id)
+            }
+            .sheet(item: $mealPrepTarget) { target in
+                MealPrepCaptureSheet(goalID: target.id)
+            }
+            .fullScreenCover(item: $lockedOutMoment) { moment in
+                LockedOutMomentView(content: moment.content) {
+                    lockedOutMoment = nil
+                    dismissSuggestion(.lockedOut(attempts: moment.content.attemptCount))
+                }
+            }
+            .task(id: SuggestionRefreshKey(
+                tick: suggestionTick,
+                foreground: setupStatusTick,
+                completed: completedGoalCount,
+                isLocked: isLocked
+            )) {
+                await refreshSuggestionSignals()
+            }
+            .task(id: gymWatchKey) {
+                await watchGymDwell()
+            }
+            .task(id: HealthRefreshKey(tick: healthRefreshTick, goalIDs: healthGoalIDs)) {
+                await refreshHealthRows()
+            }
+            .task(id: setupStatusTick) {
+                await refreshSetupStatus()
+            }
+            .onChange(of: showNFCTags) { _, isShown in
+                if !isShown { setupStatusTick += 1 }
+            }
+            .onChange(of: showHealthPrimer) { _, isShown in
+                if !isShown { healthRefreshTick += 1 }
             }
             .task(id: completedGoalCount) {
-                // Refetches whenever today's completed-goal count changes, which is the only
-                // input that can move `currentCompletedCount` for *today* (docs/spec.md §5.4);
-                // also covers the initial load since `.task(id:)` runs immediately for the
-                // current id.
                 ghostComparison = await GhostMode.shared.ghostComparison(for: .now)
+                await refreshBuddyGrowth()
             }
             .task {
-                // docs/spec.md §23: "every screen view... (count only, on device → aggregate)".
+                // spec §23: "every screen view... (count only, on device → aggregate)".
                 Analytics.shared.capture(event: "screen_viewed", properties: ["screen": "today"])
             }
+            .task(id: pendingUndo?.id) {
+                guard let undo = pendingUndo else { return }
+                try? await Task.sleep(for: .seconds(voiceOverEnabled ? 10 : 5))
+                guard !Task.isCancelled, pendingUndo?.id == undo.id else { return }
+                withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
+            }
+            .task(id: LockTrustKey(sessionID: activeLockSession?.id, completed: completedGoalCount, tick: lockTrustTick)) {
+                await trackLockTrust()
+            }
+            .onAppear { lockTrustTick += 1 }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                refreshScreenTimeStatus()
+                lockTrustTick += 1
+                // Foreground: re-read Health (and check for a finished workout), tags and widgets.
+                healthRefreshTick += 1
+                setupStatusTick += 1
+            }
+            .confirmationDialog(
+                confirmingLogGoal.map { Copy.today.logGoalConfirmTitle(goal: $0.title) } ?? "",
+                isPresented: Binding(
+                    get: { confirmingLogGoal != nil },
+                    set: { if !$0 { confirmingLogGoal = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: confirmingLogGoal
+            ) { goal in
+                Button(Copy.today.logGoalConfirmAction) { logHonorGoal(goal) }
+            } message: { _ in
+                Text(Copy.today.logGoalConfirmMessage)
+            }
+            .task(id: defaultLockSet?.appTokensBlob) {
+                // Lets the screen-time report (ZANOReport) mark locked apps even when no lock runs.
+                if let blob = defaultLockSet?.appTokensBlob { SharedDefaults.lockedSelectionData = blob }
+            }
         }
-        .preferredColorScheme(.dark)
         .sensoryFeedback(.success, trigger: isLocked) { oldValue, newValue in
             oldValue == true && newValue == false
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: completedGoalCount) { oldValue, newValue in
+        .sensoryFeedback(.success, trigger: completedGoalCount) { oldValue, newValue in
             newValue > oldValue
         }
         .onChange(of: isLocked) { oldValue, newValue in
             guard oldValue == true, newValue == false else { return }
-            // docs/spec.md §23: "every... unlock kind". Every lock-session end this screen
-            // observes, not only earned ones — manual/emergency/schedule-end unlocks are still an
-            // "unlock kind" worth counting even though only an earned one gets the celebration
-            // moment below.
+            // spec §23: "every... unlock kind" — every ended session, earned or not.
             if let kind = mostRecentlyEndedSession?.unlockKind {
                 Analytics.shared.capture(
                     event: "unlock_completed",
@@ -199,9 +393,11 @@ struct TodayView: View {
                 )
             }
             guard lastUnlockWasEarned else { return }
+            // Kept alive while another tab is on screen; the router celebrates over that tab.
+            guard isTabSelected else { return }
             showUnlockCelebration = true
         }
-        .fullScreenCover(isPresented: $showUnlockCelebration) {
+        .fullScreenCover(isPresented: $showUnlockCelebration, onDismiss: { MilestonePresenter.shared.celebrationDidFinish() }) {
             UnlockCelebrationView(
                 goalName: unlockCelebrationGoalName,
                 timeBankRemainingMinutes: todaysTimeBank?.remainingMin ?? 0,
@@ -212,33 +408,39 @@ struct TodayView: View {
 
     // MARK: - Header
 
-    /// Date eyebrow over the title, streak pill trailing. The eyebrow is locale-formatted date
-    /// data (not copy), so it needs no `Copy` entry. The title is one step quieter than the
-    /// sibling tabs' large titles on purpose: the hero numeral below is the loudest thing here.
+    /// Cal's mood on Today's calendar button.
+    private var calPose: CalPose {
+        let overdue = PlannerAgenda.dueNow(tasks: PlannerStore.tasks).contains {
+            ($0.due ?? .now) < Calendar.current.startOfDay(for: .now)
+        }
+        return overdue ? .alarm : .idle
+    }
+
+    /// The wordmark on the left, the streak on the right. v2: the date caption is gone (the phone's
+    /// own clock says it; one fewer small grey line).
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                Text(Date.now, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
-                    .zanoText(.eyebrow)
-                    .foregroundStyle(Theme.Colors.muted)
-                Text(Copy.today.screenTitle)
-                    .zanoText(.titleLarge)
-                    .foregroundStyle(Theme.Colors.text)
-                    .accessibilityAddTraits(.isHeader)
-            }
+            ZanoWordmark(height: 18)
             Spacer(minLength: Theme.Spacing.sm)
+            Button { showPlanner = true } label: {
+                // Cal, the calendar character: worried while something is overdue, calm otherwise.
+                CalSprite(calPose, size: 36)
+                    .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.planner.openLabel)
             StreakPill(
                 count: streak?.current ?? 0,
                 isFrozen: isStreakFrozenToday,
                 accessibilityLabelOverride: CoachVoiceTone.streakClause(voice, streak: streak?.current ?? 0)
             )
         }
+        .accessibilityAddTraits(.isHeader)
     }
 
-    // MARK: - Hero (the lock state, as one number)
+    // MARK: - Hero (the vault)
 
-    /// What the hero says. Derived from the same facts the primary action reads, so the two can't
-    /// disagree about what state the app is in.
+    /// What the hero says. Derived from the same facts the actions read, so they can't disagree.
     private enum HeroState: Equatable {
         /// Nothing to lock yet (no goals, or no lock set).
         case setup
@@ -260,8 +462,7 @@ struct TodayView: View {
         return .unlocked(done: completedGoalCount, total: activeGoals.count)
     }
 
-    /// The earned state: every goal for the day is done (or the lock is about to release). The one
-    /// place the card glows and the backdrop washes — the glow is the reward, so it stays rare.
+    /// Every goal for the day is done (or the lock is about to release): the one bright state.
     private var heroIsEarned: Bool {
         switch heroState {
         case .unlocking: true
@@ -270,167 +471,365 @@ struct TodayView: View {
         }
     }
 
+    /// The screen's light, from the same state: cold while locked, warming with each required goal.
+    private var ambientState: ZanoAmbientState {
+        if heroIsEarned { return .earned }
+        switch heroState {
+        case .locked(let remaining, let total):
+            let done = Double(total - remaining)
+            return done > 0 ? .progress(done / Double(max(total, 1))) : .locked
+        case .unlocked(let done, let total):
+            return total > 0 && done > 0 ? .progress(Double(done) / Double(total)) : .neutral
+        case .setup, .unlocking:
+            return .neutral
+        }
+    }
+
+    /// Pass 2 (playful, docs/design/visual-direction-v2.md "Pass 2: playful"): a compact stage. The
+    /// pass-1 hero stacked a 300pt star stage over the score and pushed every goal tile below the
+    /// fold. Now the star and the score stand side by side (stacked again at accessibility text
+    /// sizes), about 190pt tall, so the first row of goal tiles shows on a 6.1" phone.
+    ///
+    ///   * Left, the star: the mascot, acting out the day (`zanoMascot`: sleepy while locked with
+    ///     nothing done, perky with sparks in the done goals' colours, charged when it's all done). It
+    ///     jumps and throws a burst on every completed goal, and spins with a speech-bubble line
+    ///     (`CoachVoiceTone.mascotLines`) when poked.
+    ///   * Right, the score: the number, its words, the goal segments and the lock capsule. This is the
+    ///     button into Lock, and its VoiceOver label still starts with "Locked ·" for the UI tests.
     private var heroCard: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Spacing.md))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Theme.Spacing.sm))
+        return layout {
+            heroStage
+            heroScoreButton
+        }
+        .frame(maxWidth: .infinity)
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
+        // The report extension draws the hero on a device but can't see goals: hand it the
+        // buddy's pose through the App Group (`BuddyPose.heroStorageKey`).
+        .onChange(of: mascotMood, initial: true) { _, mood in
+            SharedDefaults.store.set(BuddyPose(mood).rawValue, forKey: BuddyPose.heroStorageKey)
+        }
+    }
+
+    private var heroScoreButton: some View {
         Button {
             Analytics.shared.capture(event: "today_lock_status_tapped")
             showLockDetail = true
         } label: {
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                heroTopRow
-                heroBody
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Theme.Spacing.lg)
-            .zanoCard(
-                radius: Theme.Radius.large,
-                tint: reduceTransparency ? nil : heroTint,
-                active: heroIsEarned && !reduceTransparency
-            )
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
-            // One announcement for the whole card instead of a swipe through badge, eyebrow,
-            // numeral and unit as four disconnected stops.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(heroAccessibilityLabel)
+            heroScore
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                // One announcement for the whole score.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(heroAccessibilityLabel)
         }
-        // Padding and background live inside the label, so the whole card is the hit target and
-        // the whole card presses.
-        .buttonStyle(.pressable)
-        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: heroState)
+        .buttonStyle(.pressable(scale: 0.96))
     }
 
-    private var heroTopRow: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            IconBadge(systemName: heroBadgeSymbol, tint: heroBadgeTint, size: .small)
-            Text(heroEyebrow)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.text)
-                .lineLimit(1)
-            Spacer(minLength: Theme.Spacing.xs)
-            Image(systemName: "chevron.forward")
-                .font(Theme.Typography.icon(.small))
-                .foregroundStyle(Theme.Colors.muted)
+    /// The number, its words, the goal segments and one glass capsule (the lock set's name, a chevron
+    /// into Lock), plus Earn Mode's banked minutes as a sticker.
+    private var heroScore: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            heroNumber
+            if !heroSegments.isEmpty {
+                VaultSegmentBar(segments: heroSegments)
+                    .frame(maxWidth: min(48 * CGFloat(heroSegments.count), 200))
+                    .padding(.vertical, Theme.Spacing.xxs)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.xs) { heroCapsules }
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) { heroCapsules }
+            }
         }
     }
 
     @ViewBuilder
-    private var heroBody: some View {
+    private var heroCapsules: some View {
+        ZanoStatusCapsule(
+            dotColor: heroStatusColor,
+            text: heroStatusLine,
+            systemImage: heroStatusSymbol,
+            showsChevron: true
+        )
+        .fixedSize()
+        if let chip = bankChipText {
+            ZanoSticker(chip, systemImage: "hourglass", color: Theme.Colors.accent, size: .small)
+                .fixedSize()
+        }
+    }
+
+    /// The buddy on its stage (the star until 2026-10-03). Tapping it spins it and shows a line from the coach; a completed goal
+    /// makes it jump and throws a burst in the goal's colour.
+    /// The buddy, then its level and XP bar.
+    private var heroStage: some View {
+        VStack(spacing: Theme.Spacing.xxs) {
+            heroStageCore
+            BuddyLevelStrip(progress: buddyProgress, color: buddy.color)
+                .frame(width: Self.heroStageWidth - Theme.Spacing.lg)
+                .padding(.leading, Theme.Spacing.xs)
+        }
+    }
+
+    private var heroStageCore: some View {
+        heroStar
+            .zanoMascot(
+                mood: mascotMood,
+                jump: heroBurstTick,
+                spin: mascotSpinTick,
+                sparkColors: doneGoalColors,
+                size: Self.heroMarkHeight,
+                showsGlow: !reduceTransparency,
+                glowColor: buddy.color
+            )
+            .zanoChargeBurst(trigger: heroBurstTick, color: heroBurstColor)
+            .frame(width: Self.heroStageWidth, height: Self.heroStageHeight)
+            .padding(.leading, Theme.Spacing.xs)
+            .overlay(alignment: .topLeading) { mascotBubbleView }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: pokeMascot)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.buddy.heroSpoken(buddy, mood: mascotMood))
+            .accessibilityHint(Copy.buddy.heroHint)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, pokeMascot)
+            .sensoryFeedback(.impact(weight: .light), trigger: mascotSpinTick)
+            // Only a goal *completing* charges the star; an undo is quiet.
+            .onChange(of: completedGoalCount) { oldValue, newValue in
+                if newValue > oldValue { heroBurstTick += 1 }
+            }
+            .task(id: mascotSpinTick) {
+                guard mascotBubble != nil else { return }
+                try? await Task.sleep(for: .seconds(voiceOverEnabled ? 4 : 2.4))
+                guard !Task.isCancelled else { return }
+                withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { mascotBubble = nil }
+            }
+    }
+
+    /// The star's speech bubble, over the top of the stage, for a couple of seconds after a poke.
+    @ViewBuilder
+    private var mascotBubbleView: some View {
+        if let line = mascotBubble {
+            Text(line)
+                .font(Theme.Typography.captionEmphasized)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 200, alignment: .leading)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background(ZanoGlass(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)))
+                .fixedSize()
+                .offset(x: Theme.Spacing.xs, y: -Theme.Spacing.xs)
+                .transition(.scale(scale: 0.6, anchor: .bottomLeading).combined(with: .opacity))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func pokeMascot() {
+        let lines = CoachVoiceTone.mascotLines(voice, mood: mascotMood)
+        guard !lines.isEmpty else { return }
+        let line = lines[mascotLineIndex % lines.count]
+        mascotLineIndex += 1
+        withAnimation(reduceMotion ? nil : Theme.Motion.springPop) { mascotBubble = line }
+        mascotSpinTick += 1
+        AccessibilityNotification.Announcement(line).post()
+        Analytics.shared.capture(event: "today_mascot_poked")
+    }
+
+    /// The star's mood, from the same state the hero shows.
+    private var mascotMood: ZanoMascotMood {
+        switch heroState {
+        case .setup: .idle
+        case .unlocking: .charged
+        case .locked(let remaining, let total): ZanoMascotMood(done: total - remaining, total: total, isLocked: true)
+        case .unlocked(let done, let total): ZanoMascotMood(done: done, total: total, isLocked: false)
+        }
+    }
+
+    /// The colours the star has collected: one per done goal, in the segments' order.
+    private var doneGoalColors: [Color] {
+        heroSegments.filter(\.isDone).map(\.color)
+    }
+
+    /// The burst is the accent once the day is earned, otherwise the newest-looking done colour.
+    private var heroBurstColor: Color {
+        if heroIsEarned { return Theme.Colors.accent }
+        return doneGoalColors.last ?? Theme.Colors.Aurora.violet
+    }
+
+    @ViewBuilder
+    private var heroNumber: some View {
         switch heroState {
         case .setup:
-            Text(Copy.today.setupIncompleteTitle)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(Copy.today.setupIncompleteTitle)
+                    .font(Theme.Typography.titleLarge)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(Copy.today.heroSetupSubtitle)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.muted)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        case .unlocking:
+            Text(Copy.today.allDoneTitle)
+                .font(Theme.Typography.titleLarge)
+                .foregroundStyle(Theme.Colors.accent)
+                .fixedSize(horizontal: false, vertical: true)
+        case .locked(let remaining, _):
+            scoreNumeral(Copy.today.heroGoalsToUnlockLine(count: remaining), earned: false, changeKey: remaining)
+        case .unlocked(let done, let total):
+            scoreNumeral(Copy.today.heroFractionDone(done: done, total: total), earned: heroIsEarned, changeKey: done)
+        }
+    }
+
+    /// "2" at poster size with its words under it, leading-aligned beside the star.
+    private func scoreNumeral(_ line: String, earned: Bool, changeKey: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            NumeralText(line, size: .hero, color: earned ? Theme.Colors.accent : Theme.Colors.text, remainder: .hidden)
+                // Pass 3 (restraint): no numeral glow; the star and the vault carry the light.
+                .animation(reduceMotion ? nil : Theme.Motion.springPop, value: changeKey)
+            Text(NumeralText.remainder(of: line))
                 .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
-        case .locked(let remaining, let total):
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                heroNumeral(
-                    Copy.today.heroGoalsLeftLine(count: remaining),
-                    color: Theme.Colors.text,
-                    changeKey: remaining
-                )
-                HStack(spacing: Theme.Spacing.sm) {
-                    SegmentedProgress(total: total, done: total - remaining, filled: Theme.Colors.accent)
-                    if let chip = bankChipText {
-                        bankChip(chip)
-                    }
+    /// The star's charge is screen time, which only the `ZANOReport` extension can read (spec §27),
+    /// so on a device the star is that extension's view. It can't take taps; the stage's tap gesture
+    /// sits over it. Screenshots use demo data; without access the star is uncharged.
+    @ViewBuilder
+    private var heroStar: some View {
+        if ScreenshotMode.screen != nil {
+            ScreenTimeChargeView(summary: DemoData.screenTime, height: Self.heroMarkHeight, pose: BuddyPose(mascotMood))
+        } else if screenTimeStatus == .approved {
+            DeviceActivityReport(.zanoMark, filter: Self.todayFilter)
+                .frame(height: Self.heroStageHeight)
+                .allowsHitTesting(false)
+        } else {
+            ScreenTimeChargeView(height: Self.heroMarkHeight, pose: BuddyPose(mascotMood))
+        }
+    }
+
+    /// The compact stage and the star in it. One set of constants for the screenshot, no-access and
+    /// on-device (report extension) paths, so all three lay out the same. `heroMarkHeight` matches
+    /// `ScreenTimeChargeView`'s default, which the report extension draws with.
+    private static let heroStageHeight: CGFloat = 176
+    // Wider than the hero (the 96pt buddy plus its charge sticker) so its lean and hop never reach
+    // the screen edge. 96 is a multiple of the buddy's 32px grid, so its pixels stay crisp.
+    private static let heroStageWidth: CGFloat = 168
+    private static let heroMarkHeight: CGFloat = 96
+
+    /// Buddy growth and the gamification beats, after every goal change: XP for the level strip,
+    /// a level-up, newly unlocked gear (put on once), a perfect day (all of today's goals done: the
+    /// buddy does a victory spin), and the weekly Scroll Monster's loot once it's beaten. Screenshot
+    /// runs show demo progress and no toasts.
+    private func refreshBuddyGrowth() async {
+        guard ScreenshotMode.screen == nil else {
+            buddyProgress = .preview
+            return
+        }
+        BuddyProgress.recordRank(await SeasonsAndRanks.shared.currentRank().rank)
+        let progress = BuddyProgress.load(from: modelContext)
+        let defaults = SharedDefaults.store
+        var beats: [BuddyToast] = []
+
+        let week = ScrollMonster.current(context: modelContext)
+        if let coins = ScrollMonster.claimLoot(for: week, context: modelContext) {
+            beats.append(.monsterBeaten(coins: coins, variant: week.variant))
+        }
+        let seenLevel = defaults.integer(forKey: Self.buddyLevelSeenKey)
+        if seenLevel > 0, progress.level > seenLevel { beats.append(.levelUp(progress.level)) }
+        defaults.set(progress.level, forKey: Self.buddyLevelSeenKey)
+        if let gear = BuddyProgress.adoptNewGear(progress) {
+            beats.append(.gear(gear))
+            WidgetRefresh.reloadAll()
+        }
+        if mascotMood == .charged, PerfectDay.record() {
+            beats.append(.perfectDay(streak: PerfectDay.streak()))
+            heroBurstTick += 1
+            mascotSpinTick += 1
+        }
+
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { buddyProgress = progress }
+        showBuddyToasts(beats)
+    }
+
+    /// Queues `beats` and shows each for 5 seconds.
+    private func showBuddyToasts(_ beats: [BuddyToast]) {
+        guard !beats.isEmpty else { return }
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { buddyToasts.append(contentsOf: beats) }
+        Task {
+            for _ in beats {
+                try? await Task.sleep(for: .seconds(5))
+                withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+                    if !buddyToasts.isEmpty { buddyToasts.removeFirst() }
                 }
             }
-
-        case .unlocking:
-            HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "checkmark", tint: Theme.Colors.accent, size: .medium)
-                Text(Copy.today.allDoneTitle)
-                    .font(Theme.Typography.title)
-                    .foregroundStyle(Theme.Colors.text)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-        case .unlocked(let done, let total):
-            let allDone = total > 0 && done >= total
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                heroNumeral(
-                    Copy.today.heroFractionDone(done: done, total: total),
-                    color: allDone ? Theme.Colors.accent : Theme.Colors.text,
-                    changeKey: done
-                )
-                SegmentedProgress(total: total, done: done, filled: Theme.Colors.accent)
-            }
         }
     }
 
-    /// The one giant number. `NumeralText` splits the caller-composed line into a big numeral and a
-    /// quiet unit on a shared baseline ("2" over "goals left"; "3" over "/4 done") and rolls the
-    /// digits with `.numericText` when the count changes (a no-op under Reduce Motion, where the
-    /// ambient animation is nil and `NumeralText` swaps to an identity transition).
-    private func heroNumeral(_ line: String, color: Color, changeKey: Int) -> some View {
-        NumeralText(line, size: .hero, color: color)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
+    private func refreshScreenTimeStatus() {
+        screenTimeStatus = AuthorizationCenter.shared.authorizationStatus
     }
 
-    /// Earn Mode's banked minutes, beside the progress segments while locked. Earned minutes are
-    /// the accent's job, so this is accent-on-wash (11.2 : 1).
-    private func bankChip(_ text: String) -> some View {
-        Text(text)
-            .font(Theme.Typography.captionEmphasized)
-            .foregroundStyle(Theme.Colors.accent)
-            .lineLimit(1)
-            .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.vertical, Theme.Spacing.xxs)
-            .background(Theme.Colors.accentWash, in: Capsule())
-            .fixedSize()
-    }
-
-    private var heroEyebrow: String {
+    private var heroSegments: [VaultSegment] {
         switch heroState {
-        case .setup: Copy.today.heroSetupEyebrow
-        case .locked: Copy.today.heroLockedEyebrow(lockSetName: activeLockSet?.name)
-        case .unlocking: Copy.today.heroUnlockingEyebrow
-        case .unlocked: Copy.today.lockStatusLine(isLocked: false, goalsRemaining: 0)
+        case .setup: []
+        case .locked, .unlocking: segments(for: requiredGoals)
+        case .unlocked: segments(for: activeGoals)
         }
     }
 
-    private var heroBadgeSymbol: String {
+    /// Red is reserved for emergency: a running lock is a quiet grey dot on the navy halo.
+    private var heroStatusColor: Color {
         switch heroState {
-        case .setup: "gearshape.fill"
-        case .locked: "lock.fill"
-        case .unlocking: "checkmark"
-        case .unlocked: "lock.open.fill"
-        }
-    }
-
-    /// Locked is `muted` (product decision 2026-09-23: a routine locked day is calm, not an alarm, and
-    /// red made every morning look like an error). `danger` stays for real failures and the emergency
-    /// exit. `accent` is reserved for earned/unlocked states.
-    private var heroBadgeTint: Color {
-        switch heroState {
-        case .setup: Theme.Colors.muted
-        case .locked: Theme.Colors.muted
+        case .locked: Theme.Colors.text
         case .unlocking, .unlocked: Theme.Colors.accent
+        case .setup: Theme.Colors.muted
         }
     }
 
-    private var heroTint: Color? {
+    /// One fact per capsule (v2): the lock set's name beside a lock glyph ("Social"), "Unlocking",
+    /// "Unlocked", "Setup". The "since" time lives on Lock.
+    private var heroStatusLine: String {
         switch heroState {
-        case .setup: nil
-        default: heroBadgeTint
+        case .locked:
+            if let name = activeLockSet?.name, !name.isEmpty { return name }
+            return Copy.today.heroLockedCapsuleFallback
+        case .unlocking: return Copy.today.heroUnlockingEyebrow
+        case .unlocked: return Copy.today.lockStatusLine(isLocked: false, goalsRemaining: 0)
+        case .setup: return Copy.today.heroSetupEyebrow
         }
     }
 
-    private var backdropGlow: Color? {
-        heroIsEarned ? Theme.Colors.accent : nil
+    private var heroStatusSymbol: String {
+        switch heroState {
+        case .locked: "lock.fill"
+        case .unlocking, .unlocked: "lock.open.fill"
+        case .setup: "gearshape.fill"
+        }
     }
 
-    /// Earn Mode's banked minutes, shown as a chip beside the progress segments while locked.
+    private func segments(for pool: [Goal]) -> [VaultSegment] {
+        sortedByPriority(pool).map {
+            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0), progress: dayProgress(for: $0).fraction)
+        }
+    }
+
+    /// Earn Mode's banked minutes, shown as a chip beside the segments while locked.
     private var bankChipText: String? {
         guard activeLockSession?.mode == .earn, let bank = todaysTimeBank, bank.remainingMin > 0 else { return nil }
         return Copy.today.heroTimeBankChip(minutes: bank.remainingMin)
     }
 
-    /// The spoken version of the whole card. Keeps the coach-voice clause the old card carried in
-    /// its detail line (it is no longer drawn, because it repeated the numeral). The locked and
-    /// unlocked variants start with `Copy.today.lockStatusLine(...)`, which the UI tests match.
+    /// The spoken version of the whole card. The locked and unlocked variants start with
+    /// `Copy.today.lockStatusLine(...)`, which the UI tests match.
     private var heroAccessibilityLabel: String {
         switch heroState {
         case .setup:
@@ -441,7 +840,8 @@ struct TodayView: View {
             let parts: [String?] = [
                 Copy.today.lockStatusLine(isLocked: true, goalsRemaining: remaining),
                 CoachVoiceTone.goalsRemainingClause(voice, remaining: remaining),
-                bankChipText
+                bankChipText,
+                blockingLine
             ]
             return parts.compactMap { $0 }.joined(separator: ". ")
         case .unlocked(let done, let total):
@@ -452,54 +852,165 @@ struct TodayView: View {
         }
     }
 
-    // MARK: - Rings
+    // MARK: - Lock trust (blocking line + Screen Time self-check)
 
-    private static let maxRings = 3
+    private struct LockTrustKey: Hashable {
+        let sessionID: UUID?
+        let completed: Int
+        let tick: Int
+    }
 
-    /// The three ring slots the spec names (§16 P1). Used to keep those goals first and to draw a
-    /// "Not set" placeholder for a slot the user hasn't configured while nothing is locked.
-    private enum CanonicalSlot: CaseIterable {
-        case workout, protein, focus
+    /// "Blocking 12 apps · ends when your goals are done" while a lock runs (or is releasing).
+    private var blockingLine: String? {
+        guard isLocked, let blockingSummary else { return nil }
+        return Copy.today.blockingLine(blockingSummary)
+    }
 
-        /// Fixed placeholder ids for the "goal not configured yet" ring state, one per slot.
-        /// Without these, the placeholder would get a fresh `UUID()` on every body re-render,
-        /// which — since `ForEach` diffs by `id` — would make SwiftUI treat the ring as a brand-new
-        /// view and reset its fill animation on every unrelated `@Query` update.
-        var placeholderID: UUID {
-            switch self {
-            case .workout: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-            case .protein: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
-            case .focus: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+    /// Re-reads the blocking facts and the self-check; while a Time Bank window is open, wakes at
+    /// its end so the line flips back to "Blocking ..." without a foreground.
+    private func trackLockTrust() async {
+        while !Task.isCancelled {
+            lockHealth = LockHealthCheck.status(isLockActive: isLocked)
+            if !lockHealth.needsAttention { lockHealthMessage = nil }
+            guard let session = activeLockSession else {
+                blockingSummary = nil
+                return
             }
-        }
-
-        var title: String {
-            switch self {
-            case .workout: Copy.today.ringTitleWorkout
-            case .protein: Copy.today.ringTitleProtein
-            case .focus: Copy.today.ringTitleFocus
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .workout: "dumbbell.fill"
-            case .protein: "fork.knife"
-            case .focus: "timer"
-            }
-        }
-
-        init?(type: GoalType) {
-            switch type {
-            case .workoutGym, .workoutHomeOutdoor: self = .workout
-            case .protein: self = .protein
-            case .focusSession: self = .focus
-            default: return nil
-            }
+            let summary = LockBlockingSummary.current(
+                sessionID: session.id,
+                lockSetSelectionBlob: activeLockSet?.appTokensBlob,
+                requiredGoalCount: session.requiredGoalIDs.count
+            )
+            blockingSummary = summary
+            guard let end = summary.openUntil else { return }
+            try? await Task.sleep(for: .seconds(max(1, end.timeIntervalSinceNow + 1)))
         }
     }
 
-    private static func ringPriority(of type: GoalType) -> Int {
+    private func fixLockHealth() {
+        guard !isFixingLockHealth else { return }
+        isFixingLockHealth = true
+        lockHealthMessage = nil
+        Analytics.shared.capture(event: "lock_health_fix_tapped", properties: ["screen": "today", "issue": String(describing: lockHealth)])
+        Task {
+            defer { isFixingLockHealth = false }
+            let result: LockHealthStatus
+            switch lockHealth {
+            case .screenTimeAccessOff:
+                result = await LockHealthCheck.requestScreenTimeAccess(isLockActive: isLocked)
+                refreshScreenTimeStatus()
+            case .shieldMissing:
+                result = LockHealthCheck.repairShield(isLockActive: isLocked)
+            case .ok:
+                result = .ok
+            }
+            lockHealth = result
+            let message = result.needsAttention ? Copy.lockStatus.healthFixFailed : Copy.lockStatus.healthFixed
+            lockHealthMessage = result.needsAttention ? message : nil
+            AccessibilityNotification.Announcement(message).post()
+        }
+    }
+
+    // MARK: - First day (what's left before the first lock)
+
+    /// Shown while setup is incomplete, and on the first day until a lock has ever started: the
+    /// hero says what's missing, this says how to get there, one tappable step at a time. Gone for
+    /// good once any `LockSession` exists (a lock that ran, even one that ended).
+    private var showsFirstDayChecklist: Bool {
+        if case .setup = heroState { return true }
+        return !isLocked && lockSessions.isEmpty
+    }
+
+    private struct FirstDayStep: Identifiable {
+        let id: Int
+        let title: String
+        let detail: String
+        let isDone: Bool
+        /// `nil` when nothing in the app can take this step from here yet (no goal picker exists
+        /// outside onboarding unless the shell supplies `onFinishSetup`).
+        let action: (() -> Void)?
+    }
+
+    private var firstDaySteps: [FirstDayStep] {
+        let goalsDone = !activeGoals.isEmpty
+        let appsDone = defaultLockSet != nil
+        let lockDone = !lockSessions.isEmpty
+        let lockAction: (() -> Void)?
+        if case .beginLock(let lockSetID, let requiredGoalIDs) = barState {
+            lockAction = { beginLock(lockSetID: lockSetID, requiredGoalIDs: requiredGoalIDs) }
+        } else {
+            lockAction = nil
+        }
+        return [
+            FirstDayStep(
+                id: 1,
+                title: Copy.today.firstDayStepGoalsTitle,
+                detail: Copy.today.firstDayStepGoalsDetail,
+                isDone: goalsDone,
+                action: goalsDone ? nil : onFinishSetup
+            ),
+            FirstDayStep(
+                id: 2,
+                title: Copy.today.firstDayStepAppsTitle,
+                detail: Copy.today.firstDayStepAppsDetail,
+                isDone: appsDone,
+                action: {
+                    Analytics.shared.capture(event: "today_first_day_step_tapped", properties: ["step": "apps"])
+                    showLockSetup = true
+                }
+            ),
+            FirstDayStep(
+                id: 3,
+                title: Copy.today.firstDayStepLockTitle,
+                detail: goalsDone && appsDone ? Copy.today.firstDayStepLockDetail : Copy.today.firstDayStepLockWaiting,
+                isDone: lockDone,
+                action: lockDone || isPerformingAction ? nil : lockAction
+            )
+        ]
+    }
+
+    private var firstDayChecklist: some View {
+        let steps = firstDaySteps
+        let doneCount = steps.filter(\.isDone).count
+        let currentID = steps.first(where: { !$0.isDone })?.id
+        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(Copy.today.firstDayTitle)
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(Theme.Colors.text)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Theme.Spacing.sm)
+                Text(Copy.today.firstDayProgress(done: doneCount, total: steps.count))
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .monospacedDigit()
+            }
+            .padding(.leading, Theme.Spacing.xxs)
+
+            VStack(spacing: 0) {
+                ForEach(steps) { step in
+                    FirstDayStepRow(
+                        index: step.id,
+                        total: steps.count,
+                        title: step.title,
+                        detail: step.detail,
+                        isDone: step.isDone,
+                        isCurrent: step.id == currentID,
+                        isLast: step.id == steps.last?.id,
+                        action: step.action
+                    )
+                }
+            }
+            .padding(.vertical, Theme.Spacing.xs)
+            .padding(.horizontal, Theme.Spacing.md)
+            .zanoCard()
+        }
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: doneCount)
+    }
+
+    // MARK: - Goals (rows with their action in place)
+
+    private static func priority(of type: GoalType) -> Int {
         switch type {
         case .workoutGym, .workoutHomeOutdoor: 0
         case .protein: 1
@@ -509,102 +1020,440 @@ struct TodayView: View {
         }
     }
 
-    /// Goals worth a ring, best first. While locked this is the lock's own required goals with the
-    /// open ones ahead of the done ones; otherwise the user's active goals in spec order.
-    private var orderedRingGoals: [Goal] {
-        let pool = isLocked ? requiredGoals : activeGoals
-        let byPriority = pool.sorted {
-            (Self.ringPriority(of: $0.type), $0.createdAt) < (Self.ringPriority(of: $1.type), $1.createdAt)
+    private func sortedByPriority(_ pool: [Goal]) -> [Goal] {
+        pool.sorted {
+            (Self.priority(of: $0.type), $0.createdAt) < (Self.priority(of: $1.type), $1.createdAt)
         }
-        guard isLocked else { return byPriority }
-        return byPriority.filter { !isGoalDoneToday($0) } + byPriority.filter { isGoalDoneToday($0) }
     }
 
-    private var overflowGoalCount: Int {
-        max(0, orderedRingGoals.count - Self.maxRings)
-    }
-
-    private var ringItems: [RingClusterItem] {
-        let shown = Array(orderedRingGoals.prefix(Self.maxRings))
-        var items = shown.map(ringItem(for:))
-        // Placeholders only while nothing is locked: a lock's rings should be exactly its goals.
-        if !isLocked, items.count < Self.maxRings {
-            let covered = Set(shown.compactMap { CanonicalSlot(type: $0.type) })
-            for slot in CanonicalSlot.allCases where items.count < Self.maxRings && !covered.contains(slot) {
-                items.append(placeholderItem(for: slot))
-            }
-        }
-        return items
-    }
-
-    /// A numeric goal becomes "72/150g" (the cluster puts "72" in the ring over "/150g"); a binary
-    /// one becomes "Done" / "Not yet" under its title with its glyph (or a check) in the ring.
-    private func ringItem(for goal: Goal) -> RingClusterItem {
-        let p = dayProgress(for: goal)
-        let valueText: String
-        if let target = p.target {
-            valueText = Copy.today.progressValue(current: p.current ?? 0, target: target, unit: p.unit)
-        } else {
-            valueText = p.isComplete ? Copy.today.ringDone : Copy.today.ringNotYet
-        }
-        let icon = (p.target == nil && p.isComplete) ? "checkmark" : goalIconName(for: goal.type)
-        return RingClusterItem(
-            id: goal.id,
-            title: CanonicalSlot(type: goal.type)?.title ?? goal.title,
-            progress: p.fraction,
-            color: Theme.Colors.Ring.color(for: goal.type),
-            valueText: valueText,
-            centerIcon: icon
-        )
-    }
-
-    private func placeholderItem(for slot: CanonicalSlot) -> RingClusterItem {
-        RingClusterItem(
-            id: slot.placeholderID,
-            title: slot.title,
-            progress: 0,
-            color: Theme.Colors.muted,
-            valueText: Copy.today.ringNotSet,
-            centerIcon: slot.icon,
-            isPlaceholder: true
-        )
+    /// Open goals first, done ones after, each in spec order.
+    private func openFirst(_ pool: [Goal]) -> [Goal] {
+        let sorted = sortedByPriority(pool)
+        return sorted.filter { !isGoalDoneToday($0) } + sorted.filter { isGoalDoneToday($0) }
     }
 
     @ViewBuilder
-    private var ringsSection: some View {
-        let items = ringItems
-        if !items.isEmpty {
-            VStack(spacing: Theme.Spacing.xs) {
-                // Equal columns, not a scroller: 3 x 88 pt rings need 312 pt and the narrowest
-                // content column on a supported iPhone is 343 pt. `.medium` is the *maximum*; the
-                // cluster shrinks rings further rather than overflow.
-                RingCluster(items: items, ringSize: .medium, layout: .row)
-                if overflowGoalCount > 0 {
-                    moreGoalsButton
+    private var goalSections: some View {
+        if isLocked {
+            let requiredIDs = Set(requiredGoals.map(\.id))
+            let others = activeGoals.filter { !requiredIDs.contains($0.id) }
+            if !requiredGoals.isEmpty {
+                goalSection(Copy.today.sectionToUnlock, goals: openFirst(requiredGoals), required: true)
+            }
+            if !others.isEmpty {
+                goalSection(Copy.today.sectionAlsoToday, goals: openFirst(others), required: false)
+            }
+        } else if !activeGoals.isEmpty {
+            goalSection(Copy.today.sectionTodaysGoals, goals: openFirst(activeGoals), required: false)
+        }
+    }
+
+    private func goalSection(_ title: String, goals: [Goal], required: Bool) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(title)
+                .font(Theme.Typography.title)
+                .foregroundStyle(Theme.Colors.text)
+                .padding(.leading, Theme.Spacing.xxs)
+                .accessibilityAddTraits(.isHeader)
+            GoalActionList(
+                items: goals.map { actionItem(for: $0, required: required) },
+                isBusy: isPerformingAction
+            ) { item in
+                perform(rowAction: item)
+            }
+        }
+    }
+
+    /// Quick-log amounts: the most common single serving, matching Fuel's middle chips.
+    private static let proteinQuickAddGrams = 25
+    private static let waterQuickAddMilliliters = 250
+
+    private func actionItem(for goal: Goal, required: Bool) -> GoalActionItem {
+        let p = dayProgress(for: goal)
+        let title = goal.title
+        var fraction = p.fraction
+        let primary: String
+        var secondary: String?
+        if !p.isComplete, let live = liveLine(for: goal, progress: p) {
+            primary = live.primary
+            secondary = live.secondary
+            fraction = max(fraction, live.fraction)
+        } else if let target = p.target {
+            primary = p.isComplete
+                ? Copy.today.statusDone
+                : Copy.today.goalProgressLine(current: p.current ?? 0, target: target, unit: p.unit)
+            if !p.isComplete {
+                secondary = Copy.today.goalRemainingLine(remaining: max(0, target - (p.current ?? 0)), unit: p.unit)
+            }
+        } else {
+            primary = p.isComplete ? Copy.today.statusDone : Copy.today.ringNotYet
+        }
+
+        return GoalActionItem(
+            id: goal.id,
+            title: title,
+            icon: goalIconName(for: goal.type),
+            color: Theme.Colors.Ring.color(for: goal.type),
+            progress: fraction,
+            primaryLine: primary,
+            secondaryLine: secondary,
+            isRequired: required,
+            trailing: trailing(for: goal, progress: p),
+            goalType: goal.type
+        )
+    }
+
+    /// Live progress for rows whose progress isn't in `GoalEvent`s until they complete: steps and a
+    /// home/outdoor workout (Health), and a gym check-in in progress (dwell minutes).
+    private func liveLine(for goal: Goal, progress p: GoalDayProgress) -> (primary: String, secondary: String?, fraction: Double)? {
+        switch goal.type {
+        case .steps:
+            guard let target = p.target, target > 0 else { return nil }
+            let steps = liveSteps[goal.id] ?? p.current ?? 0
+            return (
+                Copy.today.stepsProgressLine(current: steps, target: target),
+                Copy.today.stepsRemainingLine(remaining: max(0, target - steps)),
+                min(1, Double(steps) / Double(target))
+            )
+        case .workoutHomeOutdoor:
+            guard workoutNeedsHealth == false else { return nil }
+            let target = homeWorkoutRequiredMinutes(for: goal)
+            let minutes = liveWorkoutMinutes[goal.id] ?? 0
+            return (
+                Copy.today.workoutProgressLine(minutes: minutes, target: target),
+                Copy.today.workoutFromHealth,
+                min(1, Double(minutes) / Double(max(1, target)))
+            )
+        case .workoutGym:
+            guard gymDwellMinutes > 0 else { return nil }
+            let target = gymRequiredMinutes
+            return (
+                Copy.today.workoutProgressLine(minutes: gymDwellMinutes, target: target),
+                nil,
+                min(1, Double(gymDwellMinutes) / Double(max(1, target)))
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// Same rule as `HomeWorkoutVerifier.requiredMinutes(forGoalID:)`: today's planned minutes (else
+    /// the goal's target), never under spec §3's 20-minute floor.
+    private func homeWorkoutRequiredMinutes(for goal: Goal) -> Int {
+        let target = todaysPlan(for: goal)?.plannedValue ?? goal.targetValue ?? 0
+        return max(HomeWorkoutVerificationDefaults.requiredMinutes, Int(target.rounded()))
+    }
+
+    private func trailing(for goal: Goal, progress p: GoalDayProgress) -> GoalActionItem.Trailing {
+        if p.isComplete { return .done }
+        switch goal.type {
+        case .protein:
+            let grams = Self.proteinQuickAddGrams
+            return .quickAdd(
+                label: Copy.today.quickAddAmount(grams, unit: "g"),
+                accessibilityLabel: Copy.today.quickAddAccessibility(grams, unit: "g", goal: goal.title)
+            )
+        case .water:
+            let ml = Self.waterQuickAddMilliliters
+            return .quickAdd(
+                label: Copy.today.quickAddAmount(ml, unit: "ml"),
+                accessibilityLabel: Copy.today.quickAddAccessibility(ml, unit: "ml", goal: goal.title)
+            )
+        case .focusSession:
+            return runningFocusGoalID == goal.id
+                ? .status(Copy.today.statusRunning, isLive: true)
+                : .start(label: Copy.today.actionStart)
+        case .workoutGym:
+            guard primaryGym != nil else { return .start(label: Copy.today.actionSetUpGym) }
+            return gymDwellMinutes > 0
+                ? .start(label: Copy.today.actionOpenCheckIn)
+                : .start(label: Copy.today.actionGo)
+        case .steps:
+            return stepsNeedsHealth == true
+                ? .start(label: Copy.today.actionConnectHealth)
+                : .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+        case .workoutHomeOutdoor:
+            return workoutNeedsHealth == true
+                ? .start(label: Copy.today.actionConnectHealth)
+                : .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+        case .sleepOnTime, .sunriseAlarm:
+            // The bedtime gate and the alarm verify these on their own.
+            return .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+        case .stretchMobility:
+            // A guided 5-minute timer (`StretchTimerSheet`), verified by `StretchVerifier`.
+            return .start(label: Copy.today.actionStart)
+        case .mealPrep:
+            // A photo of the prepped containers (`MealPrepCaptureSheet`, Wave 2G): vision when
+            // configured, otherwise its own honor tier. Weekly cap lives in `MealPrepVerifier`.
+            return .start(label: Copy.today.actionAddPhoto)
+        case .creatine, .custom, .coldShowerSauna, .reading:
+            return .start(label: Copy.today.actionLog)
+        }
+    }
+
+    private func perform(rowAction item: GoalActionItem) {
+        guard let goal = goals.first(where: { $0.id == item.id }) else { return }
+        actionError = nil
+        switch goal.type {
+        case .protein:
+            log(goalType: .protein, amount: Double(Self.proteinQuickAddGrams))
+        case .water:
+            log(goalType: .water, amount: Double(Self.waterQuickAddMilliliters))
+        case .focusSession:
+            let minutes = Int(todaysPlan(for: goal)?.plannedValue ?? goal.targetValue ?? 25)
+            startFocus(goalID: goal.id, minutes: max(1, minutes))
+        case .workoutGym:
+            if primaryGym == nil {
+                Analytics.shared.capture(event: "today_set_up_gym_tapped")
+                showGymSetup = true
+            } else {
+                Analytics.shared.capture(event: "today_verify_at_gym_tapped")
+                showGymCheckIn = true
+            }
+        case .creatine:
+            // One tap, like the Control Center control that calls the same intent.
+            logCreatine()
+        case .stretchMobility:
+            Analytics.shared.capture(event: "today_start_stretch_tapped")
+            stretchTarget = StretchTarget(id: goal.id)
+        case .mealPrep:
+            Analytics.shared.capture(event: "today_meal_prep_photo_tapped")
+            mealPrepTarget = MealPrepTarget(id: goal.id)
+        case .custom, .coldShowerSauna, .reading:
+            // Honor-system goals: one confirmation is the friction before the log.
+            confirmingLogGoal = goal
+        case .steps:
+            if stepsNeedsHealth == true { openHealthPrimer() }
+        case .workoutHomeOutdoor:
+            if workoutNeedsHealth == true { openHealthPrimer() }
+        case .sleepOnTime, .sunriseAlarm:
+            break
+        }
+    }
+
+    private func logCreatine() {
+        Analytics.shared.capture(event: "today_log_creatine_tapped")
+        isPerformingAction = true
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                _ = try await LogCreatineIntent(source: .manual).perform()
+            } catch {
+                showError(Copy.today.logFailedTitle)
+            }
+        }
+    }
+
+    /// `LogCustomGoalIntent` records a verified completion for the goal (spec's Tier C: honesty
+    /// with friction; the confirmation dialog is the friction).
+    private func logHonorGoal(_ goal: Goal) {
+        confirmingLogGoal = nil
+        Analytics.shared.capture(event: "today_log_honor_goal_tapped", properties: ["goal_type": goal.type.rawValue])
+        isPerformingAction = true
+        let entity = GoalEntity(id: goal.id, title: goal.title)
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                _ = try await LogCustomGoalIntent(goal: entity).perform()
+            } catch {
+                showError(Copy.today.logFailedTitle)
+            }
+        }
+    }
+
+    /// Shows `message` in the bottom bar and announces it to VoiceOver (an error line that appears
+    /// silently is missed by anyone not looking at the bottom of the screen).
+    private func showError(_ message: String) {
+        actionError = message
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    /// Logs through the same App Intents the widgets, Siri and NFC tags use (CLAUDE.md: every user
+    /// action is an intent), so Today never grows a second logging path.
+    private func log(goalType: GoalType, amount: Double) {
+        Analytics.shared.capture(
+            event: "today_quick_log_tapped",
+            properties: ["goal_type": goalType.rawValue, "amount": amount]
+        )
+        isPerformingAction = true
+        let startedAt = Date.now
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                switch goalType {
+                case .protein:
+                    var intent = LogProteinIntent()
+                    intent.grams = amount
+                    intent.source = .manual
+                    _ = try await intent.perform()
+                case .water:
+                    var intent = LogWaterIntent()
+                    intent.milliliters = Int(amount)
+                    intent.source = .manual
+                    _ = try await intent.perform()
+                default:
+                    return
+                }
+                offerUndo(goalType: goalType, amount: amount, since: startedAt)
+            } catch {
+                showError(Copy.today.logFailedTitle)
+            }
+        }
+    }
+
+    /// Finds the event the intent just wrote (it saves through its own context on the same store)
+    /// and offers to remove it. No toast if it can't be found: an undo that can't undo is worse.
+    private func offerUndo(goalType: GoalType, amount: Double, since startedAt: Date) {
+        guard let goal = activeGoals.first(where: { $0.type == goalType }) else { return }
+        let goalID = goal.id
+        let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.ts >= startedAt })
+        let recent = (try? modelContext.fetch(descriptor)) ?? []
+        guard let event = recent
+            .filter({ $0.goal?.id == goalID && $0.value == amount && $0.source == .manual })
+            .max(by: { $0.ts < $1.ts })
+        else { return }
+        let unit = goalType == .water ? "ml" : "g"
+        let message = Copy.today.quickLogConfirmation(Int(amount), unit: unit, goal: goal.title)
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+            pendingUndo = QuickLogUndo(eventID: event.id, goalID: goalID, message: message)
+        }
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    /// Deletes the quick-logged event, then corrects progress: if the day's rollup `.complete`
+    /// (written by `GoalCompletionCoordinator` once the logged amount reached the target) is no
+    /// longer backed by what's logged, it goes too. Never touches a lock: an unlock that already
+    /// happened stays earned, and nothing here re-locks. The coordinator re-runs afterwards so the
+    /// shield's "goals left" mirror and any still-valid completion stay consistent.
+    private func undo(_ undo: QuickLogUndo) {
+        let eventID = undo.eventID
+        let goalID = undo.goalID
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { pendingUndo = nil }
+        Analytics.shared.capture(event: "today_quick_log_undone")
+        do {
+            let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.id == eventID })
+            for event in try modelContext.fetch(descriptor) {
+                modelContext.delete(event)
+            }
+            try removeUnsupportedRollup(goalID: goalID, excluding: eventID)
+            try modelContext.save()
+            AccessibilityNotification.Announcement(Copy.today.undoDone).post()
+        } catch {
+            showError(Copy.today.undoFailed)
+            return
+        }
+        Task { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID) }
+    }
+
+    /// `GoalCompletionCoordinator.rollupMetaKey` (internal to Core, so spelled out here). A rollup
+    /// `.complete` carries `value: nil` and this marker in `meta`.
+    private static let rollupMetaKey = "rollup"
+
+    private static func isRollupCompletion(_ event: GoalEvent) -> Bool {
+        guard event.kind == .complete || event.kind == .planB, case .object(let fields) = event.meta else { return false }
+        return fields[rollupMetaKey] == .bool(true)
+    }
+
+    /// Deletes today's rollup `.complete` for `goalID` when the remaining events no longer reach the
+    /// target. Only rollups: a completion a verifier or intent wrote directly is never touched.
+    private func removeUnsupportedRollup(goalID: UUID, excluding deletedID: UUID) throws {
+        guard let goal = goals.first(where: { $0.id == goalID }) else { return }
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        let descriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.ts >= startOfDay })
+        let todays = try modelContext.fetch(descriptor)
+            .filter { $0.goal?.id == goalID && $0.id != deletedID }
+        let rollups = todays.filter(Self.isRollupCompletion)
+        guard !rollups.isEmpty else { return }
+        let rollupIDs = Set(rollups.map(\.id))
+        let backing = todays.filter { !rollupIDs.contains($0.id) }
+        let progress = GoalDayProgress(
+            goal: goal,
+            todaysEvents: backing,
+            plannedValue: todaysPlan(for: goal)?.plannedValue,
+            planBValue: acceptedPlanBValue(for: goal)
+        )
+        guard !progress.isComplete else { return }
+        for rollup in rollups {
+            modelContext.delete(rollup)
+        }
+    }
+
+    private func startFocus(goalID: UUID, minutes: Int, isPlanB: Bool = false) {
+        Analytics.shared.capture(event: "today_start_focus_tapped", properties: ["planned_minutes": minutes])
+        isPerformingAction = true
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: minutes, isPlanB: isPlanB)
+            } catch {
+                showError(Copy.today.focusStartFailed)
+            }
+        }
+    }
+
+    // MARK: - Screen time (the Opal reference's lower half; data only exists in ZANOReport)
+
+    private var screenTimeSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text(Copy.screenTime.sectionTitle)
+                .font(Theme.Typography.title)
+                .foregroundStyle(Theme.Colors.text)
+                .padding(.leading, Theme.Spacing.xxs)
+                .accessibilityAddTraits(.isHeader)
+            screenTimeContent
+        }
+        .padding(.top, Theme.Spacing.sm)
+    }
+
+    /// The real numbers are drawn by the `ZANOReport` extension (spec §27: the app itself can never
+    /// read them), sized to the summary view's height. CI screenshots have no Screen Time data, so
+    /// they draw the same view from demo numbers. Without authorization, one card that asks.
+    @ViewBuilder
+    private var screenTimeContent: some View {
+        if ScreenshotMode.screen != nil {
+            ScreenTimeSummaryView(summary: DemoData.screenTime)
+        } else if screenTimeStatus == .approved {
+            DeviceActivityReport(.zanoToday, filter: Self.todayFilter)
+                .frame(height: 660)
+        } else {
+            screenTimeAccessCard
+        }
+    }
+
+    private static var todayFilter: DeviceActivityFilter {
+        let day = Calendar.current.dateInterval(of: .day, for: .now)
+            ?? DateInterval(start: Calendar.current.startOfDay(for: .now), duration: 86_400)
+        return DeviceActivityFilter(segment: .hourly(during: day))
+    }
+
+    /// Before Screen Time access: the user's buddy, small, beside what granting access buys.
+    private var screenTimeAccessCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                BuddySprite(buddy, pose: .idle, size: 32)
+                    .padding(.top, Theme.Spacing.xxs)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text(Copy.screenTime.accessTitle)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    Text(Copy.screenTime.accessDetail)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            PrimaryButton(title: Copy.screenTime.accessButton, style: .secondary) {
+                Task {
+                    try? await AuthorizationCenter.shared.requestAuthorization(for: .individual)
+                    refreshScreenTimeStatus()
                 }
             }
         }
+        .padding(Theme.Spacing.md)
+        .zanoCard()
     }
 
-    private var moreGoalsButton: some View {
-        Button {
-            Analytics.shared.capture(event: "today_more_goals_tapped")
-            showLockDetail = true
-        } label: {
-            HStack(spacing: Theme.Spacing.xxs) {
-                Text(Copy.today.moreGoalsLink(count: overflowGoalCount))
-                    .font(Theme.Typography.captionEmphasized)
-                Image(systemName: "chevron.forward")
-                    .font(Theme.Typography.icon(.xsmall))
-            }
-            .foregroundStyle(Theme.Colors.muted)
-            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-    }
-
-    // MARK: - Ghost Mode (one quiet line, not a card — it is the third most important thing here)
+    // MARK: - Ghost Mode (one quiet line — the third most important thing here)
 
     private func ghostTint(_ c: GhostMode.GhostComparison) -> Color {
         // Same standing rules `GhostProgressBanner` uses: accent ahead, muted tied/none, warning
@@ -617,29 +1466,27 @@ struct TodayView: View {
 
     private func ghostRow(_ c: GhostMode.GhostComparison) -> some View {
         let tint = ghostTint(c)
-        return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Rectangle()
-                .fill(Theme.Colors.hairline)
-                .frame(height: Theme.Metrics.edgeWidth)
-            HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: "flag.checkered")
-                    .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(tint)
-                    .frame(width: Theme.Spacing.lg)
-                Text(c.headline)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(Theme.Colors.text)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Theme.Spacing.xs)
-                if c.hasGhostWeek {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        ghostScore(icon: "person.fill", value: c.currentCompletedCount, tint: Theme.Colors.text)
-                        ghostScore(icon: "person", value: c.ghostCompletedCount, tint: Theme.Colors.muted)
-                    }
+        return HStack(spacing: Theme.Spacing.sm) {
+            Image(systemName: "flag.checkered")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(tint)
+                .frame(width: Theme.Spacing.lg)
+            Text(c.headline)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Theme.Spacing.xs)
+            if c.hasGhostWeek {
+                HStack(spacing: Theme.Spacing.sm) {
+                    ghostScore(icon: "person.fill", value: c.currentCompletedCount, tint: Theme.Colors.text)
+                    ghostScore(icon: "person", value: c.ghostCompletedCount, tint: Theme.Colors.muted)
                 }
             }
         }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .zanoGlass(in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: c)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(Copy.today.ghostModeTitle). \(c.headline)"))
@@ -656,202 +1503,283 @@ struct TodayView: View {
         .foregroundStyle(tint)
     }
 
-    // MARK: - Bottom bar (contextual — spec §16 P1: "a single primary button")
+    // MARK: - Bottom bar (only what a row can't do)
 
-    private var hasPrimaryControl: Bool {
-        switch primaryAction {
-        case .setupIncomplete: onFinishSetup != nil
-        case .waitingToUnlock: false
-        default: true
+    private enum BarState: Equatable {
+        case none
+        case finishSetup
+        case beginLock(lockSetID: UUID, requiredGoalIDs: [UUID])
+        case focusRunning
+        case verifyingAtGym
+    }
+
+    private var barState: BarState {
+        guard !activeGoals.isEmpty else { return onFinishSetup == nil ? .none : .finishSetup }
+        guard isLocked else {
+            guard let lockSet = defaultLockSet else { return onFinishSetup == nil ? .none : .finishSetup }
+            return .beginLock(lockSetID: lockSet.id, requiredGoalIDs: lockRequiredGoalIDs)
         }
+        if let runningFocusGoalID, requiredGoals.contains(where: { $0.id == runningFocusGoalID && !isGoalDoneToday($0) }) {
+            return .focusRunning
+        }
+        if gymDwellMinutes > 0, requiredGoals.contains(where: { $0.type == .workoutGym && !isGoalDoneToday($0) }) {
+            return .verifyingAtGym
+        }
+        return .none
     }
 
     @ViewBuilder
     private var bottomBar: some View {
-        if hasPrimaryControl || actionError != nil {
-            StickyActionBar {
+        if barState != .none || actionError != nil || pendingUndo != nil || !buddyToasts.isEmpty {
+            StickyActionBar(extendsToBottomEdge: false) {
                 VStack(spacing: Theme.Spacing.xs) {
+                    if let toast = buddyToasts.first {
+                        BuddyToastView(toast: toast)
+                            .id(toast.id)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    if let pendingUndo {
+                        UndoToast(message: pendingUndo.message) { undo(pendingUndo) }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                     if let actionError {
                         Text(actionError)
                             .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.danger)
+                            // `warning`, not `danger`: red is reserved for emergency.
+                            .foregroundStyle(Theme.Colors.warning)
                             .multilineTextAlignment(.center)
                     }
-                    if hasPrimaryControl {
-                        primaryControl
-                    }
+                    barControl
                 }
-                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: primaryAction)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: barState)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: pendingUndo)
             }
         }
     }
 
-    /// The one actionable next step Today can offer given current state. Ordered by the tightest
-    /// verification loop this screen can directly drive (focus timer, then gym dwell); goals this
-    /// screen has no direct action for (e.g. protein/water logging — Fuel screen, not owned here)
-    /// fall through to `openFuel`, which needs `onOpenFuel` to be a real button.
-    private enum PrimaryAction: Equatable {
-        case setupIncomplete
-        case beginLock(lockSetID: UUID, requiredGoalIDs: [UUID])
-        case startFocus(goalID: UUID, minutes: Int)
-        case focusRunning
-        case verifyAtGym(gymID: UUID)
-        case verifyingAtGym
-        case waitingToUnlock
-        case openFuel
-    }
-
-    private var primaryAction: PrimaryAction {
-        guard !activeGoals.isEmpty else { return .setupIncomplete }
-
-        guard let session = activeLockSession else {
-            guard let lockSet = defaultLockSet else { return .setupIncomplete }
-            return .beginLock(lockSetID: lockSet.id, requiredGoalIDs: activeGoals.map(\.id))
-        }
-
-        let requiredIDs = Set(session.requiredGoalIDs)
-        let unmet = goals.filter { requiredIDs.contains($0.id) && !isGoalDoneToday($0) }
-        guard !unmet.isEmpty else { return .waitingToUnlock }
-
-        if let runningFocusGoalID, unmet.contains(where: { $0.id == runningFocusGoalID }) {
-            return .focusRunning
-        }
-        if let focus = unmet.first(where: { $0.type == .focusSession }) {
-            let minutes = Int(todaysPlan(for: focus)?.plannedValue ?? focus.targetValue ?? 25)
-            return .startFocus(goalID: focus.id, minutes: max(1, minutes))
-        }
-        if trackingGymID != nil { return .verifyingAtGym }
-        if unmet.contains(where: { $0.type == .workoutGym }), let gym = primaryGym {
-            return .verifyAtGym(gymID: gym.id)
-        }
-        return .openFuel
-    }
-
-    /// Actionable states are `PrimaryButton`s; states that are really *status* are a status row.
-    /// `.waitingToUnlock` renders nothing here — the hero already says so — and `.setupIncomplete`
-    /// is a button only once the shell has injected `onFinishSetup`.
     @ViewBuilder
-    private var primaryControl: some View {
-        switch primaryAction {
-        case .setupIncomplete:
+    private var barControl: some View {
+        switch barState {
+        case .none:
+            EmptyView()
+        case .finishSetup:
             if let onFinishSetup {
                 PrimaryButton(title: Copy.today.finishSetupTitle, systemImage: "arrow.right", action: onFinishSetup)
             }
-        case .waitingToUnlock:
-            EmptyView()
-        case .beginLock:
+        case .beginLock(let lockSetID, let requiredGoalIDs):
             PrimaryButton(
                 title: Copy.today.beginLockStandardTitle,
                 systemImage: "lock.fill",
-                isEnabled: !isPerformingPrimaryAction,
-                action: performPrimaryAction
-            )
-        case .startFocus(_, let minutes):
-            PrimaryButton(
-                title: Copy.today.startFocusTitle(minutes: minutes),
-                systemImage: "timer",
-                isEnabled: !isPerformingPrimaryAction,
-                action: performPrimaryAction
-            )
+                isEnabled: !isPerformingAction
+            ) {
+                beginLock(lockSetID: lockSetID, requiredGoalIDs: requiredGoalIDs)
+            }
         case .focusRunning:
             TodayStatusRow(icon: "timer", title: Copy.today.focusRunningTitle, isLive: true)
-        case .verifyAtGym:
-            PrimaryButton(
-                title: Copy.today.goToGymTitle,
-                systemImage: "figure.strengthtraining.traditional",
-                isEnabled: !isPerformingPrimaryAction,
-                action: performPrimaryAction
-            )
         case .verifyingAtGym:
             TodayStatusRow(
                 icon: "location.fill",
                 title: Copy.today.verifyingAtGymTitle(minutes: gymDwellMinutes),
                 isLive: true
             )
-        case .openFuel:
-            if let onOpenFuel {
-                PrimaryButton(title: Copy.today.openFuelTitle, systemImage: "fork.knife", action: onOpenFuel)
-            } else {
-                TodayStatusRow(icon: "fork.knife", title: Copy.today.openFuelTitle, isLive: false)
-            }
         }
     }
 
-    private func performPrimaryAction() {
+    private func beginLock(lockSetID: UUID, requiredGoalIDs: [UUID]) {
         actionError = nil
-        switch primaryAction {
-        case .beginLock(let lockSetID, let requiredGoalIDs):
-            Analytics.shared.capture(
-                event: "today_begin_lock_tapped",
-                properties: ["required_goal_count": requiredGoalIDs.count]
-            )
-            isPerformingPrimaryAction = true
-            Task {
-                defer { isPerformingPrimaryAction = false }
-                do {
-                    _ = try await LockEngineManager.shared.startLock(
-                        lockSetID: lockSetID,
-                        mode: .earn,
-                        requiredGoalIDs: requiredGoalIDs,
-                        trigger: .manual
-                    )
-                } catch {
-                    actionError = error.localizedDescription
-                }
+        Analytics.shared.capture(
+            event: "today_begin_lock_tapped",
+            properties: ["required_goal_count": requiredGoalIDs.count]
+        )
+        isPerformingAction = true
+        Task {
+            defer { isPerformingAction = false }
+            do {
+                _ = try await LockEngineManager.shared.startLock(
+                    lockSetID: lockSetID,
+                    mode: LockPreferences.defaultMode,
+                    requiredGoalIDs: requiredGoalIDs,
+                    trigger: .manual
+                )
+                // The shield's "Show my goals" / emergency hand-off posts notifications.
+                _ = await NotificationPermission.requestIfUndetermined()
+            } catch {
+                showError(Copy.today.lockStartFailed)
             }
-
-        case .startFocus(let goalID, let minutes):
-            Analytics.shared.capture(
-                event: "today_start_focus_tapped",
-                properties: ["planned_minutes": minutes]
-            )
-            isPerformingPrimaryAction = true
-            Task {
-                defer { isPerformingPrimaryAction = false }
-                do {
-                    _ = try await FocusSessionVerifier.shared.startSession(goalID: goalID, plannedMinutes: minutes)
-                    runningFocusGoalID = goalID
-                } catch {
-                    actionError = error.localizedDescription
-                }
-            }
-
-        case .verifyAtGym(let gymID):
-            Analytics.shared.capture(event: "today_verify_at_gym_tapped")
-            trackingGymID = gymID
-            Task { await GymVerifier.shared.beginDwellTracking(gymID: gymID) }
-
-        case .setupIncomplete, .focusRunning, .verifyingAtGym, .waitingToUnlock, .openFuel:
-            break
         }
     }
 
-    /// Polls `GymVerifier` for live dwell progress while `trackingGymID` is set, stopping itself
-    /// once `isVerified` returns true (the required-minutes threshold — `workoutGoal.targetValue`,
-    /// falling back to spec §3's "default 35 min" — has been met) or once tracking is cancelled by
-    /// `.task(id:)` restarting with a new/nil id. Clearing `trackingGymID` here (rather than only
-    /// waiting on a `GoalEvent` to propagate through `@Query`) lets the primary button react the
-    /// moment verification completes instead of lagging a poll interval behind it.
-    private func pollGymDwell() async {
-        guard let gymID = trackingGymID else { return }
-        let requiredMinutes = Int(workoutGoal?.targetValue ?? 35)
-        while !Task.isCancelled, trackingGymID == gymID {
-            gymDwellMinutes = await GymVerifier.shared.currentDwellMinutes(gymID: gymID)
-            if await GymVerifier.shared.isVerified(gymID: gymID, requiredMinutes: requiredMinutes) {
-                trackingGymID = nil
+    // MARK: - Live refreshes (gym dwell, Health rows, finish-setup status)
+
+    /// Restarts the gym watch when the saved gym or the gym goal's state changes.
+    private var gymWatchKey: String {
+        guard let gym = primaryGym, let goal = gymGoal, !isGoalDoneToday(goal) else { return "" }
+        return gym.id.uuidString
+    }
+
+    /// Reads the saved gym's dwell minutes from `GymVerifier` every 15 seconds while a gym goal is
+    /// open. Read-only: the check-in screen (and the geofence) start tracking. Once the dwell
+    /// reaches the goal's minutes it asks `isVerified`, which writes the completion and calls the
+    /// coordinator itself (idempotent), so a finished dwell counts even if nobody opens check-in.
+    private func watchGymDwell() async {
+        guard let gym = primaryGym, let goal = gymGoal, !isGoalDoneToday(goal) else {
+            gymDwellMinutes = 0
+            return
+        }
+        let gymID = gym.id
+        let required = gymRequiredMinutes
+        while !Task.isCancelled {
+            let minutes = await GymVerifier.shared.currentDwellMinutes(gymID: gymID)
+            gymDwellMinutes = minutes
+            if minutes >= required, await GymVerifier.shared.isVerified(gymID: gymID, requiredMinutes: required) {
                 return
             }
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: .seconds(15))
+        }
+    }
+
+    /// Steps and home/outdoor workout goals that still need Health checks today, plus the gym goal
+    /// while travel mode is on (any Health workout of its minutes counts, `HomeWorkoutVerifier`).
+    private var healthGoalIDs: [UUID] {
+        activeGoals
+            .filter { goal in
+                let isHealthType = goal.type == .steps || goal.type == .workoutHomeOutdoor
+                    || (goal.type == .workoutGym && suggestionSignals.travelActive)
+                return isHealthType && !isGoalDoneToday(goal)
+            }
+            .map(\.id)
+    }
+
+    /// Whether Health was ever connected for each row type, then (if so) live numbers and a
+    /// completion check: `StepsVerifier` observes step count in the background and writes its own
+    /// completion; `HomeWorkoutVerifier.checkToday` writes a workout completion when one HealthKit
+    /// workout today reaches the goal's minutes. Repeats every 60 seconds while Today is on screen;
+    /// restarts on foreground and after the Health primer.
+    private func refreshHealthRows() async {
+        let ids = Set(healthGoalIDs)
+        let stepGoalIDs = activeGoals.filter { $0.type == .steps && ids.contains($0.id) }.map(\.id)
+        let workoutGoalIDs = activeGoals
+            .filter { ($0.type == .workoutHomeOutdoor || $0.type == .workoutGym) && ids.contains($0.id) }
+            .map(\.id)
+        guard !stepGoalIDs.isEmpty || !workoutGoalIDs.isEmpty else { return }
+
+        while !Task.isCancelled {
+            if !stepGoalIDs.isEmpty {
+                let needs = await StepsVerifier.shared.needsAuthorizationRequest()
+                stepsNeedsHealth = needs
+                if !needs {
+                    for goalID in stepGoalIDs {
+                        try? await StepsVerifier.shared.startObserving(goalID: goalID)
+                        _ = try? await StepsVerifier.shared.checkToday(goalID: goalID)
+                        if let count = try? await StepsVerifier.shared.currentStepCount(goalID: goalID) {
+                            liveSteps[goalID] = Int(count)
+                        }
+                    }
+                }
+            }
+            if !workoutGoalIDs.isEmpty {
+                let needs = await HomeWorkoutVerifier.shared.needsAuthorizationRequest()
+                workoutNeedsHealth = needs
+                if !needs {
+                    let minutes = await HomeWorkoutVerifier.shared.longestWorkoutMinutesToday()
+                    for goalID in workoutGoalIDs {
+                        liveWorkoutMinutes[goalID] = minutes
+                        _ = try? await HomeWorkoutVerifier.shared.checkToday(goalID: goalID)
+                    }
+                }
+            }
+            try? await Task.sleep(for: .seconds(60))
+        }
+    }
+
+    private func openHealthPrimer() {
+        Analytics.shared.capture(event: "today_connect_health_tapped")
+        showHealthPrimer = true
+    }
+
+    // MARK: - Finish setup (after the first lock)
+
+    private var showsFinishSetupCard: Bool {
+        guard !finishSetupCardDismissed, !lockSessions.isEmpty, hasNFCTags != nil, hasWidget != nil else { return false }
+        // `FinishSetupCard` adds its own steps (coach voice, Sunrise alarm, squad) and draws
+        // nothing once every step is done, so it decides its own visibility from here on.
+        return true
+    }
+
+    private var finishSetupItems: [FinishSetupItem] {
+        var items: [FinishSetupItem] = [
+            FinishSetupItem(
+                id: "tags",
+                icon: "wave.3.right",
+                title: Copy.today.setupTagsTitle,
+                detail: Copy.today.setupTagsDetail,
+                isDone: hasNFCTags == true,
+                action: { finishSetupTapped("tags") { showNFCTags = true } }
+            )
+        ]
+        if gymGoal != nil {
+            items.append(FinishSetupItem(
+                id: "gym",
+                icon: "mappin.and.ellipse",
+                title: Copy.today.setupGymTitle,
+                detail: Copy.today.setupGymDetail,
+                isDone: primaryGym != nil,
+                action: { finishSetupTapped("gym") { showGymSetup = true } }
+            ))
+        }
+        if activeGoals.contains(where: { $0.type == .steps || $0.type == .workoutHomeOutdoor }) {
+            items.append(FinishSetupItem(
+                id: "health",
+                icon: "heart.fill",
+                title: Copy.today.setupHealthTitle,
+                detail: Copy.today.setupHealthDetail,
+                isDone: stepsNeedsHealth != true && workoutNeedsHealth != true,
+                action: { finishSetupTapped("health") { showHealthPrimer = true } }
+            ))
+        }
+        items.append(FinishSetupItem(
+            id: "widget",
+            icon: "square.grid.2x2.fill",
+            title: Copy.today.setupWidgetTitle,
+            detail: Copy.today.setupWidgetDetail,
+            isDone: hasWidget == true,
+            action: { finishSetupTapped("widget") { showWidgetHowTo = true } }
+        ))
+        return items
+    }
+
+    private func finishSetupTapped(_ item: String, open: () -> Void) {
+        Analytics.shared.capture(event: "today_finish_setup_item_tapped", properties: ["item": item])
+        open()
+    }
+
+    /// NFC mappings (`NFCTagMapper`, App Group) and installed widgets (WidgetKit).
+    private func refreshSetupStatus() async {
+        hasNFCTags = !(await NFCTagMapper.shared.allMappings()).isEmpty
+        hasWidget = await Self.hasInstalledWidget()
+    }
+
+    /// Whether a ZANO home or lock-screen widget is installed. The `kind` strings are the ones
+    /// `Extensions/ZANOWidgets` declares (identifiers, not copy; same pair `OnboardingDripScheduler`
+    /// matches). `nonisolated` so WidgetKit's completion (called off the main thread) isn't main-actor bound.
+    nonisolated private static func hasInstalledWidget() async -> Bool {
+        let kinds: Set<String> = ["com.zano.app.widget.home", "com.zano.app.widget.lockscreen"]
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            WidgetCenter.shared.getCurrentConfigurations { result in
+                switch result {
+                case .success(let widgets):
+                    continuation.resume(returning: widgets.contains { kinds.contains($0.kind) })
+                case .failure:
+                    continuation.resume(returning: false)
+                }
+            }
         }
     }
 
     // MARK: - Celebration
 
-    /// `UnlockCelebrationView.goalName` for the just-ended session (spec §16 P3): the single
-    /// required goal's own `Goal.title` when the lock only required one, otherwise a generic
-    /// fallback — this screen has no single "the goal that verified" when a lock required several
-    /// (e.g. workout + protein + focus all feeding the same unlock), and guessing which one to
-    /// name would misrepresent what actually happened.
+    /// The single required goal's title when the lock only required one, otherwise a generic
+    /// fallback — naming one of several would misrepresent what happened.
     private var unlockCelebrationGoalName: String {
         guard let session = mostRecentlyEndedSession else { return Copy.today.unlockCelebrationFallbackGoalName }
         let requiredIDs = Set(session.requiredGoalIDs)
@@ -862,6 +1790,451 @@ struct TodayView: View {
         return only.title
     }
 
+    // MARK: - Suggestion slot (Wave 2F: one card at most, under the hero)
+
+    /// The one card to show: the highest-priority candidate not dismissed. None on the first day
+    /// (the checklist has the slot's job) and none during a health pause.
+    private var currentSuggestion: TodaySuggestion? {
+        guard suggestionSignals.loaded, !showsFirstDayChecklist, !HealthPause.isActive else { return nil }
+        return suggestionCandidates
+            .sorted { $0.priority < $1.priority }
+            .first { !dismissedSuggestionKeys.contains($0.dismissKey) && !TodaySuggestionDismissals.isDismissed($0) }
+    }
+
+    @ViewBuilder
+    private var suggestionSlot: some View {
+        if let suggestion = currentSuggestion {
+            suggestionCard(suggestion)
+                .id(suggestion.dismissKey)
+                .transition(.opacity)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: suggestion)
+        }
+    }
+
+    @ViewBuilder
+    private func suggestionCard(_ suggestion: TodaySuggestion) -> some View {
+        let busy = isSuggestionBusy || isPerformingAction
+        let dismiss = { dismissSuggestion(suggestion) }
+        switch suggestion {
+        case .neverMissTwice(let state):
+            NeverMissTwiceBanner(state: state, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                if let goalID = state.goalID { runRowAction(goalID: goalID) }
+            }, onDismiss: dismiss)
+        case .comeback(let state):
+            ComebackCard(state: state, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                if state.day == nil {
+                    startComeback()
+                } else if let goalID = state.goalID {
+                    runRowAction(goalID: goalID)
+                }
+            }, onDismiss: dismiss)
+        case .planB(let state):
+            PlanBCard(state: state, pendingActionTitle: planBPendingActionTitle(state), isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                planBAction(state)
+            }, onDismiss: dismiss)
+        case .travel(let variant):
+            TravelModeCard(variant: variant, city: suggestionSignals.travelCity, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                travelAction(variant)
+            }, onDismiss: {
+                if variant == .suggested {
+                    Task { await TravelMode.shared.dismissSuggestion() }
+                }
+                dismiss()
+            })
+        case .calendarLightDay(let variant):
+            CalendarLightDayCard(variant: variant, isBusy: busy, onAction: {
+                suggestionTapped(suggestion)
+                calendarAction(variant)
+            }, onDismiss: dismiss)
+        case .lockedOut(let attempts):
+            LockedOutMomentCard(attempts: attempts, onAction: {
+                suggestionTapped(suggestion)
+                lockedOutMoment = LockedOutPresentation(content: lockedOutContent(attempts: attempts))
+            }, onDismiss: dismiss)
+        }
+    }
+
+    /// Every card that applies right now, in no particular order (`priority` sorts them).
+    private var suggestionCandidates: [TodaySuggestion] {
+        let signals = suggestionSignals
+        var candidates: [TodaySuggestion] = []
+        let easiest = easiestOpenGoal
+
+        // Never Miss Twice (spec 5.6): the engine armed the flag for yesterday's miss, the streak
+        // is still alive, and today hasn't been earned yet.
+        if let streak, streak.current > 0, streak.neverMissTwiceArmed,
+           !(streak.lastEarnedDate.map { Calendar.current.isDateInToday($0) } ?? false),
+           let easiest {
+            candidates.append(.neverMissTwice(NeverMissTwiceState(
+                goalID: easiest.id,
+                goalTitle: easiest.title,
+                freezesLeft: streak.freezesLeft
+            )))
+        }
+
+        // Comeback (spec 5.18): running challenge, or eligible to start one.
+        if let day = signals.comebackDay {
+            candidates.append(.comeback(ComebackState(
+                day: day, totalDays: signals.comebackTotalDays, goalID: easiest?.id, goalTitle: easiest?.title
+            )))
+        } else if signals.comebackEligible {
+            candidates.append(.comeback(ComebackState(
+                day: nil, totalDays: signals.comebackTotalDays, goalID: nil, goalTitle: nil
+            )))
+        }
+
+        // Plan B (spec 5.5).
+        if let planB = planBCandidate {
+            candidates.append(.planB(planB))
+        }
+
+        // Travel (spec 5.18, 9.7).
+        if signals.travelActive {
+            candidates.append(.travel(.active))
+        } else if signals.travelPending {
+            candidates.append(.travel(.suggested))
+        } else if let gymGoal, !isGoalDoneToday(gymGoal), gymDwellMinutes == 0,
+                  Calendar.current.component(.hour, from: .now) >= Self.travelManualOfferHour {
+            candidates.append(.travel(.manual))
+        }
+
+        // Calendar light day (spec 9.7): the ask only once the user has run a lock.
+        switch signals.calendarAccess {
+        case .granted:
+            if signals.isPackedDay, !lighterPlanGoals.isEmpty {
+                candidates.append(.calendarLightDay(.packed))
+            }
+        case .notAsked:
+            if !lockSessions.isEmpty, !activeGoals.isEmpty {
+                candidates.append(.calendarLightDay(.ask))
+            }
+        case .declined:
+            break
+        }
+
+        // Locked-out moment (spec 5.16).
+        if signals.shieldAttemptsToday >= LockedOutAttemptTracker.threshold {
+            candidates.append(.lockedOut(attempts: signals.shieldAttemptsToday))
+        }
+        return candidates
+    }
+
+    /// Plan B's offer starts at 5 PM: late enough that a half-done goal is really at risk.
+
+    /// The manual "I'm traveling" ask waits until midday with the gym goal still open.
+    private static let travelManualOfferHour = 12
+
+    /// Goal types with a meaningful smaller version: an amount, minutes, or steps.
+    private static func supportsPlanB(_ type: GoalType) -> Bool {
+        switch type {
+        case .protein, .water, .steps, .focusSession, .workoutGym, .workoutHomeOutdoor: true
+        default: false
+        }
+    }
+
+    /// A goal already switched to Plan B (shown until done), else, from 5 PM, the first open goal
+    /// under half done (required goals first while locked).
+    private var planBCandidate: PlanBState? {
+        let accepted = suggestionSignals.planBAcceptedGoalIDs
+        if let goal = sortedByPriority(activeGoals).first(where: { accepted.contains($0.id) && !isGoalDoneToday($0) }) {
+            return planBState(for: goal, accepted: true)
+        }
+        guard Calendar.current.component(.hour, from: .now) >= SlipRisk.planBOfferHour(on: .now) else { return nil }
+        let pool = isLocked ? requiredGoals : activeGoals
+        let atRisk = openFirst(pool).first { goal in
+            Self.supportsPlanB(goal.type) && !isGoalDoneToday(goal) && planBProgressFraction(goal) < 0.5
+        }
+        return atRisk.flatMap { planBState(for: $0, accepted: false) }
+    }
+
+    /// Open goals a packed-day "go lighter" would switch to Plan B.
+    private var lighterPlanGoals: [Goal] {
+        let accepted = suggestionSignals.planBAcceptedGoalIDs
+        return activeGoals.filter { Self.supportsPlanB($0.type) && !isGoalDoneToday($0) && !accepted.contains($0.id) }
+    }
+
+    private func planBProgressFraction(_ goal: Goal) -> Double {
+        guard let state = planBState(for: goal, accepted: false), state.full > 0 else { return dayProgress(for: goal).fraction }
+        return Double(state.current) / Double(state.full)
+    }
+
+    /// Full target, Plan B target and verified progress, per goal type. A gym goal's Plan B is a
+    /// 20-minute workout anywhere (spec 5.5's "20-min walk instead of gym"), read from Health or
+    /// counted as gym dwell.
+    private func planBState(for goal: Goal, accepted: Bool) -> PlanBState? {
+        let p = dayProgress(for: goal)
+        let full: Int
+        let reduced: Int
+        let current: Int
+        let unit: String
+        switch goal.type {
+        case .workoutGym:
+            full = gymRequiredMinutes
+            reduced = min(HomeWorkoutVerificationDefaults.requiredMinutes, full)
+            current = max(suggestionSignals.healthWorkoutMinutes ?? 0, gymDwellMinutes)
+            unit = "min"
+        case .workoutHomeOutdoor:
+            full = homeWorkoutRequiredMinutes(for: goal)
+            reduced = Self.planBReduced(full)
+            current = liveWorkoutMinutes[goal.id] ?? 0
+            unit = "min"
+        case .steps:
+            guard let target = p.fullTarget else { return nil }
+            full = target
+            reduced = p.isPlanBTarget ? (p.target ?? Self.planBReduced(full)) : Self.planBReduced(full)
+            current = liveSteps[goal.id] ?? p.current ?? 0
+            unit = p.unit
+        case .protein, .water, .focusSession:
+            guard let target = p.fullTarget else { return nil }
+            full = target
+            reduced = p.isPlanBTarget ? (p.target ?? Self.planBReduced(full)) : Self.planBReduced(full)
+            current = Int(p.loggedAmount.rounded(.down))
+            unit = p.unit
+        default:
+            return nil
+        }
+        guard full > 0, reduced > 0 else { return nil }
+        return PlanBState(
+            goalID: goal.id,
+            goalTitle: goal.title,
+            goalType: goal.type,
+            full: full,
+            reduced: reduced,
+            unit: unit,
+            isAccepted: accepted,
+            current: current
+        )
+    }
+
+    private static func planBReduced(_ full: Int) -> Int {
+        Int((PlanB.reducedValue(fromFull: Double(full)) ?? Double(full)).rounded())
+    }
+
+    /// The Plan B card's button while switched but not yet met: the goal's own next step.
+    private func planBPendingActionTitle(_ state: PlanBState) -> String? {
+        switch state.goalType {
+        case .protein:
+            return Copy.today.quickAddAmount(Self.proteinQuickAddGrams, unit: "g")
+        case .water:
+            return Copy.today.quickAddAmount(Self.waterQuickAddMilliliters, unit: "ml")
+        case .focusSession:
+            return runningFocusGoalID == state.goalID ? nil : Copy.today.planBStartFocusAction(minutes: state.reduced)
+        case .steps:
+            return stepsNeedsHealth == true ? Copy.today.actionConnectHealth : nil
+        case .workoutHomeOutdoor:
+            return workoutNeedsHealth == true ? Copy.today.actionConnectHealth : nil
+        case .workoutGym:
+            return suggestionSignals.healthWorkoutMinutes == nil && gymDwellMinutes == 0 ? Copy.today.actionConnectHealth : nil
+        default:
+            return nil
+        }
+    }
+
+    private func planBAction(_ state: PlanBState) {
+        guard let goal = activeGoals.first(where: { $0.id == state.goalID }) else { return }
+        if !state.isAccepted {
+            acceptPlanB(goalIDs: [goal.id])
+            return
+        }
+        if state.isMet {
+            isSuggestionBusy = true
+            let goalID = state.goalID
+            let amount = Double(state.current)
+            Task {
+                defer { isSuggestionBusy = false }
+                do {
+                    _ = try await PlanB.recordCompletion(goalID: goalID, verifiedAmount: amount)
+                } catch {
+                    showError(Copy.today.planBCountFailed)
+                }
+            }
+            return
+        }
+        switch state.goalType {
+        case .protein, .water:
+            runRowAction(goalID: goal.id)
+        case .focusSession:
+            startFocus(goalID: goal.id, minutes: state.reduced, isPlanB: true)
+        case .steps, .workoutHomeOutdoor, .workoutGym:
+            openHealthPrimer()
+        default:
+            break
+        }
+    }
+
+    /// The easiest open goal with a one-tap action (required goals first while locked), for the
+    /// Never Miss Twice and comeback cards. Goals that only verify on their own are skipped.
+    private var easiestOpenGoal: Goal? {
+        let pool = isLocked && !requiredGoals.isEmpty ? requiredGoals : activeGoals
+        return pool
+            .filter { !isGoalDoneToday($0) && Self.effort(of: $0.type) != nil }
+            .min { (Self.effort(of: $0.type) ?? .max, $0.createdAt) < (Self.effort(of: $1.type) ?? .max, $1.createdAt) }
+    }
+
+    /// Rough effort order for a one-tap start. `nil`: no action to start from Today.
+    private static func effort(of type: GoalType) -> Int? {
+        switch type {
+        case .water: 0
+        case .creatine: 1
+        case .protein: 2
+        case .stretchMobility: 3
+        case .reading, .custom, .coldShowerSauna, .mealPrep: 4
+        case .focusSession: 5
+        case .workoutGym: 6
+        case .steps, .workoutHomeOutdoor, .sleepOnTime, .sunriseAlarm: nil
+        }
+    }
+
+    /// Runs a goal's row action, the same as tapping it in the list.
+    private func runRowAction(goalID: UUID) {
+        guard let goal = activeGoals.first(where: { $0.id == goalID }) else { return }
+        perform(rowAction: actionItem(for: goal, required: false))
+    }
+
+    private func startComeback() {
+        isSuggestionBusy = true
+        Task {
+            defer { isSuggestionBusy = false }
+            do {
+                _ = try await ComebackMode.shared.startChallengeIfEligible()
+            } catch {
+                showError(Copy.today.comebackStartFailed)
+            }
+            suggestionTick += 1
+        }
+    }
+
+    private func travelAction(_ variant: TravelCardVariant) {
+        isSuggestionBusy = true
+        Task {
+            defer { isSuggestionBusy = false }
+            do {
+                switch variant {
+                case .suggested: _ = try await TravelMode.shared.acceptTravelMode()
+                case .manual: _ = try await TravelMode.shared.startManualTravelMode()
+                case .active: await TravelMode.shared.endTravelMode()
+                }
+            } catch {
+                showError(Copy.today.travelFailed)
+            }
+            suggestionTick += 1
+        }
+    }
+
+    private func calendarAction(_ variant: CalendarCardVariant) {
+        isSuggestionBusy = true
+        switch variant {
+        case .ask:
+            Task {
+                defer { isSuggestionBusy = false }
+                do {
+                    let granted = try await CalendarAwareness.shared.optIn()
+                    if !granted {
+                        // Declined: stop asking. Settings can turn it on later.
+                        await CalendarAwareness.shared.optOut()
+                        dismissSuggestion(.calendarLightDay(.ask))
+                    }
+                } catch {
+                    showError(Copy.today.calendarFailed)
+                }
+                suggestionTick += 1
+            }
+        case .packed:
+            isSuggestionBusy = false
+            acceptPlanB(goalIDs: lighterPlanGoals.map(\.id))
+        }
+    }
+
+    /// Switches goals to Plan B. Only ids cross into the task; each `Goal` is looked up again on
+    /// the main actor right before `PlanB.accept`, so no model object is sent anywhere.
+    private func acceptPlanB(goalIDs: [UUID]) {
+        isSuggestionBusy = true
+        Task {
+            defer { isSuggestionBusy = false }
+            for goalID in goalIDs {
+                guard let goal = activeGoals.first(where: { $0.id == goalID }) else { continue }
+                await PlanB.accept(goal)
+                suggestionSignals.planBAcceptedGoalIDs.insert(goalID)
+            }
+            suggestionTick += 1
+        }
+    }
+
+    /// The poster's content: the last hour's tries, the one open goal as "until I hit the gym" when only
+    /// one is left, and the streak.
+    private func lockedOutContent(attempts: Int) -> LockedOutMomentContent {
+        let open = requiredGoals.filter { !isGoalDoneToday($0) }
+        let phrase = open.count == 1 ? open.first.flatMap { Copy.today.lockedOutGoalPhrase($0.type) } : nil
+        return LockedOutMomentContent(
+            appName: LockedOutAttemptTracker.lastAttemptAppName(),
+            attemptCount: attempts,
+            blockingGoalSummary: phrase,
+            goalsRemaining: isLocked ? remainingRequiredGoalCount : nil,
+            streak: streak?.current
+        )
+    }
+
+    private func suggestionTapped(_ suggestion: TodaySuggestion) {
+        Analytics.shared.capture(event: "today_suggestion_tapped", properties: ["card": suggestion.analyticsName])
+    }
+
+    private func dismissSuggestion(_ suggestion: TodaySuggestion) {
+        Analytics.shared.capture(event: "today_suggestion_dismissed", properties: ["card": suggestion.analyticsName])
+        TodaySuggestionDismissals.dismiss(suggestion)
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) {
+            _ = dismissedSuggestionKeys.insert(suggestion.dismissKey)
+        }
+    }
+
+    /// Loads the engines' state for the slot. Missed days are recorded by
+    /// `StreakEngine.reconcileMissedDays()` on foreground, not here.
+    private func refreshSuggestionSignals() async {
+        var signals = TodaySuggestionSignals()
+        signals.shieldAttemptsToday = ShieldAttemptTally.absorbPending()
+        signals.planBAcceptedGoalIDs = Set(activeGoals.map(\.id).filter { PlanB.isAccepted(goalID: $0) })
+        signals.comebackTotalDays = ComebackMode.totalDays
+
+        if !HealthPause.isActive {
+            if let challenge = await ComebackMode.shared.activeChallenge() {
+                signals.comebackDay = challenge.dayIndex
+                signals.comebackTotalDays = challenge.totalDays
+            } else {
+                signals.comebackEligible = await ComebackMode.shared.isEligible()
+            }
+
+            if let session = await TravelMode.shared.activeSession() {
+                signals.travelActive = true
+                signals.travelCity = session.detectedCity
+            } else {
+                signals.travelPending = await TravelMode.shared.pendingSuggestion() != nil
+            }
+
+            signals.calendarAccess = await CalendarAwareness.shared.accessState()
+            if signals.calendarAccess == .granted {
+                signals.isPackedDay = await CalendarAwareness.shared.isPackedDay(.now)
+            }
+
+            if let gymGoal, signals.planBAcceptedGoalIDs.contains(gymGoal.id),
+               !(await HomeWorkoutVerifier.shared.needsAuthorizationRequest()) {
+                signals.healthWorkoutMinutes = await HomeWorkoutVerifier.shared.longestWorkoutMinutesToday()
+            }
+        }
+
+        signals.loaded = true
+        suggestionSignals = signals
+    }
+
+    /// The goals a lock started from Today requires: every active goal, minus the gym while travel
+    /// mode is on (spec 5.18, "gym optional"). A gym-only goal list keeps the gym, so the lock can
+    /// still be earned.
+    private var lockRequiredGoalIDs: [UUID] {
+        TravelMode.requiredGoalIDs(activeGoals.map { (id: $0.id, type: $0.type) }, travelActive: suggestionSignals.travelActive)
+    }
+
     // MARK: - Derived state
 
     private var voice: CoachVoice { users.first?.coachVoice ?? .hype }
@@ -870,16 +2243,22 @@ struct TodayView: View {
     private var defaultLockSet: LockSet? { lockSets.first(where: \.isDefault) ?? lockSets.first }
     private var primaryGym: Gym? { gyms.first(where: \.confirmed) }
 
-    private var workoutGoal: Goal? {
-        activeGoals.first { $0.type == .workoutGym || $0.type == .workoutHomeOutdoor }
+    private var gymGoal: Goal? {
+        activeGoals.first { $0.type == .workoutGym }
+    }
+
+    /// The gym goal's dwell minutes (planned value, else target), else spec §3's default 35.
+    private var gymRequiredMinutes: Int {
+        guard let goal = gymGoal else { return GymVerificationDefaults.requiredDwellMinutes }
+        let target = todaysPlan(for: goal)?.plannedValue ?? goal.targetValue
+        return target.map { Int($0.rounded()) } ?? GymVerificationDefaults.requiredDwellMinutes
     }
 
     private var activeLockSession: LockSession? { lockSessions.first(where: \.isActive) }
     private var isLocked: Bool { activeLockSession != nil }
 
-    /// The lock set the running session is shielding (falls back to the default when the session
-    /// was ad hoc or its set was deleted). Only its `name` is ever shown — FamilyControls tokens
-    /// never leave the device layer.
+    /// The lock set the running session is shielding (falls back to the default). Only its `name`
+    /// and the on-device token blob are ever used — FamilyControls tokens never leave the device.
     private var activeLockSet: LockSet? {
         if let id = activeLockSession?.lockSetID, let match = lockSets.first(where: { $0.id == id }) {
             return match
@@ -930,8 +2309,17 @@ struct TodayView: View {
         GoalDayProgress(
             goal: goal,
             todaysEvents: todaysEvents(for: goal),
-            plannedValue: todaysPlan(for: goal)?.plannedValue
+            plannedValue: todaysPlan(for: goal)?.plannedValue,
+            planBValue: acceptedPlanBValue(for: goal)
         )
+    }
+
+    /// Today's Plan B target once the user switched this goal to Plan B (spec 5.5), so its row
+    /// counts toward the smaller target. Read from `suggestionSignals` (state, so the row redraws
+    /// on accept) rather than `PlanB.isAccepted` on every render.
+    private func acceptedPlanBValue(for goal: Goal) -> Double? {
+        guard suggestionSignals.planBAcceptedGoalIDs.contains(goal.id) else { return nil }
+        return todaysPlan(for: goal)?.planBValue
     }
 
     private func isGoalDoneToday(_ goal: Goal) -> Bool {
@@ -963,42 +2351,8 @@ func goalIconName(for type: GoalType) -> String {
     }
 }
 
-/// A goal's progress for today, shared by Today and Lock. A goal with no numeric target (e.g. a
-/// dwell-based workout with no `targetValue`/`plannedValue`) is binary: done once a `.complete`,
-/// `.verify`, or `.planB` (spec §8 Plan B days still count as done) event lands today.
-struct GoalDayProgress {
-    /// `0...1`.
-    let fraction: Double
-    /// Logged amount so far (numeric goals only). Never shown below the target once the goal is
-    /// complete, so a ring can't read "0 of 35 min" while full.
-    let current: Int?
-    /// Target amount (numeric goals only).
-    let target: Int?
-    let unit: String
-
-    var isComplete: Bool { fraction >= 1 }
-    var hasStarted: Bool { fraction > 0 }
-
-    init(goal: Goal, todaysEvents events: [GoalEvent], plannedValue: Double?) {
-        let hasCompletion = events.contains { [.complete, .verify, .planB].contains($0.kind) }
-
-        guard let targetValue = plannedValue ?? goal.targetValue, targetValue > 0 else {
-            fraction = hasCompletion ? 1 : 0
-            current = nil
-            target = nil
-            unit = ""
-            return
-        }
-
-        let logged = events.compactMap(\.value).reduce(0, +)
-        let targetInt = Int(targetValue.rounded())
-        let loggedInt = Int(logged.rounded())
-        fraction = hasCompletion ? 1 : min(1, logged / targetValue)
-        current = hasCompletion ? max(loggedInt, targetInt) : loggedInt
-        target = targetInt
-        unit = goal.unit ?? ""
-    }
-}
+// `GoalDayProgress` (shared by Today and Lock) lives in Core: `Core/Sources/Core/LockEngine/
+// GoalDayProgress.swift`, so the UI and `GoalCompletionCoordinator` use one rule.
 
 /// One capsule per required goal (capped at 8; beyond that, proportionally), filled for done. The
 /// unfilled segments are `Theme.Colors.track` (1.6 : 1 on a card) so a fresh day's bar is visible,
@@ -1038,6 +2392,103 @@ struct SegmentedProgress: View {
 
 // MARK: - Private pieces
 
+/// One step of the first-day checklist: a numbered disc (a blue check once done, a blue ring on
+/// the step that's next), the step and one line of why, a chevron when it can be tapped. The disc
+/// column is joined by a thin rail so the three read as one path, not three unrelated rows.
+private struct FirstDayStepRow: View {
+    let index: Int
+    let total: Int
+    let title: String
+    let detail: String
+    let isDone: Bool
+    let isCurrent: Bool
+    let isLast: Bool
+    let action: (() -> Void)?
+
+    @ScaledMetric(relativeTo: .body) private var discSize: CGFloat = 28
+
+    @ViewBuilder
+    var body: some View {
+        if let action {
+            Button(action: action) { spokenContent }
+                .buttonStyle(.pressable)
+        } else {
+            spokenContent
+        }
+    }
+
+    /// One announcement per step (the Button, when there is one, adds its own trait and action).
+    private var spokenContent: some View {
+        content
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.today.firstDayStepAccessibility(index: index, total: total, title: title, isDone: isDone))
+            .accessibilityHint(detail)
+    }
+
+    private var content: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            VStack(spacing: 0) {
+                disc
+                if !isLast {
+                    Rectangle()
+                        .fill(isDone ? Theme.Colors.accentDim : Theme.Colors.hairline)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                        .padding(.vertical, Theme.Spacing.xxs)
+                }
+            }
+            .frame(width: discSize)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(isDone ? Theme.Colors.muted : Theme.Colors.text)
+                    .strikethrough(isDone, color: Theme.Colors.muted)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 3)
+            .padding(.bottom, isLast ? Theme.Spacing.xs : Theme.Spacing.md)
+
+            Spacer(minLength: Theme.Spacing.xs)
+
+            if action != nil, !isDone {
+                Image(systemName: "chevron.forward")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(isCurrent ? Theme.Colors.accent : Theme.Colors.muted)
+                    .padding(.top, 6)
+            }
+        }
+        .padding(.top, Theme.Spacing.xs)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var disc: some View {
+        if isDone {
+            Image(systemName: "checkmark")
+                .font(Theme.Typography.icon(.small, weight: .bold))
+                .foregroundStyle(Theme.Colors.onAccent)
+                .frame(width: discSize, height: discSize)
+                .background(Theme.Colors.accent, in: Circle())
+        } else {
+            Text("\(index)")
+                .font(Theme.Typography.numeralSmall())
+                .foregroundStyle(isCurrent ? Theme.Colors.accent : Theme.Colors.muted)
+                .frame(width: discSize, height: discSize)
+                .background(isCurrent ? Theme.Colors.accentWash : Color.clear, in: Circle())
+                .overlay(
+                    Circle().strokeBorder(
+                        isCurrent ? Theme.Colors.accent : Theme.Colors.hairlineStrong,
+                        lineWidth: isCurrent ? 1.5 : Theme.Metrics.edgeWidth
+                    )
+                )
+        }
+    }
+}
+
 /// A non-interactive state row for bottom-bar states that used to be a dead, half-opacity accent
 /// button. Same height and shape as `PrimaryButton` (a capsule, `primaryButtonHeight`) so the bar
 /// doesn't jump when it swaps.
@@ -1046,15 +2497,12 @@ private struct TodayStatusRow: View {
     let title: String
     let isLive: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
+            // Pass 3 (restraint): no indefinite pulse on the live glyph; the title carries the state.
             Image(systemName: icon)
                 .font(Theme.Typography.icon(.medium))
                 .foregroundStyle(Theme.Colors.accent)
-                // Indefinite pulse only while live, never under Reduce Motion.
-                .symbolEffect(.pulse, isActive: isLive && !reduceMotion)
             Text(title)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)
@@ -1064,13 +2512,48 @@ private struct TodayStatusRow: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)
         .frame(maxWidth: .infinity, minHeight: Theme.Metrics.primaryButtonHeight, alignment: .leading)
-        .background(Theme.Colors.surface2, in: Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-        }
+        .zanoGlass()
         .accessibilityElement(children: .combine)
     }
+}
+
+/// The pending undo for the last quick-log.
+private struct QuickLogUndo: Identifiable, Equatable {
+    let id = UUID()
+    let eventID: UUID
+    let goalID: UUID
+    let message: String
+}
+
+/// The stretch goal whose guided timer is open (`sheet(item:)` needs an `Identifiable`).
+private struct StretchTarget: Identifiable {
+    let id: UUID
+}
+
+/// The meal-prep goal whose photo sheet is open.
+private struct MealPrepTarget: Identifiable {
+    let id: UUID
+}
+
+/// The locked-out moment being shown (`fullScreenCover(item:)` needs an `Identifiable`).
+private struct LockedOutPresentation: Identifiable {
+    let id = UUID()
+    let content: LockedOutMomentContent
+}
+
+/// Reloads the suggestion signals on an action, on foreground, when a goal completes, or when a
+/// lock starts or ends.
+private struct SuggestionRefreshKey: Equatable {
+    let tick: Int
+    let foreground: Int
+    let completed: Int
+    let isLocked: Bool
+}
+
+/// Restarts the Health refresh loop on foreground, after the primer, or when the goal set changes.
+private struct HealthRefreshKey: Equatable {
+    let tick: Int
+    let goalIDs: [UUID]
 }
 
 #Preview {

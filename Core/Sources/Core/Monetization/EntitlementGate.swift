@@ -17,6 +17,14 @@
 //    released *before* the paywall is shown, so the user is never stuck unable to open their own
 //    apps because of a billing state. The release goes through `LockEngineManager.emergencyUnlock`
 //    directly — the app's always-available exit — and deliberately applies no streak penalty.
+//
+// 3. GRACE PERIOD (audit M2, 2026-10-02). A user who got past the onboarding paywall on a grace
+//    (`SubscriptionGate`: plans couldn't load) is not blocked while the grace runs, even when
+//    RevenueCat says "not entitled". Once it has run out, the next definitive "not entitled" shows
+//    the paywall again; while the store stays unreachable, rule 1 still applies.
+//
+// Every refresh also re-dates the trial reminder (`TrialReminder.refresh`), so its "what your trial
+// earned you" body stays current and it follows the store's real trial end date.
 
 import Foundation
 import Observation
@@ -30,6 +38,8 @@ public final class EntitlementGate {
         /// Not checked yet this launch. Treated as entitled (never block on an unknown).
         case unknown
         case entitled
+        /// Not entitled, but inside the paywall's grace period (`SubscriptionGate`). Not blocking.
+        case grace
         /// A definitive "no active trial or subscription".
         case lapsed
     }
@@ -47,13 +57,33 @@ public final class EntitlementGate {
         switch await RevenueCatManager.shared.entitlementCheck() {
         case .entitled:
             state = .entitled
+            SubscriptionGate.clearGrace()
         case .notEntitled:
-            state = .lapsed
-            await releaseAnyActiveLock()
+            if SubscriptionGate.isInGracePeriod() {
+                state = .grace
+            } else {
+                state = .lapsed
+                await releaseAnyActiveLock()
+            }
         case .unavailable:
             // Fail open — see this file's header. Keep a definitive earlier answer if we have one.
-            if state == .unknown { state = .entitled }
+            if state == .unknown {
+                state = SubscriptionGate.isInGracePeriod() ? .grace : .entitled
+            } else if state == .grace, !SubscriptionGate.isInGracePeriod() {
+                // The grace ran out offline: stay open (rule 1) until the store can answer.
+                state = .entitled
+            }
         }
+        await TrialReminder.refresh(entitlement: RevenueCatManager.shared.lastProEntitlement)
+    }
+
+    /// "Continue for now" on a paywall whose plans couldn't load: grants a grace
+    /// (`SubscriptionGate.startGrace`) and stops blocking. Returns when the grace ends.
+    @discardableResult
+    public func continueOnGrace(now: Date = .now) -> Date {
+        let end = SubscriptionGate.startGrace(now: now)
+        state = .grace
+        return end
     }
 
     /// For feature checks (`TierGating`): everything is available to a subscriber, and nothing is

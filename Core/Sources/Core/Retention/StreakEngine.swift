@@ -95,8 +95,69 @@ public final class StreakEngine {
     /// `internal`, not `private`, only so `CoreTests` can construct an isolated instance against
     /// an in-memory container (mirrors `LockEngineManager`/`FocusSessionVerifier`'s own
     /// convention); every real call site uses `.shared`.
-    init(modelContainer: ModelContainer = .appGroup) {
+    init(modelContainer: ModelContainer = .appGroup, reconcileDefaults: UserDefaults? = nil) {
         self.modelContainer = modelContainer
+        self.reconcileDefaults = reconcileDefaults ?? SharedDefaults.store
+    }
+
+    /// Where `reconcileMissedDays` remembers the last day it swept. The App Group suite in
+    /// production (`SharedDefaults.store`); tests inject a throwaway suite so parallel tests never
+    /// share a stamp.
+    private let reconcileDefaults: UserDefaults
+
+    // MARK: - End-of-day catch-up (spec §5.6 Never Miss Twice)
+
+    /// The furthest back `reconcileMissedDays` ever looks. After a longer absence the streak is
+    /// already broken by `recordEarnedUnlock`'s gap rule, so older days change nothing.
+    static let reconcileLookBackDays = 14
+
+    /// Records a miss for every full day since the last sweep, up to and including yesterday, that
+    /// was not earned — so Never Miss Twice arms on a real miss, not only after an emergency unlock.
+    ///
+    /// "Earned" uses this engine's own definition: `recordEarnedUnlock` (or `useFreeze`) moved
+    /// `lastEarnedDate` to that day. Every day on or before `lastEarnedDate` was already settled
+    /// by `recordEarnedUnlock`'s gap rule, so only days strictly after it can be misses. Skipped:
+    /// days inside a health pause (spec §24) and days covered by a freeze. `recordMiss` itself is
+    /// idempotent per day, and the sweep stamp makes a repeat call the same day a no-op.
+    ///
+    /// The very first run only stamps yesterday (no history to judge fairly). No user yet, or no
+    /// streak ever earned: stamps and records nothing. Look-back is capped at
+    /// `reconcileLookBackDays`.
+    ///
+    /// Call it on every foreground, and right before `recordEarnedUnlock` so a miss yesterday arms
+    /// Never Miss Twice before today's earn is judged.
+    public func reconcileMissedDays(asOf date: Date = .now) async {
+        let today = calendar.startOfDay(for: date)
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return }
+        let key = SharedDefaults.streakLastReconciledDayKey
+
+        guard let stamp = reconcileDefaults.object(forKey: key) as? Date else {
+            reconcileDefaults.set(yesterday, forKey: key)
+            return
+        }
+        let lastReconciled = calendar.startOfDay(for: stamp)
+        guard lastReconciled < yesterday else { return }
+        // Stamp before the sweep so an overlapping call (another foreground, an earn) returns
+        // early instead of sweeping the same days; `recordMiss` is idempotent per day anyway.
+        reconcileDefaults.set(yesterday, forKey: key)
+
+        guard let user = try? fetchCurrentUser(),
+              let lastEarned = fetchStreak(userID: user.id)?.lastEarnedDate.map({ calendar.startOfDay(for: $0) })
+        else { return }
+
+        let floor = calendar.date(byAdding: .day, value: -(Self.reconcileLookBackDays - 1), to: yesterday) ?? yesterday
+        var day = max(lastReconciled, lastEarned)
+        guard let first = calendar.date(byAdding: .day, value: 1, to: day) else { return }
+        day = max(first, floor)
+
+        while day <= yesterday {
+            if !HealthPause.wasPaused(on: day, calendar: calendar, now: date),
+               !hasFreezeEvent(userID: user.id, on: day) {
+                await recordMiss(on: day)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
     }
 
     // MARK: - CONTRACTS: recordEarnedUnlock
@@ -156,8 +217,11 @@ public final class StreakEngine {
             return
         }
 
-        let isForgivenComeback = streak.neverMissTwiceArmed && gap <= 2
-        if gap == 1 || isForgivenComeback {
+        // Health pause (spec §24): paused days never widen the gap, so a pause can't break a
+        // streak. `HealthPause.swift` owns the pause history.
+        let effectiveGap = max(1, gap - HealthPause.pausedDayCount(strictlyBetween: previousEarned, and: day, calendar: calendar))
+        let isForgivenComeback = streak.neverMissTwiceArmed && effectiveGap <= 2
+        if effectiveGap == 1 || isForgivenComeback {
             streak.current += 1
         } else {
             streak.current = 1
@@ -197,6 +261,9 @@ public final class StreakEngine {
             return
         }
         let day = calendar.startOfDay(for: date)
+        // Health pause (spec §24): a paused day is never a miss — no Never Miss Twice arming, no
+        // reset, no `.miss` row.
+        guard !HealthPause.wasPaused(on: day, calendar: calendar) else { return }
         guard !hasStreakMissEvent(userID: user.id, on: day) else { return }
 
         let streak = fetchOrCreateStreak(userID: user.id)
@@ -408,6 +475,8 @@ public final class StreakEngine {
         }
         SharedDefaults.currentStreak = streak.current
         SharedDefaults.bestStreak = streak.best
+        SharedDefaults.neverMissTwiceArmed = streak.neverMissTwiceArmed
+        WidgetRefresh.reloadAll()
     }
 }
 

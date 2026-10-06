@@ -21,8 +21,12 @@ import SwiftUI
 /// from clear to `Theme.Colors.background` that also extends under the home indicator.
 public struct StickyActionBar<Content: View>: View {
     private let content: Content
+    private let extendsToBottomEdge: Bool
 
-    public init(@ViewBuilder content: () -> Content) {
+    /// - Parameter extendsToBottomEdge: `false` inside a tab, so the solid ground stops at the bar
+    ///   and the floating glass tab bar floats over content instead of a black slab.
+    public init(extendsToBottomEdge: Bool = true, @ViewBuilder content: () -> Content) {
+        self.extendsToBottomEdge = extendsToBottomEdge
         self.content = content()
     }
 
@@ -33,16 +37,21 @@ public struct StickyActionBar<Content: View>: View {
             .padding(.bottom, Theme.Spacing.sm)
             .frame(maxWidth: .infinity)
             .background {
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: Theme.Colors.background.opacity(0), location: 0),
-                        Gradient.Stop(color: Theme.Colors.background.opacity(0.94), location: 0.35),
-                        Gradient.Stop(color: Theme.Colors.background, location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea(edges: .bottom)
+                // A fixed-height fade over the top padding only, then solid behind the controls. A
+                // proportional gradient left the first line of the bar (a paywall's terms) over
+                // half-transparent ground, where it collided with the content scrolling beneath.
+                // v2: fades into `backgroundDeep`, the colour the aurora canvas reaches at the bottom
+                // of the screen, so the bar reads as the floor of the room rather than a slab.
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [Theme.Colors.backgroundDeep.opacity(0), Theme.Colors.backgroundDeep.opacity(0.92)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Theme.Spacing.lg)
+                    Theme.Colors.backgroundDeep.opacity(0.92)
+                }
+                .ignoresSafeArea(edges: extendsToBottomEdge ? .bottom : [])
             }
     }
 }

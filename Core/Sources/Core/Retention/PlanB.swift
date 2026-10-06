@@ -22,15 +22,17 @@
 // time, inside whichever goal verifier (`FocusSessionVerifier`, `GymVerifier`, an Intents handler
 // for Tier B/C goals, ...) is running, none of which are this task's file list.
 //
-// TODO(cross-module integration — Verification/Intents layer, spec §5.5 + §14
-// `LogCustomGoalIntent`/`EndFocusIntent`/goal verifiers; not this task's file list): when a goal
-// is completed as its Plan B version, that layer should (a) log a `GoalEvent(kind: .planB, ...)`
-// and (b), in Earn Mode, call `TimeBankEngine.shared.deposit(minutes: PlanB.earnModeMinutes(
-// forFullMinutes: <that goal type's normal full-credit minute value, spec §5.2>), for: <date>)`.
-// Neither call exists yet anywhere in the codebase as of this task — this file only provides the
-// math (`earnModeMinutes(forFullMinutes:)`) those call sites need once they're written.
+// Update (Plan B wiring): completing a Plan B is now recorded in three places, all ending in one
+// verified `.planB` `GoalEvent` that `GoalCompletionCoordinator` pays half Earn Mode credit for:
+//   - logged-amount goals (protein, water, ...): the coordinator rolls the day's amount up into a
+//     `.planB` once it reaches the accepted Plan B target (`acceptedTarget(for:goalID:on:)`);
+//   - focus: `FocusSessionVerifier` logs a Plan B session (shortened from Today's Plan B card, or
+//     any session shorter than the full target on a Plan B day) as `.planB`;
+//   - goals Health or the gym verify (steps, workouts): `recordCompletion(goalID:verifiedAmount:on:)`
+//     from Today's Plan B card.
 
 import Foundation
+import SwiftData
 
 /// v1 rules for Plan B (spec §5.5): a fixed reduction of today's adaptive target
 /// (`AdaptiveGoalEngine.dailyPlan`, this same task's other file), worth half credit toward Earn
@@ -150,5 +152,114 @@ public enum PlanB {
     public static func earnModeMinutes(forFullMinutes fullMinutes: Int) -> Int {
         guard fullMinutes > 0 else { return 0 }
         return max(0, Int((Double(fullMinutes) * earnModeCreditFraction).rounded(.down)))
+    }
+
+    // MARK: - Accepting and counting Plan B (Today's suggestion card, Wave 2F)
+    //
+    // The user taps "Switch to Plan B" on Today: `accept(_:on:)` persists the reduced target
+    // (`offer(for:on:isHighRisk:)` with `isHighRisk: true` -- the user saying "rough day" is the
+    // spec's own second trigger) and remembers the choice for the day. Once the verified amount
+    // reaches the reduced target, `recordCompletion(goalID:verifiedAmount:on:)` writes one verified
+    // `.planB` event and hands it to `GoalCompletionCoordinator`, which already pays half Earn Mode
+    // credit for `.planB` (`PlanB.earnModeMinutes`) and ends a lock whose goals are all verified.
+
+    /// App Group defaults, same suite every retention engine uses. Keyed distinctly.
+    private static let acceptanceDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard
+    private static let acceptedKey = "com.zano.app.planB.accepted.v1"
+
+    /// Switches today's plan for `goal` to Plan B. Returns the persisted offer (`nil` only if the
+    /// goal has no numeric target to reduce; the choice is still remembered either way).
+    @discardableResult
+    public static func accept(_ goal: Goal, on date: Date = .now) async -> Offer? {
+        let offer = await offer(for: goal, on: date, isHighRisk: true)
+        markAccepted(goalID: goal.id, on: date)
+        return offer
+    }
+
+    /// Whether the user switched `goalID` to Plan B on `date`'s local day.
+    public static func isAccepted(goalID: UUID, on date: Date = .now) -> Bool {
+        acceptedEntries().contains(entry(goalID: goalID, on: date))
+    }
+
+    /// Today's Plan B target for `goalID` when the user switched it to Plan B, else `nil`. Pass the
+    /// goal's `DailyPlan` for `date`'s day. This is what `GoalDayProgress(…, planBValue:)` takes:
+    /// `planBValue` alone isn't enough, since Comeback mode also writes it without the user
+    /// choosing Plan B.
+    public static func acceptedTarget(for plan: DailyPlan?, goalID: UUID, on date: Date = .now) -> Double? {
+        guard let value = plan?.planBValue, value > 0, isAccepted(goalID: goalID, on: date) else { return nil }
+        return value
+    }
+
+    /// `meta` key on a `.planB` event, and on the coordinator's Plan B rollup.
+    public static let planBMetaKey = "planB"
+
+    /// Writes one verified `.planB` completion for `goalID` today and runs the coordinator. The
+    /// caller passes an amount that is already verified (logged grams/ml, Health steps/workout
+    /// minutes, gym dwell minutes); this only records it.
+    ///
+    /// Idempotent with the coordinator's automatic Plan B rollup: the coordinator runs first (for a
+    /// logged-amount goal that already reached its Plan B target it writes the rollup itself), and
+    /// nothing is written when the goal then has any verified completion today. A double tap never
+    /// writes two.
+    ///
+    /// - Returns: `true` if this call wrote the Plan B completion (`false` when it already existed).
+    @discardableResult
+    public static func recordCompletion(
+        goalID: UUID,
+        verifiedAmount: Double?,
+        on date: Date = .now
+    ) async throws -> Bool {
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID, at: date)
+
+        let context = ModelContext(ModelContainer.appGroup)
+        var goalDescriptor = FetchDescriptor<Goal>(predicate: #Predicate { $0.id == goalID })
+        goalDescriptor.fetchLimit = 1
+        guard let goal = try context.fetch(goalDescriptor).first else { return false }
+
+        let start = Calendar.current.startOfDay(for: date)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let eventDescriptor = FetchDescriptor<GoalEvent>(predicate: #Predicate { $0.ts >= start && $0.ts < end })
+        let todays = try context.fetch(eventDescriptor).filter { $0.goal?.id == goalID }
+        guard !todays.contains(where: GoalDayProgress.isVerifiedCompletion) else { return false }
+
+        var meta: [String: JSONValue] = [planBMetaKey: .bool(true)]
+        if let verifiedAmount { meta["verifiedAmount"] = .number(verifiedAmount) }
+        // `value: nil` so the amount already logged by other events isn't counted twice.
+        let event = GoalEvent(
+            ts: date,
+            kind: .planB,
+            value: nil,
+            source: .manual,
+            verified: true,
+            meta: .object(meta),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(event)
+        try context.save()
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID, at: date)
+        return true
+    }
+
+    private static func entry(goalID: UUID, on date: Date) -> String {
+        let day = Calendar.current.startOfDay(for: date)
+        return "\(goalID.uuidString)|\(Int(day.timeIntervalSince1970))"
+    }
+
+    private static func acceptedEntries() -> [String] {
+        acceptanceDefaults.stringArray(forKey: acceptedKey) ?? []
+    }
+
+    /// Keeps a week of entries; older ones are pruned on each write.
+    private static func markAccepted(goalID: UUID, on date: Date) {
+        let newEntry = entry(goalID: goalID, on: date)
+        let cutoff = Calendar.current.startOfDay(for: date).addingTimeInterval(-7 * 86_400).timeIntervalSince1970
+        var entries = acceptedEntries().filter { item in
+            guard let stamp = item.split(separator: "|").last, let t = Double(stamp) else { return false }
+            return t >= cutoff
+        }
+        guard !entries.contains(newEntry) else { return }
+        entries.append(newEntry)
+        acceptanceDefaults.set(entries, forKey: acceptedKey)
     }
 }

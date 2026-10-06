@@ -47,6 +47,18 @@
 // The screens' own entrance/transition animations stay in the two view files, each gated on
 // `accessibilityReduceMotion`.
 //
+// PASS 2 (2026-10-03, "make it more playful"): posters are collectibles now. Each has a hue
+// (`PosterHue`), the background is an arcade room (hue blobs, a sunburst, a halftone field, a few
+// fixed confetti sprinkles), the eyebrow is a tilted sticker pill and the hero sits on a die-cut
+// sticker (white rim, hard offset shadow, slight tilt). Goal rings use the goal palette. The
+// one-accent rule for share cards is retired for posters on the founder's call ("more playful");
+// the wordmark and the star in the footer keep them recognisably ZANO's. Still no materials and no
+// animation in a poster, and the star stays the static `ZanoMark`.
+//
+// PASS 3 (2026-10-03, restraint): posters stay bold, but the room keeps at most two decorative
+// layers over the ink: one hue blob (top-right) and the sunburst. The partner blob, the halftone
+// field and the confetti sprinkles are gone.
+//
 // NOT VERIFIED (no Mac/Simulator in this environment): every size here is layout arithmetic on the
 // 360 x 640 canvas. In particular the hero numeral's fit for long durations relies on
 // `minimumScaleFactor`, and `ImageRenderer`'s output for `RadialGradient` + `shadow` (expected to
@@ -68,68 +80,104 @@ enum PosterMetrics {
     static let safeBottom: CGFloat = canvas.height * 0.15
     /// Width available to poster content between the `Theme.Spacing.lg` gutters.
     static let contentWidth: CGFloat = canvas.width - 2 * Theme.Spacing.lg
+    /// The die-cut white rim around a sticker.
+    static let stickerRim: CGFloat = 4
 }
 
 enum PosterType {
-    /// The hero's digits. The app's numeral face (rounded, heavy, tabular) at a poster-only size.
-    static let heroNumeral = Theme.Typography.numeral(size: 96, weight: .heavy)
-    /// The hero's unit letters ("h", "m"): same face, deliberately a fraction of the digit size.
-    static let heroUnit = Theme.Typography.numeral(size: 40, weight: .bold)
+    /// The hero's digits: the arcade score face at a poster-only size.
+    static let heroNumeral = Theme.Typography.score(size: 84)
+    /// The hero's unit letters ("h", "m"): same face, a fraction of the digit size.
+    static let heroUnit = Theme.Typography.score(size: 34, weight: .heavy)
     /// Display type for the locked-out headline.
-    static let display = Font.system(size: 30, weight: .heavy, design: .rounded)
+    static let display = Font.system(size: 28, weight: .heavy, design: .rounded)
+    /// A sticker label (eyebrow pills, chips).
+    static let sticker = Font.system(size: 15, weight: .heavy, design: .rounded)
+}
+
+/// A poster's colour: every poster is a collectible in its own hue (pass 2, 2026-10-03). `ink` is
+/// the text colour that reads on a solid fill of the hue.
+enum PosterHue: CaseIterable, Sendable {
+    case blue, ember, volt, pink, sun, violet, sky
+
+    var color: Color {
+        switch self {
+        case .blue: Theme.Colors.accent
+        case .ember: Theme.Colors.ember
+        case .volt: Theme.Colors.Ring.workout
+        case .pink: Theme.Colors.Ring.creatine
+        case .sun: Theme.Colors.Ring.sunriseAlarm
+        case .violet: Theme.Colors.Ring.focus
+        case .sky: Theme.Colors.Ring.water
+        }
+    }
+
+    /// The second colour of the hue's gradient and its background blob.
+    var partner: Color {
+        switch self {
+        case .blue: Theme.Colors.Aurora.violet
+        case .ember: Theme.Colors.Ring.creatine
+        case .volt: Theme.Colors.Ring.steps
+        case .pink: Theme.Colors.Aurora.violet
+        case .sun: Theme.Colors.ember
+        case .violet: Theme.Colors.accent
+        case .sky: Theme.Colors.accent
+        }
+    }
+
+    /// Text on a solid fill of `color`: ink on the light hues, white on the deep ones.
+    var ink: Color {
+        switch self {
+        case .blue, .violet: Color.white
+        case .ember, .volt, .pink, .sun, .sky: Theme.Colors.backgroundDeep
+        }
+    }
+
+    /// The milestone burst's confetti: this hue first, then the rest of the goal palette.
+    var sprinkles: [Color] {
+        [color, partner, Theme.Colors.Ring.sunriseAlarm, Theme.Colors.Ring.water, Theme.Colors.Ring.creatine, Theme.Colors.Ring.workout]
+    }
 }
 
 // MARK: - Chassis
 
-/// The shared canvas: `background`, one accent glow, the eyebrow at the top of the safe area, the
-/// hero content vertically centred between flexible spacers, and the wordmark at the bottom of the
-/// safe area. Fixed 360 x 640, unclipped by any rounded shape (no baked-in rounded corners; the
-/// on-screen preview clips separately, the export does not).
+/// The shared canvas: the arcade room (ink, one hue blob and a sunburst of rays from the top-right;
+/// pass 3 caps the room at two decorative layers), the eyebrow as a tilted sticker pill at
+/// the top of the safe area, the content between flexible spacers, and the wordmark at the bottom of
+/// the safe area. Fixed 360 x 640, opaque, unclipped by any rounded shape.
 struct PosterChassis<Content: View>: View {
     let eyebrow: String
     let footerLabel: String?
+    let hue: PosterHue
     private let content: Content
 
-    init(eyebrow: String, footerLabel: String?, @ViewBuilder content: () -> Content) {
+    init(eyebrow: String, footerLabel: String?, hue: PosterHue = .blue, @ViewBuilder content: () -> Content) {
         self.eyebrow = eyebrow
         self.footerLabel = footerLabel
+        self.hue = hue
         self.content = content()
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Theme.Colors.background
-
-            RadialGradient(
-                colors: [Theme.Colors.accent.opacity(0.26), Theme.Colors.accent.opacity(0)],
-                center: UnitPoint(x: 0.2, y: 0.3),
-                startRadius: 0,
-                endRadius: PosterMetrics.canvas.width * 1.1
-            )
+            PosterRoom(hue: hue)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text(eyebrow)
-                    .font(Theme.Typography.captionEmphasized)
-                    .tracking(1.2)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Theme.Colors.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                PosterStickerPill(text: eyebrow, hue: hue)
+                    .rotationEffect(.degrees(-4), anchor: .leading)
 
-                Spacer(minLength: Theme.Spacing.lg)
+                Spacer(minLength: Theme.Spacing.md)
                 content
-                Spacer(minLength: Theme.Spacing.lg)
+                Spacer(minLength: Theme.Spacing.md)
 
                 if let footerLabel {
                     HStack(spacing: Theme.Spacing.xs) {
-                        Circle()
-                            .fill(Theme.Colors.accent)
-                            .frame(width: 8, height: 8)
-                        Text(footerLabel)
-                            .font(Theme.Typography.headline)
-                            .tracking(2)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
+                        // The real wordmark (docs/brand/brand-kit.md), not the name typed in a font.
+                        ZanoWordmark(height: 16)
+                            .accessibilityLabel(footerLabel)
+                        Spacer(minLength: 0)
+                        ZanoMark(height: 14, style: .brand)
+                            .accessibilityHidden(true)
                     }
                 }
             }
@@ -148,6 +196,93 @@ struct PosterChassis<Content: View>: View {
     }
 }
 
+/// The poster's background artwork. Static (no animation, no material), so it rasterizes exactly.
+private struct PosterRoom: View {
+    let hue: PosterHue
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Theme.Colors.background, Theme.Colors.backgroundDeep],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            RadialGradient(
+                colors: [hue.color.opacity(0.45), hue.color.opacity(0)],
+                center: UnitPoint(x: 0.85, y: 0.12),
+                startRadius: 0,
+                endRadius: PosterMetrics.canvas.width * 0.95
+            )
+            PosterRays()
+                .fill(hue.color.opacity(0.10))
+                .frame(width: 1100, height: 1100)
+                .position(x: PosterMetrics.canvas.width * 0.85, y: PosterMetrics.canvas.height * 0.12)
+        }
+        .frame(width: PosterMetrics.canvas.width, height: PosterMetrics.canvas.height)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Twenty thin wedges radiating from the centre of its frame.
+private struct PosterRays: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        let count = 20
+        let step = 2 * Double.pi / Double(count)
+        for index in 0..<count {
+            let angle = Double(index) * step
+            path.move(to: center)
+            path.addLine(to: CGPoint(x: center.x + radius * CGFloat(cos(angle - step * 0.25)),
+                                     y: center.y + radius * CGFloat(sin(angle - step * 0.25))))
+            path.addLine(to: CGPoint(x: center.x + radius * CGFloat(cos(angle + step * 0.25)),
+                                     y: center.y + radius * CGFloat(sin(angle + step * 0.25))))
+            path.closeSubpath()
+        }
+        return path
+    }
+}
+
+/// A pill sticker: solid hue, ink text, a white die-cut rim and a hard drop shadow.
+struct PosterStickerPill: View {
+    let text: String
+    let hue: PosterHue
+    var systemImage: String? = nil
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xxs + 2) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .black))
+            }
+            Text(text)
+                .font(PosterType.sticker)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .foregroundStyle(hue.ink)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.vertical, Theme.Spacing.xs - 1)
+        .background(hue.color, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.white, lineWidth: 2.5))
+        .shadow(color: Color.black.opacity(0.45), radius: 0, x: 2, y: 3)
+    }
+}
+
+extension View {
+    /// Turns the content into a die-cut sticker: `fill` behind it, a thick white rim, a hard offset
+    /// shadow (printed, not glowing), and a slight tilt.
+    func posterSticker<Fill: ShapeStyle>(_ fill: Fill, radius: CGFloat = Theme.Radius.medium, tilt: Double = -2) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return self
+            .background(fill, in: shape)
+            .overlay(shape.strokeBorder(Color.white, lineWidth: PosterMetrics.stickerRim))
+            .shadow(color: Color.black.opacity(0.5), radius: 0, x: 4, y: 6)
+            .rotationEffect(.degrees(tilt))
+    }
+}
+
 // MARK: - Weekly recap poster
 
 struct PosterRingData: Identifiable, Equatable, Sendable {
@@ -157,7 +292,8 @@ struct PosterRingData: Identifiable, Equatable, Sendable {
 }
 
 /// Weekly recap poster (docs/spec.md §5.14, §16 P7). Hero: the reclaimed-time value (or the
-/// goals-completed count when nothing was reclaimed, so a zero never becomes the hero).
+/// goals-completed count when nothing was reclaimed, so a zero never becomes the hero) on a hue
+/// sticker; the goal rings below it in the goal palette.
 struct RecapPoster: View {
     let title: String
     let heroValue: String
@@ -166,38 +302,26 @@ struct RecapPoster: View {
     let statLine: String?
     let highlightLine: String?
     let footerLabel: String?
+    var hue: PosterHue = .sky
 
     var body: some View {
-        PosterChassis(eyebrow: title, footerLabel: footerLabel) {
+        PosterChassis(eyebrow: title, footerLabel: footerLabel, hue: hue) {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(heroAttributed)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                        .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 24)
-                    Text(heroCaption)
-                        .font(Theme.Typography.headline)
-                        .foregroundStyle(Theme.Colors.muted)
-                        .lineLimit(1)
-                }
+                heroSticker
 
                 if !rings.isEmpty {
                     PosterRingGrid(rings: rings)
                 }
 
                 if statLine != nil || highlightLine != nil {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                         if let statLine {
-                            Text(statLine)
-                                .font(Theme.Typography.headline)
-                                .foregroundStyle(Theme.Colors.text)
-                                .lineLimit(2)
+                            PosterStickerPill(text: statLine, hue: .volt, systemImage: "checkmark")
+                                .rotationEffect(.degrees(2), anchor: .leading)
                         }
                         if let highlightLine {
-                            Text(highlightLine)
-                                .font(Theme.Typography.body)
-                                .foregroundStyle(Theme.Colors.muted)
-                                .lineLimit(2)
+                            PosterStickerPill(text: highlightLine, hue: .sun, systemImage: "star.fill")
+                                .rotationEffect(.degrees(-1.5), anchor: .leading)
                         }
                     }
                 }
@@ -205,19 +329,39 @@ struct RecapPoster: View {
         }
     }
 
-    /// Digits at hero size in accent, everything else (unit letters, spaces) at unit size in muted:
-    /// the number is the poster, the unit is a label. Built by character so it works for any
-    /// caller-composed duration string ("6h 40m", "45m", "12 of 14 goals") without parsing it.
+    private var heroSticker: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(heroAttributed)
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
+            Text(heroCaption)
+                .font(Font.system(size: 18, weight: .heavy, design: .rounded))
+                .foregroundStyle(hue.ink.opacity(0.85))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(.horizontal, Theme.Spacing.md + 2)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .posterSticker(
+            LinearGradient(colors: [hue.color, hue.partner], startPoint: .topLeading, endPoint: .bottomTrailing),
+            tilt: -2.5
+        )
+    }
+
+    /// Digits at hero size, everything else (unit letters, spaces) at unit size: the number is the
+    /// poster, the unit is a label. Built by character so it works for any caller-composed duration
+    /// string ("6h 40m", "45m", "12 of 14 goals") without parsing it.
     private var heroAttributed: AttributedString {
         var result = AttributedString()
         for character in heroValue {
             var piece = AttributedString(String(character))
             if character.isWholeNumber {
                 piece.font = PosterType.heroNumeral
-                piece.foregroundColor = Theme.Colors.accent
+                piece.foregroundColor = hue.ink
             } else {
                 piece.font = PosterType.heroUnit
-                piece.foregroundColor = Theme.Colors.muted
+                piece.foregroundColor = hue.ink.opacity(0.8)
             }
             result.append(piece)
         }
@@ -225,16 +369,20 @@ struct RecapPoster: View {
     }
 }
 
-/// The goal rings, sized from the content width so any count fits (the old strip used fixed 44pt
-/// rings and overflowed at five). Up to five per row; six or more split into balanced rows; capped
-/// at ten (two rows of five), which no realistic goal set reaches. Accent-only, per the one-accent
-/// rule for share cards. A completed ring gets a static glow.
+/// The goal rings, sized from the content width so any count fits. Up to five per row; six or more
+/// split into balanced rows; capped at ten. Each ring takes the next goal-palette colour.
 private struct PosterRingGrid: View {
     let rings: [PosterRingData]
 
     private static let maxRings = 10
     private static let gap = Theme.Spacing.sm
     private static let maxDiameter: CGFloat = 52
+    private static let palette: [Color] = [
+        Theme.Colors.Ring.workout, Theme.Colors.Ring.protein, Theme.Colors.Ring.focus,
+        Theme.Colors.Ring.water, Theme.Colors.Ring.creatine, Theme.Colors.Ring.sunriseAlarm,
+        Theme.Colors.Ring.steps, Theme.Colors.Ring.mealPrep, Theme.Colors.Ring.stretchMobility,
+        Theme.Colors.Ring.sleepOnTime,
+    ]
 
     var body: some View {
         let visible = Array(rings.prefix(Self.maxRings))
@@ -242,25 +390,29 @@ private struct PosterRingGrid: View {
         let columns = count <= 5 ? count : Int((Double(count) / 2).rounded(.up))
         let cellWidth = (PosterMetrics.contentWidth - CGFloat(columns - 1) * Self.gap) / CGFloat(columns)
         let diameter = min(Self.maxDiameter, cellWidth)
-        let rows: [[PosterRingData]] = stride(from: 0, to: visible.count, by: columns).map { start in
-            Array(visible[start ..< min(start + columns, visible.count)])
+        // Rows of indices into `visible`; the index also picks the ring's palette colour.
+        let rows: [[Int]] = stride(from: 0, to: visible.count, by: columns).map { start in
+            Array(start ..< min(start + columns, visible.count))
         }
 
         return VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: Self.gap) {
-                    ForEach(row) { ring in
+                    ForEach(row, id: \.self) { index in
                         VStack(spacing: Theme.Spacing.xxs) {
-                            PosterRing(progress: ring.progress, diameter: diameter)
-                            Text(ring.label)
-                                .font(Theme.Typography.caption)
-                                .foregroundStyle(Theme.Colors.muted)
+                            PosterRing(
+                                progress: visible[index].progress,
+                                diameter: diameter,
+                                color: Self.palette[index % Self.palette.count]
+                            )
+                            Text(visible[index].label)
+                                .font(Theme.Typography.captionEmphasized)
+                                .foregroundStyle(Theme.Colors.textSecondary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                         }
                         .frame(width: cellWidth)
                     }
-                    // Keeps a short last row aligned to the same column grid as the rows above.
                     ForEach(0 ..< (columns - row.count), id: \.self) { _ in
                         Color.clear.frame(width: cellWidth, height: 1)
                     }
@@ -273,25 +425,29 @@ private struct PosterRingGrid: View {
 private struct PosterRing: View {
     let progress: Double
     let diameter: CGFloat
+    let color: Color
 
     private var clamped: Double { min(1, max(0, progress)) }
-    private var line: CGFloat { diameter * 0.12 }
+    private var line: CGFloat { diameter * 0.14 }
 
     var body: some View {
         ZStack {
-            // The neutral track (`Theme.Colors.track`, white at 16%) rather than the accent at 30%:
-            // a share card is accent-only, and an accent-tinted empty ring would read as progress.
             Circle()
                 .inset(by: line / 2)
-                .stroke(Theme.Colors.track, lineWidth: line)
+                .stroke(Theme.Colors.Ring.track(for: color), lineWidth: line)
 
             if clamped > 0 {
                 Circle()
                     .inset(by: line / 2)
                     .trim(from: 0, to: clamped)
-                    .stroke(Theme.Colors.accent, style: StrokeStyle(lineWidth: line, lineCap: .round))
+                    .stroke(color, style: StrokeStyle(lineWidth: line, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: Theme.Colors.accent.opacity(clamped >= 1 ? 0.4 : 0), radius: 6)
+                    .shadow(color: color.opacity(clamped >= 1 ? 0.55 : 0), radius: 6)
+            }
+            if clamped >= 1 {
+                Image(systemName: "checkmark")
+                    .font(.system(size: diameter * 0.3, weight: .black))
+                    .foregroundStyle(color)
             }
         }
         .frame(width: diameter, height: diameter)
@@ -300,76 +456,100 @@ private struct PosterRing: View {
 
 // MARK: - Locked-out poster
 
-/// Locked-Out Moment poster (docs/spec.md §5.16). Hero: the spec's own line as display type over a
-/// lock medallion. The attempt count is a stat pill (`one sec`'s finding that showing how often you
-/// tried is what changes behavior, `docs/design/competitive-research.md` 3.3).
+/// Locked-Out Moment poster (docs/spec.md §5.16). Hero: the spec's own line on an ink sticker with
+/// a pink "game over" hazard band and a lock sticker slapped on its corner. The attempt count is a
+/// pink pill (`one sec`'s finding that showing how often you tried is what changes behavior,
+/// `docs/design/competitive-research.md` 3.3); goals left and the streak are two more chips.
 struct LockedOutPoster: View {
     let eyebrow: String
     let headline: String
     let statLine: String
-    let highlightLine: String?
+    let chips: [String]
     let footerLabel: String?
+    var hue: PosterHue = .pink
 
     var body: some View {
-        PosterChassis(eyebrow: eyebrow, footerLabel: footerLabel) {
+        PosterChassis(eyebrow: eyebrow, footerLabel: footerLabel, hue: hue) {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                medallion
-
-                Text(headline)
-                    .font(PosterType.display)
-                    .foregroundStyle(Theme.Colors.text)
-                    .lineLimit(4)
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.leading)
+                headlineSticker
+                    .overlay(alignment: .topTrailing) { lockSticker.offset(x: 10, y: -30) }
+                    .padding(.top, Theme.Spacing.md)
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    PosterStickerPill(text: statLine, hue: hue, systemImage: "hand.raised.fill")
+                        .rotationEffect(.degrees(1.5), anchor: .leading)
                     HStack(spacing: Theme.Spacing.xs) {
-                        Image(systemName: "hand.raised.fill")
-                            .font(Theme.Typography.icon(.small))
-                            .foregroundStyle(Theme.Colors.accent)
-                        Text(statLine)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Colors.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.vertical, Theme.Spacing.xs)
-                    // 28pt radius on a ~40pt-tall pill clamps to a full capsule.
-                    .zanoCard(radius: Theme.Radius.large)
-
-                    if let highlightLine {
-                        Text(highlightLine)
-                            .font(Theme.Typography.body)
-                            .foregroundStyle(Theme.Colors.muted)
-                            .lineLimit(2)
-                            .padding(.leading, Theme.Spacing.xxs)
+                        ForEach(chips, id: \.self) { chip in
+                            Text(chip)
+                                .font(PosterType.sticker)
+                                .foregroundStyle(Theme.Colors.text)
+                                .lineLimit(1)
+                                .padding(.horizontal, Theme.Spacing.sm)
+                                .padding(.vertical, Theme.Spacing.xs - 1)
+                                .background(Theme.Colors.surface2, in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 1.5))
+                        }
                     }
                 }
             }
         }
     }
 
-    private var medallion: some View {
-        ZStack {
-            Circle().fill(Theme.Colors.surface)
-            Circle()
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Theme.Colors.accent.opacity(0.7), Theme.Colors.accent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 2
-                )
-            // Artwork inside a fixed 96pt medallion (`Theme.Metrics.iconBadgeLarge`): a literal size,
-            // not a text-relative icon.
-            Image(systemName: "lock.fill")
-                .font(.system(size: 40, weight: .semibold))
-                .foregroundStyle(Theme.Colors.accent)
+    private var headlineSticker: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HazardBand(color: hue.color)
+                .frame(height: 14)
+            Text(headline)
+                .font(PosterType.display)
+                .foregroundStyle(Theme.Colors.text)
+                .lineLimit(5)
+                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(Theme.Spacing.md + 2)
+                // The lock sticker sits on this card's top-right corner; keep the words clear of it.
+                .padding(.trailing, 44)
         }
-        .frame(width: Theme.Metrics.iconBadgeLarge, height: Theme.Metrics.iconBadgeLarge)
-        .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 28)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .posterSticker(Theme.Colors.surface, tilt: -2)
+    }
+
+    private var lockSticker: some View {
+        ZStack {
+            Circle().fill(hue.color)
+            Circle().strokeBorder(Color.white, lineWidth: PosterMetrics.stickerRim)
+            Image(systemName: "lock.fill")
+                .font(.system(size: 30, weight: .black))
+                .foregroundStyle(hue.ink)
+        }
+        .frame(width: 76, height: 76)
+        .shadow(color: Color.black.opacity(0.5), radius: 0, x: 3, y: 5)
+        .rotationEffect(.degrees(12))
+        .accessibilityHidden(true)
+    }
+}
+
+/// Diagonal hazard stripes: the "game over" tape across the top of the locked-out sticker.
+private struct HazardBand: View {
+    let color: Color
+
+    var body: some View {
+        Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Theme.Colors.backgroundDeep))
+            let stripe: CGFloat = 12
+            var x: CGFloat = -size.height
+            while x < size.width + size.height {
+                var path = Path()
+                path.move(to: CGPoint(x: x, y: size.height))
+                path.addLine(to: CGPoint(x: x + size.height, y: 0))
+                path.addLine(to: CGPoint(x: x + size.height + stripe, y: 0))
+                path.addLine(to: CGPoint(x: x + stripe, y: size.height))
+                path.closeSubpath()
+                context.fill(path, with: .color(color))
+                x += stripe * 2
+            }
+        }
     }
 }
 
@@ -444,9 +624,25 @@ enum ShareRenderState: Equatable {
 /// (`docs/design/composition-audit.md` offender 6). Pass `title: nil` when the poster already carries
 /// the screen's title as its own eyebrow.
 struct ShareMomentHeader: View {
+    /// An optional pause/play control drawn just before Close (the recap story's auto-advance).
+    struct Playback {
+        let isPaused: Bool
+        let pauseLabel: String
+        let playLabel: String
+        let onToggle: () -> Void
+    }
+
     let title: String?
     let dismissLabel: String
+    var playback: Playback? = nil
     let onDismiss: () -> Void
+
+    init(title: String?, dismissLabel: String, playback: Playback? = nil, onDismiss: @escaping () -> Void) {
+        self.title = title
+        self.dismissLabel = dismissLabel
+        self.playback = playback
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
@@ -458,16 +654,15 @@ struct ShareMomentHeader: View {
                     .accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: 0)
+            if let playback {
+                Button(action: playback.onToggle) {
+                    headerDisc(systemImage: playback.isPaused ? "play.fill" : "pause.fill")
+                }
+                .buttonStyle(.pressable(scale: 0.92))
+                .accessibilityLabel(playback.isPaused ? playback.playLabel : playback.pauseLabel)
+            }
             Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(Theme.Typography.icon(.small, weight: .bold))
-                    .foregroundStyle(Theme.Colors.text)
-                    .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                    .background(Theme.Colors.surface2, in: Circle())
-                    .overlay {
-                        Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-                    }
-                    .minTapTarget()
+                headerDisc(systemImage: "xmark")
             }
             .buttonStyle(.pressable(scale: 0.92))
             .padding(.trailing, -Theme.Spacing.xxs)
@@ -476,11 +671,24 @@ struct ShareMomentHeader: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
     }
+
+    /// A 32pt glass-free disc in a 44pt tappable frame.
+    private func headerDisc(systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(Theme.Typography.icon(.small, weight: .bold))
+            .foregroundStyle(Theme.Colors.text)
+            .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
+            .background(Theme.Colors.surface2, in: Circle())
+            .overlay {
+                Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
+            }
+            .minTapTarget()
+    }
 }
 
 /// The share action's face. A capsule at least `Theme.Metrics.primaryButtonHeight` tall (it mirrors
 /// `PrimaryButton`, which cannot wrap a `ShareLink`: the link must own the tap). Ready is the one
-/// accent-filled control on the screen, with the same top-lit edge as `PrimaryButton`; preparing is a
+/// blue-filled control on the screen (`accentFill` + `onAccent`, like `PrimaryButton`) (sharing is an action, not an earned state), with the same top-lit edge as `PrimaryButton`; preparing is a
 /// neutral `surface2` state, not a dimmed accent slab (`docs/design/better-ui-findings.md` MOT-04);
 /// failed is a neutral retry with a danger edge, so it does not read as another affirmative "share
 /// now". Wrap it in a `Button`/`ShareLink` styled with `.pressable`.
@@ -532,10 +740,10 @@ struct ShareActionLabel: View {
         }
     }
 
-    /// `onFill` (16.4:1) on the accent fill, never `text` (1.11:1).
+    /// `onAccent` (white) on the blue fill, never `onFill`.
     private var foreground: Color {
         switch state {
-        case .ready: Theme.Colors.onFill
+        case .ready: Theme.Colors.onAccent
         case .preparing: Theme.Colors.muted
         case .failed: Theme.Colors.text
         }
@@ -543,7 +751,8 @@ struct ShareActionLabel: View {
 
     private var fill: Color {
         switch state {
-        case .ready: Theme.Colors.accent
+        // `accentFill`, not `accent`: the fill-safe blue (white on it is 5.27:1), as `PrimaryButton`.
+        case .ready: Theme.Colors.accentFill
         case .preparing, .failed: Theme.Colors.surface2
         }
     }
@@ -552,14 +761,8 @@ struct ShareActionLabel: View {
     private var edge: some View {
         switch state {
         case .ready:
-            Capsule().strokeBorder(
-                LinearGradient(
-                    colors: [Theme.Colors.specular, Theme.Colors.specular.opacity(0)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                lineWidth: Theme.Metrics.edgeWidth
-            )
+            // Pass 3 (restraint): a flat rim on a solid button.
+            Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
         case .preparing:
             Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
         case .failed:

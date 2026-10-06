@@ -179,6 +179,27 @@ public final class CalendarAwareness {
         calendarDefaults.set(false, forKey: Self.optedInKey)
     }
 
+    /// What a UI surface should do about Calendar right now (Today's light-day card, Wave 2F). A
+    /// plain `Sendable` enum so the App target never has to import EventKit to compare statuses.
+    public enum AccessState: Sendable, Equatable {
+        /// Not opted in here, or the system prompt was never answered: the card may ask.
+        case notAsked
+        /// Opted in and full access granted: `isPackedDay(_:)` can answer.
+        case granted
+        /// The system prompt was declined, access is restricted, or only write access exists.
+        case declined
+    }
+
+    /// Reads the opt-in flag and the live authorization status together. Never prompts.
+    public func accessState() async -> AccessState {
+        let status = Self.authorizationStatus()
+        if status == .notDetermined { return .notAsked }
+        if status == .fullAccess {
+            return await isOptedIn() ? .granted : .notAsked
+        }
+        return .declined
+    }
+
     // MARK: - Packed-day signal
 
     /// Pure, synchronous, side-effect-free — same split `TravelMode.evaluate`/

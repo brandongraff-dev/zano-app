@@ -18,6 +18,9 @@
 
 import WatchKit
 
+// `@MainActor`: `WKInterfaceDevice` is main-actor-isolated in the watchOS SDK. Every caller is
+// already on the main actor (views, `WatchStateStore`, the workout controller's main-actor hops).
+@MainActor
 public enum HapticsPlayer {
     /// docs/spec.md §5.21's "verified" tap — fired by `WatchStateStore.apply(_:)` when a received
     /// snapshot's `gymDwell.isVerified` flips `false` → `true`.

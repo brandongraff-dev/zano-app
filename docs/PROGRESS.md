@@ -73,6 +73,7 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 28 | Sharing: share sheets for tasks and days (works now) and Household shared tasks (hidden until backend/sign-in) | `claude/quirky-wozniak-bf8h1v` | §5.31 | Scaffolded — Unverified. Awaiting CI; Household blocked on Supabase project and sign-in | 2026-10-06 | [28-household-sharing.md](sessions/28-household-sharing.md) |
 | 29 | Cal (calendar character), fire/ice streak buddy, a small buddy on each tab | `claude/quirky-wozniak-bf8h1v` | §5.17a | Scaffolded — Unverified. Art checked as sheets; Swift awaits CI | 2026-10-06 | [29-page-companions.md](sessions/29-page-companions.md) |
 | 30 | Onboarding character pass: buddies act out all 8 steps, Cal on the plan and paywall, CI clips | `claude/peaceful-cannon-w0thfg` | §7, §5.17a | Scaffolded — Unverified. Awaiting CI compile + clips; tap reactions need a device | 2026-10-06 | [30-onboarding-characters.md](sessions/30-onboarding-characters.md) |
+| 31 | Tone down the blue: near-neutral canvas/surfaces/greys, softer accent and aurora (dark + light) | `claude/sweet-mayer-a9hzwo` | §15 | Scaffolded — Unverified. Awaiting CI build + screenshots | 2026-10-06 | [31-tone-down-blue.md](sessions/31-tone-down-blue.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.

@@ -32,7 +32,7 @@
 //     target is 17).
 //   * On-fill labels. `onFill` (near-black) is the label for anything drawn on a pearl, danger or
 //     warning fill (18.0 / 5.5 / 9.2:1). White-on-blue buttons use `onAccent` on `accentFill`
-//     (5.3:1), not on `accent` itself (white on `#3F7BFF` is only 3.8:1).
+//     (≈5.3:1), not on `accent` itself (white on `#5B8DEF` is only ≈3.3:1).
 //   * Type. Text styles now map to system text styles, so they follow Dynamic Type and read
 //     identically to the old fixed sizes at the default setting (22/17/15/13). `numeralSmall` and
 //     `numeralMedium` now follow Dynamic Type too (2026-09-24); larger numerals stay
@@ -55,6 +55,11 @@
 // ink canvas, saturated ring colours, ember), added the glass tokens, the `hero` radius, the score
 // face (`Typography.score`), rounded headings and the v2 motion tokens. That document supersedes the
 // spec's token table; the notes above describe the previous pass.
+//
+// Blue toned down (2026-10-06, docs/sessions/31-tone-down-blue.md): the dark canvas, surfaces,
+// text greys and the locked ambient moved from indigo/navy to near-neutral, the accent softened from
+// neon `#3F7BFF` to `#5B8DEF` (fill `#3366CC`), and the aurora glow behind the buddy was desaturated.
+// Light mode followed (lavender canvas -> `#F5F5F7`). Goal ring colours and buddy palettes unchanged.
 
 import SwiftUI
 import UIKit
@@ -73,8 +78,9 @@ public enum Theme {
     /// code of its own. Static lets on a non-actor enum holding `Color` (Sendable): safe from widget
     /// and other nonisolated code.
     public enum Colors {
-        /// Dark `#0B0E24` indigo ink / light `#F5F6FB` cool soft white with a faint lavender. Not
-        /// black, not pure white: the glass needs a little colour behind it.
+        /// Dark `#0A0A0D` / light `#F5F5F7`: near-neutral, only a breath cooler than pure black and
+        /// white. (Was `#0B0E24` indigo / `#F5F6FB` lavender until 2026-10-06; the whole canvas read
+        /// blue. Toned down so the blue is the accent, not the room.)
         public static let background = Tones.background.color
         /// The bottom of the canvas gradient, under the tab bar and pinned action bars.
         public static let backgroundDeep = Tones.backgroundDeep.color
@@ -100,14 +106,15 @@ public enum Theme {
             public static let violet = Tones.auroraViolet.color
             public static let ember = Tones.auroraEmber.color
         }
-        /// ZANO Blue, the primary accent. Dark `#3F7BFF` (5.32:1 on ink). Light `#2A62E6` (the same
-        /// blue one step deeper: 4.9:1 on the light canvas, so it still works as text). Primary
+        /// ZANO Blue, the primary accent. Dark `#5B8DEF` (≈6:1 on the canvas). Light `#3366CC` (the
+        /// same blue one step deeper: ≈4.9:1 on the light canvas, so it still works as text).
+        /// Softened 2026-10-06 from the neon `#3F7BFF` / `#2A62E6`. Primary
         /// buttons, selection, the tab bar's lit tab and earned moments. Never under a white label
         /// in dark mode: a *filled* blue control uses `accentFill`.
         public static let accent = Tones.accent.color
 
-        /// `#2A62E6` — the fill of a filled blue control (`PrimaryButton`'s `.accent` tint and its
-        /// hold-to-commit sweep). White on it is 5.27:1 in both schemes.
+        /// `#3366CC` — the fill of a filled blue control (`PrimaryButton`'s `.accent` tint and its
+        /// hold-to-commit sweep). White on it is ≈5.3:1 in both schemes.
         public static let accentFill = Tones.accentFill.color
 
         /// The brushed-metal fill of the logo mark and of earned hero moments. Dark: pearl top-left
@@ -358,35 +365,35 @@ public enum Theme {
     /// reach for a tone directly only where an API needs a `UIColor` or a fixed scheme (the shield's
     /// `ShieldConfiguration`, the navigation bar's title attributes).
     public enum Tones {
-        private static let ink: UInt32 = 0x13_14_2B
+        private static let ink: UInt32 = 0x14_14_18
         private static let white: UInt32 = 0xFF_FF_FF
         private static let black: UInt32 = 0x00_00_00
 
-        public static let background = ZanoTone(light: 0xF5_F6_FB, dark: 0x0B_0E_24)
-        public static let backgroundDeep = ZanoTone(light: 0xE8_EA_F4, dark: 0x06_08_1A)
-        public static let surface = ZanoTone(light: 0xFF_FF_FF, dark: 0x16_1A_3A)
-        public static let surface2 = ZanoTone(light: 0xEC_EE_F6, dark: 0x1F_24_50)
-        public static let text = ZanoTone(light: ink, dark: 0xF4_F3_FF)
-        public static let textSecondary = ZanoTone(light: 0x3B_3D_5E, dark: 0xD2_D0_EA)
-        public static let muted = ZanoTone(light: 0x5C_5E_7E, dark: 0xA6_A4_C8)
+        public static let background = ZanoTone(light: 0xF5_F5_F7, dark: 0x0A_0A_0D)
+        public static let backgroundDeep = ZanoTone(light: 0xEB_EB_EF, dark: 0x05_05_07)
+        public static let surface = ZanoTone(light: 0xFF_FF_FF, dark: 0x18_18_1D)
+        public static let surface2 = ZanoTone(light: 0xEE_EE_F1, dark: 0x22_22_28)
+        public static let text = ZanoTone(light: ink, dark: 0xF4_F4_F6)
+        public static let textSecondary = ZanoTone(light: 0x3D_3D_48, dark: 0xD2_D2_D8)
+        public static let muted = ZanoTone(light: 0x63_63_6E, dark: 0xA3_A3_AD)
         public static let ember = ZanoTone(light: 0xB3_4A_06, dark: 0xFF_8A_3D)
 
-        public static let auroraBlue = ZanoTone(light: 0x5B_8C_FF, dark: 0x3F_7B_FF)
-        public static let auroraViolet = ZanoTone(light: 0xA5_7B_FF, dark: 0x8F_5B_FF)
+        public static let auroraBlue = ZanoTone(light: 0x8D_A6_D8, dark: 0x4F_6F_B8)
+        public static let auroraViolet = ZanoTone(light: 0xB3_A2_D9, dark: 0x6E_5B_A8)
         public static let auroraEmber = ZanoTone(light: 0xFF_9A_55, dark: 0xFF_8A_3D)
 
-        public static let accent = ZanoTone(light: 0x2A_62_E6, dark: 0x3F_7B_FF)
-        public static let accentFill = ZanoTone(0x2A_62_E6)
-        public static let interactiveWash = ZanoTone(light: 0x2A_62_E6, 0.12, dark: 0x3F_7B_FF, 0.16)
-        public static let accentWash = ZanoTone(light: 0xDF_E7_FF, dark: 0x15_25_5E)
-        public static let accentDim = ZanoTone(light: 0xA9_BF_F5, dark: 0x24_40_8C)
+        public static let accent = ZanoTone(light: 0x33_66_CC, dark: 0x5B_8D_EF)
+        public static let accentFill = ZanoTone(0x33_66_CC)
+        public static let interactiveWash = ZanoTone(light: 0x33_66_CC, 0.10, dark: 0x5B_8D_EF, 0.12)
+        public static let accentWash = ZanoTone(light: 0xE6_EA_F5, dark: 0x1A_20_33)
+        public static let accentDim = ZanoTone(light: 0xB5_C2_E2, dark: 0x34_44_6E)
 
         public static let metalLight = ZanoTone(light: 0x8C_91_A6, dark: 0xFA_F9_F6)
         public static let metalMid = ZanoTone(light: 0x66_6B_80, dark: 0xD6_D4_CF)
         public static let metalDark = ZanoTone(light: 0x44_48_5C, dark: 0x9E_9C_97)
 
-        public static let lockedAmbient = ZanoTone(light: 0xC3_C8_F2, dark: 0x2A_2F_7A)
-        public static let surfaceHero = ZanoTone(light: 0xFF_FF_FF, dark: 0x1D_22_48)
+        public static let lockedAmbient = ZanoTone(light: 0xD3_D5_E0, dark: 0x2A_2A_36)
+        public static let surfaceHero = ZanoTone(light: 0xFF_FF_FF, dark: 0x1D_1D_23)
         public static let danger = ZanoTone(light: 0xC4_2F_3F, dark: 0xF0_60_6E)
         public static let warning = ZanoTone(light: 0x9A_5F_00, dark: 0xF5_B5_4A)
 
@@ -403,9 +410,9 @@ public enum Theme {
         public static let glassFillBottom = ZanoTone(light: white, 0.66, dark: white, 0.04)
         public static let glassRaisedTop = ZanoTone(light: white, 0.96, dark: white, 0.13)
         public static let glassRaisedBottom = ZanoTone(light: white, 0.84, dark: white, 0.05)
-        public static let glassChromeTint = ZanoTone(light: white, 0.45, dark: 0x0B_0E_24, 0.35)
+        public static let glassChromeTint = ZanoTone(light: white, 0.45, dark: 0x0A_0A_0D, 0.35)
         public static let glassInnerShade = ZanoTone(light: ink, 0.05, dark: black, 0.22)
-        public static let glassShadow = ZanoTone(light: 0x2A_2D_5C, 0.10, dark: black, 0)
+        public static let glassShadow = ZanoTone(light: 0x2A_2A_33, 0.10, dark: black, 0)
         public static let wellFill = ZanoTone(light: ink, 0.04, dark: white, 0.05)
         public static let glassEdge0 = ZanoTone(light: white, 1.0, dark: white, 0.35)
         public static let glassEdge1 = ZanoTone(light: ink, 0.07, dark: white, 0.06)
@@ -417,7 +424,7 @@ public enum Theme {
         public static let markGraphiteTop = ZanoTone(light: ink, 0.16, dark: white, 0.11)
         public static let markGraphiteBottom = ZanoTone(light: ink, 0.08, dark: white, 0.035)
         public static let markGraphiteEdge = ZanoTone(light: ink, 0.30, dark: white, 0.16)
-        public static let shadow = ZanoTone(light: 0x2A_2D_5C, 0.18, dark: black, 0.55)
+        public static let shadow = ZanoTone(light: 0x2A_2A_33, 0.18, dark: black, 0.55)
 
         public static let ringWorkout = ZanoTone(light: 0x4F_73_00, dark: 0xC8_F0_4A)
         public static let ringProtein = ZanoTone(light: 0xB8_52_0A, dark: 0xFF_95_48)
@@ -824,7 +831,7 @@ extension Theme {
 
         /// The label on a solid buddy-colour fill (the picker's "Team up" button): dark ink in both
         /// appearances, because every signature colour is a mid-to-bright hue (4.4:1 or better).
-        public static let onSignature = Color(zanoHex: 0x13142B)
+        public static let onSignature = Color(zanoHex: 0x141418)
 
         public static func colors(for buddy: Buddy) -> Trio {
             switch buddy {

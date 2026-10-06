@@ -46,12 +46,12 @@ public enum WatchTheme {
         public static let text = Color(watchThemeHex: 0xF2_F1_ED)
         /// Mirrors `Theme.Colors.muted` (`#8E8E93`).
         public static let muted = Color(watchThemeHex: 0x8E_8E_93)
-        /// Mirrors `Theme.Colors.accent` (`#3F7BFF`, ZANO Blue) — the one brand accent. For text,
+        /// Mirrors `Theme.Colors.accent` (`#5B8DEF`, ZANO Blue, softened 2026-10-06) — the one brand accent. For text,
         /// strokes and rings; never under a white label (white on it is 3.83:1).
-        public static let accent = Color(watchThemeHex: 0x3F_7B_FF)
-        /// Mirrors `Theme.Colors.accentFill` (`#2A62E6`) — the fill of a filled blue button (e.g.
+        public static let accent = Color(watchThemeHex: 0x5B_8D_EF)
+        /// Mirrors `Theme.Colors.accentFill` (`#3366CC`) — the fill of a filled blue button (e.g.
         /// a `.borderedProminent` tint), so its white label clears AA (5.27:1).
-        public static let accentFill = Color(watchThemeHex: 0x2A_62_E6)
+        public static let accentFill = Color(watchThemeHex: 0x33_66_CC)
         /// Mirrors `Theme.Colors.danger` (`#DE5A52`).
         public static let danger = Color(watchThemeHex: 0xDE_5A_52)
         /// Mirrors `Theme.Colors.warning` (`#D9A55B`).

@@ -237,7 +237,6 @@ struct PaywallView: View {
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xs)
         .background(Theme.Colors.surface2, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
     }
 
     // MARK: - Benefits (spec §16 P5: three benefit rows with icons)
@@ -612,7 +611,7 @@ private struct PaywallPlanCard: View {
             HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
@@ -654,7 +653,7 @@ private struct PaywallPlanCard: View {
             )
             .overlay {
                 shape
-                    .strokeBorder(Theme.Colors.accent, lineWidth: 2)
+                    .strokeBorder(Theme.Colors.text, lineWidth: 2)
                     .opacity(isSelected ? 1 : 0)
             }
             .contentShape(shape)

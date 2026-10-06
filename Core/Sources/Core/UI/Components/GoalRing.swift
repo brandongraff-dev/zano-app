@@ -137,10 +137,6 @@ public struct GoalRing: View {
         min(1, max(0, progress))
     }
 
-    private var isComplete: Bool {
-        clampedProgress >= 1
-    }
-
     private var isPlaceholder: Bool {
         center == .add
     }
@@ -212,9 +208,6 @@ public struct GoalRing: View {
                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
             .rotationEffect(.degrees(-90))
-            // A static glow only once the ring closes (the earned moment); an in-progress ring is
-            // flat, like Activity's. Never animated — a function of progress only.
-            .shadow(color: color.opacity(isComplete ? 0.35 : 0), radius: lineWidth * 0.7)
             .padding(lineWidth / 2)
             .opacity(clampedProgress > 0.001 && !isPlaceholder ? 1 : 0)
             // The fill itself is information (a progress fraction), not decoration, so

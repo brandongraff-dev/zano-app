@@ -91,7 +91,7 @@ struct Screen8CoachVoice: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
             }
             .padding(Theme.Spacing.md)
@@ -99,7 +99,7 @@ struct Screen8CoachVoice: View {
             .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface, in: shape)
             .overlay(
                 shape.strokeBorder(
-                    isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
+                    isSelected ? Theme.Colors.text : Color.clear,
                     lineWidth: isSelected ? 2 : Theme.Metrics.edgeWidth
                 )
             )

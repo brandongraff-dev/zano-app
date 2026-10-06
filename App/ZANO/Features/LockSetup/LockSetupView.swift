@@ -566,7 +566,7 @@ private struct LockSetEditorSheet: View {
                 .zanoCard(radius: Theme.Radius.medium, fill: Theme.Colors.surface2)
                 .overlay {
                     RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .strokeBorder(Theme.Colors.accent, lineWidth: 1.5)
+                        .strokeBorder(Theme.Colors.text, lineWidth: 1.5)
                         .opacity(isNameFocused ? 1 : 0)
                         .allowsHitTesting(false)
                 }

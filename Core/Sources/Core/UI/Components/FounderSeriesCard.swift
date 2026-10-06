@@ -146,7 +146,6 @@ public struct FounderSeriesCard: View {
                 .padding(.horizontal, Theme.Spacing.md)
                 .frame(minHeight: Theme.Metrics.minTapTarget)
                 .background(Theme.Colors.surface2, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth))
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle(scale: 0.96))

@@ -152,23 +152,29 @@ public enum Theme {
         public static let backgroundElevated = surface
 
         // MARK: Accent tints (precomputed, on-hue)
+        //
+        // 2026-10-06: these are now NEUTRAL greys. The olive/brown tinted fills they used to produce
+        // (selected tiles, chips, washes) were the clearest leftover of the old UI. The names stay so
+        // every call site keeps compiling; a selected/earned element now shows its state through its
+        // glyph, label colour or a white outline, never a tinted fill. Accent-on-`accentWash` text is
+        // lime on `#2C2C2E` (≈11:1).
 
         /// `#223403` — the accent at dark-surface strength: icon-badge discs, selected rows, the
         /// unlock chip. `accent.opacity(0.16)` composites to `#2E3A1C`, whose chroma is about a
         /// quarter of the accent's, so it reads as a different, dirtier color instead of a dimmer
         /// version of the accent. Accent on this wash is 11.2:1, `text` 12.4:1.
-        public static let accentWash = Color(zanoHex: 0x22_34_03)
+        public static let accentWash = Color(zanoHex: 0x2C_2C_2E)
 
         /// `#3B5800` — the accent's dim core: a highlighted-but-unselected border, the track
         /// beneath an active accent bar. Accent on this is 6.7:1; it is 2.26:1 against `surface`.
-        public static let accentDim = Color(zanoHex: 0x3B_58_00)
+        public static let accentDim = Color(zanoHex: 0x3A_3A_3C)
 
         /// The disc/wash fill for an icon badge or chip tinted `tint`. The accent gets its
         /// on-hue precomputed wash (`accentWash`); every other hue falls back to 18% of itself,
         /// which is the same recipe the app used before but no longer applied to the accent
         /// (where it went olive).
         public static func wash(_ tint: Color) -> Color {
-            tint == accent ? accentWash : tint.opacity(0.18)
+            surface2
         }
 
         /// Per-goal ring colors (spec §15: "Ring colors: workout = accent, protein = `#FF7A00`,
@@ -229,7 +235,8 @@ public enum Theme {
             /// `background` this is 1.33:1 (focus) to 2.33:1 (workout); the old `surface2` track
             /// was 1.16:1 on Today and effectively vanished on a new day.
             public static func track(for color: Color) -> Color {
-                color.opacity(0.30)
+                // 22% (was 30%): at 30% the lime and orange tracks read as olive and brown slabs.
+                color.opacity(0.22)
             }
 
             /// Resolves the ring color for a `GoalType` (`Core/Sources/Core/Models/Goal.swift`).

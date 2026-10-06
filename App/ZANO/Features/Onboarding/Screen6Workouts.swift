@@ -83,7 +83,6 @@ struct Screen6Workouts: View {
                     .foregroundStyle(Theme.Colors.muted)
                     .frame(width: Theme.Spacing.lg, height: Theme.Spacing.lg)
                     .background(Theme.Colors.surface2, in: Circle())
-                    .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
             }
             .accessibilityHidden(true)
     }
@@ -173,7 +172,6 @@ private struct WorkoutsCounterRow: View {
                 .foregroundStyle(Theme.Colors.text)
                 .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
                 .background(Theme.Colors.surface2, in: Circle())
-                .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
         }
         .buttonStyle(PressableStyle(scale: 0.94))
         .disabled(!isEnabled)

@@ -471,7 +471,6 @@ struct AlarmRingingView: View {
                 .padding(.horizontal, Theme.Spacing.lg)
                 .frame(minHeight: AlarmMetrics.minTapTarget)
                 .background(Theme.Colors.surface2, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
             }
             .buttonStyle(AlarmPressStyle())
         } else {

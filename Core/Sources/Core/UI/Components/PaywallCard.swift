@@ -92,7 +92,7 @@ public struct PaywallCard: View {
             HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                     // Selection is announced by the `.isSelected` trait below, not by the glyph's
                     // symbol name ("checkmark circle fill").
@@ -136,7 +136,7 @@ public struct PaywallCard: View {
                 if isSelected {
                     // Selected: a 2pt accent stroke, drawn inside so selecting never shifts layout.
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(Theme.Colors.accent, lineWidth: 2)
+                        .strokeBorder(Theme.Colors.text, lineWidth: 2)
                 } else if isHighlighted {
                     // The recommended plan keeps a dim accent edge even when not chosen.
                     RoundedRectangle(cornerRadius: radius, style: .continuous)

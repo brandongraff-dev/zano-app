@@ -166,7 +166,7 @@ private struct HookHero: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                Theme.Colors.accent.opacity(isUnlocked ? 0.20 : 0),
+                                Theme.Colors.accent.opacity(isUnlocked ? 0.10 : 0),
                                 Theme.Colors.accent.opacity(0),
                             ],
                             center: .center,

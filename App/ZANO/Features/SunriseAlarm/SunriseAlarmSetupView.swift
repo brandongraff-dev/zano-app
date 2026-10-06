@@ -210,7 +210,7 @@ struct SunriseAlarmSetupView: View {
                 HStack(alignment: .top) {
                     Image(systemName: variant.systemImage)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                        .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
 
                     Spacer(minLength: 0)
 
@@ -391,7 +391,6 @@ struct SunriseAlarmSetupView: View {
             .foregroundStyle(Theme.Colors.text)
             .frame(maxWidth: .infinity, minHeight: SleepSetupMetrics.minTapTarget)
             .background(Theme.Colors.surface2, in: Capsule())
-            .overlay(Capsule().strokeBorder(SleepSetupDepth.edge, lineWidth: 1))
         }
         .buttonStyle(SleepSetupPressStyle())
         .disabled(isScanningTag || !NFCReader.isAvailable)
@@ -671,7 +670,6 @@ private struct StepsTargetStepper: View {
                 .foregroundStyle(Theme.Colors.text)
                 .frame(width: SleepSetupMetrics.minTapTarget, height: SleepSetupMetrics.minTapTarget)
                 .background(Theme.Colors.surface2, in: Circle())
-                .overlay(Circle().strokeBorder(SleepSetupDepth.edge, lineWidth: 1))
         }
         .buttonStyle(SleepSetupPressStyle())
         .disabled(!isEnabled)
@@ -701,7 +699,6 @@ private struct NFCStepList: View {
                         .lineLimit(1)
                         .frame(width: 24, height: 24)
                         .background(Theme.Colors.surface2, in: Circle())
-                        .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
 
                     VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                         Text(step.title)

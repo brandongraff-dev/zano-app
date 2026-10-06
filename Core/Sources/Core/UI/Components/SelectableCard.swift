@@ -76,7 +76,7 @@ public struct SelectableCard: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                     // Selection is announced by the `.isSelected` trait below, not by the glyph's
                     // symbol name ("checkmark circle fill").
@@ -92,7 +92,7 @@ public struct SelectableCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
+                        isSelected ? Theme.Colors.text : Color.clear,
                         lineWidth: isSelected ? 2 : Theme.Metrics.edgeWidth
                     )
             )

@@ -1221,7 +1221,6 @@ private struct FuelAmountPill: View {
         .padding(.horizontal, expands ? Theme.Spacing.xxs : Theme.Spacing.sm)
         .frame(maxWidth: expands ? CGFloat.infinity : nil, minHeight: minHeight)
         .background(Theme.Colors.wash(color), in: Capsule())
-        .overlay(Capsule().strokeBorder(color.opacity(0.30), lineWidth: Theme.Metrics.edgeWidth))
     }
 }
 
@@ -1239,7 +1238,6 @@ private struct FuelIconButton: View {
                 .foregroundStyle(Theme.Colors.text)
                 .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
                 .background(Theme.Colors.surface2, in: Circle())
-                .overlay(Circle().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth))
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle(scale: 0.96))
@@ -1264,7 +1262,6 @@ private struct FuelAddPill: View {
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, Theme.Spacing.xs)
             .background(Theme.Colors.surface2, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth))
             .frame(minHeight: Theme.Metrics.minTapTarget)
             .contentShape(Rectangle())
         }
@@ -1738,7 +1735,6 @@ private struct BarcodeScanSheet: View {
                     .padding(.horizontal, Theme.Spacing.sm)
                     .padding(.vertical, Theme.Spacing.xs)
                     .background(Theme.Colors.surface.opacity(0.9), in: Capsule())
-                    .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
 
                 // White 13pt text straight over live camera video had no backing and a ~16pt
                 // target: it gets the same capsule as the instruction above and a 44pt floor.
@@ -1751,7 +1747,6 @@ private struct BarcodeScanSheet: View {
                         .padding(.horizontal, Theme.Spacing.md)
                         .frame(minHeight: Theme.Metrics.minTapTarget)
                         .background(Theme.Colors.surface.opacity(0.9), in: Capsule())
-                        .overlay(Capsule().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: Theme.Metrics.edgeWidth))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(PressableStyle(scale: 0.96))

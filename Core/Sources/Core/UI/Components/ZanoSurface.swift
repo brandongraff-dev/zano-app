@@ -15,8 +15,9 @@
 //     tinted washes and outer glows, were the main things that made ZANO read as a generated
 //     dashboard rather than an iOS app.
 //   * Increase Contrast restores the 1px edge (`colorSchemeContrast`), for free.
-//   * `tint` is drawn only on an `active` card (earned/unlocked, or a warning that needs action): a
-//     soft hue wash from the top-leading corner. A resting card never carries colour.
+//   * No tinted washes, ever (2026-10-06, second pass): the olive/brown gradients on earned and
+//     warning cards read as the old UI. `tint` and `active` are accepted for source compatibility
+//     and ignored; a card's state is carried by its content (an accent numeral, a glyph).
 //   * No glow. Ever. Depth comes from the surface step, not from light bleeding off the card.
 
 import SwiftUI
@@ -116,12 +117,7 @@ struct ZanoSurface: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         return content
             .background {
-                ZStack {
-                    shape.fill(fill)
-                    if active {
-                        shape.fill(wash(tint ?? Theme.Colors.accent))
-                    }
-                }
+                shape.fill(fill)
             }
             .overlay {
                 if showsEdge && contrast == .increased {
@@ -135,14 +131,6 @@ struct ZanoSurface: ViewModifier {
                         .allowsHitTesting(false)
                 }
             }
-    }
-
-    private func wash(_ tint: Color) -> LinearGradient {
-        LinearGradient(
-            colors: [tint.opacity(0.14), tint.opacity(0)],
-            startPoint: .topLeading,
-            endPoint: UnitPoint(x: 0.8, y: 0.8)
-        )
     }
 }
 

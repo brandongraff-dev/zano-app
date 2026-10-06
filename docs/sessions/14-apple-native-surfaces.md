@@ -145,3 +145,23 @@ redo is split into three steps:
   Xcode predates the iOS 26 SDK. The call is now behind `#if compiler(>=6.2)`, so CI builds always
   use `.ultraThinMaterial`; Liquid Glass compiles only under Xcode 26. Core failing to compile means
   App-target errors (if any) surface on the next run.
+
+### 2026-10-06 — Pass 2: remove the leftover old-UI pieces (user feedback on the first screenshots)
+
+- **Feedback:** the first CI screenshots still mixed in parts of the old UI. Visible leftovers were:
+  olive/brown tinted card washes (Settings "Pro", Progress "Time reclaimed"), icons inside circles,
+  outlined chips and tiles (Fuel +15g/+250ml, coach-voice tiles, paywall goal chips), and the
+  lime-tinted streak grid.
+- **What changed:**
+  - `accentWash` / `accentDim` are now neutral greys (`#2C2C2E` / `#3A3A3C`), and
+    `Theme.Colors.wash(_:)` returns `surface2`. Every tinted fill in the app goes neutral at once.
+  - `zanoCard` draws no wash at all (`tint`/`active` kept for source compatibility, ignored).
+  - `IconBadge` draws no disc: a bare hierarchical glyph in the same frame.
+  - 16 decorative single-line chip/circle outlines removed (Fuel, paywall, onboarding, Settings,
+    sunrise alarm, Founder card). Selection outlines are white instead of lime, and selected icons
+    are white.
+  - Progress: streak grid earned days are a lit neutral cell with a white check; only the head day
+    is lime. Streak flame is orange. Time-reclaimed eyebrow icon is grey; trophy tiles lost their
+    ring.
+  - `GoalRing` has no glow at all. The onboarding hook halo is halved.
+  - Ring tracks are 22% of the hue (was 30%, which read as olive/brown).

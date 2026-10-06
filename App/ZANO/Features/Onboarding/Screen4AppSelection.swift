@@ -221,7 +221,7 @@ struct Screen4AppSelection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // Static glow on the active (selected) card, no wash (see the file header).
         .zanoCard(radius: Theme.Radius.medium)
-        .overlay { cardShape.strokeBorder(Theme.Colors.accent, lineWidth: 2) }
+        .overlay { cardShape.strokeBorder(Theme.Colors.text, lineWidth: 2) }
         .contentShape(cardShape)
     }
 

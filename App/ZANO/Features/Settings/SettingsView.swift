@@ -942,7 +942,6 @@ private struct SettingsConfirmButtonStyle: ButtonStyle {
             .foregroundStyle(Theme.Colors.accent)
             .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
             .background(Theme.Colors.accentWash, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth))
             .contentShape(Capsule())
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.86 : 1)
@@ -1030,7 +1029,7 @@ private struct SettingsChoiceTile: View {
             VStack(spacing: Theme.Spacing.xxs) {
                 Image(systemName: systemImage)
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .frame(height: 24)
                 Text(title)
                     .font(Theme.Typography.captionEmphasized)
@@ -1044,7 +1043,7 @@ private struct SettingsChoiceTile: View {
             .background(isSelected ? Theme.Colors.accentWash : Theme.Colors.surface2, in: shape)
             .overlay(
                 shape.strokeBorder(
-                    isSelected ? Theme.Colors.accent : Theme.Colors.hairline,
+                    isSelected ? Theme.Colors.text : Color.clear,
                     lineWidth: isSelected ? 1.5 : Theme.Metrics.edgeWidth
                 )
             )
@@ -1085,7 +1084,7 @@ private struct SettingsChoiceRow: View {
                 // as `SelectableCard`'s trailing indicator.
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Theme.Typography.icon(.large))
-                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.muted)
+                    .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.muted)
                     .contentTransition(indicatorTransition)
                     .accessibilityHidden(true)
             }
@@ -1181,8 +1180,7 @@ private struct CoachVoiceCard: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.sm)
             .frame(minHeight: 72)
-            .background(Theme.Colors.background, in: shape)
-            .overlay(shape.strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
+            .background(Theme.Colors.surface2, in: shape)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(voice.displayName), \(voice.sampleLine)")
     }
@@ -2050,7 +2048,6 @@ private struct NFCTagSetupDetailView: View {
                 // Scales with the step text it leads (a fixed 24 pt disc clips a scaled numeral).
                 .frame(width: stepBadgeDiameter, height: stepBadgeDiameter)
                 .background(Theme.Colors.surface2, in: Circle())
-                .overlay(Circle().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {

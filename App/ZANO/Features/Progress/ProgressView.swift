@@ -221,7 +221,7 @@ struct ProgressView: View {
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(Theme.Typography.icon(.small))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.muted)
                     .accessibilityHidden(true)
                 ProgressEyebrow(text: Copy.progress.timeReclaimedTitle)
             }
@@ -317,7 +317,7 @@ struct ProgressView: View {
             // flame <-> flame.fill and accent <-> muted on the shared icon-swap spring.
             IconBadge(
                 systemName: current > 0 ? "flame.fill" : "flame",
-                tint: current > 0 ? Theme.Colors.accent : Theme.Colors.muted
+                tint: current > 0 ? Theme.Colors.Ring.protein : Theme.Colors.muted
             )
 
             NumeralText("\(current)", size: .large, color: current > 0 ? Theme.Colors.text : Theme.Colors.muted)
@@ -744,7 +744,7 @@ private struct ProgressStreakCell: View {
                 case .earned:
                     Image(systemName: "checkmark")
                         .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                        .foregroundStyle(Theme.Colors.accent)
+                        .foregroundStyle(Theme.Colors.text)
                 case .today, .missed, .future:
                     EmptyView()
                 }
@@ -754,9 +754,12 @@ private struct ProgressStreakCell: View {
 
     private var fill: Color {
         switch kind {
+        // Only the streak's head is lime; earned days are a lit neutral cell with a white check and
+        // missed days sit almost flush with the card (2026-10-06: a grid of lime-tinted cells was
+        // the loudest leftover of the old look).
         case .head: Theme.Colors.accent
-        case .earned: Theme.Colors.accentWash
-        case .today, .missed: Theme.Colors.track
+        case .earned: Theme.Colors.text.opacity(0.22)
+        case .today, .missed: Theme.Colors.text.opacity(0.07)
         case .future: Color.clear
         }
     }
@@ -766,11 +769,9 @@ private struct ProgressStreakCell: View {
         switch kind {
         case .today:
             shape.strokeBorder(Theme.Colors.text.opacity(0.55), lineWidth: 1.5)
-        case .earned:
-            shape.strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
         case .future:
             shape.strokeBorder(Theme.Colors.hairline, style: StrokeStyle(lineWidth: Theme.Metrics.edgeWidth, dash: [2, 3]))
-        case .head, .missed:
+        case .head, .earned, .missed:
             EmptyView()
         }
     }
@@ -805,11 +806,6 @@ private struct ProgressTrophyTile: View {
                         entry.isEarned ? Theme.Colors.accentWash : Theme.Colors.hairline,
                         in: Circle()
                     )
-                    .overlay {
-                        if entry.isEarned {
-                            Circle().strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
-                        }
-                    }
 
                 if !entry.isEarned {
                     Image(systemName: "lock.fill")

@@ -125,7 +125,6 @@ struct Screen11Commitment: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.xs)
         .background(Theme.Colors.surface2, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
     }
 
     private var recapLine: String {

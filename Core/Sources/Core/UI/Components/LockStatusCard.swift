@@ -85,7 +85,7 @@ public struct LockStatusCard: View {
         rowBody
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Locked: neutral surface, edge only. Unlocked: the earned wash and glow.
+            // Locked: a plain card. Unlocked: the earned wash.
             .zanoCard(tint: isLocked ? nil : Theme.Colors.accent, active: !isLocked)
     }
 
@@ -93,7 +93,9 @@ public struct LockStatusCard: View {
         HStack(spacing: Theme.Spacing.sm) {
             IconBadge(
                 systemName: isLocked ? "lock.fill" : "lock.open.fill",
-                tint: isLocked ? Theme.Colors.danger : Theme.Colors.accent,
+                // Locked reads calm (spec §15: "Locked is shown muted, not red"); only the open
+                // padlock wears the accent.
+                tint: isLocked ? Theme.Colors.textSecondary : Theme.Colors.accent,
                 size: .medium
             )
             // `value:` is pinned to 0 under Reduce Motion so the bounce can never fire.

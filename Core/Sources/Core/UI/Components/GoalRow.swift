@@ -80,6 +80,9 @@ public struct GoalRow: View {
     /// falling back to a hardcoded English word. See `docs/design/ui-stress-test-findings.md` §2.2.
     private let statusAccessibilityLabel: String?
 
+    /// Bumped only on the forward edge into `.complete`, so the checkmark bounces once when a goal
+    /// is done and never when it rolls back. Never bumped under Reduce Motion.
+    @State private var completeTick = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameters:
@@ -134,6 +137,10 @@ public struct GoalRow: View {
         // `docs/design/ui-stress-test-findings.md` §3.8.
         .sensoryFeedback(.success, trigger: status) { oldValue, newValue in
             oldValue != .complete && newValue == .complete
+        }
+        .onChange(of: status) { oldValue, newValue in
+            guard !reduceMotion, oldValue != .complete, newValue == .complete else { return }
+            completeTick += 1
         }
     }
 
@@ -257,6 +264,7 @@ public struct GoalRow: View {
             // (docs/design/apple-design-review.md §4). No bounce: an icon swap is one object changing
             // state, not a spring (`Theme.Motion.iconSwap`).
             .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+            .symbolEffect(.bounce, options: .nonRepeating, value: completeTick)
             .animation(reduceMotion ? nil : Theme.Motion.iconSwap, value: status)
     }
 

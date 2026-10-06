@@ -1494,7 +1494,6 @@ private struct ManualAmountSheet: View {
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.Colors.background.ignoresSafeArea())
             .navigationTitle(titleLabel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1513,6 +1512,9 @@ private struct ManualAmountSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(.dark)
+        // Partial-height sheets float over the Fuel screen: glass/material, not an opaque black
+        // panel (2026-10-06 Apple-native pass).
+        .zanoSheetBackground()
         // Toolbar Cancel/Save would otherwise render system blue (no root tint is set app-wide yet).
         .tint(Theme.Colors.accent)
     }
@@ -1614,7 +1616,6 @@ private struct KitchenStapleAddSheet: View {
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(Theme.Colors.background.ignoresSafeArea())
             .navigationTitle(Copy.fuel.kitchenStapleAddSheetTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1634,6 +1635,9 @@ private struct KitchenStapleAddSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(.dark)
+        // Partial-height sheets float over the Fuel screen: glass/material, not an opaque black
+        // panel (2026-10-06 Apple-native pass).
+        .zanoSheetBackground()
         .tint(Theme.Colors.accent)
     }
 

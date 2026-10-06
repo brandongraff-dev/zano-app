@@ -69,7 +69,7 @@ struct Screen3MainGoal: View {
     /// glyph alone before the label is read.
     private func symbol(for goal: MainGoal) -> String {
         switch goal {
-        case .gymConsistency: "dumbbell.fill"
+        case .gymConsistency: Theme.Symbols.goal(.workoutGym)
         case .protein: "fork.knife"
         case .stopDoomscrolling: "iphone.slash"
         case .lockInWorkSchool: "book.closed.fill"
@@ -111,9 +111,9 @@ private struct OnboardingPlanPreview: View {
     }
 
     private let slots: [Slot] = [
-        Slot(type: .workoutGym, icon: "dumbbell.fill"),
-        Slot(type: .protein, icon: "fork.knife"),
-        Slot(type: .focusSession, icon: "timer"),
+        Slot(type: .workoutGym, icon: Theme.Symbols.goal(.workoutGym)),
+        Slot(type: .protein, icon: Theme.Symbols.goal(.protein)),
+        Slot(type: .focusSession, icon: Theme.Symbols.goal(.focusSession)),
     ]
 
     /// How full a lit ring is drawn. Partial on purpose (spec §8 rule 2: progress is always partially

@@ -805,7 +805,7 @@ private struct FirstWinWidgetPrompt: View {
                     progress: 1,
                     color: Theme.Colors.Ring.focus,
                     size: .custom(Self.widgetRingDiameter),
-                    center: .icon(systemName: "timer")
+                    center: .icon(systemName: Theme.Symbols.goal(.focusSession))
                 )
                 HStack(spacing: Theme.Spacing.xxs) {
                     Image(systemName: "flame.fill")

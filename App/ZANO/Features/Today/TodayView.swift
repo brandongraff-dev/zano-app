@@ -31,9 +31,10 @@
 //   another workflow this run); until then they degrade to a status row / nothing.
 // - Begin-lock is a plain tap. The 2 s hold is the app's commitment/emergency gesture; spending it on
 //   a daily routine action dilutes it (spec only requires hold-to-commit for onboarding step 11).
-// - The bottom bar is a `StickyActionBar` gradient fade, not `.ultraThinMaterial`, so it never
-//   stacks a second translucent slab over the iOS 26 floating tab bar.
-// - Built on Core/UI, not local stand-ins: `zanoCard` (top-lit edge, tint wash, earned glow),
+// - The bottom bar is a `StickyActionBar` progressive blur (material masked by a fade), not a
+//   full-width `.ultraThinMaterial` slab, so it never stacks a hard-edged panel over the iOS 26
+//   floating tab bar.
+// - Built on Core/UI, not local stand-ins: `zanoCard` (flat cell, earned wash),
 //   `IconBadge`, `NumeralText`, `GoalRing`/`RingCluster`, `zanoBackdrop`, `StickyActionBar`,
 //   `PressableStyle`, `PrimaryButton`. The only private pieces left are the ghost row, the
 //   segmented progress and the status row, none of which Core has.
@@ -483,9 +484,9 @@ struct TodayView: View {
 
         var icon: String {
             switch self {
-            case .workout: "dumbbell.fill"
-            case .protein: "fork.knife"
-            case .focus: "timer"
+            case .workout: Theme.Symbols.goal(.workoutGym)
+            case .protein: Theme.Symbols.goal(.protein)
+            case .focus: Theme.Symbols.goal(.focusSession)
             }
         }
 
@@ -941,26 +942,9 @@ struct TodayView: View {
 
 // MARK: - Shared pieces (internal: `LockStatusView.swift` reuses these)
 
-/// SF Symbol for a goal type. Symbol names are identifiers, not copy. Names beyond the four Today
-/// already used (`dumbbell.fill`, `timer`, `fork.knife`) are from memory of the SF Symbols catalog
-/// and unverified in this environment; a wrong name renders blank rather than crashing.
+/// SF Symbol for a goal type — forwards to the shared `Theme.Symbols.goal(_:)` map.
 func goalIconName(for type: GoalType) -> String {
-    switch type {
-    case .workoutGym: "dumbbell.fill"
-    case .workoutHomeOutdoor: "figure.run"
-    case .focusSession: "timer"
-    case .protein: "fork.knife"
-    case .water: "drop.fill"
-    case .steps: "figure.walk"
-    case .creatine: "pills.fill"
-    case .sunriseAlarm: "sunrise.fill"
-    case .sleepOnTime: "moon.zzz.fill"
-    case .reading: "book.fill"
-    case .mealPrep: "refrigerator.fill"
-    case .stretchMobility: "figure.flexibility"
-    case .coldShowerSauna: "snowflake"
-    case .custom: "star.fill"
-    }
+    Theme.Symbols.goal(type)
 }
 
 /// A goal's progress for today, shared by Today and Lock. A goal with no numeric target (e.g. a
@@ -1052,7 +1036,8 @@ private struct TodayStatusRow: View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: icon)
                 .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(Theme.Colors.accent)
+                // White: a running timer is not an earned state (the accent is reserved for those).
+                .foregroundStyle(Theme.Colors.text)
                 // Indefinite pulse only while live, never under Reduce Motion.
                 .symbolEffect(.pulse, isActive: isLive && !reduceMotion)
             Text(title)
@@ -1064,11 +1049,9 @@ private struct TodayStatusRow: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)
         .frame(maxWidth: .infinity, minHeight: Theme.Metrics.primaryButtonHeight, alignment: .leading)
-        .background(Theme.Colors.surface2, in: Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
-        }
+        // It floats over scrolling content in the bottom bar, so it is chrome: glass on iOS 26,
+        // material before it — not an opaque slab with an outline.
+        .zanoGlass(in: Capsule())
         .accessibilityElement(children: .combine)
     }
 }

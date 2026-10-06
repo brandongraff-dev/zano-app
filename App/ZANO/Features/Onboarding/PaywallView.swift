@@ -561,22 +561,7 @@ private enum PaywallGoalGlyph {
     }
 
     static func symbol(for type: GoalType) -> String {
-        switch type {
-        case .workoutGym: "dumbbell.fill"
-        case .workoutHomeOutdoor: "figure.run"
-        case .focusSession: "timer"
-        case .protein: "fork.knife"
-        case .water: "drop.fill"
-        case .steps: "figure.walk"
-        case .creatine: "pills.fill"
-        case .sunriseAlarm: "sunrise.fill"
-        case .sleepOnTime: "moon.zzz.fill"
-        case .reading: "book.fill"
-        case .mealPrep: "cart.fill"
-        case .stretchMobility: "figure.flexibility"
-        case .coldShowerSauna: "snowflake"
-        case .custom: "star.fill"
-        }
+        Theme.Symbols.goal(type)
     }
 }
 

@@ -63,14 +63,16 @@ public struct StreakPill: View {
                 }
             }
             .font(Theme.Typography.icon(.medium))
-            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.accent)
+            // The flame is SF Symbols' own multicolor (orange core, yellow tip), as in Fitness's
+            // award glyphs: playful without spending the accent, which stays for earned unlocks.
+            .symbolRenderingMode(isFrozen ? .monochrome : .multicolor)
+            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.Ring.protein)
 
             NumeralText("\(count)", size: .small)
         }
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, Theme.Spacing.xxs)
         .background(Theme.Colors.surface2, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelOverride ?? defaultAccessibilityLabel)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isFrozen)

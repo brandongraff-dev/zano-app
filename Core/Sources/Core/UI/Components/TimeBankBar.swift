@@ -88,6 +88,9 @@ public struct TimeBankBar: View {
                     Image(systemName: "hourglass.bottomhalf.filled")
                         .font(Theme.Typography.icon(.small))
                         .foregroundStyle(barTint)
+                        // Running low is the one state worth drawing the eye to; never under
+                        // Reduce Motion.
+                        .symbolEffect(.pulse, isActive: isLow && !reduceMotion)
                     NumeralText(label, size: labelSize)
                     Spacer(minLength: 0)
                 }

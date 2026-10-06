@@ -1,4 +1,4 @@
-# Session 14 — Apple-native surfaces (Session 5 design redo, step 1 of 3)
+# Session 14 — Apple-native surfaces + icons (Session 5 design redo, steps 1–2 of 3)
 
 - **Branch:** `claude/sweet-mayer-a9hzwo`
 - **Spec sections:** §15 (Design System & UI Direction), §16 (style direction)
@@ -13,8 +13,7 @@ still playful, but professional and clean. They kept the lime accent, to be used
 redo is split into three steps:
 
 1. **Tokens + surfaces (this doc):** palette, cards, glows, default button, tints.
-2. Icons + symbol effects (`GoalRing`, `GoalRow`, `StreakPill`, `LockStatusCard`, `TimeBankBar`,
-   Today/Lock/Fuel), not started.
+2. **Icons + symbol effects + materials:** see the second log entry below.
 3. Motion + haptics (spring tokens, zoom navigation transitions, scroll transitions, the unlock
    sequence, Reduce Motion coverage), not started.
 
@@ -83,3 +82,35 @@ redo is split into three steps:
     earned moments, by convention.
 - **Needs verification on:** CI build + screenshot gallery (workflow_dispatch on this branch), then
   real device (OLED true black, tint inheritance into sheets).
+
+### 2026-10-06 — Step 2: icons, symbol effects, materials
+
+- **Files touched:** `Core/Sources/Core/UI/Theme.swift` (new `Theme.Symbols`),
+  `Core/Sources/Core/UI/Components/{ZanoSurface,GoalRing,GoalRow,StreakPill,LockStatusCard,TimeBankBar,StickyActionBar}.swift`,
+  `App/ZANO/Features/Today/TodayView.swift`, `App/ZANO/Features/Fuel/FuelView.swift`,
+  `App/ZANO/Features/Progress/ProgressView.swift`, `App/ZANO/Features/Trophy/TrophyCaseView.swift`,
+  `App/ZANO/Features/Onboarding/{PaywallView,Screen2SocialProof,Screen3MainGoal,Screen14FirstWin}.swift`.
+- **What changed:**
+  - `Theme.Symbols.goal(_:)` is now the one goal-type → SF Symbol map. It replaces six hand-copied
+    switches that had already drifted. New glyphs: gym = `figure.strengthtraining.traditional`,
+    focus = `brain.head.profile`, sleep = `bed.double.fill`, meal prep = `frying.pan.fill`, cold
+    shower/sauna = `shower.fill` (it used to share `snowflake` with the frozen streak), custom =
+    `sparkles`.
+  - Symbol reactions, all Reduce-Motion gated: a ring's center glyph bounces once when the ring
+    closes (`GoalRing`), the row checkmark bounces once on completion (`GoalRow`), and the Time
+    Bank hourglass pulses only while the balance is low. The streak flame uses SF multicolor
+    (orange/yellow) instead of the lime. Hierarchical rendering on ring glyphs.
+  - `LockStatusCard` locked padlock is `textSecondary`, not red (spec §15: locked reads calm).
+  - Materials: new `zanoGlass(in:)` (Liquid Glass on iOS 26, `.ultraThinMaterial` before) for
+    floating chrome; Today's bottom status capsule ("focus running" etc.) uses it.
+    `StickyActionBar` is now a progressive blur (material masked by a fade, plus a light darkening
+    gradient). New `zanoSheetBackground()`: the system glass sheet on iOS 26, `.regularMaterial`
+    before. Applied to Fuel's two half-height sheets, whose opaque black fill was removed.
+  - Numerals were already SF Pro Rounded (`Theme.Typography.numeral*`); no change needed.
+- **Decisions made and why:** content cards stay opaque, and glass is only for the floating layer,
+  per Apple's own rule for Liquid Glass. The timer-style status row is white, not lime (a running
+  timer is not earned).
+- **Known issues:** `glassEffect` and `brain.head.profile` / `frying.pan.fill` rendering are
+  unverified until CI screenshots and a device. Sheet tint/material inheritance through
+  `NavigationStack` is unverified on iOS 17/18.
+- **Needs verification on:** CI build + screenshots, then device.

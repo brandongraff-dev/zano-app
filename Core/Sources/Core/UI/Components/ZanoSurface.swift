@@ -53,6 +53,49 @@ extension View {
     }
 }
 
+extension View {
+
+    /// Floating chrome — a pinned status capsule, a bar that hovers over scrolling content — drawn
+    /// the way the system draws its own: Liquid Glass on iOS 26, `.ultraThinMaterial` before it.
+    /// Content cards stay opaque `zanoCard`s: Apple reserves glass for the layer that floats above
+    /// content, never for the content itself.
+    public func zanoGlass<S: Shape>(in shape: S) -> some View {
+        modifier(ZanoGlass(shape: shape))
+    }
+}
+
+extension View {
+
+    /// The backdrop for a partial-height sheet: the system's own Liquid Glass sheet on iOS 26 (by
+    /// leaving the background alone), `.regularMaterial` before it. Apply to the sheet's root and
+    /// do not paint an opaque background inside it, or the material never shows.
+    public func zanoSheetBackground() -> some View {
+        modifier(ZanoSheetBackground())
+    }
+}
+
+struct ZanoSheetBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+        } else {
+            content.presentationBackground(.regularMaterial)
+        }
+    }
+}
+
+struct ZanoGlass<S: Shape>: ViewModifier {
+    let shape: S
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.ultraThinMaterial, in: shape)
+        }
+    }
+}
+
 struct ZanoSurface: ViewModifier {
     let radius: CGFloat
     let fill: Color

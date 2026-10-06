@@ -16,7 +16,7 @@
 // chrome (status bar, system alerts) flips appearance — not because the tokens themselves change.
 //
 // No user-facing copy lives here (CLAUDE.md: "User-facing copy lives in Core/Sources/Core/Copy").
-// `Theme` only ever exposes colors, radii, spacing, type ramps, and motion curves.
+// `Theme` only ever exposes colors, symbols, radii, spacing, type ramps, and motion curves.
 //
 // Design-quality pass (docs/design/{better-ui,typography-color,2026-ios-trends,composition-audit}
 // findings, 2026-09-23). What changed here and why, in one place so nobody has to re-derive it:
@@ -251,6 +251,37 @@ public enum Theme {
                 case .coldShowerSauna: coldShowerSauna
                 case .custom: custom
                 }
+            }
+        }
+    }
+
+    // MARK: - Symbols
+
+    /// SF Symbol identifiers (not copy) for each goal type — the ONE map. Before 2026-10-06 the
+    /// same switch was hand-copied in Today, the paywall and three onboarding screens, and had
+    /// already drifted (meal prep was a refrigerator in one and a cart in another).
+    ///
+    /// Chosen to read like Apple's own Fitness/Health glyphs: a figure doing the activity where one
+    /// exists (strength training, not a dumbbell clip-art), and no symbol shared with app UI (the
+    /// cold-shower goal was a `snowflake`, the same glyph as a frozen streak). All names exist in
+    /// SF Symbols 4 or earlier (iOS 16+), under this target's iOS 17 floor.
+    public enum Symbols {
+        public static func goal(_ type: GoalType) -> String {
+            switch type {
+            case .workoutGym: "figure.strengthtraining.traditional"
+            case .workoutHomeOutdoor: "figure.run"
+            case .focusSession: "brain.head.profile"
+            case .protein: "fork.knife"
+            case .water: "drop.fill"
+            case .steps: "figure.walk"
+            case .creatine: "pills.fill"
+            case .sunriseAlarm: "sunrise.fill"
+            case .sleepOnTime: "bed.double.fill"
+            case .reading: "book.fill"
+            case .mealPrep: "frying.pan.fill"
+            case .stretchMobility: "figure.flexibility"
+            case .coldShowerSauna: "shower.fill"
+            case .custom: "sparkles"
             }
         }
     }

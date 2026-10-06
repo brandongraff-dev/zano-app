@@ -257,9 +257,9 @@ private struct TrioSlot {
     let target: Double
 
     static let all: [TrioSlot] = [
-        TrioSlot(type: .workoutGym, icon: "dumbbell.fill", target: 0.78),
-        TrioSlot(type: .protein, icon: "fork.knife", target: 0.50),
-        TrioSlot(type: .focusSession, icon: "timer", target: 0.30),
+        TrioSlot(type: .workoutGym, icon: Theme.Symbols.goal(.workoutGym), target: 0.78),
+        TrioSlot(type: .protein, icon: Theme.Symbols.goal(.protein), target: 0.50),
+        TrioSlot(type: .focusSession, icon: Theme.Symbols.goal(.focusSession), target: 0.30),
     ]
 }
 

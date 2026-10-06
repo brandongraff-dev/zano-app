@@ -54,7 +54,7 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 11 | Squads, duels, nudges, referral, share cards, Locked-Out moment | `main` | §5.7, §5.16, §9.3 | Scaffolded — Unverified | 2026-09-22 | [11-social.md](sessions/11-social.md) |
 | 12 | ML service: slip risk + nudge bandit; pg_cron feature job | `main` | §9.2, §9.3, §9.9 | Scaffolded — Unverified (nudge bandit itself still needs real delivered/acted data, see session doc) | 2026-09-22 | [12-ml-service.md](sessions/12-ml-service.md) |
 | 13 | Watch app, gym leaderboard, seasons/ranks, cosmetics | `main` | §5.8, §5.9, §5.17, §5.21 | Scaffolded — Unverified (Watch upgraded from skeleton to real complications/wrist controls/haptics in wave 5 — still the least-verified slice, zero watchOS SDK to check against) | 2026-09-22 | [13-v3-slices.md](sessions/13-v3-slices.md) |
-| 14 | Design redo (Session 5 follow-up), step 1/3: Apple-native tokens + surfaces; lime only on earned moments | `claude/sweet-mayer-a9hzwo` | §15, §16 | Scaffolded — Unverified (needs CI build + screenshot review, then device) | 2026-10-06 | [14-apple-native-surfaces.md](sessions/14-apple-native-surfaces.md) |
+| 14 | Design redo (Session 5 follow-up), steps 1–2/3: Apple-native tokens + surfaces (lime only on earned moments), shared goal symbols + symbol effects, glass/material chrome | `claude/sweet-mayer-a9hzwo` | §15, §16 | Scaffolded — Unverified (needs CI build + screenshot review, then device) | 2026-10-06 | [14-apple-native-surfaces.md](sessions/14-apple-native-surfaces.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.

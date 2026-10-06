@@ -162,7 +162,7 @@ public struct TrophyCaseView: View {
         TrophyMilestone(key: "streak_30", systemImage: "flame.fill"),
         TrophyMilestone(key: "streak_100", systemImage: "crown.fill"),
         TrophyMilestone(key: "protein_1000g_week", systemImage: "fork.knife"),
-        TrophyMilestone(key: "gym_50_sessions", systemImage: "dumbbell.fill"),
+        TrophyMilestone(key: "gym_50_sessions", systemImage: Theme.Symbols.goal(.workoutGym)),
     ]
 
     private var earnedMilestoneCount: Int {

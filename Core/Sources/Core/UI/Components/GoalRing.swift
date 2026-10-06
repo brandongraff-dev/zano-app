@@ -100,6 +100,9 @@ public struct GoalRing: View {
     /// without the caller having to track history itself (docs/design/animation-opportunities.md
     /// row 4b).
     @State private var justCompleted = false
+    /// Bumped on the same forward crossing as `justCompleted`, so a center glyph bounces once as the
+    /// ring closes (Activity's "ring closed" beat). Never bumped under Reduce Motion.
+    @State private var completionTick = 0
 
     /// - Parameters:
     ///   - progress: Completion fraction. Any value is accepted and clamped to `0...1` internally
@@ -170,6 +173,7 @@ public struct GoalRing: View {
         .onChange(of: clampedProgress) { oldValue, newValue in
             guard !reduceMotion, oldValue < 1, newValue >= 1 else { return }
             justCompleted = true
+            completionTick += 1
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(250))
                 justCompleted = false
@@ -252,7 +256,9 @@ public struct GoalRing: View {
         case .icon(let systemName):
             Image(systemName: systemName)
                 .font(.system(size: diameter * 0.34, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(color)
+                .symbolEffect(.bounce, options: .nonRepeating, value: completionTick)
         case .text(let composed):
             if let parts = ProgressTextSplit.split(composed) {
                 valueStack(value: parts.value, unit: parts.unit, diameter: diameter, lineWidth: lineWidth)

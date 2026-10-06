@@ -9,11 +9,13 @@
 // content, below the fold on real phones (docs/design/better-layout-findings.md §7, composition-audit
 // offenders 1/5/8).
 //
-// One component instead: a bottom inset on the screen's own scroll view that fades the content into
-// the background rather than drawing a panel, so it never competes with system chrome
-// (composition-audit.md: "a LinearGradient fade rather than .ultraThinMaterial"). Deliberately not
-// `safeAreaBar` (iOS 26 only, and this target is iOS 17): `safeAreaInset` works everywhere and the
-// fade is the same idea.
+// One component instead: a bottom inset on the screen's own scroll view. Since 2026-10-06 its
+// backdrop is a *progressive* blur — `.ultraThinMaterial` masked by a gradient, so content scrolling
+// beneath the button frosts gradually instead of meeting a hard-edged slab. That is the look of
+// iOS 26's own scroll edge effect, and it keeps the earlier audit's point (composition-audit.md: no
+// full-width grey panel stacked on the glass tab bar) while giving the bar real depth. A darkening
+// gradient under the blur keeps the button's contrast on busy content. Deliberately not
+// `safeAreaBar` (iOS 26 only, and this target is iOS 17): `safeAreaInset` works everywhere.
 
 import SwiftUI
 
@@ -33,16 +35,31 @@ public struct StickyActionBar<Content: View>: View {
             .padding(.bottom, Theme.Spacing.sm)
             .frame(maxWidth: .infinity)
             .background {
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: Theme.Colors.background.opacity(0), location: 0),
-                        Gradient.Stop(color: Theme.Colors.background.opacity(0.94), location: 0.35),
-                        Gradient.Stop(color: Theme.Colors.background, location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .mask {
+                            LinearGradient(
+                                stops: [
+                                    Gradient.Stop(color: .clear, location: 0),
+                                    Gradient.Stop(color: .black, location: 0.45)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        }
+                    LinearGradient(
+                        stops: [
+                            Gradient.Stop(color: Theme.Colors.background.opacity(0), location: 0),
+                            Gradient.Stop(color: Theme.Colors.background.opacity(0.55), location: 0.5),
+                            Gradient.Stop(color: Theme.Colors.background.opacity(0.75), location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
                 .ignoresSafeArea(edges: .bottom)
+                .allowsHitTesting(false)
             }
     }
 }

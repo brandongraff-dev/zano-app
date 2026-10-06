@@ -870,7 +870,7 @@ private enum ProgressBadgeIconMap {
         case "streak_100": return "crown.fill"
         case "streak_365": return "trophy.fill"
         case "protein_1000g_week": return "fork.knife"
-        case "gym_50_sessions": return "dumbbell.fill"
+        case "gym_50_sessions": return Theme.Symbols.goal(.workoutGym)
         default: return "rosette"
         }
     }

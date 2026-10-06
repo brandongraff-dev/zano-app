@@ -75,6 +75,9 @@ struct PlannerView: View {
                         Button { Task { await startNewEvent() } } label: {
                             Label(Copy.planner.newEvent, systemImage: "calendar.badge.plus")
                         }
+                        ShareLink(item: PlannerShare.text(for: agenda, day: selected)) {
+                            Label(Copy.planner.shareDayButton, systemImage: "square.and.arrow.up")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }

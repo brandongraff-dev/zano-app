@@ -58,6 +58,14 @@ extension Copy {
         public static let leadLabel = "Alert"
         public static let remindByDefault = "Remind me by default for new tasks"
 
+        // Sharing
+        public static let shareDayButton = "Share this day"
+        public static let shareTaskButton = "Share task"
+        public static let householdMenuItem = "Household tasks"
+
+        public static func shareDue(day: String, time: String) -> String { "Due \(day) at \(time)" }
+        public static func shareDueDay(day: String) -> String { "Due \(day)" }
+
         // Notifications
         public static let taskNotificationTitle = "Reminder"
 

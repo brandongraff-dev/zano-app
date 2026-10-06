@@ -15,6 +15,7 @@ public enum PlannerStore {
         static let tasks = "planner.tasks.v1"
         static let settings = "planner.settings.v1"
         static let scheduled = "planner.scheduledReminderIDs.v1"
+        static let sharedAssigned = "planner.sharedAssigned.v1"
     }
 
     /// Done tasks older than this are dropped when the list is saved.
@@ -35,6 +36,13 @@ public enum PlannerStore {
     public static var scheduledIdentifiers: [String] {
         get { defaults.stringArray(forKey: Keys.scheduled) ?? [] }
         set { defaults.set(newValue, forKey: Keys.scheduled) }
+    }
+
+    /// My open Household tasks that have a date, mirrored here so their reminders keep working when the
+    /// Household screen is closed (`HouseholdBoard.reminderTasks`). Replaced whenever the board is read.
+    public static var sharedAssigned: [PlannerTask] {
+        get { read([PlannerTask].self, key: Keys.sharedAssigned) ?? [] }
+        set { write(Array(newValue.prefix(100)), key: Keys.sharedAssigned) }
     }
 
     public static func upsert(_ task: PlannerTask) {

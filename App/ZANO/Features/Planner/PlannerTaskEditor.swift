@@ -76,6 +76,9 @@ struct PlannerTaskEditor: View {
                 }
                 if let task {
                     Section {
+                        ShareLink(item: PlannerShare.text(for: task)) {
+                            Label(Copy.planner.shareTaskButton, systemImage: "square.and.arrow.up")
+                        }
                         Button(Copy.planner.delete, role: .destructive) {
                             PlannerStore.delete(id: task.id)
                             onSave()

@@ -445,6 +445,18 @@ struct SettingsView: View {
                     PlannerSettingsView()
                 }
 
+                if HouseholdAvailability.isLive {
+                    SettingsRowDivider()
+
+                    SettingsNavRow(
+                        Copy.household.rowLabel,
+                        systemImage: "house.fill",
+                        tint: SettingsPalette.goals
+                    ) {
+                        HouseholdView()
+                    }
+                }
+
                 if FamilyLinkAvailability.isLive {
                     SettingsRowDivider()
 

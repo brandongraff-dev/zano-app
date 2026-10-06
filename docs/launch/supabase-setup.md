@@ -26,8 +26,8 @@ things in agreement").
    `supabase login`, then from `backend/`: `supabase link --project-ref <ref>` (the ref is in the project
    URL). The repo has no `config.toml`; if the CLI asks, run `supabase init` first and keep the folders.
 
-3. **Apply the database.** `supabase db push` applies `migrations/0001` to `0006` (schema, RLS, auth/storage,
-   waitlist, ML feature job, staples, Family Link). Then open Table Editor and confirm RLS shows as enabled
+3. **Apply the database.** `supabase db push` applies `migrations/0001` to `0007` (schema, RLS, auth/storage,
+   waitlist, ML feature job, staples, Family Link, Household). Then open Table Editor and confirm RLS shows as enabled
    on every table. 0006 also creates the private `family-proofs` bucket; confirm it is **private** in Storage.
 
 4. **Turn on the extensions** (Database > Extensions): `pg_cron` and `pg_net`. They are needed for the
@@ -71,7 +71,7 @@ things in agreement").
 
 10. **Point the app at it.** Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` as build settings (the anon key is
     public by design, safe to ship) the way `REVENUECAT_API_KEY` is passed (`project.yml`, Codemagic env
-    group). Then set `FamilyLinkAvailability.isLive = true` and rebuild.
+    group). Then set `FamilyLinkAvailability.isLive = true` and `HouseholdAvailability.isLive = true` and rebuild.
 
 ## Check it works (needs two phones or two Apple IDs)
 

@@ -355,4 +355,5 @@ Notifications need no plist string (requested in `Screen14FirstWin.swift`).
   teen's identifier, task text and one proof photo go to Supabase. Add **User ID**, **Other User Content**
   and **Photos or Videos** (linked to the person, not for tracking, purpose App Functionality) the same day
   it ships, and publish the privacy-policy row marked `[CONFIRM WHEN FAMILY LINK IS LIVE]`.
+- **Household (switched off in the build until Supabase and sign-in are live):** when on, add **Other User Content** (task text) and **User ID** with Family Link's answers; same publishing rule as the privacy-policy row marked `[CONFIRM WHEN HOUSEHOLD IS LIVE]`.
 - **Background modes:** none declared since 2026-10-06 (location removed).

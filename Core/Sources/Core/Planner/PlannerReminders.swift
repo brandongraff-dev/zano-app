@@ -76,7 +76,7 @@ public enum PlannerReminders {
         let events = settings.eventAlerts && PlannerCalendarSource.hasAccess
             ? PlannerCalendarSource.events(from: now, to: now.addingTimeInterval(eventHorizon))
             : []
-        let plan = plan(tasks: PlannerStore.tasks, events: events, settings: settings, now: now)
+        let plan = plan(tasks: PlannerStore.tasks + PlannerStore.sharedAssigned, events: events, settings: settings, now: now)
 
         NotificationPermission.cancel(identifiers: PlannerStore.scheduledIdentifiers)
         var scheduled: [String] = []

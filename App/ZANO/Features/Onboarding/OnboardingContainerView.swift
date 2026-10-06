@@ -196,6 +196,8 @@ struct OnboardingScaffold<Content: View>: View {
                         value: flowState.progressFraction
                     )
             }
+            // `ringFill` is a spring: the last step's brief overshoot stays inside the track.
+            .clipShape(Capsule())
         }
         .frame(height: OnboardingKit.progressBarHeight)
         .accessibilityElement(children: .ignore)

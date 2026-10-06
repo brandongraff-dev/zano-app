@@ -534,7 +534,7 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 - Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32
 - Type: SF Pro (or one variable display font for numerals, e.g., a condensed grotesque); big numerals for grams/minutes/streak
-- Motion: spring animations; ring fills ease-out 600ms; unlock celebration ≤ 1.2s; haptics on every verified event
+- Motion: spring animations; ring fills spring ~700ms with a slight settle (was ease-out 600ms; changed 2026-10-06 so rings close like Activity's); unlock celebration ≤ 1.2s; haptics on every verified event. Tapped cards zoom into the screen they open (iOS 18+); top-level cards settle slightly as they scroll off an edge
 
 **Core components (build first, in Core/UI):** `GoalRing`, `RingCluster`, `LockStatusCard`, `StreakPill`, `TimeBankBar`, `PrimaryButton` (hold-to-commit variant), `ShieldPreview`, `GoalRow`, `RecapCard`, `ShareCard` (9:16 renderer), `OnboardingQuestion`, `PaywallCard`.
 

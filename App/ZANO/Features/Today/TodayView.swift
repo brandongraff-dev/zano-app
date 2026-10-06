@@ -121,6 +121,8 @@ struct TodayView: View {
     @State private var isPerformingPrimaryAction = false
     @State private var actionError: String?
     @State private var showLockDetail = false
+    /// The hero card zooms into the Lock screen it opens (iOS 18+; a standard push before).
+    @Namespace private var lockZoom
     /// Drives `UnlockCelebrationView`'s `.fullScreenCover` below (docs/spec.md §16 P3). Set only
     /// for an *earned* unlock (`lastUnlockWasEarned`) by the `onChange(of: isLocked)` handler —
     /// manual/emergency/schedule-end unlocks never get the celebration moment.
@@ -141,9 +143,13 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     header
                     heroCard
+                        .zanoZoomSource(id: "lockDetail", in: lockZoom)
+                        .zanoScrollSettle()
                     ringsSection
+                        .zanoScrollSettle()
                     if let ghostComparison {
                         ghostRow(ghostComparison)
+                            .zanoScrollSettle()
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.md)
@@ -164,6 +170,7 @@ struct TodayView: View {
             }
             .navigationDestination(isPresented: $showLockDetail) {
                 LockStatusView()
+                    .zanoZoomDestination(id: "lockDetail", in: lockZoom)
             }
             .task(id: trackingGymID) {
                 await pollGymDwell()

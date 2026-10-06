@@ -472,12 +472,15 @@ public enum Theme {
 
     // MARK: - Motion
 
-    /// Motion curves from spec §15: "Motion: spring animations; ring fills ease-out 600ms; unlock
-    /// celebration ≤ 1.2s; haptics on every verified event."
+    /// Motion curves from spec §15: "Motion: spring animations; ring fills spring ~700ms with a
+    /// slight settle; unlock celebration ≤ 1.2s; haptics on every verified event."
     public enum Motion {
-        /// Spec-exact: "ring fills ease-out 600ms". Drives `GoalRing`'s trim animation and
-        /// `TimeBankBar`'s fill animation.
-        public static let ringFill: Animation = .easeOut(duration: 0.6)
+        /// Ring and bar fills (`GoalRing`'s trim, `TimeBankBar`, onboarding progress). A spring with
+        /// a small overshoot-and-settle, like Activity's rings, instead of the original 600ms
+        /// ease-out, which read as a progress bar loading rather than something physical closing
+        /// (docs/design/apple-design-review.md §0; changed 2026-10-06, spec §15 amended). Trim
+        /// clamps at 1, so a full ring never draws past closed.
+        public static let ringFill: Animation = .spring(response: 0.7, dampingFraction: 0.78)
 
         /// Spec-exact ceiling: "unlock celebration ≤ 1.2s". Callers building an unlock-burst
         /// animation (e.g. the Today screen's celebration overlay) should keep the total sequence

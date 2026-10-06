@@ -87,6 +87,8 @@ import Core
 /// of never owning navigation chrome themselves.
 public struct TrophyCaseView: View {
     @Query(sort: \Badge.earnedAt, order: .reverse) private var badges: [Badge]
+    /// The shop row zooms into the shop (iOS 18+; a standard push before).
+    @Namespace private var shopZoom
 
     public init() {}
 
@@ -251,6 +253,7 @@ public struct TrophyCaseView: View {
     private var shopLink: some View {
         NavigationLink {
             CosmeticsShopView()
+                .zanoZoomDestination(id: "cosmeticsShop", in: shopZoom)
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
                 IconBadge(systemName: "paintpalette.fill", tint: Theme.Colors.text, size: .small)
@@ -273,6 +276,7 @@ public struct TrophyCaseView: View {
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         }
         .buttonStyle(.pressable)
+        .zanoZoomSource(id: "cosmeticsShop", in: shopZoom)
     }
 }
 

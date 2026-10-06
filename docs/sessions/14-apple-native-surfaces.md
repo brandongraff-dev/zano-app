@@ -1,4 +1,4 @@
-# Session 14 — Apple-native surfaces + icons (Session 5 design redo, steps 1–2 of 3)
+# Session 14 — Apple-native design redo (Session 5 follow-up, steps 1–3)
 
 - **Branch:** `claude/sweet-mayer-a9hzwo`
 - **Spec sections:** §15 (Design System & UI Direction), §16 (style direction)
@@ -14,8 +14,7 @@ redo is split into three steps:
 
 1. **Tokens + surfaces (this doc):** palette, cards, glows, default button, tints.
 2. **Icons + symbol effects + materials:** see the second log entry below.
-3. Motion + haptics (spring tokens, zoom navigation transitions, scroll transitions, the unlock
-   sequence, Reduce Motion coverage), not started.
+3. **Motion + haptics:** see the third log entry below.
 
 ## Definition of done (step 1)
 
@@ -114,3 +113,28 @@ redo is split into three steps:
   unverified until CI screenshots and a device. Sheet tint/material inheritance through
   `NavigationStack` is unverified on iOS 17/18.
 - **Needs verification on:** CI build + screenshots, then device.
+
+### 2026-10-06 — Step 3: motion
+
+- **Files touched:** `Core/Sources/Core/UI/Components/ZanoMotion.swift` (new),
+  `Core/Sources/Core/UI/Theme.swift`, `Core/Sources/Core/UI/Components/TimeBankBar.swift`,
+  `App/ZANO/Features/Today/TodayView.swift`, `App/ZANO/Features/Progress/ProgressView.swift`,
+  `App/ZANO/Features/Trophy/TrophyCaseView.swift`,
+  `App/ZANO/Features/Onboarding/{OnboardingContainerView,Screen1Hook}.swift`, `docs/spec.md` (§15).
+- **What changed:**
+  - `Theme.Motion.ringFill` is a spring (`response 0.7, damping 0.78`) instead of a 600ms
+    ease-out, so rings and bars close with a small physical settle, like Activity's. The
+    Time Bank and onboarding bars clip to their track so the overshoot never pokes out.
+  - Zoom navigation (iOS 18+, a normal push on 17): Today's hero card → Lock screen, Progress's
+    Trophy Case link → Trophy Case, Trophy Case's shop row → Cosmetics shop. Implemented as
+    `zanoZoomSource(id:in:)` / `zanoZoomDestination(id:in:)`.
+  - `zanoScrollSettle()`: top-level cards ease to 96% scale / 65% opacity as they leave the scroll
+    edge (off under Reduce Motion). Applied to Today and Progress top-level sections.
+- **Already in place, verified by reading (no change):** the unlock celebration's full choreography
+  (seal → open padlock, ring close, particle burst, count-up, success haptic, all within 1.2s,
+  Reduce Motion-aware), success haptics on Fuel logs, goal completion, hold-to-commit and lock
+  transitions.
+- **Known issues:** the zoom transitions and scroll settle can only be judged on a device or
+  Simulator (the CI screenshots are static). Screen1Hook's unlock beat still waits a fixed 0.6s,
+  while the spring reaches visually full at about 0.6–0.7s and settles a little later.
+- **Needs verification on:** CI build, then Simulator/device for feel.

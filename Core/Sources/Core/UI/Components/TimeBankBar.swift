@@ -130,6 +130,8 @@ public struct TimeBankBar: View {
                     .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: fraction)
                     .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: isLow)
             }
+            // `ringFill` is a spring: a full bar's brief overshoot stays inside the track.
+            .clipShape(Capsule())
         }
         .frame(height: Theme.Metrics.progressBarHeight)
     }

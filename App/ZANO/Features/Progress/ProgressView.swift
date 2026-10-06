@@ -159,6 +159,8 @@ import Core
 struct ProgressView: View {
     @Query(sort: \LockSession.startedAt) private var allLockSessions: [LockSession]
     @Query private var streaks: [Streak]
+    /// The Trophy Case link zooms into the screen it opens (iOS 18+; a standard push before).
+    @Namespace private var trophyZoom
     @Query(sort: \Badge.earnedAt, order: .reverse) private var badges: [Badge]
     @Query(sort: \Recap.weekStart, order: .reverse) private var recaps: [Recap]
     @Query private var allGoals: [Goal]
@@ -175,12 +177,17 @@ struct ProgressView: View {
             // names and the groups read as groups without divider lines (better-layout 2).
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 timeReclaimedHero
+                    .zanoScrollSettle()
                 streakSection
+                    .zanoScrollSettle()
                 badgesSection
+                    .zanoScrollSettle()
                 if let recap = recaps.first {
                     recapSection(recap)
+                        .zanoScrollSettle()
                 } else {
                     recapEmptyState
+                        .zanoScrollSettle()
                 }
             }
             .padding(.horizontal, Theme.Spacing.md)
@@ -363,10 +370,12 @@ struct ProgressView: View {
         VStack(alignment: .leading, spacing: 0) {
             NavigationLink {
                 TrophyCaseView()
+                    .zanoZoomDestination(id: "trophyCase", in: trophyZoom)
             } label: {
                 ProgressSectionLabel(text: Copy.progress.badgesSectionTitle, showsChevron: true)
             }
             .buttonStyle(PressableStyle())
+            .zanoZoomSource(id: "trophyCase", in: trophyZoom)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 if badges.isEmpty {

@@ -48,7 +48,7 @@ struct Screen1Hook: View {
     @State private var isUnlocked = false
     @State private var unlockTick = 0
 
-    /// The ring fill runs on `Theme.Motion.ringFill` (0.6s); the unlock beat waits for it.
+    /// The ring fill runs on `Theme.Motion.ringFill` (a ~0.7s spring); the unlock beat waits for it.
     private static let fillMilliseconds = 600
 
     private var isShown: Bool { revealed || reduceMotion }

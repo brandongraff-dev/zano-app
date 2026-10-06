@@ -28,9 +28,11 @@ def eye(s,x,y,w,h,expr,iris,side,skin,lid=INKC,rim=None):
         hx0=x+(w-5)//2
         s.rowsF(hx0,y,["KK.KK","KKKKK","KKKKK",".KKK.","..K.."],{'K':'#FF4F7B'})
         s.F(hx0+1,y+1,'#FFC2D1','~h'); return
-    if expr=='blaze':                           # fire eyes: a little flame in each eye
-        fx=x+(w-5)//2; fy=y+(h-6)//2
-        s.rowsF(fx,fy,["..R..",".RO..",".ROR.","ROYOR","ROYYR",".ROR."],{'R':'#FF4D2E','O':'#FF9A2E','Y':'#FFE066'}); return
+    if expr=='blaze':                           # glowing ember eyes: warm orange over gold, a bright sparkle
+        for (i,j) in O:
+            s.F(x+i,y+j,'#FFD447' if j>=h*0.5 else '#FF8A2E')
+        s.F(x+1,y+1,WHITE); s.F(x+2,y+1,WHITE); s.F(x+1,y+2,WHITE)
+        s.F(x+w-2,y+h-2,'#FFF1B8'); return
     if expr=='frozen':                          # ice eyes: pale crystal with a small dark pupil
         for (i,j) in O: s.F(x+i,y+j,'#CFF3FF')
         cx=x+w//2; cy=y+h//2
@@ -96,13 +98,13 @@ def brows(s,lx,rx,y,w,expr,col):
             s.F(lx+i, y+1-(i*2)//(w-1), col); s.F(rx+w-2-i, y+1-(i*2)//(w-1), col)
     elif expr=='meh':
         for i in range(w-1): s.F(lx+1+i,y+1,col); s.F(rx+i,y+1,col)
-    elif expr in ('lifting','focused','blaze','guarding'):    # angry-V: determined, never mean (no mouth to match)
+    elif expr in ('lifting','focused','guarding'):    # angry-V: determined, never mean (no mouth to match)
         for i in range(w-1):
             s.F(lx+i, y-1+(i*2)//(w-1), col); s.F(rx+w-2-i, y-1+(i*2)//(w-1), col)
     elif expr in ('hungry','frozen'):
         for i in range(w-1):
             s.F(lx+i, y+1-(i*2)//(w-1), col); s.F(rx+w-2-i, y+1-(i*2)//(w-1), col)
-    elif expr in ('excited','flexing','proud'):
+    elif expr in ('excited','flexing','proud','blaze'):
         for i in range(1,w-1): s.F(lx+i,y-1,col); s.F(rx+i,y-1,col)
 
 MOUTHS={
@@ -124,7 +126,7 @@ MOUTHS={
  'yawning':[".KKK.","KRRRK","KRTRK","KRRRK",".KKK."],
  'proud':  ["K...K",".KKK."],
  'lovey':  ["KKKKK","KRRRK",".KTK."],
- 'blaze':  ["KKKKKK","KWWWWK","KKKKKK"],
+ 'blaze':  ["KKKKK","KRRRK","KRTRK",".KKK."],
  'frozen': ["KKKKK","KWKWK","KKKKK"],
  'guarding':["KKKK"],
  'tinkering':["K...K",".KKK."],
@@ -139,7 +141,7 @@ def mouth(s,cx,y,expr,style='smile'):
 
 def blush(s,lx,rx,y,expr,col='#FF8FAB'):
     if expr in ('drained','sad','meh','thirsty','hungry','focused','guarding'): return
-    w=4 if expr in ('happy','excited','ecstatic','flexing','proud','lovey','eating','sipping') else 3
+    w=4 if expr in ('happy','excited','ecstatic','flexing','proud','lovey','eating','sipping','blaze') else 3
     for i in range(w):
         s.F(lx+i,y,col,'_bl'); s.F(rx+i-(w-3),y,col,'_bl')
     if expr in ('ecstatic','lovey'):

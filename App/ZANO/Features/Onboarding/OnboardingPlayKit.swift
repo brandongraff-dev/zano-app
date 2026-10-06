@@ -23,6 +23,12 @@
 // Buddies (2026-10-03): the guide and the meter's end are the user's buddy (`BuddySprite`, read from
 // the App Group with `@AppStorage`), picked on step 2, instead of the star. Stash until then.
 //
+// Character pass (session 30, 2026-10-06, founder: "fun, with super good animations"): the buddy
+// acts out the answers. `OnboardingBuddyActor` is a buddy in a pose that hops (Core's `zanoMascot`
+// jump) every time its pose changes, so a screen only has to say *which* face fits its state; the
+// guide takes a `pose` too, and the charge button reports its charge so the plan step's buddy can
+// strain while the user holds.
+//
 // Nothing here edits Core/UI; it only composes `BuddySprite`, `zanoMascot`, `zanoChargeBurst`,
 // `ZanoSticker`, `zanoCard`, `zanoGlass` and `Theme` tokens. Every motion is gated on Reduce Motion (the star is still, the
 // bubble cross-fades, nothing scales). One orchestrated moment per screen is the caller's job.
@@ -64,6 +70,42 @@ struct OnboardingSticker: View {
     }
 }
 
+// MARK: - Buddy actor
+
+/// The user's buddy (or `buddy`, when a screen shows someone else) in `pose`, with Core's mascot
+/// motion for `mood`. Every pose change is a reaction: a crouch-leap-squash hop and, optionally, a
+/// burst in `burstColor`. `react` bumps the same hop without a new face. Reduce Motion: the face
+/// still changes, nothing hops (`zanoMascot` and `zanoChargeBurst` handle that). Decorative.
+struct OnboardingBuddyActor: View {
+    let pose: BuddyPose
+    /// A multiple of 16pt keeps the pixels crisp.
+    var size: CGFloat = 64
+    var mood: ZanoMascotMood = .idle
+    /// nil: the user's stored buddy.
+    var buddy: Buddy? = nil
+    /// A burst on each reaction in this colour; nil for a plain hop.
+    var burstColor: Color? = nil
+    var react: Int = 0
+
+    @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var storedBuddy: Buddy = .default
+    @State private var jumpTick = 0
+    @State private var burstTick = 0
+
+    var body: some View {
+        BuddySprite(buddy ?? storedBuddy, pose: pose, size: size)
+            .zanoMascot(mood: mood, jump: jumpTick, size: size, showsGlow: false)
+            .zanoChargeBurst(trigger: burstTick, color: burstColor ?? .clear, sparks: burstColor != nil)
+            .onChange(of: pose) { _, _ in bump() }
+            .onChange(of: react) { _, _ in bump() }
+            .accessibilityHidden(true)
+    }
+
+    private func bump() {
+        jumpTick += 1
+        if burstColor != nil { burstTick += 1 }
+    }
+}
+
 // MARK: - Guide star
 
 /// The user's buddy with a speech bubble (the star until 2026-10-03; the name stayed). `line` is
@@ -78,6 +120,8 @@ struct OnboardingGuideStar: View {
     var tint: Color = Theme.Colors.accent
     /// `.idle` while it waits for an answer, `.perky` once it has one.
     var mood: ZanoMascotMood = .idle
+    /// The face it pulls (session 30): each step maps its answer to one, e.g. lifting for the gym.
+    var pose: BuddyPose = .idle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
@@ -85,7 +129,7 @@ struct OnboardingGuideStar: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.xs) {
-            BuddySprite(buddy, pose: .idle, size: starHeight)
+            BuddySprite(buddy, pose: pose, size: starHeight)
                 .background {
                     OnboardingKit.StarBloom(diameter: starHeight * 3)
                         .opacity(0.35 + 0.5 * charge)
@@ -99,6 +143,7 @@ struct OnboardingGuideStar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: line) { _, _ in reactTick += 1 }
+        .onChange(of: pose) { _, _ in reactTick += 1 }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.55), trigger: reactTick)
     }
 
@@ -209,6 +254,8 @@ struct OnboardingChargeButton: View {
     let title: String
     var chargingTitle: String = Copy.onboarding.commitCharging
     var isEnabled: Bool = true
+    /// The charge (0...1) as it fills and drains, for a buddy that strains along (session 30).
+    var onChargeChange: (Double) -> Void = { _ in }
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -250,6 +297,7 @@ struct OnboardingChargeButton: View {
                 action()
             }
             .onDisappear { holdTask?.cancel() }
+            .onChange(of: progress) { _, value in onChargeChange(value) }
     }
 
     private var label: some View {

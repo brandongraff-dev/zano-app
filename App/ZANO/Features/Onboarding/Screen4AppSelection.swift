@@ -48,6 +48,11 @@
 // "Your app list never leaves this phone." It is true (CLAUDE.md: tokens never leave the device) and
 // it is the moment users are about to see a system permission prompt.
 
+// CHARACTER PASS (session 30, 2026-10-06): the guide stands guard (its padlock) while it waits for
+// the "villains", and once they're picked it fires up (blaze: glowing eyes, raised fists). The
+// picked apps drop into the card one after another with a squash (`OnboardingDropIn`). Reduce
+// Motion: the faces change; the tiles are simply there.
+
 import SwiftUI
 import FamilyControls
 import ManagedSettings
@@ -120,7 +125,8 @@ struct Screen4AppSelection: View {
                     line: hasSelection ? Copy.onboarding.guideAppsPicked : Copy.onboarding.guideAppsPrompt,
                     charge: hasSelection ? 0.7 : 0.5,
                     tint: hasSelection ? Theme.Colors.Ring.steps : Theme.Colors.accent,
-                    mood: hasSelection ? .perky : .idle
+                    mood: hasSelection ? .perky : .idle,
+                    pose: hasSelection ? .blaze : .guarding
                 )
 
                 pickerCard
@@ -328,8 +334,9 @@ struct Screen4AppSelection: View {
 
     private var iconRow: some View {
         HStack(spacing: -Theme.Spacing.xs) {
-            ForEach(previewTokens) { token in
+            ForEach(Array(previewTokens.enumerated()), id: \.element) { index, token in
                 iconTile { tokenIcon(token) }
+                    .modifier(OnboardingDropIn(index: index))
             }
             if overflowCount > 0 {
                 iconTile {
@@ -337,6 +344,7 @@ struct Screen4AppSelection: View {
                         .font(Theme.Typography.numeralSmall())
                         .foregroundStyle(Theme.Colors.text)
                 }
+                .modifier(OnboardingDropIn(index: previewTokens.count))
             }
         }
         .accessibilityHidden(true)
@@ -419,4 +427,25 @@ private struct Screen4AuthorizationAlert: Identifiable {
 #Preview {
     Screen4AppSelection(flowState: OnboardingFlowState())
         .preferredColorScheme(.dark)
+}
+
+/// A picked app's tile dropping into its slot when it first appears: from above, small, then a
+/// squashy landing, ~90ms after the tile before it. Reduce Motion: simply there.
+private struct OnboardingDropIn: ViewModifier {
+    let index: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var landed = false
+
+    func body(content: Content) -> some View {
+        let isDown = landed || reduceMotion
+        content
+            .scaleEffect(isDown ? 1 : 0.5, anchor: .bottom)
+            .offset(y: isDown ? 0 : -36)
+            .opacity(isDown ? 1 : 0)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(Theme.Motion.springSquish.delay(0.15 + Double(index) * 0.09)) { landed = true }
+            }
+    }
 }

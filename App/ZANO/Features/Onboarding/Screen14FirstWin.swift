@@ -118,6 +118,11 @@
 // screen (`OnboardingScaffold`), so every phase owns its whole screen and pins its CTA to the
 // shared action bar.
 
+// CHARACTER PASS (session 30, 2026-10-06): the buddy dozes in the ring it is about to fill (sleepy,
+// breathing, bubbles: Core's sleepy mascot motion); when the session starts it wakes with a big
+// yawn-and-stretch and then settles into its focused face (a target) for the countdown. The
+// celebration's buddy was already ecstatic. Reduce Motion: no yawn beat, straight to focused.
+
 import SwiftUI
 import SwiftData
 import UserNotifications
@@ -148,6 +153,8 @@ struct Screen14FirstWin: View {
     @State private var countdownTask: Task<Void, Never>?
     @State private var emergencyUnlock: EmergencyUnlock?
     @State private var isStarting = false
+    /// The first ~1.4s of the session: the buddy yawns and stretches before it focuses.
+    @State private var isWakingUp = true
     /// The start failed. The alert shows Copy, never `error.localizedDescription` (system text
     /// in the wrong voice, sometimes a raw domain/code); the error itself goes to the log.
     @State private var showsStartError = false
@@ -269,8 +276,17 @@ struct Screen14FirstWin: View {
                 // The buddy keeping the user company while they stay off their phone (the star
                 // charged here until 2026-10-03); the bloom behind it brightens with the session,
                 // opacity only. The buddy is decorative; the charge is spoken on this element.
-                BuddySprite(buddy, pose: .idle, size: Self.runningStarHeight)
-                .zanoMascot(mood: .perky, size: Self.runningStarHeight, showsGlow: false)
+                OnboardingBuddyActor(
+                    pose: isWakingUp && !reduceMotion ? .yawning : .focused,
+                    size: Self.runningStarHeight,
+                    mood: .perky,
+                    burstColor: Theme.Colors.Ring.focus
+                )
+                .task {
+                    try? await Task.sleep(for: .milliseconds(1400))
+                    guard !Task.isCancelled else { return }
+                    isWakingUp = false
+                }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Copy.buddy.name(buddy))
                 .accessibilityValue(
@@ -599,7 +615,8 @@ private struct FirstWinIntroRing: View {
         .overlay {
             // Visual pass 2: the hero waits inside the ring it is about to fill. Since 2026-10-03
             // it is the user's buddy (64 = 2x its pixel grid; the star was ~0.32 of the ring).
-            BuddySprite(buddy, pose: .idle, size: 64)
+            BuddySprite(buddy, pose: .sleepy, size: 64)
+                .zanoMascot(mood: .sleepy, size: 64, showsGlow: false)
         }
         .overlay(alignment: .bottom) {
             // The session length as a sticker on the ring's rim: "2 min".

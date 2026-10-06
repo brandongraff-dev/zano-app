@@ -64,6 +64,12 @@
 // The Terms link is Apple's standard EULA and Privacy is a placeholder: both need final URLs before
 // submission.
 
+// Character pass (session 30, 2026-10-06): the hero buddy starts asleep behind its padlock and
+// wakes ecstatic as it pops open (the existing unlock beat), then settles happy. The timeline's
+// nodes light up one after another as the page arrives, and the reminder node is Cal, the calendar
+// character: happy with its check while the reminder is on, asleep when it's off. Prices, dates,
+// terms and the CTA are untouched (spec §21, App Review). Reduce Motion: all drawn in place.
+
 import SwiftUI
 import Core
 
@@ -266,7 +272,8 @@ struct PaywallView: View {
                 trialDays: trialDays,
                 reminderDaysBefore: PaywallViewModel.trialReminderDaysBefore,
                 priceLine: priceLine(for: package),
-                isReminderOn: viewModel.remindBeforeTrialEnds
+                isReminderOn: viewModel.remindBeforeTrialEnds,
+                isRevealed: isRevealed
             )
             .transition(.opacity)
         } else if viewModel.loadState == .loaded, viewModel.selectedPackage != nil {
@@ -629,11 +636,18 @@ private struct PaywallUnlockHero: View {
     @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
     @State private var isUnlocked = false
     @State private var burst = 0
+    /// The wake-up cheer, then settle (session 30).
+    @State private var isCheering = false
 
     private var open: Bool { isUnlocked || reduceMotion }
 
+    private var pose: BuddyPose {
+        guard open else { return .sleepy }
+        return isCheering ? .ecstatic : .happy
+    }
+
     var body: some View {
-        BuddySprite(buddy, pose: open ? .happy : .idle, size: height)
+        OnboardingBuddyActor(pose: pose, size: height, mood: open ? .perky : .sleepy)
             .background {
                 OnboardingKit.StarBloom(diameter: height * 3.5)
                     .opacity(open ? 1 : 0.45)
@@ -648,8 +662,12 @@ private struct PaywallUnlockHero: View {
                 guard !reduceMotion, !isUnlocked else { return }
                 try? await Task.sleep(for: .milliseconds(550))
                 guard !Task.isCancelled else { return }
+                isCheering = true
                 withAnimation(Theme.Motion.springPop) { isUnlocked = true }
                 burst += 1
+                try? await Task.sleep(for: .milliseconds(1100))
+                guard !Task.isCancelled else { return }
+                isCheering = false
             }
     }
 
@@ -682,7 +700,8 @@ private enum PaywallLegalLinks {
 /// the track is the accent at low strength (it's the free, earned-feeling part), the paid stretch
 /// after billing is grey. The billing row names the real calendar date, which makes the reminder a
 /// checkable promise (spec §21). With `trialDays == 0` (a plan without a trial) it collapses to
-/// "Today" and "Billing starts today". Static: no motion.
+/// "Today" and "Billing starts today". The nodes pop in one after another when `isRevealed` turns
+/// on (session 30); the reminder node is Cal. Reduce Motion: no pop.
 private struct PaywallTrialTimeline: View {
     let startDate: Date
     let trialDays: Int
@@ -690,6 +709,10 @@ private struct PaywallTrialTimeline: View {
     let priceLine: String
     /// The paywall's reminder toggle. Off: the reminder node says so instead of promising one.
     var isReminderOn: Bool = true
+    /// Lights the nodes up in order.
+    var isRevealed: Bool = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let nodeSize: CGFloat = 36
     private static let trackWidth: CGFloat = 8
@@ -741,16 +764,20 @@ private struct PaywallTrialTimeline: View {
         let all = nodes
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(all.enumerated()), id: \.element.id) { index, node in
-                row(node, isLast: index == all.count - 1)
+                row(node, index: index, isLast: index == all.count - 1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 
-    private func row(_ node: Node, isLast: Bool) -> some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.md) {
+    private func row(_ node: Node, index: Int, isLast: Bool) -> some View {
+        let isLit = isRevealed || reduceMotion
+        return HStack(alignment: .top, spacing: Theme.Spacing.md) {
             nodeGlyph(node)
+                .scaleEffect(isLit ? 1 : 0.3)
+                .opacity(isLit ? 1 : 0)
+                .animation(reduceMotion ? nil : Theme.Motion.springPop.delay(0.35 + Double(index) * 0.22), value: isLit)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(node.title)
                     .font(Theme.Typography.headline)
@@ -782,7 +809,22 @@ private struct PaywallTrialTimeline: View {
     /// The nodes step down in weight along the timeline: today is the blue disc with a white
     /// glyph (the part that is yours now), the reminder a grey disc with a secondary glyph, the
     /// billing date a grey disc with a muted glyph.
+    @ViewBuilder
     private func nodeGlyph(_ node: Node) -> some View {
+        if node.kind == .reminder {
+            // Cal keeps the date: happy (its check) while the reminder is on, asleep when it's off.
+            // A surface disc behind hides the track, like the other nodes' fills.
+            CalSprite(isReminderOn ? .happy : .sleepy, size: Self.nodeSize + 4)
+                .frame(width: Self.nodeSize, height: Self.nodeSize)
+                .background(Theme.Colors.surface, in: Circle())
+                .zIndex(1)
+                .accessibilityHidden(true)
+        } else {
+            nodeSymbol(node)
+        }
+    }
+
+    private func nodeSymbol(_ node: Node) -> some View {
         let symbol: String
         let fill: Color
         let glyph: Color

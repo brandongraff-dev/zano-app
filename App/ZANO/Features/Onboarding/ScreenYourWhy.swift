@@ -19,6 +19,11 @@
 // "+N days back a year" sticker (Core's `ZanoSticker`) under it. The slip chips are glass capsules with an "Optional" tag
 // instead of "(optional)" in the heading. Reduce Motion: the final number from the first frame.
 
+// CHARACTER PASS (session 30, 2026-10-06): the buddy sits in the counter card's corner and wears
+// the hours: happy at 1-2h, then meh, sad, and drained by 7h+. Each face change is a hop. When the
+// count-up lands it slumps to that face, then the "+N days back" sticker bounces and it cheers for a
+// moment (the way out). Decorative; the numbers carry the meaning.
+
 import SwiftUI
 import Core
 
@@ -32,6 +37,21 @@ struct ScreenYourWhy: View {
     @State private var shownDays = 0
     @State private var hasCounted = false
     @State private var landTick = 0
+    /// A brief cheer after the count-up lands, as the reclaim sticker bounces.
+    @State private var isCheering = false
+    @State private var cheerTask: Task<Void, Never>?
+    @State private var reclaimBounce = 0
+
+    /// The buddy's face for the hours on the slider (session 30); cheering overrides it briefly.
+    private var buddyPose: BuddyPose {
+        if isCheering { return .excited }
+        switch hours {
+        case ..<2.5: return .happy
+        case ..<4.5: return .meh
+        case ..<7: return .sad
+        default: return .drained
+        }
+    }
 
     private var hours: Double { flowState.dailyPhoneTimeHours }
     private var hoursText: String { Copy.onboarding.q3HoursValue(hours) }
@@ -62,6 +82,7 @@ struct ScreenYourWhy: View {
             guard hasCounted else { return }
             withAnimation(reduceMotion ? nil : .snappy) { shownDays = newValue }
         }
+        .onDisappear { cheerTask?.cancel() }
         .onAppear {
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
@@ -92,6 +113,10 @@ struct ScreenYourWhy: View {
         .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: .infinity)
         .zanoHero(tint: Theme.Colors.danger)
+        .overlay(alignment: .topLeading) {
+            OnboardingBuddyActor(pose: buddyPose, size: 48, react: landTick)
+                .padding(Theme.Spacing.sm)
+        }
         .accessibilityElement(children: .combine)
     }
 
@@ -116,7 +141,7 @@ struct ScreenYourWhy: View {
                 color: Theme.Colors.Ring.steps,
                 style: .filled,
                 size: .large,
-                bounceTrigger: flowState.reclaimDaysPerYear
+                bounceTrigger: flowState.reclaimDaysPerYear + reclaimBounce * 1000
             )
 
             Text(Copy.onboarding.yourWhyReclaimCondition(hoursLabel: Copy.onboarding.q3HoursValue(flowState.reclaimHours)))
@@ -217,6 +242,17 @@ struct ScreenYourWhy: View {
         }
     }
 
+    /// The buddy cheers for ~0.8s (more days back), then wears the hours again.
+    private func cheer() {
+        isCheering = true
+        cheerTask?.cancel()
+        cheerTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            isCheering = false
+        }
+    }
+
     // MARK: - Count-up
 
     /// Rolls the number up from zero in ten steps (~0.9s), ticking lightly, then lands with one
@@ -241,6 +277,11 @@ struct ScreenYourWhy: View {
         shownDays = daysPerYear
         hasCounted = true
         landTick += 1
+        // Let the slump read, then the way out: the sticker bounces and the buddy cheers.
+        try? await Task.sleep(for: .milliseconds(900))
+        guard !Task.isCancelled else { return }
+        reclaimBounce += 1
+        cheer()
     }
 }
 

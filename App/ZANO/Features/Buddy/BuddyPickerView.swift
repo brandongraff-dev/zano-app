@@ -17,6 +17,12 @@
 // icon (`BuddyAppIcon`), then moves on: the next onboarding step, or back out of Settings. Sprites
 // are drawn at 64 and 96pt (multiples of 16pt, so their 48px grid stays even on 3x screens); the
 // compact hero keeps all nine tiles above the button on a 6.1" phone.
+//
+// Character pass (session 30, 2026-10-06): picking spins the hero round to the new buddy, which
+// cheers (excited) for a moment and settles happy, with a burst in its colour; the picked tile's
+// sprite cheers and hops too, and the other tiles idle with a slow, out-of-step bob so the grid
+// feels alive. "Team up" is a moment: the hero goes ecstatic with a burst and a success haptic, and
+// the screen moves on ~0.55s later. Reduce Motion: no spin, bob or delay; the faces still change.
 
 import SwiftUI
 import Core
@@ -37,6 +43,10 @@ struct BuddyPickerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var hopTick = 0
+    @State private var heroPose: BuddyPose = .happy
+    @State private var poseTask: Task<Void, Never>?
+    @State private var teamUpTick = 0
+    @State private var isTeamingUp = false
 
     private static let heroSize: CGFloat = 96
     private static let tileSpriteSize: CGFloat = 64
@@ -45,6 +55,8 @@ struct BuddyPickerView: View {
         content
             .zanoActionBar { teamUpButton }
             .sensoryFeedback(.impact(weight: .light), trigger: buddy)
+            .sensoryFeedback(.success, trigger: teamUpTick)
+            .onDisappear { poseTask?.cancel() }
             .onChange(of: buddy) { _, _ in WidgetRefresh.reloadAll() }
             .modifier(BuddyPickerChrome(isSettings: context == .settings))
     }
@@ -53,7 +65,7 @@ struct BuddyPickerView: View {
         ScrollView {
             VStack(spacing: Theme.Spacing.lg) {
                 header
-                BuddyHeroStage(buddy: buddy, hopTick: hopTick, size: Self.heroSize)
+                BuddyHeroStage(buddy: buddy, pose: heroPose, hopTick: hopTick, burstTick: teamUpTick, size: Self.heroSize)
                 if context == .settings {
                     // Growth (level, next reward, earned gear) right under your buddy; not in
                     // onboarding, where nothing is earned yet.
@@ -106,8 +118,17 @@ struct BuddyPickerView: View {
     }
 
     private func pick(_ option: Buddy) {
+        guard !isTeamingUp else { return }
         buddy = option
         if !reduceMotion { hopTick += 1 }
+        // A cheer, then settle: the new buddy is pleased to be picked.
+        heroPose = .excited
+        poseTask?.cancel()
+        poseTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            heroPose = .happy
+        }
     }
 
     // MARK: Button
@@ -128,11 +149,22 @@ struct BuddyPickerView: View {
     }
 
     private func teamUp() {
+        guard !isTeamingUp else { return }
+        isTeamingUp = true
         Analytics.shared.capture(event: "buddy_picked", properties: ["buddy": buddy.rawValue])
         BuddyAppIcon.apply(buddy)
-        switch context {
-        case .onboarding: onTeamUp()
-        case .settings: dismiss()
+        poseTask?.cancel()
+        heroPose = .ecstatic
+        teamUpTick += 1
+        if !reduceMotion { hopTick += 1 }
+        poseTask = Task { @MainActor in
+            // Long enough to see the celebration land; never a wait under Reduce Motion.
+            if !reduceMotion { try? await Task.sleep(for: .milliseconds(550)) }
+            switch context {
+            case .onboarding: onTeamUp()
+            case .settings: dismiss()
+            }
+            isTeamingUp = false
         }
     }
 }
@@ -160,7 +192,10 @@ private struct BuddyPickerChrome: ViewModifier {
 /// shadow under its feet, a hop on every pick. Name, kind and world under it. One VoiceOver element.
 private struct BuddyHeroStage: View {
     let buddy: Buddy
+    let pose: BuddyPose
     let hopTick: Int
+    /// Bumped by "Team up": a burst in the buddy's colour.
+    let burstTick: Int
     let size: CGFloat
 
     @Environment(\.colorScheme) private var colorScheme
@@ -204,8 +239,10 @@ private struct BuddyHeroStage: View {
                 .fill(Theme.Colors.shadow)
                 .frame(width: size * 0.62, height: size * 0.1)
                 .offset(y: size * 0.03)
-            BuddySprite(buddy, pose: .happy, size: size)
+            BuddySprite(buddy, pose: pose, size: size)
+                .modifier(BuddySpin(trigger: hopTick))
                 .modifier(BuddyHop(trigger: hopTick, height: size * 0.16))
+                .zanoChargeBurst(trigger: burstTick, color: buddy.color)
         }
         .frame(width: size + Theme.Spacing.md, height: size + Theme.Spacing.sm)
         .background {
@@ -240,6 +277,21 @@ private struct BuddyHeroStage: View {
 
 /// A quick hop: up, then a bouncy landing. Fired by bumping `trigger`; the picker never bumps it
 /// under Reduce Motion.
+/// One full turn about the vertical axis on each `trigger` (the new buddy spinning round to face
+/// you). Ends at 0 so the next trigger starts from rest. Callers only bump it outside Reduce Motion.
+private struct BuddySpin: ViewModifier {
+    let trigger: Int
+
+    func body(content: Content) -> some View {
+        content.keyframeAnimator(initialValue: 0.0, trigger: trigger) { view, angle in
+            view.rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
+        } keyframes: { _ in
+            CubicKeyframe(360, duration: 0.42)
+            LinearKeyframe(0, duration: 0.001)
+        }
+    }
+}
+
 private struct BuddyHop: ViewModifier {
     let trigger: Int
     let height: CGFloat
@@ -272,7 +324,9 @@ private struct BuddyTile: View {
         let shape = RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
         Button(action: action) {
             VStack(spacing: Theme.Spacing.xxs) {
-                BuddySprite(buddy, pose: .idle, size: spriteSize)
+                BuddySprite(buddy, pose: isSelected ? .excited : .idle, size: spriteSize)
+                    .modifier(BuddyHop(trigger: isSelected && !reduceMotion ? 1 : 0, height: spriteSize * 0.14))
+                    .modifier(BuddyIdleBob(isActive: !isSelected && !reduceMotion, delay: Self.bobDelay(for: buddy)))
                 Text(Copy.buddy.name(buddy))
                     .font(Theme.Typography.label)
                     .foregroundStyle(isSelected ? Theme.Colors.text : Theme.Colors.textSecondary)
@@ -291,12 +345,35 @@ private struct BuddyTile: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    /// Out of step on purpose: each tile starts its bob a little after the one before.
+    private static func bobDelay(for buddy: Buddy) -> Double {
+        Double(Buddy.allCases.firstIndex(of: buddy) ?? 0) * 0.17
+    }
+
     @ViewBuilder
     private func rim(_ shape: RoundedRectangle) -> some View {
         if isSelected {
             shape.strokeBorder(buddy.color, lineWidth: 2)
         } else {
             shape.strokeBorder(Theme.Colors.hairline, lineWidth: 1)
+        }
+    }
+}
+
+/// A slow two-point bob (up 2pt, down again) while `isActive`: an idle buddy breathing.
+private struct BuddyIdleBob: ViewModifier {
+    let isActive: Bool
+    let delay: Double
+
+    func body(content: Content) -> some View {
+        if isActive {
+            content.phaseAnimator([0.0, -2.5]) { view, lift in
+                view.offset(y: lift)
+            } animation: { lift in
+                .easeInOut(duration: 0.9).delay(lift == 0 ? delay : 0)
+            }
+        } else {
+            content
         }
     }
 }

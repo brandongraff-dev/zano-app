@@ -179,10 +179,13 @@ struct PlannerView: View {
                     )
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(isSelected ? (isToday ? Theme.Colors.accent : Theme.Colors.text) : .clear))
+                // Only the dots a day has, so one dot sits exactly under the number (never a hidden twin
+                // beside it pushing it off-centre). The row keeps its height so the weeks don't jump.
                 HStack(spacing: 3) {
-                    Circle().fill(mark.hasEvents ? Theme.Colors.muted : .clear).frame(width: 5, height: 5)
-                    Circle().fill(mark.hasOpenTasks ? Theme.Colors.accent : .clear).frame(width: 5, height: 5)
+                    if mark.hasEvents { Circle().fill(Theme.Colors.muted).frame(width: 5, height: 5) }
+                    if mark.hasOpenTasks { Circle().fill(Theme.Colors.accent).frame(width: 5, height: 5) }
                 }
+                .frame(height: 5)
             }
             .frame(maxWidth: .infinity, minHeight: 48)
         }

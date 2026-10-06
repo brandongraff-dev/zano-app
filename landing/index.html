@@ -1,131 +1,371 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ZANO — The app that won't let you open TikTok until you hit the gym.</title>
-  <meta name="description" content="ZANO locks distracting apps until you earn them back by training, hitting your protein, focusing, or hydrating. Tap in. Earn it. Join the waitlist." />
-
-  <!-- Open Graph / share preview -->
-  <meta property="og:title" content="ZANO — Tap in. Earn it." />
-  <meta property="og:description" content="The app that won't let you open TikTok until you hit the gym." />
+  <title>ZANO — Earn your screen time</title>
+  <meta name="description" content="ZANO locks distracting apps until you hit the gym, hit your protein, or finish a focus session. Join the waitlist." />
+  <meta property="og:title" content="ZANO — Earn your screen time" />
+  <meta property="og:description" content="Distracting apps stay locked until you do the work." />
   <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary" />
-
-  <link rel="icon" href="data:," />
+  <link rel="icon" href="assets/buddies/stash-happy.webp" />
   <link rel="stylesheet" href="style.css" />
+  <script>document.documentElement.className = "js";</script>
 </head>
 <body>
 
-  <header class="site-header">
-    <div class="wrap site-header__inner">
-      <span class="logo">ZANO</span>
-      <span class="kicker kicker--nav">Tap in. Earn it.</span>
+  <header class="nav glass" id="nav">
+    <div class="wrap nav__in">
+      <a href="#top" class="logo"><img class="logo__buddy" src="assets/buddies/stash-happy.webp" alt="" /><span class="logo__w">zan<i>o</i></span></a>
+      <nav class="nav__links" aria-label="Sections">
+        <a href="#story">How it works</a>
+        <a href="#boss">Scroll Monster</a>
+        <a href="#goals">Goals</a>
+        <a href="#tags">Tags</a>
+        <a href="#buddy">Buddies</a>
+      </nav>
+      <a href="#join" class="btn btn--sm btn--blue">Join waitlist</a>
     </div>
+    <span class="nav__bar" id="navBar" aria-hidden="true"></span>
   </header>
 
-  <main>
-    <!-- Hero -->
-    <section class="hero">
-      <div class="wrap">
-        <p class="kicker">Tap in. Earn it.</p>
-        <h1 class="hero__headline">
-          The app that won&rsquo;t let you open TikTok<br class="br-desktop" />
-          until you hit the gym.
-        </h1>
-        <p class="hero__sub">
-          Your phone works for your goals instead of against them. Distracting apps stay locked
-          until you earn them back by doing the things you actually want to do: train, hit your
-          protein, focus, sleep, hydrate.
-        </p>
-
+  <main id="top">
+    <section class="hero3">
+      <h1 class="hero3__h1">Earn your <span class="hl">screen time.</span></h1>
+      <p class="hero3__sub">Apps stay locked until you hit the gym, eat your protein, or focus.</p>
+      <div class="hero3__stage">
+        <div class="crew" aria-label="Your ZANO buddies"><div class="crew__row"><img style="--o:5" class="crew__b crew__b--lead" src="assets/buddies/stash-happy.webp" alt="Stash" /><img style="--o:3" class="crew__b" src="assets/buddies/lox-happy.webp" alt="Lox" /></div><div class="crew__row"><img style="--o:4" class="crew__b" src="assets/buddies/pip-happy.webp" alt="Pip" /><img style="--o:6" class="crew__b" src="assets/buddies/zib-happy.webp" alt="Zib" /><img style="--o:7" class="crew__b" src="assets/buddies/moko-happy.webp" alt="Moko" /></div><div class="crew__row"><img style="--o:2" data-x="1" class="crew__b" src="assets/buddies/brick-happy.webp" alt="Brick" /><img style="--o:1" data-x="1" class="crew__b" src="assets/buddies/tank-happy.webp" alt="Tank" /><img style="--o:8" data-x="1" class="crew__b" src="assets/buddies/volt-happy.webp" alt="Volt" /><img style="--o:9" data-x="1" class="crew__b" src="assets/buddies/howl-happy.webp" alt="Howl" /></div></div>
+        </div>
+      <div class="hero2__cta glass">
         <form id="waitlist-form" class="waitlist-form" novalidate>
           <div class="waitlist-form__row">
             <label class="sr-only" for="email">Email address</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              class="waitlist-form__input"
-              placeholder="you@example.com"
-              autocomplete="email"
-              required
-            />
-            <!-- Honeypot — hidden from real users via CSS, bots tend to fill every field -->
-            <input
-              id="company"
-              name="company"
-              type="text"
-              class="hp-field"
-              tabindex="-1"
-              autocomplete="off"
-            />
-            <button type="submit" class="btn-primary" id="waitlist-submit">
-              <span class="btn-primary__label">Join the waitlist</span>
-            </button>
+            <input id="email" name="email" type="email" class="waitlist-form__input" placeholder="you@example.com" autocomplete="email" required />
+            <input id="company" name="company" type="text" class="hp-field" tabindex="-1" autocomplete="off" />
+            <button type="submit" class="btn btn--blue" id="waitlist-submit">Join<span class="long">&nbsp;waitlist</span></button>
           </div>
           <p id="waitlist-status" class="waitlist-form__status" role="status" aria-live="polite"></p>
         </form>
-
-        <p class="hero__note">No spam. One email when we open the doors.</p>
+        <div class="store store--row store--pill">
+          <button type="button" class="store__btn" aria-disabled="true" disabled>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+            <span><small>Download on the</small>App Store</span>
+          </button>
+          <p class="store__note">Coming soon</p>
+        </div>
       </div>
+    
     </section>
 
     <!-- How it works -->
-    <section class="how" id="how">
+    <section class="section how" id="story">
       <div class="wrap">
-        <h2 class="section-title">No willpower required.</h2>
-        <div class="how__grid">
-          <div class="how__card">
-            <span class="how__ring how__ring--workout" aria-hidden="true"></span>
-            <h3>Locked</h3>
-            <p>TikTok, Instagram, YouTube &mdash; shielded the moment you open ZANO. No manual
-              blocking, no toggling off when you feel weak.</p>
+        <div class="head reveal">
+          <p class="eyebrow">How it works</p>
+          <h2><span class="nw">Lock it.</span> <span class="nw">Earn it.</span> <span class="nw">Get it back.</span></h2>
+        </div>
+        <ol class="how__row">
+          <li class="how__card how__card--lock reveal" style="--d:.10s">
+            <div class="how__phone"><div class="phone"><div class="mock mock--locked"><span class="mock__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><img src="assets/buddies/stash-sleepy.webp" alt="" /><b>Social is locked</b><small>2 goals to go</small><span class="seg"><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div></div>
+            <div class="how__txt"><span class="how__n">1</span><h3>Lock it</h3><p>Pick the apps that waste your time. They go dark.</p></div>
+          </li>
+          <li class="how__card how__card--earn reveal" style="--d:.20s">
+            <div class="how__phone"><div class="phone"><img src="assets/screen-today-dark.webp" alt="Today screen with 2 goals left" /></div></div>
+            <div class="how__txt"><span class="how__n">2</span><h3>Earn it</h3><p>Train, focus, eat protein, drink water. ZANO checks it for real.</p></div>
+          </li>
+          <li class="how__card how__card--win reveal" style="--d:.30s">
+            <div class="how__phone"><div class="phone"><div class="mock mock--win"><span class="confetti" aria-hidden="true"><i style="left:10%;top:12%;--c:#ff8a2b;--d:3.1s"></i><i style="left:24%;top:6%;--c:#8b6bff;--d:4s"></i><i style="left:40%;top:14%;--c:#2f6bff;--d:3.4s"></i><i style="left:58%;top:5%;--c:#ff5c8a;--d:4.4s"></i><i style="left:76%;top:12%;--c:#7cc21b;--d:3.7s"></i><i style="left:88%;top:22%;--c:#ff8a2b;--d:3.2s"></i><i style="left:8%;top:40%;--c:#2db7f5;--d:4.2s"></i><i style="left:92%;top:48%;--c:#8b6bff;--d:3.5s"></i><i style="left:16%;top:70%;--c:#ff5c8a;--d:3.9s"></i><i style="left:84%;top:74%;--c:#2f6bff;--d:3.3s"></i></span><img src="assets/buddies/volt-ecstatic.webp" alt="" /><b>Unlocked</b><span class="mock__pill">Open Social</span></div></div></div>
+            <div class="how__txt"><span class="how__n">3</span><h3>Get it back</h3><p>Apps open the second you finish. Keep the streak going.</p></div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Scroll Monster: its HP drains as you scroll the section -->
+    <section class="boss" id="boss">
+      <div class="boss__stick">
+        <div class="wrap boss__in">
+          <div class="boss__stage">
+            <div class="boss__disc" data-d="0.2"></div>
+            <img class="boss__m" id="bossImg" src="assets/buddies/monster-0-healthy.webp" alt="The Scroll Monster" />
+            <span class="boss__ko" id="bossKo" aria-hidden="true">K.O.!</span>
+            <span class="boss__coins" id="bossCoins">+50 coins</span>
+            <span class="coinfall" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <div class="boss__team"><div class="tm" data-i="0"><span class="tm__dmg">Gym −25</span><img src="assets/buddies/brick-gym.webp" alt="Brick" loading="lazy" /></div><div class="tm" data-i="1"><span class="tm__dmg">Protein −25</span><img src="assets/buddies/tank-shake.webp" alt="Tank" loading="lazy" /></div><div class="tm" data-i="2"><span class="tm__dmg">Focus −25</span><img src="assets/buddies/pip-focus.webp" alt="Pip" loading="lazy" /></div><div class="tm" data-i="3"><span class="tm__dmg">Water −25</span><img src="assets/buddies/volt-water.webp" alt="Volt" loading="lazy" /></div></div>
           </div>
-          <div class="how__card">
-            <span class="how__ring how__ring--focus" aria-hidden="true"></span>
-            <h3>Earn it</h3>
-            <p>Verified goals unlock time: a gym session (geofence), a focus block, hitting your
-              protein or water target. Real verification, not an honor system.</p>
-          </div>
-          <div class="how__card">
-            <span class="how__ring how__ring--water" aria-hidden="true"></span>
-            <h3>Unlocked</h3>
-            <p>Apps open the second a goal verifies &mdash; instantly, offline. No logging when it
-              can be avoided.</p>
+          <div class="hpwrap"><span class="hpt" id="hpText">HP 100</span><div class="hp" role="img" aria-label="Scroll Monster health"><i id="hpFill"></i></div></div>
+          <h2>Beat the Scroll Monster.</h2>
+          <p class="lede">A new one shows up every week. Locked minutes and finished goals knock its health down.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--soft sheet" id="goals">
+      <div class="fl peek peek--l" data-d="0.25"><img class="bob b3" src="assets/buddies/brick-happy.webp" alt="" loading="lazy" /></div>
+      <div class="fl peek peek--r" data-d="0.25"><img class="bob b4" src="assets/buddies/tank-happy.webp" alt="" loading="lazy" /></div>
+      <div class="wrap">
+        <div class="head reveal">
+          <p class="eyebrow">Goals</p>
+          <h2>Four ways to earn.</h2>
+        </div>
+        <div class="goals">
+          <div class="goal reveal"><img class="goal__buddy goal__buddy--curl" src="assets/buddies/brick-gym.webp" alt="Brick lifting dumbbells" loading="lazy" /><span class="goal__pop">+45 min</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M3 10v4M18 7v10M21 10v4M6 12h12"/></svg></span><b>Gym</b><span>45 min, verified</span><div class="bar"><i style="--w:30%"></i></div></div>
+          <div class="goal reveal" style="--d:.08s"><img class="goal__buddy goal__buddy--toast" src="assets/buddies/tank-shake.webp" alt="Tank with a protein shaker" loading="lazy" /><span class="goal__pop">+150g</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3v5a2 2 0 0 0 4 0V3M7 10v11M17 3c-2 2.5-3 5-3 8h3v10"/></svg></span><b>Protein</b><span>150g a day</span><div class="bar"><i style="--w:48%"></i></div></div>
+          <div class="goal reveal" style="--d:.16s"><img class="goal__buddy goal__buddy--think" src="assets/buddies/pip-focus.webp" alt="Pip with a focus timer" loading="lazy" /><span class="goal__pop">+50 min</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg></span><b>Focus</b><span>50 min blocks</span><div class="bar"><i style="--w:50%"></i></div></div>
+          <div class="goal reveal" style="--d:.24s"><img class="goal__buddy goal__buddy--sway" src="assets/buddies/volt-water.webp" alt="Volt with a water bottle" loading="lazy" /><span class="goal__pop">+3 L</span><span class="goal__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><b>Water</b><span>3 L a day</span><div class="bar"><i style="--w:50%"></i></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NFC tags -->
+    <section class="section feat" id="tags">
+      <div class="wrap feat__grid">
+        <div class="feat__text">
+          <p class="eyebrow reveal">NFC tags</p>
+          <h2 class="reveal">Tap to log.</h2>
+          <p class="lede reveal">Stick a tag on your bottle, shaker or gym bag. One tap and it&rsquo;s logged.</p>
+          <ul class="chips reveal">
+            <li>Water</li><li>Protein</li><li>Focus</li><li>Gym</li>
+          </ul>
+        </div>
+        <div class="feat__art reveal">
+          <div class="nfc">
+            <div class="nfc__disc"></div>
+            <div class="nfc__tag"><span class="nfc__ripple"></span><span class="nfc__ripple r2"></span><span class="nfc__ripple r3"></span><span class="nfc__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <div class="nfc__phone"><div class="phone"><div class="mock mock--log"><span class="mock__drop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><b>+750 ml</b><small>Water logged</small><img src="assets/buddies/stash-happy.webp" alt="" /></div></div></div>
+            <span class="nfc__toast">Logged</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- What it's not -->
-    <section class="not">
-      <div class="wrap">
-        <h2 class="section-title">What ZANO isn&rsquo;t.</h2>
-        <ul class="not__list">
-          <li>Not a calorie counter. Never restrictive goals &mdash; only additive ones.</li>
-          <li>Not a prison. Emergency unlock always exists. Calls always work.</li>
-          <li>Not a chatbot. It just knows you.</li>
-        </ul>
+    <!-- Sunrise alarm -->
+    <section class="section feat feat--flip" id="sunrise">
+      <div class="wrap feat__grid">
+        <div class="feat__text">
+          <p class="eyebrow reveal">Sunrise alarm</p>
+          <h2 class="reveal">Get up to turn it off.</h2>
+          <p class="lede reveal">Put a tag across the room. The alarm only stops when you tap it.</p>
+        </div>
+        <div class="feat__art reveal">
+          <div class="sun">
+            <div class="sun__sky"><span class="sun__orb"></span><span class="sun__ground"></span></div>
+            <div class="sun__mirror"><span class="sun__tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <span class="sun__chip" id="sunChip">Alarm off!</span>
+            <div class="sun__phone"><div class="phone"><div class="mock mock--alarm"><b class="mock__time">6:30</b><span class="mock__bub" id="sunBubble">Zzz</span><img id="sunBuddy" src="assets/buddies/stash-sleepy.webp" alt="" /><span class="mock__pill mock__pill--o">Tap your tag</span></div></div></div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Second CTA -->
-    <section class="cta">
+    <!-- Buddy picker -->
+    <section class="section" id="buddy">
       <div class="wrap">
-        <h2 class="section-title">Be first in when we open the doors.</h2>
-        <p class="cta__sub">We&rsquo;re building in public. Get the waitlist email, then the invite.</p>
-        <a href="#waitlist-form" class="btn-primary btn-primary--ghost">Join the waitlist</a>
+        <div class="head reveal">
+          <p class="eyebrow">Your buddy</p>
+          <h2>Pick who keeps you honest.</h2>
+          <p class="lede">Nine buddies to choose from. Yours levels up with your streak.</p>
+        </div>
+        <div class="picker reveal">
+          <div class="picker__stage">
+            <div class="stage__disc"></div>
+            <div class="orb orb--xl" id="pickOrb"></div>
+            <div class="bubble" id="pickBubble"></div>
+            <div class="picker__meta"><b id="pickName"></b><span id="pickTrait"></span></div>
+          </div>
+          <div class="picker__list" role="radiogroup" aria-label="Choose your buddy" id="pickList"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section cta" id="join">
+      <div class="wrap">
+        <div class="cta__panel reveal">
+          <div class="crowd reveal" aria-hidden="true"><img class="b1" style="--i:0" src="assets/buddies/stash-happy.webp" alt="" loading="lazy" /><img class="bob b2" style="--i:1" src="assets/buddies/zib-happy.webp" alt="" loading="lazy" /><img class="bob b3" style="--i:2" src="assets/buddies/lox-happy.webp" alt="" loading="lazy" /><img class="bob b4" style="--i:3" src="assets/buddies/pip-happy.webp" alt="" loading="lazy" /><img class="bob b5" style="--i:4" src="assets/buddies/moko-happy.webp" alt="" loading="lazy" /><img class="bob b6" style="--i:5" src="assets/buddies/brick-happy.webp" alt="" loading="lazy" /><img class="bob b1" style="--i:6" src="assets/buddies/tank-happy.webp" alt="" loading="lazy" /><img class="bob b2" style="--i:7" src="assets/buddies/volt-happy.webp" alt="" loading="lazy" /><img class="bob b3" style="--i:8" src="assets/buddies/howl-happy.webp" alt="" loading="lazy" /></div>
+          <h2>Get early access.</h2>
+          <p class="lede">One email when we open the doors.</p>
+          <div class="cta__row">
+            <a href="#waitlist-form" class="btn btn--lime" id="cta-btn">Join the waitlist</a>
+            <div class="store store--pill">
+              <button type="button" class="store__btn" aria-disabled="true" disabled><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><span><small>Download on the</small>App Store</span></button>
+              <p class="store__note">Coming soon</p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="wrap site-footer__inner">
-      <span>&copy; <span id="year"></span> ZANO</span>
-      <span class="site-footer__muted">Locked in.</span>
-    </div>
+  <footer class="footer">
+    <div class="wrap"><span>&copy; <span id="year"></span> ZANO</span><span>Locked in.</span></div>
   </footer>
+
+  <script>
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const io = new IntersectionObserver((es) => es.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }), { threshold: 0.12 });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    document.querySelectorAll(".bar").forEach((el) => io.observe(el.closest(".goal")));
+
+
+
+
+    // ---- depth: pointer + scroll parallax on every .fl layer ----
+    if (!reduce) {
+      const layers = [...document.querySelectorAll(".fl[data-d]")].map((el) => ({ el, d: +el.dataset.d, host: el.closest("section") }));
+      let mx = 0, my = 0, tx = 0, ty = 0, raf = 0;
+      const frame = () => {
+        raf = 0; tx += (mx - tx) * 0.08; ty += (my - ty) * 0.08;
+        for (const l of layers) {
+          const r = l.host.getBoundingClientRect();
+          if (r.bottom < -200 || r.top > innerHeight + 200) continue;
+          const prog = (r.top + r.height / 2 - innerHeight / 2) / innerHeight;
+          l.el.style.transform = "translate3d(" + (tx * l.d * 22).toFixed(1) + "px," + (ty * l.d * 16 + prog * l.d * 70).toFixed(1) + "px,0)";
+        }
+        if (Math.abs(mx - tx) > 0.002 || Math.abs(my - ty) > 0.002) raf = requestAnimationFrame(frame);
+      };
+      const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+      addEventListener("pointermove", (e) => { mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; kick(); }, { passive: true });
+      addEventListener("scroll", kick, { passive: true }); addEventListener("resize", kick); kick();
+    }
+
+
+    // ---- Scroll Monster: each quarter of its health is knocked off by a different buddy ----
+    const boss = document.getElementById("boss"), bImg = document.getElementById("bossImg"), hp = document.getElementById("hpFill"), hpText = document.getElementById("hpText");
+    const team = [...boss.querySelectorAll(".tm")];
+    let bState = "", lastHits = 0;
+    function bossScroll() {
+      const r = boss.getBoundingClientRect(), total = r.height - innerHeight;
+      const p = Math.min(1, Math.max(0, -r.top / total));
+      const health = Math.max(0, 1 - p * 1.25);
+      hp.style.width = (health * 100).toFixed(1) + "%";
+      hpText.textContent = "HP " + Math.round(health * 100);
+      const hits = Math.min(4, Math.floor((1 - health) * 4 + 1e-6));
+      if (hits > lastHits) {
+        const t = team[hits - 1];
+        t.classList.remove("hit"); void t.offsetWidth; t.classList.add("hit");
+        bImg.classList.remove("shake"); void bImg.offsetWidth; bImg.classList.add("shake");
+      }
+      team.forEach((t, i) => t.classList.toggle("done", i < hits));
+      lastHits = hits;
+      const st = health > 0.5 ? "healthy" : health > 0 ? "hurt" : "defeated";
+      if (st !== bState) {
+        bState = st; boss.dataset.state = st;
+        bImg.src = "assets/buddies/monster-0-" + st + ".webp";
+      }
+    }
+    addEventListener("scroll", bossScroll, { passive: true }); addEventListener("resize", bossScroll); bossScroll();
+
+    // ---- top bar: scroll progress, active section, stronger shadow once scrolled ----
+    const nav = document.getElementById("nav"), navBar = document.getElementById("navBar");
+    const navLinks = [...nav.querySelectorAll(".nav__links a")].map((a) => ({ a, el: document.querySelector(a.getAttribute("href")) })).filter((x) => x.el);
+    function navScroll() {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      navBar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, scrollY / max) : 0).toFixed(4) + ")";
+      nav.classList.toggle("is-scrolled", scrollY > 24);
+      const mid = innerHeight * 0.45; let cur = null;
+      for (const l of navLinks) { const r = l.el.getBoundingClientRect(); if (r.top <= mid && r.bottom > mid) cur = l; }
+      navLinks.forEach((l) => l.a.classList.toggle("on", l === cur));
+    }
+    addEventListener("scroll", navScroll, { passive: true }); addEventListener("resize", navScroll); navScroll();
+
+    // ---- hero crew: pop in, hop + say hi when tapped ----
+    const crew = document.querySelector(".crew");
+    const hi = { Stash: "Gym first!", Lox: "Door's locked.", Pip: "Focus time.", Zib: "Aww, nice!", Moko: "We grow!", Brick: "One more rep!", Tank: "Can't stop us.", Volt: "Zap! Unlocked.", Howl: "Quiet work." };
+    let chipT = 0;
+    crew.querySelectorAll(".crew__b").forEach((img, i) => {
+      img.style.setProperty("--pi", i);
+      const go = () => {
+        img.classList.remove("hop"); void img.offsetWidth; img.classList.add("hop");
+        let chip = crew.querySelector(".crew__chip");
+        if (!chip) { chip = document.createElement("span"); chip.className = "crew__chip"; crew.appendChild(chip); }
+        chip.textContent = hi[img.alt] || "Hi!";
+        const cr = crew.getBoundingClientRect(), ir = img.getBoundingClientRect();
+        chip.style.left = (ir.left - cr.left + ir.width / 2) + "px"; chip.style.top = (ir.top - cr.top - 6) + "px";
+        chip.classList.remove("show"); void chip.offsetWidth; chip.classList.add("show");
+        clearTimeout(chipT); chipT = setTimeout(() => chip.classList.remove("show"), 1400);
+      };
+      img.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") go(); });
+      img.addEventListener("click", go);
+    });
+
+    // ---- goals: when the cards come into view each buddy does its task, one after another ----
+    const goalsEl = document.querySelector(".goals");
+    const goalCards = [...goalsEl.querySelectorAll(".goal")];
+    let goalT = [];
+    new IntersectionObserver(([e]) => {
+      goalT.forEach(clearTimeout); goalT = [];
+      if (e.isIntersecting) goalCards.forEach((c, i) => goalT.push(setTimeout(() => { c.classList.remove("hit"); void c.offsetWidth; c.classList.add("hit"); }, 250 + i * 420)));
+      else goalCards.forEach((c) => c.classList.remove("hit"));
+    }, { threshold: 0.45 }).observe(goalsEl);
+
+    // ---- sunrise: the sun rises as you scroll; the buddy wakes up and the alarm turns off ----
+    const sunEl = document.getElementById("sunrise"), sunBuddy = document.getElementById("sunBuddy"), sunBubble = document.getElementById("sunBubble");
+    let sunAwake = null;
+    function sunScroll() {
+      const r = sunEl.getBoundingClientRect();
+      const p = Math.min(1, Math.max(0, (innerHeight * 0.85 - r.top) / (innerHeight * 0.85 + r.height * 0.1 - innerHeight * 0.2)));
+      sunEl.style.setProperty("--sun", p.toFixed(3));
+      const awake = p > 0.7;
+      sunEl.classList.toggle("done", p > 0.9);
+      if (awake !== sunAwake) {
+        sunAwake = awake;
+        sunBuddy.src = "assets/buddies/stash-" + (awake ? "ecstatic" : "sleepy") + ".webp";
+        sunBubble.textContent = awake ? "I\u2019m up!" : "Zzz";
+        sunBubble.style.animation = "none"; void sunBubble.offsetWidth; sunBubble.style.animation = "";
+      }
+    }
+    addEventListener("scroll", sunScroll, { passive: true }); addEventListener("resize", sunScroll); sunScroll();
+
+    // ---- closing panel: the whole crew does a wave when it appears ----
+    const panel = document.querySelector(".cta__panel");
+    new IntersectionObserver(([e]) => {
+      panel.querySelectorAll(".crowd img").forEach((img, i) => { img.classList.remove("wave"); if (e.isIntersecting) { img.style.setProperty("--wd", (i * 90) + "ms"); void img.offsetWidth; img.classList.add("wave"); } });
+    }, { threshold: 0.5 }).observe(panel);
+
+    // ---- buddy picker ----
+    const BUDDIES = [
+      { key: "stash", name: "Stash", kind: "Cheeky, loyal raccoon", line: "Gym first, scroll later!" },
+      { key: "zib", name: "Zib", kind: "Star-antenna mochi bunny", line: "Aww, you did it!" },
+      { key: "lox", name: "Lox", kind: "Clever fox with a lock charm", line: "Door\u2019s locked. Go earn it." },
+      { key: "pip", name: "Pip", kind: "Owl-axolotl with focus eyes", line: "Focus time. I\u2019m watching." },
+      { key: "moko", name: "Moko", kind: "Hatchling dino that grows with you", line: "We grow together." },
+      { key: "brick", name: "Brick", kind: "Gym-rat bulldog", line: "One more rep. I got you." },
+      { key: "tank", name: "Tank", kind: "Gym rhino in a team jersey", line: "Nothing stops us today." },
+      { key: "volt", name: "Volt", kind: "Lightning shark", line: "Zap! Unlocked." },
+      { key: "howl", name: "Howl", kind: "Night-run wolf in a hoodie", line: "Quiet work, loud finish." },
+    ];
+    const pickOrb = document.getElementById("pickOrb"), pickList = document.getElementById("pickList");
+    function art(b, pose) { const i = document.createElement("img"); i.src = "assets/buddies/" + b.key + "-" + pose + ".webp"; i.alt = ""; return i; }
+    function pick(i) {
+      const b = BUDDIES[i];
+      pickOrb.replaceChildren(art(b, "happy"));
+      document.getElementById("pickName").textContent = b.name;
+      document.getElementById("pickTrait").textContent = b.kind;
+      const bub = document.getElementById("pickBubble"); bub.textContent = b.line;
+      bub.style.animation = "none"; void bub.offsetWidth; bub.style.animation = "";
+      pickList.querySelectorAll("button").forEach((el, j) => { el.setAttribute("aria-checked", j === i); el.tabIndex = j === i ? 0 : -1; });
+    }
+    BUDDIES.forEach((b, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.setAttribute("role", "radio"); btn.className = "pick";
+      const thumb = document.createElement("span"); thumb.className = "pick__thumb"; thumb.appendChild(art(b, "content"));
+      const label = document.createElement("span"); label.textContent = b.name;
+      btn.append(thumb, label);
+      btn.addEventListener("click", () => pick(i));
+      btn.addEventListener("keydown", (e) => {
+        const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+        if (d) { e.preventDefault(); const n = (i + d + BUDDIES.length) % BUDDIES.length; pick(n); pickList.children[n].focus(); }
+      });
+      pickList.appendChild(btn);
+    });
+    pick(0);
+
+    document.getElementById("cta-btn").addEventListener("click", () => {
+      setTimeout(() => document.getElementById("email").focus({ preventScroll: true }), 600);
+    });
+  </script>
 
   <script type="module">
     // ---------------------------------------------------------------------

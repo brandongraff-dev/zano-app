@@ -343,7 +343,7 @@ struct PaywallView: View {
 
     private func planTitle(for package: SubscriptionPackage) -> String {
         if package.isFamilyShareable { return Copy.paywall.familyPlanTitle }
-        switch package.period {
+        return switch package.period {
         case .annual: Copy.paywall.annualPlanTitle
         case .monthly: Copy.paywall.monthlyPlanTitle
         case .weekly: Copy.paywall.weeklyPlanTitle

@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §24, §5.23; `docs/launch/*`
-- **Status:** Scaffolded — Unverified (code edits not yet through CI)
+- **Status:** Compiles + Core unit tests pass in CI (runs 114, 115 and 118, 2026-10-06). Geofence without background location needs a device
 - **Started / Last updated:** 2026-10-06
 
 ## Log

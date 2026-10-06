@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.30 (new), §5.24 (Focus lock shares calendar access)
-- **Status:** Scaffolded — Unverified (not yet compiled in CI)
+- **Status:** Compiles + Core unit tests pass in CI (run 118, 2026-10-06). Screens, notifications and the event editor unverified on a device
 - **Started / Last updated:** 2026-10-06
 
 ## Log

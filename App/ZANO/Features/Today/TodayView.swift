@@ -233,6 +233,8 @@ struct TodayView: View {
                     SleepCheckInCard()
                     // Only while the work-hours focus lock has a question about an upcoming meeting.
                     FocusLockAskCard()
+                    // For 15 minutes after a verified focus block (draws nothing otherwise).
+                    BreakCoachCard()
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist

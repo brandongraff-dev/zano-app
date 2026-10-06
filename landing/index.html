@@ -57,37 +57,27 @@
     
     </section>
 
-    <!-- Scroll story: phone stays put, screens + buddy change as you scroll -->
-    <section class="story" id="story" data-step="0">
-      <div class="story__stick">
-        <div class="wrap story__grid">
-          <div class="story__text">
-            <p class="eyebrow">How it works</p>
-            <div class="story__copy">
-              <div class="copy on"><h2>Lock it.</h2><p>Pick the apps that waste your time. They go dark.</p></div>
-              <div class="copy"><h2>Earn it.</h2><p>Train, focus, eat protein, drink water. ZANO checks it for real.</p></div>
-              <div class="copy"><h2>Get it back.</h2><p>Apps open the second you finish.</p></div>
-              <div class="copy"><h2>Keep the streak.</h2><p>Every day you earn it, the number grows.</p></div>
-            </div>
-            <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
-          </div>
-          <div class="story__phone">
-            <div class="story__disc" data-d="0.2"></div>
-            <div class="phone">
-              <div class="screens">
-                <div class="mock mock--locked on"><span class="mock__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><img src="assets/buddies/stash-sleepy.webp" alt="" /><b>Social is locked</b><small>2 goals to go</small><span class="seg"><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
-                <img src="assets/screen-today-dark.webp" alt="Today screen with 2 goals left" />
-                <div class="mock mock--win"><span class="confetti" aria-hidden="true"><i style="left:10%;top:12%;--c:#ff8a2b;--d:3.1s"></i><i style="left:24%;top:6%;--c:#8b6bff;--d:4s"></i><i style="left:40%;top:14%;--c:#2f6bff;--d:3.4s"></i><i style="left:58%;top:5%;--c:#ff5c8a;--d:4.4s"></i><i style="left:76%;top:12%;--c:#7cc21b;--d:3.7s"></i><i style="left:88%;top:22%;--c:#ff8a2b;--d:3.2s"></i><i style="left:8%;top:40%;--c:#2db7f5;--d:4.2s"></i><i style="left:92%;top:48%;--c:#8b6bff;--d:3.5s"></i><i style="left:16%;top:70%;--c:#ff5c8a;--d:3.9s"></i><i style="left:84%;top:74%;--c:#2f6bff;--d:3.3s"></i></span><img src="assets/buddies/volt-ecstatic.webp" alt="" /><b>Unlocked</b><span class="mock__pill">Open Social</span></div>
-                <img src="assets/screen-streak.webp" alt="30 day streak card" />
-              </div>
-            </div>
-            <span class="story__chip" id="storyChip">Social locked</span>
-            <div class="story__buddy">
-              <div class="orb"><img src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
-              <div class="bubble" id="storyBubble">Locked in.</div>
-            </div>
-          </div>
+    <!-- How it works -->
+    <section class="section how" id="story">
+      <div class="wrap">
+        <div class="head reveal">
+          <p class="eyebrow">How it works</p>
+          <h2><span class="nw">Lock it.</span> <span class="nw">Earn it.</span> <span class="nw">Get it back.</span></h2>
         </div>
+        <ol class="how__row">
+          <li class="how__card how__card--lock reveal" style="--d:.10s">
+            <div class="how__phone"><div class="phone"><div class="mock mock--locked"><span class="mock__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><img src="assets/buddies/stash-sleepy.webp" alt="" /><b>Social is locked</b><small>2 goals to go</small><span class="seg"><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div></div>
+            <div class="how__txt"><span class="how__n">1</span><h3>Lock it</h3><p>Pick the apps that waste your time. They go dark.</p></div>
+          </li>
+          <li class="how__card how__card--earn reveal" style="--d:.20s">
+            <div class="how__phone"><div class="phone"><img src="assets/screen-today-dark.webp" alt="Today screen with 2 goals left" /></div></div>
+            <div class="how__txt"><span class="how__n">2</span><h3>Earn it</h3><p>Train, focus, eat protein, drink water. ZANO checks it for real.</p></div>
+          </li>
+          <li class="how__card how__card--win reveal" style="--d:.30s">
+            <div class="how__phone"><div class="phone"><div class="mock mock--win"><span class="confetti" aria-hidden="true"><i style="left:10%;top:12%;--c:#ff8a2b;--d:3.1s"></i><i style="left:24%;top:6%;--c:#8b6bff;--d:4s"></i><i style="left:40%;top:14%;--c:#2f6bff;--d:3.4s"></i><i style="left:58%;top:5%;--c:#ff5c8a;--d:4.4s"></i><i style="left:76%;top:12%;--c:#7cc21b;--d:3.7s"></i><i style="left:88%;top:22%;--c:#ff8a2b;--d:3.2s"></i><i style="left:8%;top:40%;--c:#2db7f5;--d:4.2s"></i><i style="left:92%;top:48%;--c:#8b6bff;--d:3.5s"></i><i style="left:16%;top:70%;--c:#ff5c8a;--d:3.9s"></i><i style="left:84%;top:74%;--c:#2f6bff;--d:3.3s"></i></span><img src="assets/buddies/volt-ecstatic.webp" alt="" /><b>Unlocked</b><span class="mock__pill">Open Social</span></div></div></div>
+            <div class="how__txt"><span class="how__n">3</span><h3>Get it back</h3><p>Apps open the second you finish. Keep the streak going.</p></div>
+          </li>
+        </ol>
       </div>
     </section>
 
@@ -333,32 +323,6 @@
     new IntersectionObserver(([e]) => {
       panel.querySelectorAll(".crowd img").forEach((img, i) => { img.classList.remove("wave"); if (e.isIntersecting) { img.style.setProperty("--wd", (i * 90) + "ms"); void img.offsetWidth; img.classList.add("wave"); } });
     }, { threshold: 0.5 }).observe(panel);
-
-    // ---- scroll story ----
-    const story = document.getElementById("story");
-    const bubbleLines = ["Locked in.", "Two to go.", "Unlocked!", "30 days!"];
-    const stepChips = ["Social locked", "+25g protein", "Social open!", "Day 30"];
-    const sImgs = story.querySelectorAll(".screens > *"), sCopy = story.querySelectorAll(".copy"), sDots = story.querySelectorAll(".dots i");
-    const sBubble = document.getElementById("storyBubble");
-    let cur = -1;
-    function setStep(i) {
-      if (i === cur) return; cur = i; story.dataset.step = i;
-      [sImgs, sCopy, sDots].forEach((l) => l.forEach((el, j) => el.classList.toggle("on", j === i)));
-      sBubble.textContent = bubbleLines[i];
-      const sc = document.getElementById("storyChip"); sc.textContent = stepChips[i]; sc.classList.remove("pop"); void sc.offsetWidth; sc.classList.add("pop");
-      const so = story.querySelector(".story__buddy .orb"); so.classList.remove("lunge"); void so.offsetWidth; so.classList.add("lunge");
-      sBubble.style.animation = "none"; void sBubble.offsetWidth; sBubble.style.animation = "";
-    }
-    function onScroll() {
-      const r = story.getBoundingClientRect(), total = r.height - innerHeight;
-      const p = Math.min(0.999, Math.max(0, -r.top / total));
-      setStep(Math.floor(p * sImgs.length));
-    }
-    addEventListener("scroll", onScroll, { passive: true }); addEventListener("resize", onScroll); onScroll();
-    sDots.forEach((d, i) => d.addEventListener("click", () => {
-      const r = story.getBoundingClientRect(), total = r.height - innerHeight;
-      scrollTo({ top: scrollY + r.top + total * ((i + 0.5) / sImgs.length), behavior: "smooth" });
-    }));
 
     // ---- buddy picker ----
     const BUDDIES = [

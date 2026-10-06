@@ -791,3 +791,29 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: 
 @media (max-width: 860px) { .story__chip { right: -8px; top: 6%; font-size: 0.82rem; padding: 6px 12px; } .goal__pop { right: 10%; top: -56px; font-size: 0.88rem; } }
 
 .logo { gap: 2px; } .logo__w { display: inline-block; white-space: nowrap; }
+
+
+/* ---------- How it works: one compact row, no scroll-jacking ---------- */
+.how { padding-block: clamp(64px, 8vw, 104px); }
+.how .head { text-align: center; margin-bottom: clamp(32px, 5vw, 56px); }
+.how .head h2 { margin-inline: auto; }
+.how__row { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(14px, 2.4vw, 28px); }
+.how__card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px; padding: 28px 20px 30px; border-radius: 36px; background: var(--t); }
+.how__card--lock { --t: #ece7ff; --tc: #4a2fd0; } .how__card--earn { --t: #e6f6cf; --tc: #3d7a00; } .how__card--win { --t: #d6f5e4; --tc: #12804a; }
+.how__phone { width: min(210px, 62%); height: clamp(230px, 24vw, 290px); overflow: hidden; border-radius: 34px 34px 0 0; position: relative; -webkit-mask-image: linear-gradient(#000 78%, transparent); mask-image: linear-gradient(#000 78%, transparent); }
+.how__phone .phone { width: 100%; border-radius: 34px 34px 0 0; box-shadow: 0 24px 40px -22px rgba(20, 30, 70, 0.5); }
+.how__phone .phone img, .how__phone .mock { border-radius: 28px 28px 0 0; }
+.how__txt { display: grid; gap: 6px; justify-items: center; }
+.how__n { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: var(--tc); font-family: var(--display); font-weight: 900; }
+.how__txt h3 { margin: 4px 0 0; font-family: var(--display); font-weight: 900; font-size: clamp(1.5rem, 2.4vw, 1.9rem); letter-spacing: -0.03em; }
+.how__txt p { margin: 0; color: rgba(11, 13, 20, 0.66); max-width: 17em; }
+@media (max-width: 860px) {
+  .how__row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; margin-inline: calc(var(--gutter) * -1); padding: 4px var(--gutter) 18px; scrollbar-width: none; }
+  .how__row::-webkit-scrollbar { display: none; }
+  .how__card { flex: 0 0 min(78vw, 300px); scroll-snap-align: center; }
+  .how__phone { height: 250px; width: 190px; }
+}
+
+.nw { white-space: nowrap; }
+.how__phone { -webkit-mask-image: linear-gradient(#000 88%, transparent); mask-image: linear-gradient(#000 88%, transparent); }
+@media (max-width: 520px) { .how .head h2 { font-size: 2.1rem; } }

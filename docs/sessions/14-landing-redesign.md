@@ -73,3 +73,7 @@
 ### 2026-10-05 — Scroll Monster v2 + top bar
 
 - Monster: four buddies (Brick, Tank, Pip, Volt) each knock off a quarter of its health as you scroll, with a lunge, a damage chip, a hit flash/shake, an HP counter, a "K.O.!" banner and falling coins at 0. Top bar: Stash next to the wordmark, section links with the current section highlighted (desktop), a lime scroll-progress line along the pill's bottom edge, stronger shadow once scrolled. The "-25" damage and "+50 coins" are illustrative.
+
+### 2026-10-06 — How it works: replaced the sticky scroll story
+
+- The 4-step scroll-jacked section (tall sticky stage, floating text/phone, empty space) is now one compact row of three tinted cards (Lock it / Earn it / Get it back), each with its screen cropped at the bottom; swipeable snap row on phones. Streak step dropped (the streak is shown in the hero and the Scroll Monster section).

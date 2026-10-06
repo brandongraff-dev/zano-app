@@ -19,6 +19,11 @@ is the single source of truth for *how we work*. If they conflict, stop and ask 
   deduplicated error list from `gh run view <id> --log` → fix → push. Anything needing the
   Simulator UI, a real device, FamilyControls/DeviceActivity/NFC/HealthKit workouts is still blocked
   locally (and several of those don't work in the Simulator at all — spec §27).
+- **Second builder: Codemagic** (free tier, connected 2026-09-24) runs `codemagic.yaml` on every push
+  that touches code: build, Core tests, a short screenshot tour. GitHub Actions' macOS minutes ran
+  out on 2026-09-24, so Codemagic is the working loop until they reset. With a `GITHUB_TOKEN` in the
+  Codemagic env group `github`, results (status, errors, screenshots) land on the `ci-results`
+  branch: `git fetch origin ci-results` and read `STATUS.txt` / `errors.txt` / `shots/`.
 - **GitHub: pushed.** Private repo `brandongraff-dev/zano-app`, `gh` is authenticated on this
   machine. Pushing to `main` is authorized for the CI loop; don't force-push or change visibility
   without being asked.

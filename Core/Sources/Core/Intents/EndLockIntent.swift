@@ -66,6 +66,10 @@ public struct EndLockIntent: AppIntent {
 
     @MainActor
     public func perform() async throws -> some IntentResult & ProvidesDialog {
+        // A lock the monitor armed while the app was closed has no `LockSession` yet; adopt it
+        // first so this intent can see (and end) it (audit L1).
+        await LockScheduler.shared.adoptPendingScheduledLock()
+
         let context = IntentSupport.makeContext()
         let user = try IntentSupport.currentUser(in: context)
 

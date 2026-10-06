@@ -34,6 +34,7 @@ extension Copy {
         /// fallback so an unrecognized key never renders blank.
         public static func title(forKey key: String) -> String {
             if let exact = fixedTitles[key] { return exact }
+            if let season = Copy.progress.seasonBadgeTitle(forKey: key) { return season }
             if key.hasPrefix("comeback_challenge_") { return "Comeback Challenge" }
             if key.hasPrefix("comeback_") { return "Comeback" }
             if key.hasPrefix("monthly_challenge_") { return "Monthly Challenge" }
@@ -94,6 +95,11 @@ extension Copy {
             "\(earned) of \(total) earned"
         }
 
+        /// Beside the big earned-count numeral in the hero: "2" + "of 6 earned".
+        public static func progressTotalLabel(total: Int) -> String { "of \(total) earned" }
+        /// Day 1 hero line, when nothing is earned yet.
+        public static let emptyHeroMessage = "Your first earned unlock puts the first trophy on the shelf."
+
         public static let openShopButtonTitle = "Cosmetics Shop"
         public static let lockedAccessibilityHint = "Not yet earned"
         public static let otherAchievementsSectionTitle = "More badges"
@@ -114,6 +120,7 @@ extension Copy {
             case .ringStyle: "Ring styles"
             case .shieldBackground: "Shield backgrounds"
             case .coachVoicePack: "Coach voice packs"
+            case .buddyStyle: "Buddy closet"
             }
         }
 
@@ -121,11 +128,11 @@ extension Copy {
         /// defines today; an unrecognized future key falls back to a title-cased rendering rather
         /// than a blank label, same fallback `Copy.badges.title(forKey:)` uses.
         public static func title(forKey key: String) -> String {
-            fixedTitles[key] ?? Copy.badges.title(forKey: key)
+            fixedTitles[key] ?? Copy.buddyStyle.title(forCosmeticKey: key) ?? Copy.badges.title(forKey: key)
         }
 
         public static func itemDescription(forKey key: String) -> String {
-            fixedDescriptions[key] ?? "A cosmetic reward from your verified goals."
+            fixedDescriptions[key] ?? Copy.buddyStyle.description(forCosmeticKey: key) ?? "A cosmetic reward from your verified goals."
         }
 
         private static let fixedTitles: [String: String] = [
@@ -189,10 +196,7 @@ extension Copy {
             "Buy for \(priceCoins) \(priceCoins == 1 ? "coin" : "coins")"
         }
 
-        public static let proUpsellBannerText = "Cosmetics purchases are a Pro perk. Upgrade to spend your coins."
-
-        public static let proRequiredAlertTitle = "Pro required"
-        public static let proRequiredAlertMessage = "Upgrade to Pro to spend coins on cosmetics. Badges and Trophy Case stay free."
+        // No Pro-gate copy: the paywall is hard, so everyone who reaches the shop is subscribed.
 
         public static let insufficientCoinsAlertTitle = "Not enough coins"
         public static func insufficientCoinsAlertMessage(shortBy: Int) -> String {

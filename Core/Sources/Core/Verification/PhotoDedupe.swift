@@ -195,6 +195,37 @@ public enum PhotoDedupe {
         )
     }
 
+    /// Check-only half of the evaluate-and-record contract: `true` if `hash` is a near-duplicate
+    /// of a photo recorded within `window` of `date`, WITHOUT recording `hash` itself. Added for
+    /// the meal-photo UI (Fuel and meal prep, 2026-09-25): there, a photo is checked the moment
+    /// it's taken but only *counted* once the user confirms and the log succeeds. Recording on
+    /// the check (as ``isLikelyDuplicate(hash:at:window:)`` does) would flag a user who cancels
+    /// and then re-picks the same photo as "reusing" a photo that was never counted — exactly the
+    /// false accusation spec 9.8 rules out. Pair with ``recordAccepted(hash:at:window:)``.
+    public static func wouldBeDuplicate(
+        hash: PhotoHash,
+        at date: Date = .now,
+        window: TimeInterval = defaultRecentWindow
+    ) async -> Bool {
+        await RecentHashStore.shared.evaluate(
+            hash: hash,
+            at: date,
+            window: window,
+            threshold: duplicateHammingThreshold
+        )
+    }
+
+    /// Record-only half: remembers `hash` as counted at `date`, so a later resubmission within
+    /// `window` is flagged by ``wouldBeDuplicate(hash:at:window:)``. Call after the photo's log
+    /// actually succeeded.
+    public static func recordAccepted(
+        hash: PhotoHash,
+        at date: Date = .now,
+        window: TimeInterval = defaultRecentWindow
+    ) async {
+        await RecentHashStore.shared.record(hash: hash, at: date, window: window, maxStored: maxStoredHashes)
+    }
+
     /// Clears all stored recent-hash state. Not called by any production path — exposed only for
     /// tests (and a possible future debug "reset anti-cheat state" action), mirroring
     /// `TapRateLimiter.reset(key:)`'s identical reason for existing.
@@ -406,6 +437,26 @@ private actor RecentHashStore {
 
         save(recent)
         return isDuplicate
+    }
+
+    /// See `PhotoDedupe.wouldBeDuplicate(hash:at:window:)`. Read-only: does not prune or save.
+    func evaluate(hash: PhotoHash, at date: Date, window: TimeInterval, threshold: Int) -> Bool {
+        let windowStart = date.addingTimeInterval(-window)
+        return entries().contains {
+            $0.date >= windowStart && PhotoHash(bits: $0.bits).hammingDistance(to: hash) <= threshold
+        }
+    }
+
+    /// See `PhotoDedupe.recordAccepted(hash:at:window:)`.
+    func record(hash: PhotoHash, at date: Date, window: TimeInterval, maxStored: Int) {
+        let windowStart = date.addingTimeInterval(-window)
+        var recent = entries().filter { $0.date >= windowStart }
+        recent.append(Entry(bits: hash.bits, date: date))
+        if recent.count > maxStored {
+            recent.sort { $0.date < $1.date }
+            recent.removeFirst(recent.count - maxStored)
+        }
+        save(recent)
     }
 
     /// See `PhotoDedupe.resetForTesting()`.

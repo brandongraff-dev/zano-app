@@ -106,12 +106,18 @@ public final class WatchConnectivityBridge: NSObject {
         }
 
         if session.isReachable {
-            session.sendMessage(request.asMessage, replyHandler: { [weak self] _ in
-                Task { @MainActor in self?.lastSendError = nil }
-            }, errorHandler: { [weak self] error in
+            // Both handlers run on WatchConnectivity's own queue, so they are explicitly
+            // `@Sendable` (never inferred main-actor-isolated, which would trap at runtime under
+            // Swift 6) and only hop to the main actor with plain Sendable values.
+            session.sendMessage(request.asMessage, replyHandler: { @Sendable _ in
+                Task { @MainActor in WatchConnectivityBridge.shared.lastSendError = nil }
+            }, errorHandler: { @Sendable error in
+                let description = String(describing: error)
+                let message = error.localizedDescription
                 Task { @MainActor in
-                    self?.logger.error("sendMessage failed: \(String(describing: error), privacy: .public)")
-                    self?.lastSendError = error.localizedDescription
+                    let bridge = WatchConnectivityBridge.shared
+                    bridge.logger.error("sendMessage failed: \(description, privacy: .public)")
+                    bridge.lastSendError = message
                 }
             })
         } else {
@@ -126,14 +132,14 @@ public final class WatchConnectivityBridge: NSObject {
 
     // MARK: - Applying a received snapshot
 
-    /// Shared by both `didReceiveApplicationContext` and `didReceiveMessage` below — the phone may
+    /// Shared by both `didReceiveApplicationContext` and `didReceiveMessage` below (each extracts
+    /// the bytes with `snapshotData(in:)` on the delivering queue first) — the phone may
     /// reasonably use either transport for the same `WatchStateSnapshot` payload (application
     /// context for routine "latest state" syncs; an interactive message for something the phone
     /// wants the watch to see immediately, e.g. right after `GymVerifier` crosses the dwell
     /// threshold, per docs/spec.md §5.21's haptic requirement — see `WatchStateStore.apply(_:)`
     /// for where that haptic actually fires).
-    private func applySnapshotPayload(_ payload: [String: Any]) {
-        guard let data = payload[Self.snapshotPayloadKey] as? Data else { return }
+    private func applySnapshotData(_ data: Data) {
         do {
             let snapshot = try JSONDecoder().decode(WatchStateSnapshot.self, from: data)
             WatchStateStore.shared.apply(snapshot)
@@ -146,50 +152,57 @@ public final class WatchConnectivityBridge: NSObject {
     /// `WatchStateSnapshot` itself (that type is the *value*, not the transport envelope) — kept
     /// here since this file owns both send and receive sides of that envelope. A real phone-side
     /// sender must use this exact key.
-    static let snapshotPayloadKey = "zano.watchStateSnapshot"
+    nonisolated static let snapshotPayloadKey = "zano.watchStateSnapshot"
+
+    /// Pulls the snapshot bytes out of a received dictionary on the delivering queue, so only
+    /// `Data` (Sendable), never the `[String: Any]` itself, crosses to the main actor.
+    nonisolated static func snapshotData(in payload: [String: Any]) -> Data? {
+        payload[snapshotPayloadKey] as? Data
+    }
 }
 
 // MARK: - WCSessionDelegate
 
-// `@preconcurrency` on this conformance: `WCSessionDelegate`'s parameters (`WCSession` itself,
-// `[String: Any]`) predate Swift 6 strict concurrency and are not fully `Sendable`-audited in the
-// SDK's module interface as of this task's training knowledge. Combined with `nonisolated` +
-// `Task { @MainActor in ... }` on every method below, `@preconcurrency` is what keeps the compiler
-// from hard-erroring on capturing those legacy types into a main-actor-isolated closure, per this
-// codebase's `write-swift` Swift 6 migration guidance ("bridging old callback APIs... `@preconcurrency`
-// on the conformance is the shorthand"). MEDIUM confidence this is the exact right spelling for the
-// current WatchConnectivity module's concurrency annotations — flagged for a real-SDK check on
-// first build, same as this file's other watchOS-specific notes above.
-extension WatchConnectivityBridge: @preconcurrency WCSessionDelegate {
+// No `@preconcurrency`: every method is `nonisolated` and never sends a non-Sendable value
+// (`WCSession`, `[String: Any]`) across the hop to the main actor (session 13b, Swift 6 audit).
+extension WatchConnectivityBridge: WCSessionDelegate {
+    // Every callback reads what it needs from `session`/the payload right here, on the delivering
+    // queue, and hops to the main actor carrying only Sendable values (Bool, enum, String, Data).
     public nonisolated func session(
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
+        let reachable = session.isReachable
+        let errorDescription = error.map { String(describing: $0) }
         Task { @MainActor in
-            self.activationState = activationState
-            self.isReachable = session.isReachable
-            if let error {
-                self.logger.error("WCSession activation finished with error: \(String(describing: error), privacy: .public)")
+            let bridge = WatchConnectivityBridge.shared
+            bridge.activationState = activationState
+            bridge.isReachable = reachable
+            if let errorDescription {
+                bridge.logger.error("WCSession activation finished with error: \(errorDescription, privacy: .public)")
             }
         }
     }
 
     public nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        let reachable = session.isReachable
         Task { @MainActor in
-            self.isReachable = session.isReachable
+            WatchConnectivityBridge.shared.isReachable = reachable
         }
     }
 
     public nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        guard let data = Self.snapshotData(in: applicationContext) else { return }
         Task { @MainActor in
-            self.applySnapshotPayload(applicationContext)
+            WatchConnectivityBridge.shared.applySnapshotData(data)
         }
     }
 
     public nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        guard let data = Self.snapshotData(in: message) else { return }
         Task { @MainActor in
-            self.applySnapshotPayload(message)
+            WatchConnectivityBridge.shared.applySnapshotData(data)
         }
     }
 }

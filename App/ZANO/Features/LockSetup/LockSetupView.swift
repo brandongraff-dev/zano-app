@@ -54,8 +54,9 @@ import Core
 //   * Lock sets are cards (the shared `zanoCard`) with the picked apps' real icons as an overlapped
 //     stack and a `+N` overflow tile, instead of a name and a count. The system-rendered `Label(token)`
 //     keeps the token-privacy rule intact (see `AppPickerView.swift`).
-//   * The default set is *visibly* the default without a word of copy: it sorts first, wears an
-//     accent wash and an accent-dim edge, and its control is a filled accent star. Every other set
+//   * The default set sorts first and its control is a filled blue star (white glyph, `onAccent`);
+//     a caption under the list explains the star (polish pass 2026-09-24 — the extra card fill and
+//     stroke the default used to wear were dropped: one signal, not three). Every other set
 //     carries an outline star. The control is an explicit radio-style button (an off-tap on the current
 //     default is a no-op, `LockSetManager.setDefault` is the only writer) with a 44pt target. Its
 //     symbol swap and the row reorder both honor Reduce Motion (the swap used to be ungated).
@@ -67,14 +68,13 @@ import Core
 //     selection could be affected by it (it uses `AlwaysAllowedCheck`'s own acknowledgement flag, so a
 //     user who dismissed it once is not nagged). The name field is an input well that lights an accent
 //     ring while focused.
-//   * `.tint(Theme.Colors.accent)` at this screen's root so the toolbar "+"/Save/Cancel are not system
+//   * `.tint(Theme.Colors.interactive)` at this screen's root so the toolbar "+"/Save/Cancel are not system
 //     blue (`docs/design/typography-color-findings.md` C2). The app-wide tint belongs in `ZANOApp`/
 //     `ContentView`, which this wave does not own; this is the local fix until that lands.
 //
-// Copy gap (recorded, not hardcoded): a visible "Default" pill would read better than the star alone,
-// but it needs a new `Copy.lockSetup` member and `Core/Sources/Core/Copy` is outside this wave's edit
-// list. The star, the sort order, the accent edge and the existing
-// `Copy.lockSetup.defaultToggleAccessibilityLabel(name:)` carry the state meanwhile.
+// Polish pass 2026-09-24: an inline glass "New lock set" row follows the list, the star has an
+// explanatory footer (`Copy.lockSetup.defaultStarFooter`), and alerts show Copy messages instead of
+// raw `error.localizedDescription` text.
 
 /// Lock Set management screen: list of saved `LockSet`s with a default-set control, plus create /
 /// rename / re-pick-apps / delete. Reads `LockSet` rows directly via `@Query` (cheap, declarative,
@@ -91,6 +91,7 @@ struct LockSetupView: View {
     @State private var editorTarget: EditorTarget?
     @State private var pendingDeletion: LockSet?
     @State private var errorAlert: LockSetupErrorAlert?
+    @State private var showEarnModeSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Cards sit 8pt apart (4pt above + 4pt below each), inside the standard 16pt screen gutter.
@@ -129,11 +130,26 @@ struct LockSetupView: View {
                         .listRowSeparator(.hidden)
                         .transition(rowTransition)
                 }
+
+                newLockSetRow
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
+                defaultStarFooter
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
+                earnModeRow
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .zanoBackdrop(glow: ordered.isEmpty ? Theme.Colors.accent : nil, intensity: 0.12)
+        .zanoAmbient(.neutral)
         // Explicit row insertion/removal/reorder choreography, distinct from `List`'s own default row
         // animation: a new lock set (created via the "+" sheet), a deleted one (swipe-to-delete) or a
         // change of default now settles with this design system's own spring rather than the system
@@ -156,6 +172,9 @@ struct LockSetupView: View {
         }
         .sheet(item: $editorTarget) { target in
             LockSetEditorSheet(target: target)
+        }
+        .navigationDestination(isPresented: $showEarnModeSettings) {
+            EarnModeSettingsView()
         }
         .confirmationDialog(
             Copy.lockSetup.deleteConfirmTitle,
@@ -190,14 +209,9 @@ struct LockSetupView: View {
         } message: { alert in
             Text(alert.message)
         }
-        .tint(Theme.Colors.accent)
-        // `Theme.swift`'s own header: this is a fixed, dark-only design system, not
-        // light/dark-adaptive — screens force `.preferredColorScheme(.dark)` themselves. Without
-        // this, a Light/Automatic system appearance leaves this screen's own dark surfaces intact
-        // but every native `.confirmationDialog`/`.alert` above (both heavily used here) and the
-        // status bar/nav chrome follow the *system* appearance instead. See
-        // `docs/design/ui-stress-test-findings.md` §2.1.
-        .preferredColorScheme(.dark)
+        .tint(Theme.Colors.interactive)
+        // Appearance (light mode, 2026-10-03): this screen, its dialogs and the status bar all follow
+        // the scheme set once at the app root (`ZANOApp`, Settings > Appearance), so they agree.
     }
 
     /// A newly-created row settles in (fade + gentle scale-up from 0.96) and a deleted one simply
@@ -211,6 +225,65 @@ struct LockSetupView: View {
                 insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .center)),
                 removal: .opacity
             )
+    }
+
+    // MARK: - Inline create + footer (polish pass 2026-09-24)
+
+    /// A quiet glass row after the list, so creating another set doesn't depend on finding the
+    /// toolbar "+". Glass, not a filled button: the screen's content is the sets themselves.
+    private var newLockSetRow: some View {
+        Button {
+            editorTarget = .create
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                Image(systemName: "plus")
+                    .font(Theme.Typography.icon(.small))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .accessibilityHidden(true)
+                Text(Copy.lockSetup.newLockSetButtonLabel)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget + Theme.Spacing.xs)
+            .zanoGlass(in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        }
+        .buttonStyle(.pressable)
+    }
+
+    /// Earn Mode / Time Bank settings (Wave 2E, spec §5.2).
+    /// A `Button` + `navigationDestination` rather than a `NavigationLink`, so `List` doesn't add
+    /// its own disclosure chevron outside the card.
+    private var earnModeRow: some View {
+        Button {
+            showEarnModeSettings = true
+        } label: {
+            LockRuleRowLabel(
+                systemImage: "hourglass",
+                title: Copy.lockSetup.earnModeRowTitle,
+                detail: Copy.lockSetup.earnModeRowDetail
+            )
+        }
+        .buttonStyle(.pressable)
+        .padding(.top, Theme.Spacing.sm)
+    }
+
+    /// What the star means. The star alone left "default" to guesswork.
+    private var defaultStarFooter: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+            Image(systemName: "star.fill")
+                .font(Theme.Typography.icon(.xsmall))
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityHidden(true)
+            Text(Copy.lockSetup.defaultStarFooter)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Theme.Spacing.xs)
+        .padding(.top, Theme.Spacing.xxs)
     }
 
     // MARK: - Empty state
@@ -279,14 +352,9 @@ struct LockSetupView: View {
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .zanoCard(radius: Theme.Radius.medium, tint: isDefault ? Theme.Colors.accent : nil)
-            .overlay {
-                if isDefault {
-                    RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .strokeBorder(Theme.Colors.accentDim, lineWidth: 1.5)
-                        .allowsHitTesting(false)
-                }
-            }
+            // One card treatment for every set: the blue star (and the sort order) marks the
+            // default; an extra fill + stroke on top of that was a third signal saying the same thing.
+            .zanoCard(radius: Theme.Radius.medium)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         }
         .buttonStyle(.pressable)
@@ -319,8 +387,8 @@ struct LockSetupView: View {
         } label: {
             Image(systemName: isDefault ? "star.fill" : "star")
                 .font(Theme.Typography.icon(.small))
-                // `onFill`, not `background`: the one label color for anything drawn on an accent fill.
-                .foregroundStyle(isDefault ? Theme.Colors.onFill : Theme.Colors.muted)
+                // `onAccent`: white on the blue disc.
+                .foregroundStyle(isDefault ? Theme.Colors.onAccent : Theme.Colors.muted)
                 .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                 .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
                 .background(isDefault ? Theme.Colors.accent : Theme.Colors.track, in: Circle())
@@ -342,7 +410,7 @@ struct LockSetupView: View {
             } catch {
                 errorAlert = LockSetupErrorAlert(
                     title: Copy.lockSetup.saveErrorTitle,
-                    message: error.localizedDescription
+                    message: Copy.lockSetup.saveErrorMessage
                 )
             }
         }
@@ -353,10 +421,15 @@ struct LockSetupView: View {
         Task {
             do {
                 try await LockSetManager.shared.delete(lockSetID: lockSet.id)
+            } catch LockSetManagerError.cannotDeleteLastLockSet {
+                errorAlert = LockSetupErrorAlert(
+                    title: Copy.lockSetup.deleteErrorTitle,
+                    message: Copy.lockSetup.deleteLastLockSetMessage
+                )
             } catch {
                 errorAlert = LockSetupErrorAlert(
-                    title: Copy.lockSetup.saveErrorTitle,
-                    message: error.localizedDescription
+                    title: Copy.lockSetup.deleteErrorTitle,
+                    message: Copy.lockSetup.saveErrorMessage
                 )
             }
         }
@@ -379,11 +452,11 @@ private struct LockSetIconStack: View {
         let overflow = items.count - visible.count
         return HStack(spacing: -Theme.Spacing.sm) {
             if visible.isEmpty {
-                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                RoundedRectangle(cornerRadius: ActivityTokenTile.cornerRadius, style: .continuous)
                     .fill(Theme.Colors.surface2)
                     .frame(width: Self.tileSize, height: Self.tileSize)
                     .overlay {
-                        RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                        RoundedRectangle(cornerRadius: ActivityTokenTile.cornerRadius, style: .continuous)
                             .strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth)
                     }
                     .overlay {
@@ -406,9 +479,44 @@ private struct LockSetIconStack: View {
     }
 
     private var halo: some View {
-        RoundedRectangle(cornerRadius: Theme.Radius.small + 2, style: .continuous)
+        RoundedRectangle(cornerRadius: ActivityTokenTile.cornerRadius + 2, style: .continuous)
             .fill(Theme.Colors.surface)
             .padding(-2)
+    }
+}
+
+/// A card row that links to a lock rule screen (schedule, tiers, Earn Mode).
+private struct LockRuleRowLabel: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            Image(systemName: systemImage)
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.accent)
+                .frame(width: Theme.Metrics.iconBadgeSmall)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(title)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(detail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(Theme.Typography.icon(.xsmall))
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityHidden(true)
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget, alignment: .leading)
+        .zanoCard(radius: Theme.Radius.medium)
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
     }
 }
 
@@ -457,6 +565,10 @@ private struct LockSetEditorSheet: View {
     /// Set when the user closes the Always-Allowed banner in this sheet; paired with
     /// `AlwaysAllowedCheck.hasAcknowledgedWarning` (the cross-session "don't nag forever" flag).
     @State private var hasDismissedAlwaysAllowedWarning = false
+    /// Bumped whenever the sheet's root reappears (back from a rules screen) so the schedule/tier
+    /// summaries, read from App Group storage, re-render.
+    @State private var rulesRefresh = 0
+    @State private var didPopulate = false
 
     private var existingLockSet: LockSet? {
         if case .edit(let lockSet) = target {
@@ -489,6 +601,9 @@ private struct LockSetEditorSheet: View {
                     nameSection
 
                     AppPickerView(selection: $selection)
+
+                    rulesSection
+                        .id(rulesRefresh)
 
                     if shouldShowAlwaysAllowedWarning {
                         AlwaysAllowedWarningView(selection: selection) {
@@ -525,7 +640,14 @@ private struct LockSetEditorSheet: View {
                     .disabled(!canSave || isSaving)
                 }
             }
-            .onAppear(perform: populateFromExistingLockSet)
+            .onAppear {
+                // Also runs when coming back from a rules screen: refresh the summaries, but never
+                // re-populate over the user's unsaved name/app edits.
+                rulesRefresh += 1
+                guard !didPopulate else { return }
+                didPopulate = true
+                populateFromExistingLockSet()
+            }
             .alert(
                 errorAlert?.title ?? "",
                 isPresented: Binding(
@@ -541,10 +663,7 @@ private struct LockSetEditorSheet: View {
                 Text(alert.message)
             }
         }
-        .tint(Theme.Colors.accent)
-        // Same fixed-dark rationale as `LockSetupView`; a presented sheet does not reliably inherit
-        // the presenter's `preferredColorScheme`.
-        .preferredColorScheme(.dark)
+        .tint(Theme.Colors.interactive)
     }
 
     /// An eyebrow label over an input well (`surface2`, edge-lit). The well lights an accent ring while
@@ -566,7 +685,7 @@ private struct LockSetEditorSheet: View {
                 .zanoCard(radius: Theme.Radius.medium, fill: Theme.Colors.surface2)
                 .overlay {
                     RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .strokeBorder(Theme.Colors.accent, lineWidth: 1.5)
+                        .strokeBorder(Theme.Colors.interactive, lineWidth: 1.5)
                         .opacity(isNameFocused ? 1 : 0)
                         .allowsHitTesting(false)
                 }
@@ -582,6 +701,51 @@ private struct LockSetEditorSheet: View {
                     guard newValue.count > Self.maxNameLength else { return }
                     name = String(newValue.prefix(Self.maxNameLength))
                 }
+        }
+    }
+
+    /// Schedule + partial-unlock tiers (Wave 2E). Both key off the lock set's id, so a set that
+    /// hasn't been saved yet shows a hint instead.
+    private var rulesSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Copy.lockSetup.rulesSectionLabel)
+                .zanoText(.eyebrow)
+                .foregroundStyle(Theme.Colors.muted)
+                .padding(.horizontal, Theme.Spacing.xs)
+
+            if let existingLockSet {
+                let lockSetID = existingLockSet.id
+                NavigationLink {
+                    LockScheduleEditor(lockSetID: lockSetID)
+                } label: {
+                    LockRuleRowLabel(
+                        systemImage: "calendar.badge.clock",
+                        title: Copy.lockSetup.scheduleRowTitle,
+                        detail: LockScheduleSummary.text(for: LockScheduler.shared.schedule(for: lockSetID))
+                    )
+                }
+                .buttonStyle(.pressable)
+
+                NavigationLink {
+                    TierEditorView(lockSetID: lockSetID)
+                } label: {
+                    let tierCount = PartialUnlockTierStore.tiers(for: lockSetID).count
+                    LockRuleRowLabel(
+                        systemImage: "square.stack.3d.up",
+                        title: Copy.lockSetup.tiersRowTitle,
+                        detail: tierCount == 0
+                            ? Copy.lockSetup.tiersRowOff
+                            : Copy.lockSetup.tiersRowSummary(count: tierCount)
+                    )
+                }
+                .buttonStyle(.pressable)
+            } else {
+                Text(Copy.lockSetup.rulesSaveFirstHint)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Spacing.xs)
+            }
         }
     }
 
@@ -608,7 +772,7 @@ private struct LockSetEditorSheet: View {
                 isSaving = false
                 errorAlert = LockSetupErrorAlert(
                     title: Copy.lockSetup.saveErrorTitle,
-                    message: error.localizedDescription
+                    message: Copy.lockSetup.saveErrorMessage
                 )
             }
         }

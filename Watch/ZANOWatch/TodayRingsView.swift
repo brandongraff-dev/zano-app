@@ -13,26 +13,23 @@ struct TodayRingsView: View {
     @Environment(WatchStateStore.self) private var store
     @Environment(WatchConnectivityBridge.self) private var connectivity
 
+    // A section of `HomeView` (session 13b), not a screen: no ScrollView or title of its own.
     var body: some View {
-        ScrollView {
-            VStack(spacing: WatchTheme.Spacing.md) {
-                if !connectivity.isReachable {
-                    ConnectivityBanner()
-                }
-
-                ringsGrid
-
-                StreakBadge(streak: store.snapshot.currentStreak)
-
-                if let lock = store.snapshot.activeLock {
-                    ActiveLockBadge(lock: lock)
-                }
+        VStack(spacing: WatchTheme.Spacing.md) {
+            if !store.snapshot.hasSynced {
+                NeverSyncedBanner()
+            } else if !connectivity.isReachable {
+                ConnectivityBanner()
             }
-            .padding(.horizontal, WatchTheme.Spacing.xs)
-            .padding(.vertical, WatchTheme.Spacing.sm)
+
+            ringsGrid
+
+            StreakBadge(streak: store.snapshot.currentStreak)
+
+            if let lock = store.snapshot.activeLock {
+                ActiveLockBadge(lock: lock)
+            }
         }
-        .background(WatchTheme.Colors.background)
-        .navigationTitle(Copy.watch.todayTitle)
     }
 
     private var ringsGrid: some View {
@@ -58,6 +55,18 @@ struct TodayRingsView: View {
                 }
             }
         }
+    }
+}
+
+private struct NeverSyncedBanner: View {
+    var body: some View {
+        Text(Copy.watch.neverSyncedBanner)
+            .font(WatchTheme.Typography.caption)
+            .foregroundStyle(WatchTheme.Colors.muted)
+            .multilineTextAlignment(.center)
+            .padding(WatchTheme.Spacing.xs)
+            .frame(maxWidth: .infinity)
+            .background(WatchTheme.Colors.surface, in: .rect(cornerRadius: 10))
     }
 }
 
@@ -106,7 +115,7 @@ private struct ActiveLockBadge: View {
 }
 
 #Preview {
-    NavigationStack {
+    ScrollView {
         TodayRingsView()
     }
     .environment(WatchStateStore.shared)

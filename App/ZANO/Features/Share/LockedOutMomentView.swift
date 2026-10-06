@@ -21,126 +21,16 @@
 // `Copy.lockedOut.headline`, which owns the "This app" wording the same way `ShieldCopy.content(for:)`
 // owns its own `shieldedName` fallback.
 //
-// CROSS-MODULE GAP (flagging, not guessing): the only place iOS actually tells us "the user just
-// tried to open a blocked app" is `ShieldConfigurationExtension.configuration(shielding:...)`
-// (`Extensions/ZANOShieldConfig/ShieldConfigurationExtension.swift`, owned by another session, not
-// touched here) — the system calls one of those four overrides every single time the shield renders.
-// `ManagedSettingsUI` gives no other "an attempt happened" callback (`ShieldActionDelegate` only fires
-// on an explicit button tap). That means the counter's *write* side must be reachable from an
-// extension target, which per CLAUDE.md ("Shared code goes ONLY in Core/Sources/Core/<Module>...
-// Extension-only code in Extensions/<Name>/") means it has to live in Core — but this task's
-// owned-file list is only the files in this folder, all in the `ZANO` **app** target, which
-// `ZANOShieldConfig` cannot import. So:
-//   `LockedOutAttemptTracker` below is written to have ZERO app-target dependencies (only
-//   `Foundation` + `Core`'s public `AppGroup.identifier`) specifically so it can be relocated
-//   verbatim into `Core/Sources/Core/Verification/LockedOutAttemptTracker.swift` by whoever owns
-//   that extension file — at that point `ShieldConfigurationExtension` should call
-//   `LockedOutAttemptTracker.recordAttempt(appName:)` once per `configuration(shielding:...)` call
-//   (right alongside its existing `SharedDefaults` reads) and this view starts reflecting real
-//   attempts with no other change needed here. Until that move happens, this type still works
-//   correctly for any in-app caller (previews, tests, or a future notification-tap path) — it just
-//   isn't yet fed real shield-render events. This is exactly the same shape of gap
-//   `ShieldCopy.ShieldContext.recentMiss` already documents for `neverMissTwiceArmed` — a fully-
-//   built consumer waiting on one producer wire-up outside this task's scope.
+// Attempt counting lives in Core (`LockedOutAttemptTracker`, `Core/Sources/Core/LockEngine`): the
+// shield configuration extension records each attempt there and the app reads the trailing-hour
+// count and the last app name from it.
 
 import Foundation
 import SwiftUI
 import Core
 
-// MARK: - Attempt tracking (spec §5.16: "3+ times in an hour")
-
-/// Counts "tried to open a blocked app" events in a trailing 60-minute window and decides when
-/// that crosses spec §5.16's threshold. See this file's header for why this type deliberately has
-/// no dependency on anything but `Foundation` and `Core.AppGroup` — it's written to be liftable
-/// into `Core/Sources/Core/Verification` verbatim once an extension needs to call `recordAttempt`.
-///
-/// Storage: its own namespaced keys in the same App Group `UserDefaults` suite `SharedDefaults`
-/// (`Core/Sources/Core/Store/SharedDefaults.swift`) uses, but declared independently here rather
-/// than added to that file — `SharedDefaults.swift` isn't in this task's owned-file list, and a
-/// second, narrowly-scoped reader/writer of the *same suite* with its own keys can't collide with
-/// it (UserDefaults keys are just strings; these are prefixed distinctly below).
-public enum LockedOutAttemptTracker {
-
-    /// spec §5.16: "3+ times in an hour."
-    public static let threshold = 3
-    /// spec §5.16: "in an hour."
-    public static let window: TimeInterval = 3600
-
-    /// `UserDefaults` is documented thread-safe by Apple but the stock SDK doesn't mark the class
-    /// `Sendable` as of this writing — same rationale, same annotation, as `SharedDefaults.swift`.
-    nonisolated(unsafe) private static let suite: UserDefaults =
-        UserDefaults(suiteName: AppGroup.identifier) ?? .standard
-
-    private enum Keys {
-        static let attemptTimestamps = "shared.lockedOutMoment.attemptTimestamps"
-        static let lastTriggeredAt = "shared.lockedOutMoment.lastTriggeredAt"
-    }
-
-    /// Records one "the user tried to open a blocked app" event and returns a
-    /// ``LockedOutMomentTrigger`` the moment this crosses the spec §5.16 threshold — `nil` on every
-    /// call that doesn't (either the trailing-hour count is still under ``threshold``, or it's
-    /// already been surfaced once for this window; see the debounce note below).
-    ///
-    /// Debounce: once triggered, this won't trigger again for a full ``window`` even though the
-    /// trailing count stays at or above ``threshold`` on every subsequent attempt within that same
-    /// hour — without this, a user who keeps trying the same locked app would get the Locked-Out
-    /// card shoved at them on attempt 4, 5, 6... which turns a fun, shareable moment into a nag.
-    /// One prompt per qualifying hour matches spec §8 rule 7's broader "nudge scarcity" spirit even
-    /// though this isn't a push notification.
-    ///
-    /// - Parameters:
-    ///   - appName: Localized display name of the app/site the user just tried to open, when the
-    ///     call site has one (e.g. `Application.localizedDisplayName` / `WebDomain.domain` from a
-    ///     `ShieldConfigurationDataSource` override). `nil` for a category-level shield with no
-    ///     single name to report.
-    ///   - date: Injectable for deterministic tests/previews. Defaults to `.now`.
-    @discardableResult
-    public static func recordAttempt(appName: String?, at date: Date = .now) -> LockedOutMomentTrigger? {
-        var timestamps = storedTimestamps()
-        timestamps.append(date)
-        timestamps = timestamps.filter { date.timeIntervalSince($0) <= window }
-        setStoredTimestamps(timestamps)
-
-        guard timestamps.count >= threshold else { return nil }
-
-        if let lastTriggeredAt = suite.object(forKey: Keys.lastTriggeredAt) as? Date,
-           date.timeIntervalSince(lastTriggeredAt) < window {
-            return nil
-        }
-        suite.set(date, forKey: Keys.lastTriggeredAt)
-
-        return LockedOutMomentTrigger(
-            appName: appName,
-            attemptCount: timestamps.count,
-            windowStart: timestamps.first ?? date,
-            triggeredAt: date
-        )
-    }
-
-    /// How many attempts are currently within the trailing ``window`` — for a caller that wants to
-    /// poll state (e.g. show a badge) without itself recording a new attempt.
-    public static func currentAttemptCount(asOf date: Date = .now) -> Int {
-        storedTimestamps().filter { date.timeIntervalSince($0) <= window }.count
-    }
-
-    /// Clears all recorded attempts and the trigger debounce. For previews/tests only — nothing in
-    /// the app or an extension should call this during normal operation.
-    public static func reset() {
-        suite.removeObject(forKey: Keys.attemptTimestamps)
-        suite.removeObject(forKey: Keys.lastTriggeredAt)
-    }
-
-    private static func storedTimestamps() -> [Date] {
-        (suite.array(forKey: Keys.attemptTimestamps) as? [Date]) ?? []
-    }
-
-    private static func setStoredTimestamps(_ timestamps: [Date]) {
-        suite.set(timestamps, forKey: Keys.attemptTimestamps)
-    }
-}
-
-/// One qualifying "3+ attempts in an hour" crossing, as returned by
-/// ``LockedOutAttemptTracker/recordAttempt(appName:at:)``.
+/// One qualifying "3+ attempts in an hour" crossing, built by a caller from
+/// ``LockedOutAttemptTracker``'s count and last app name.
 public struct LockedOutMomentTrigger: Sendable, Equatable {
     public let appName: String?
     public let attemptCount: Int
@@ -272,8 +162,10 @@ public struct LockedOutMomentView: View {
                 onDismiss: onDismiss
             )
 
+            // Slapped on like a sticker: it drops in tilted and big, and lands square with a thunk.
             SharePosterPreview(poster: poster)
-                .scaleEffect(reduceMotion || cardAppeared ? 1 : 0.92)
+                .scaleEffect(reduceMotion || cardAppeared ? 1 : 1.12)
+                .rotationEffect(.degrees(reduceMotion || cardAppeared ? 0 : -7))
                 .opacity(cardAppeared ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -309,13 +201,13 @@ public struct LockedOutMomentView: View {
         // no scale.
         .onAppear {
             guard !cardAppeared else { return }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.38, dampingFraction: 0.62)) {
                 cardAppeared = true
             }
         }
-        // `Theme.swift`'s own header: this is a fixed, dark-only design system — see
-        // `docs/design/ui-stress-test-findings.md` §2.1, and `LockSetupView.swift`'s identical
-        // comment for the full rationale.
+        .sensoryFeedback(.impact(weight: .medium), trigger: cardAppeared) { _, newValue in newValue }
+        // Deliberately dark in light mode too (docs/design/visual-direction-v2.md §10): a share
+        // moment shows the poster it shares, and posters are rendered dark for social feeds.
         .preferredColorScheme(.dark)
     }
 
@@ -385,21 +277,24 @@ public struct LockedOutMomentView: View {
             eyebrow: Copy.lockedOut.screenTitle,
             headline: Copy.lockedOut.headline(appName: content.appName, blockingGoalSummary: content.blockingGoalSummary),
             statLine: Copy.lockedOut.statLine(attemptCount: content.attemptCount, windowMinutes: content.windowMinutes),
-            highlightLine: highlightLine,
+            chips: highlightChips,
             footerLabel: Copy.share.footerWordmark
         )
     }
 
-    private var highlightLine: String? {
-        guard let goalsRemaining = content.goalsRemaining else { return nil }
-        return Copy.lockedOut.highlightLine(goalsRemaining: goalsRemaining, streak: content.streak ?? 0)
+    /// Goals left and the streak as two chips (a public card never prints a zero streak).
+    private var highlightChips: [String] {
+        guard let goalsRemaining = content.goalsRemaining else { return [] }
+        var chips = [Copy.lockedOut.goalsLeftChip(goalsRemaining)]
+        if let streak = content.streak, streak > 0 { chips.append(Copy.lockedOut.streakChip(streak)) }
+        return chips
     }
 }
 
 #Preview {
     LockedOutMomentView(
         content: LockedOutMomentContent(
-            appName: "TikTok",
+            appName: "Social",
             attemptCount: 4,
             blockingGoalSummary: "hit the gym",
             goalsRemaining: 1,

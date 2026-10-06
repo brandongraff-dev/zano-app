@@ -13,7 +13,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_tour:
+        description: "Skip the screenshot tour (about 20 minutes): faster build and test feedback"
+        type: boolean
+        default: false
 
 jobs:
   build-and-test:
@@ -60,9 +65,25 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build.log
 
+      # The Apple Watch app (session 13b). Not embedded in ZANO yet, so the build above doesn't
+      # compile it; this builds the standalone ZANOWatch scheme, unsigned, for the watchOS
+      # Simulator SDK. Runs even when the iOS build failed so both error lists show up at once.
+      - name: Build ZANOWatch (watchOS Simulator)
+        id: watch
+        if: always()
+        run: |
+          set -o pipefail
+          xcodebuild -project ZANO.xcodeproj -scheme ZANOWatch \
+            -destination 'generic/platform=watchOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee watch.log
+
       - name: Run Core unit tests (iOS Simulator)
         id: tests
         if: always()
+        # A hung test must end the step (and let the logs upload) instead of eating the whole job.
+        timeout-minutes: 15
         working-directory: Core
         run: |
           set -o pipefail
@@ -90,7 +111,7 @@ jobs:
       # launch is diagnosable without a Mac.
       - name: Screenshot tour (iOS Simulator)
         id: shots
-        if: always() && steps.build.outcome == 'success'
+        if: always() && steps.build.outcome == 'success' && github.event.inputs.skip_tour != 'true'
         continue-on-error: true
         run: |
           mkdir -p shots
@@ -122,11 +143,13 @@ jobs:
           xcrun simctl io "$SIM_ID" screenshot shots/00-plain-launch.png
           # One launch per screen: -ZANOScreen <name> is read by ScreenshotGallery.swift, which seeds
           # demo data and renders that screen through the real code paths.
-          SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7
-                   onboarding-8 onboarding-9 onboarding-10 onboarding-11 onboarding-12 onboarding-13 onboarding-14
-                   paywall tab-today tab-lock tab-fuel tab-progress tab-settings
+          SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7 onboarding-8
+                   buddy-picker buddy-closet planner characters paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
                    locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing
-                   celebration lockedout recap"
+                   celebration lockedout recap
+                   gym-setup gym-checkin nfc-tags lock-card goals-editor lock-schedule earn-settings
+                   tier-editor nudge-settings health-pause solo-duel squad-create referral
+                   gym-leaderboard autofocus milestone monthly-story year-in-review earned-it-clip"
           for SCREEN in $SCREENS; do
             xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
             xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "LAUNCH FAILED: $SCREEN"
@@ -152,7 +175,7 @@ jobs:
             xcrun simctl boot "$SE_ID" || true
             xcrun simctl bootstatus "$SE_ID" -b
             xcrun simctl install "$SE_ID" "$APP"
-            for SCREEN in tab-today tab-lock tab-fuel tab-progress onboarding-5 onboarding-12 alarm-ringing; do
+            for SCREEN in tab-today tab-lock tab-fuel tab-progress onboarding-1 onboarding-2 onboarding-4 onboarding-6 onboarding-7 alarm-ringing; do
               xcrun simctl terminate "$SE_ID" com.zano.app 2>/dev/null || true
               xcrun simctl launch "$SE_ID" com.zano.app -ZANOScreen "$SCREEN" || echo "SE LAUNCH FAILED: $SCREEN"
               sleep 5
@@ -161,6 +184,26 @@ jobs:
           else
             echo "No iPhone SE simulator available on this runner; skipping the small-screen pass."
           fi
+
+          # Light-mode pass (2026-10-03) on the main simulator: `-ZANOAppearance light` makes
+          # ScreenshotGallery/ZANOApp render light (every other run defaults to dark, so the main
+          # tour above stays comparable). Saved as shots/light-<name>.png. `celebration` is
+          # deliberately dark in both appearances; it is here to prove that.
+          SCREENS_LIGHT="tab-today tab-lock tab-fuel tab-progress tab-settings onboarding-1 buddy-picker paywall celebration"
+          for SCREEN in $SCREENS_LIGHT; do
+            xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
+            xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "$SCREEN" -ZANOAppearance light || echo "LIGHT LAUNCH FAILED: $SCREEN"
+            sleep 7
+            xcrun simctl io "$SIM_ID" screenshot "shots/light-$SCREEN.png"
+          done
+
+          # Buddies (2026-10-03): one extra shot with a non-default buddy. `-ZANOBuddy <rawValue>`
+          # (read by ScreenshotGallery.swift, DEBUG only) stores that buddy before the first render;
+          # every other launch clears it, so the rest of the tour shows the default (Stash).
+          xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
+          xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen tab-today -ZANOBuddy brick || echo "BUDDY LAUNCH FAILED: brick"
+          sleep 5
+          xcrun simctl io "$SIM_ID" screenshot "shots/buddy-brick-today.png"
           ls -la shots
 
       # The simulator build itself, for interactive use (e.g. upload the zip to Appetize.io and click
@@ -190,12 +233,25 @@ jobs:
       - name: Summarize errors (deduplicated)
         if: always()
         run: |
-          for f in build.log test.log uitests.log; do
+          for f in build.log watch.log test.log uitests.log; do
             [ -f "$f" ] || continue
             echo "=================== $f: unique errors ==================="
             grep -E "error:" "$f" | sed -E 's|^.*/zano-app/zano-app/||' | sort -u | head -150
             echo "--- total 'error:' lines: $(grep -cE 'error:' "$f")  unique: $(grep -E 'error:' "$f" | sort -u | wc -l)"
           done
+
+      # The screenshot tour can't see a crash (it just captures the home screen), so fail the run
+      # when the app left crash reports, and print the reason for each.
+      - name: Fail on app crashes during the screenshot tour
+        if: always()
+        run: |
+          shopt -s nullglob
+          reports=(shots/ZANO*.ips)
+          if [ ${#reports[@]} -gt 0 ]; then
+            echo "::error::ZANO crashed ${#reports[@]} time(s) during the screenshot tour"
+            grep -h "Terminating app due to\|Fatal error" shots/app.log | sort -u | head -20 || true
+            exit 1
+          fi
 
       - name: Upload build logs
         if: always()
@@ -204,6 +260,7 @@ jobs:
           name: build-logs
           path: |
             build.log
+            watch.log
             test.log
             uitests.log
           if-no-files-found: ignore

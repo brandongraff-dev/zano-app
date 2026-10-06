@@ -11,29 +11,34 @@
 // the same two reasons: the provider can be swapped/mocked later without hunting down call
 // sites, and exactly one file has to reason about the SDK not being linked yet.
 //
-// docs/dependencies.md lists RevenueCat (https://github.com/RevenueCat/purchases-ios) as "Add
-// in: Session 6" and it is **not yet added** to `project.yml` as of this task — per that file's
-// own instructions, dependency versions are resolved via Xcode's "Add Package Dependency" on a
-// Mac, never hand-pinned here. Every call into the `RevenueCat` module below is therefore
-// guarded by `#if canImport(RevenueCat)`, exactly like `Analytics.swift`/`CrashReporting.swift`
-// guard `PostHog`/`Sentry`: this file compiles cleanly today (package absent — no Mac/Swift
-// toolchain exists in this session to verify that compile either, but the guard is the same
-// proven pattern already merged into this repo) and starts actually calling RevenueCat the
-// moment the package is added to `project.yml` — no code change required here. Flagged again in
-// this task's knownIssues, as instructed.
+// LINKED (audit M1, 2026-10-02): `purchases-ios` is a dependency of the Core package
+// (Core/Package.swift, `from: "5.92.0"`) and of the ZANO app target (project.yml), so
+// `canImport(RevenueCat)` is true in every build of Core. The `#if canImport(RevenueCat)` guards stay:
+// they cost nothing and keep this file compiling if the package is ever dropped again.
 //
-// API surface below (Purchases.configure/offerings()/purchase(package:)/restorePurchases()/
-// customerInfo(), Offerings.current, Offering.availablePackages, Package.identifier/packageType/
-// storeProduct, PackageType cases, StoreProduct.localizedPriceString/price/subscriptionPeriod/
-// introductoryDiscount/priceFormatter, SubscriptionPeriod.value/unit/numberOfUnitsAs(unit:),
-// StoreProductDiscount.paymentMode/subscriptionPeriod, CustomerInfo.entitlements,
-// EntitlementInfos.all, EntitlementInfo.isActive) was checked against the RevenueCat/
-// purchases-ios `main` branch source on GitHub during this task — these are real, verified
-// method/type names, not guessed from memory. What could **not** be verified without a Swift
-// compiler in this environment: that these calls actually compile together end-to-end, that
-// `PurchaseResultData`'s field names/labels are used correctly at every call site below, and
-// that no newer/older SDK version renamed something since the snapshot this task read. Flagged
-// plainly in knownIssues rather than presented as certain, per this task's instructions.
+// Key: `ZANOApp` passes the Info.plist value `REVENUECAT_API_KEY`, which project.yml fills from an
+// empty-by-default build setting. An empty (or unexpanded `$(...)`) key leaves the SDK unconfigured,
+// and every method below then behaves exactly as it did before the SDK was linked
+// (`.notConfigured` / `.unavailable` / `false`). The onboarding paywall answers that with the grace
+// period (`SubscriptionGate`), so a build with no key is never stuck.
+//
+// API surface used, checked against the purchases-ios 5.92.0 source (tag cloned 2026-10-02):
+//   Purchases.logLevel (static var, LogLevel.warn), Purchases.configure(withAPIKey:) (static,
+//   @discardableResult -> Purchases), Purchases.shared.offerings() async throws -> Offerings,
+//   purchase(package:) async throws -> PurchaseResultData (= (transaction: StoreTransaction?,
+//   customerInfo: CustomerInfo, userCancelled: Bool)), restorePurchases() async throws ->
+//   CustomerInfo, customerInfo() async throws -> CustomerInfo; Offerings.current: Offering?,
+//   Offering.identifier / availablePackages: [Package], Package.identifier / packageType /
+//   storeProduct, PackageType (unknown, custom, lifetime, annual, sixMonth, threeMonth, twoMonth,
+//   monthly, weekly), StoreProduct.productIdentifier / localizedPriceString / price: Decimal /
+//   priceFormatter: NumberFormatter? / subscriptionPeriod / introductoryDiscount,
+//   SubscriptionPeriod.numberOfUnitsAs(unit:) -> Decimal (public extension),
+//   StoreProductDiscount.paymentMode (.freeTrial) / subscriptionPeriod, CustomerInfo.entitlements,
+//   EntitlementInfos.all: [String: EntitlementInfo], EntitlementInfo.isActive / periodType
+//   (.normal/.intro/.trial) / expirationDate: Date?. Offerings, Offering, Package, CustomerInfo and
+//   StoreTransaction are all Sendable in 5.x, so the async results cross onto the main actor
+//   cleanly. Still unverified: an actual compile against the SDK (CI does that), and the dashboard
+//   side (entitlement id "pro", offering, products) which only exists once the founder creates it.
 
 import Foundation
 import os
@@ -154,6 +159,23 @@ public struct SubscriptionOfferings: Sendable, Equatable {
     }
 }
 
+/// The Pro entitlement's state, mapped from RevenueCat's `EntitlementInfo`.
+public struct ProEntitlementInfo: Sendable, Equatable {
+    public let isActive: Bool
+    /// `EntitlementInfo.periodType == .trial`: the user is inside the free trial.
+    public let isTrial: Bool
+    /// When the current period ends: for a trial, the moment the first charge happens.
+    public let expirationDate: Date?
+    public let willRenew: Bool
+
+    public init(isActive: Bool, isTrial: Bool, expirationDate: Date?, willRenew: Bool) {
+        self.isActive = isActive
+        self.isTrial = isTrial
+        self.expirationDate = expirationDate
+        self.willRenew = willRenew
+    }
+}
+
 // MARK: - RevenueCatManager
 
 /// The sole owner of every call into the RevenueCat SDK (see file header).
@@ -169,6 +191,12 @@ public final class RevenueCatManager {
 
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "RevenueCatManager")
     private var isConfigured = false
+
+    /// The Pro entitlement as of the last `CustomerInfo` this manager saw (purchase, restore or
+    /// `entitlementCheck()`), as plain values. `nil` until one was seen, or when the user has never
+    /// had the entitlement. `TrialReminder` reads `isTrial`/`expirationDate` from it to date the
+    /// "trial ends soon" reminder from the store instead of from the trial length.
+    public private(set) var lastProEntitlement: ProEntitlementInfo?
 
     #if canImport(RevenueCat)
     /// Keyed by `SubscriptionPackage.id`, refreshed on every `fetchOfferings()` call, so
@@ -191,21 +219,14 @@ public final class RevenueCatManager {
     /// call more than once — a second call is a no-op once already configured, since RevenueCat
     /// itself warns against re-configuring a running SDK instance.
     ///
-    /// TODO(cross-module integration — `App/ZANO/ZANOApp.swift`; not this task's file to edit
-    /// per CLAUDE.md "stay strictly inside your assigned file list"): `ZANOApp.init` currently
-    /// calls `Analytics.shared.setup`/`CrashReporting.shared.setup`, each guarded by `#if
-    /// canImport(PostHog)`/`#if canImport(Sentry)`, but has no equivalent call to
-    /// `RevenueCatManager.shared.configure(apiKey:)` yet. Add one there (guarded the same way
-    /// with `#if canImport(RevenueCat)`, reading a `"REVENUECAT_API_KEY"` `Info.plist` value the
-    /// way the existing two calls read `POSTHOG_API_KEY`/`SENTRY_DSN`) once RevenueCat is added
-    /// to `project.yml` (Session 6, `docs/dependencies.md`) and a RevenueCat project/API key
-    /// exist. Until then, every method below simply returns `.notConfigured`/`false` — see each
-    /// method's doc comment — so nothing crashes for this being unwired yet.
+    /// Called from `ZANOApp.init` with the Info.plist `REVENUECAT_API_KEY` value (see file header).
     ///
     /// - Parameter apiKey: RevenueCat public SDK key (App Store app, from the RevenueCat
     ///   dashboard). Never a secret/private key — this is safe to embed client-side by design.
     public func configure(apiKey: String) {
-        guard !apiKey.isEmpty, !isConfigured else { return }
+        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `$(REVENUECAT_API_KEY)` left unexpanded (a build that skipped the setting) is not a key.
+        guard !apiKey.isEmpty, !apiKey.hasPrefix("$("), !isConfigured else { return }
         #if canImport(RevenueCat)
         Purchases.logLevel = .warn
         Purchases.configure(withAPIKey: apiKey)
@@ -277,6 +298,7 @@ public final class RevenueCatManager {
                 throw RevenueCatManagerError.purchaseCancelled
             }
             let granted = Self.isPro(result.customerInfo)
+            lastProEntitlement = Self.proEntitlement(in: result.customerInfo)
             logger.notice("Purchased \(package.id, privacy: .public); pro entitlement active=\(granted, privacy: .public).")
             return granted
         } catch let error as RevenueCatManagerError {
@@ -301,6 +323,7 @@ public final class RevenueCatManager {
         do {
             let info = try await Purchases.shared.restorePurchases()
             let granted = Self.isPro(info)
+            lastProEntitlement = Self.proEntitlement(in: info)
             logger.notice("Restored purchases; pro entitlement active=\(granted, privacy: .public).")
             return granted
         } catch {
@@ -329,6 +352,7 @@ public final class RevenueCatManager {
         #if canImport(RevenueCat)
         guard isConfigured else { return .unavailable }
         guard let info = try? await Purchases.shared.customerInfo() else { return .unavailable }
+        lastProEntitlement = Self.proEntitlement(in: info)
         return Self.isPro(info) ? .entitled : .notEntitled
         #else
         return .unavailable
@@ -368,6 +392,16 @@ public final class RevenueCatManager {
 
     private static func isPro(_ info: CustomerInfo) -> Bool {
         info.entitlements.all[proEntitlementIdentifier]?.isActive == true
+    }
+
+    private static func proEntitlement(in info: CustomerInfo) -> ProEntitlementInfo? {
+        guard let entitlement = info.entitlements.all[proEntitlementIdentifier] else { return nil }
+        return ProEntitlementInfo(
+            isActive: entitlement.isActive,
+            isTrial: entitlement.periodType == .trial,
+            expirationDate: entitlement.expirationDate,
+            willRenew: entitlement.willRenew
+        )
     }
 
     private static func mapPackage(_ package: Package) -> SubscriptionPackage {

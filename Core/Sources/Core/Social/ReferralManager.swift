@@ -148,6 +148,10 @@ public final class ReferralManager {
         self.backend = backend
     }
 
+    /// Whether a `ReferralBackend` is wired in yet. `false` until the backend ships: the invite
+    /// screen shows the local code and explains that redeeming needs the network.
+    public var isBackendConfigured: Bool { backend != nil }
+
     // MARK: - Generate
 
     /// This device's own referral code: returns the existing `User.referralCode` if one is

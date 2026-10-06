@@ -196,7 +196,7 @@ part of the same submission and cheap to draft now)
 - **Primary category:** Health & Fitness (matches the workout-verification core loop).
 - **Secondary category:** Productivity (matches the focus-session / app-blocking angle) — reasonable
   alternative: Lifestyle.
-- **Age rating:** spec §24 says "rate 17+ initially." Apple's age-rating system changed in 2025 to a
+- **Age rating:** spec §24 now says 13+ (founder decision 2026-10-05). Apple's age-rating system changed in 2025 to a
   new band set (4+ / 9+ / 13+ / 16+ / 18+ replacing the old 4+/9+/12+/17+ scale) — flagged below,
   needs a fresh pass through the actual App Store Connect age-rating questionnaire since "17+" may
   no longer be a selectable option by the time this ships.

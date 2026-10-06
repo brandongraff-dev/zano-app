@@ -199,7 +199,7 @@ public struct PreviewCatalog: View {
                 subline: "1 goal left · Streak 14",
                 primaryActionTitle: "Show my goals",
                 primaryAction: {},
-                emergencyActionTitle: "Emergency",
+                emergencyActionTitle: "Emergency unlock",
                 emergencyAction: {}
             )
             .frame(height: 520)

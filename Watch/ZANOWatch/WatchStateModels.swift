@@ -144,6 +144,31 @@ public struct WatchFocusSessionSnapshot: Sendable, Codable, Equatable {
     }
 }
 
+// MARK: - Scroll Monster (mirrors Core's ScrollMonster.Week, flattened)
+
+/// This week's boss as plain values: what's left of its HP out of `target`, its `state` (a
+/// `ScrollMonster.State` raw value, see `WatchMonsterState`), its colour `variant` (0...2) and the
+/// whole days left including today.
+public struct WatchScrollMonsterSnapshot: Sendable, Codable, Equatable {
+    public var hp: Int
+    public var target: Int
+    public var state: String
+    public var variant: Int
+    public var daysLeft: Int
+
+    public init(hp: Int, target: Int, state: String, variant: Int, daysLeft: Int) {
+        self.hp = hp
+        self.target = target
+        self.state = state
+        self.variant = variant
+        self.daysLeft = daysLeft
+    }
+
+    /// 0...1 of the monster's health left.
+    var hpFraction: Double { Double(max(0, hp)) / Double(max(1, target)) }
+    var resolvedState: WatchMonsterState { WatchMonsterState(rawValue: state) ?? .healthy }
+}
+
 // MARK: - The whole snapshot (phone -> watch, via WCSession application context)
 
 /// Everything the watch app + complication render, in one `Codable` value. Sent whole
@@ -182,6 +207,25 @@ public struct WatchStateSnapshot: Sendable, Codable, Equatable {
     /// delivered later via `transferUserInfo` should still show its true original age.
     public var updatedAt: Date
 
+    // MARK: Buddy (session 13b)
+    //
+    // Every buddy field is optional: the synthesized decoder reads a missing key as nil, so a
+    // payload from an older phone build (or a snapshot persisted before this existed) still
+    // decodes. Raw values are Core's `Buddy`/`BuddyPose`/`BuddyGear` raw values; the generated
+    // `WatchBuddy`/`WatchBuddyPose`/`WatchBuddyGear` mirror them.
+
+    public var buddy: String?
+    /// The face Today's hero is pulling on the phone.
+    public var buddyPose: String?
+    /// The worn gear (`bare`: nothing).
+    public var buddyGear: String?
+    public var level: Int?
+    /// 0...1 through the current level.
+    public var levelFraction: Double?
+    /// How many locks were ever earned (not emergency-unlocked). Going up means "lock earned".
+    public var earnedUnlocks: Int?
+    public var scrollMonster: WatchScrollMonsterSnapshot?
+
     public init(
         rings: [WatchRingProgress],
         currentStreak: Int,
@@ -193,6 +237,13 @@ public struct WatchStateSnapshot: Sendable, Codable, Equatable {
         suggestedLockMode: WatchLockModeMirror = .full,
         suggestedFocusGoalID: UUID? = nil,
         suggestedFocusGoalTitle: String? = nil,
+        buddy: String? = nil,
+        buddyPose: String? = nil,
+        buddyGear: String? = nil,
+        level: Int? = nil,
+        levelFraction: Double? = nil,
+        earnedUnlocks: Int? = nil,
+        scrollMonster: WatchScrollMonsterSnapshot? = nil,
         updatedAt: Date
     ) {
         self.rings = rings
@@ -205,8 +256,24 @@ public struct WatchStateSnapshot: Sendable, Codable, Equatable {
         self.suggestedLockMode = suggestedLockMode
         self.suggestedFocusGoalID = suggestedFocusGoalID
         self.suggestedFocusGoalTitle = suggestedFocusGoalTitle
+        self.buddy = buddy
+        self.buddyPose = buddyPose
+        self.buddyGear = buddyGear
+        self.level = level
+        self.levelFraction = levelFraction
+        self.earnedUnlocks = earnedUnlocks
+        self.scrollMonster = scrollMonster
         self.updatedAt = updatedAt
     }
+
+    /// The buddy to draw (Stash until the phone says otherwise).
+    var resolvedBuddy: WatchBuddy { buddy.flatMap(WatchBuddy.init(rawValue:)) ?? .default }
+    var resolvedPose: WatchBuddyPose { buddyPose.flatMap(WatchBuddyPose.init(rawValue:)) ?? .idle }
+    var resolvedGear: WatchBuddyGear { buddyGear.flatMap(WatchBuddyGear.init(rawValue:)) ?? .bare }
+    var resolvedLevel: Int { max(1, level ?? 1) }
+    var resolvedLevelFraction: Double { min(1, max(0, levelFraction ?? 0)) }
+    /// True once the phone has sent at least one snapshot.
+    var hasSynced: Bool { updatedAt > .distantPast }
 
     /// Shown before the watch has ever heard from the phone (fresh install, or `WatchStateStore`
     /// found nothing persisted). Every ring at zero, nothing active, no suggestion — never

@@ -121,6 +121,7 @@ public final class LockSetManager {
             try clearDefault(for: user.id, except: lockSet.id)
         }
         try context.save()
+        await refreshMonitorMirrors()
         return lockSet.id
     }
 
@@ -140,6 +141,7 @@ public final class LockSetManager {
         let lockSet = try requireLockSet(id: lockSetID)
         lockSet.appTokensBlob = try JSONEncoder().encode(selection)
         try context.save()
+        LockEngineSharedState.setLockSetSelectionData(lockSet.appTokensBlob, for: lockSetID)
     }
 
     public func setDefault(lockSetID: UUID) async throws {
@@ -147,6 +149,7 @@ public final class LockSetManager {
         try clearDefault(for: lockSet.userID, except: lockSetID)
         lockSet.isDefault = true
         try context.save()
+        LockEngineSharedState.defaultLockSetID = lockSetID
     }
 
     // MARK: - Delete
@@ -174,6 +177,29 @@ public final class LockSetManager {
 
         if wasDefault {
             try promoteAnyLockSet(toDefaultFor: userID)
+        }
+        // A deleted set's schedule and tiers must not keep locking anything.
+        LockScheduler.shared.removeSchedule(for: lockSetID)
+        PartialUnlockTierStore.removeTiers(for: lockSetID)
+        await refreshMonitorMirrors()
+    }
+
+    // MARK: - ZANOMonitor mirrors (spec §27: the extension reads App Group state only)
+
+    /// Copies every lock set's `appTokensBlob`, the default lock set id and the active goal count
+    /// into the App Group so `ZANOMonitor` can shield a scheduled lock without opening SwiftData.
+    /// Tokens stay on device (same container, never synced). Called after every mutation here and
+    /// on each app foreground by `LockScheduler.reconcile`.
+    public func refreshMonitorMirrors() async {
+        guard let user = try? fetchCurrentUser(), let sets = try? await lockSets(for: user.id) else { return }
+        var selections: [UUID: Data] = [:]
+        for lockSet in sets {
+            if let blob = lockSet.appTokensBlob { selections[lockSet.id] = blob }
+        }
+        LockEngineSharedState.replaceLockSetSelections(selections)
+        LockEngineSharedState.defaultLockSetID = sets.first(where: \.isDefault)?.id
+        if let goalIDs = try? IntentSupport.activeGoalIDs(for: user.id, in: context) {
+            LockEngineSharedState.activeGoalCount = goalIDs.count
         }
     }
 

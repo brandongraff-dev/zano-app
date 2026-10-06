@@ -82,9 +82,18 @@ public final class EmergencyUnlock {
 
     @ObservationIgnored nonisolated(unsafe) private var tickTask: Task<Void, Never>?
 
-    public init(sessionID: UUID, appliesStreakPenalty: Bool = true) {
+    /// The clock the hold is measured against. Real time in the app; tests pass a manual clock so
+    /// a stalled CI machine can't "finish" a 60-second hold between two assertions.
+    @ObservationIgnored private let now: @MainActor () -> Date
+
+    public convenience init(sessionID: UUID, appliesStreakPenalty: Bool = true) {
+        self.init(sessionID: sessionID, appliesStreakPenalty: appliesStreakPenalty, now: { Date.now })
+    }
+
+    init(sessionID: UUID, appliesStreakPenalty: Bool = true, now: @escaping @MainActor () -> Date) {
         self.sessionID = sessionID
         self.appliesStreakPenalty = appliesStreakPenalty
+        self.now = now
     }
 
     deinit {
@@ -103,7 +112,7 @@ public final class EmergencyUnlock {
         secondsRemaining = Int(Self.holdDuration)
 
         tickTask?.cancel()
-        let startedAt = Date.now
+        let startedAt = now()
         tickTask = Task { [weak self] in
             await self?.runHold(startedAt: startedAt)
         }
@@ -147,7 +156,7 @@ public final class EmergencyUnlock {
 
     private func runHold(startedAt: Date) async {
         while !Task.isCancelled {
-            let elapsed = Date.now.timeIntervalSince(startedAt)
+            let elapsed = now().timeIntervalSince(startedAt)
             if elapsed >= Self.holdDuration {
                 progress = 1
                 secondsRemaining = 0

@@ -20,6 +20,10 @@
 // <uuid>`-style URLs are already this codebase's established NFC deep-link convention (spec §6),
 // so `zano://focus/end` follows the same pattern. Flagged in this task's knownIssues as a
 // candidate to upgrade to `Button(intent:)` once `EndFocusIntent`'s real conformance is known.
+// Buddy everywhere (2026-10-03): the user's buddy sits on the Lock Screen banner (48pt), in the
+// expanded island's leading region (32pt) and as the compact leading glyph (16pt; it replaced the
+// timer symbol there, the countdown on the trailing side still says what this is). The minimal
+// presentation keeps the timer symbol: it is too small to read a face.
 // "Pause" has no button here at all: spec §14's App Intents catalog has no Pause/Resume Focus
 // intent, so this Live Activity only *displays* `isPaused`; see this task's knownIssues.
 
@@ -37,9 +41,12 @@ struct ZANOFocusLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(context.attributes.goalTitle, systemImage: "timer")
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        ZANOFocusBuddy(isPaused: context.state.isPaused, size: 32)
+                        Text(context.attributes.goalTitle)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                    }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     ZANOFocusCountdownText(state: context.state)
@@ -61,8 +68,7 @@ struct ZANOFocusLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "timer")
-                    .foregroundStyle(ZANOWidgetColor.ringFocus)
+                ZANOFocusBuddy(isPaused: context.state.isPaused, size: 16)
             } compactTrailing: {
                 ZANOFocusCountdownText(state: context.state)
                     .font(.caption.weight(.semibold))
@@ -83,7 +89,8 @@ private struct ZANOFocusLockScreenView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(spacing: 10) {
+                ZANOFocusBuddy(isPaused: state.isPaused, size: 48)
                 Label(attributes.goalTitle, systemImage: "timer")
                     .font(.headline)
                     .foregroundStyle(ZANOWidgetColor.textPrimary)
@@ -119,6 +126,17 @@ private struct ZANOFocusLockScreenView: View {
         guard totalSeconds > 0 else { return 0 }
         let remaining = Double(max(state.secondsRemaining, 0))
         return min(max((totalSeconds - remaining) / totalSeconds, 0), 1)
+    }
+}
+
+/// The user's buddy (App Group, buddy everywhere 2026-10-03): happy while the session runs,
+/// content while it's paused. A 48px sprite, so 16/32/48pt sizes stay crisp. Decorative.
+private struct ZANOFocusBuddy: View {
+    let isPaused: Bool
+    let size: CGFloat
+
+    var body: some View {
+        StoredBuddySprite(pose: isPaused ? .idle : .happy, size: size)
     }
 }
 

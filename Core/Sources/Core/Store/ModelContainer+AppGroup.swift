@@ -90,10 +90,10 @@ extension ModelContainer {
         KitchenStaple.self,
     ]
 
-    /// The schema built from `appGroupModelTypes`. A `let`-style computed property (not cached)
-    /// so building a second, independent container — e.g. an in-memory one for SwiftUI previews
-    /// or unit tests — never accidentally shares `Schema` identity with the on-disk one.
-    public static var appGroupSchema: Schema { Schema(appGroupModelTypes) }
+    /// The current versioned schema (`ZanoSchemaV1`, built from `appGroupModelTypes`). A computed
+    /// property (not cached) so building a second, independent container — e.g. an in-memory one
+    /// for SwiftUI previews or unit tests — never shares `Schema` identity with the on-disk one.
+    public static var appGroupSchema: Schema { Schema(versionedSchema: ZanoSchemaV1.self) }
 
     /// Filename of the on-disk SwiftData store inside the App Group container.
     private static let appGroupStoreFileName = "ZANOStore.sqlite"
@@ -132,7 +132,11 @@ extension ModelContainer {
                 isStoredInMemoryOnly: true,
                 cloudKitDatabase: .none
             )
-            return try ModelContainer(for: appGroupSchema, configurations: [configuration])
+            return try ModelContainer(
+                for: appGroupSchema,
+                migrationPlan: ZanoSchemaMigrationPlan.self,
+                configurations: [configuration]
+            )
         }
 
         let storeURL = try appGroupStoreURL()
@@ -141,7 +145,11 @@ extension ModelContainer {
             url: storeURL,
             cloudKitDatabase: .none
         )
-        return try ModelContainer(for: appGroupSchema, configurations: [configuration])
+        return try ModelContainer(
+            for: appGroupSchema,
+            migrationPlan: ZanoSchemaMigrationPlan.self,
+            configurations: [configuration]
+        )
     }
 
     /// The process-wide shared container. The app and every extension should fetch/save through
@@ -149,17 +157,17 @@ extension ModelContainer {
     /// six processes observe the same store, per spec §11's data flow: "every user action → App
     /// Intent → Core → SwiftData (App Group) → widgets/shield read state instantly".
     ///
-    /// Deliberately never throws or crashes the process: a Shield/Monitor/Report extension that
-    /// traps here would brick the very shield it's supposed to configure or unlock, which
-    /// violates the "never trap the user" rule (CLAUDE.md, spec §24) even though it's an
-    /// infrastructure failure rather than a lock-logic one. If the App Group container can't be
-    /// opened (missing/misconfigured entitlement — a packaging bug, not a recoverable runtime
-    /// state) this logs a fault and falls back to a private in-memory container instead, so the
-    /// extension keeps running with empty data rather than not running at all. That fallback is
-    /// silent to the user by design, which is exactly why it's logged as a `.fault`: treat any
-    /// occurrence of this log line as a shipped-build bug to fix, not a normal degraded mode.
-    /// Call ``makeAppGroupContainer(inMemory:)`` directly and handle the `throws` at app launch
-    /// instead, where surfacing a real "couldn't load your data" recovery screen is possible.
+    /// Deliberately never throws or crashes the process: a Shield/Monitor/Report extension or
+    /// widget that traps here would brick the very shield it's supposed to configure or unlock,
+    /// which violates the "never trap the user" rule (CLAUDE.md, spec §24). If the store can't be
+    /// opened (missing entitlement, a corrupt file, a failed migration) this logs a fault and
+    /// hands back a private in-memory container so that process keeps running with empty data.
+    ///
+    /// That fallback is no longer silent (audit W1): it records ``appGroupOpenFailure``, and the
+    /// app checks it at launch and shows a "couldn't open your data" screen (with an
+    /// unlock-my-apps escape) instead of running — and writing — against an empty store that
+    /// would vanish on the next launch. Tests and previews build their own in-memory container
+    /// with ``makeAppGroupContainer(inMemory:)`` and never see this path.
     public static let appGroup: ModelContainer = {
         do {
             return try makeAppGroupContainer()
@@ -167,6 +175,7 @@ extension ModelContainer {
             appGroupLogger.fault(
                 "Falling back to an in-memory ModelContainer — App Group store unavailable: \(String(describing: error), privacy: .public)"
             )
+            AppGroupStoreStatus.recordOpenFailure(error)
             guard let fallback = try? makeAppGroupContainer(inMemory: true) else {
                 // Only reachable if `appGroupSchema` itself is invalid (e.g. two model types
                 // with a conflicting name/version) — a programmer error in `appGroupModelTypes`
@@ -180,4 +189,43 @@ extension ModelContainer {
     }()
 
     private static let appGroupLogger = Logger(subsystem: "com.zano.app.Core", category: "ModelContainer+AppGroup")
+
+    /// Why the shared store couldn't be opened (`String(describing:)` of the error), or `nil` when
+    /// it opened fine. Touches ``appGroup`` first, so reading it also opens the store. The app
+    /// shows its store-unavailable screen when this is non-`nil`.
+    @MainActor
+    public static var appGroupOpenFailure: String? {
+        _ = appGroup
+        return AppGroupStoreStatus.openFailure
+    }
+}
+
+/// The one-time result of opening the shared store, written once from ``ModelContainer/appGroup``'s
+/// initializer (which Swift runs exactly once, thread-safely) and only read after it.
+enum AppGroupStoreStatus {
+    nonisolated(unsafe) private(set) static var openFailure: String?
+
+    static func recordOpenFailure(_ error: Error) {
+        openFailure = String(describing: error)
+    }
+}
+
+// MARK: - Versioned schema (audit W1)
+//
+// Every shipped shape of the store is a `VersionedSchema`, so a future model change ships as a new
+// version plus a `MigrationStage` instead of failing to open on an update. V1 is exactly the
+// models in `appGroupModelTypes` today. When a model changes: copy the old `@Model` definitions
+// into a `ZanoSchemaV1` namespace (frozen), add `ZanoSchemaV2` with the new ones, append it to
+// `schemas`, and add a `.lightweight` or `.custom` stage. Every process (app, widgets, extensions)
+// opens the store through `makeAppGroupContainer`, so they all migrate the same way.
+
+public enum ZanoSchemaV1: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
+    public static var models: [any PersistentModel.Type] { ModelContainer.appGroupModelTypes }
+}
+
+public enum ZanoSchemaMigrationPlan: SchemaMigrationPlan {
+    public static var schemas: [any VersionedSchema.Type] { [ZanoSchemaV1.self] }
+    /// No stages yet: V1 is the first versioned shape.
+    public static var stages: [MigrationStage] { [] }
 }

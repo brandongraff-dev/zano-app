@@ -60,10 +60,15 @@ public enum PlannerAgenda {
         let timedTasks = dayTasks.filter(\.hasTime)
         let anytime = dayTasks.filter { !$0.hasTime }.sorted(by: Self.taskOrder)
 
-        let items = (timedEvents.map(PlannerDayAgenda.Item.event) + timedTasks.map(PlannerDayAgenda.Item.task))
-            .sorted { lhs, rhs in
-                lhs.sortDate == rhs.sortDate ? lhs.id < rhs.id : lhs.sortDate < rhs.sortDate
-            }
+        var items: [PlannerDayAgenda.Item] = []
+        for event in timedEvents { items.append(.event(event)) }
+        for task in timedTasks { items.append(.task(task)) }
+        items.sort { (lhs: PlannerDayAgenda.Item, rhs: PlannerDayAgenda.Item) -> Bool in
+            let a = lhs.sortDate
+            let b = rhs.sortDate
+            if a != b { return a < b }
+            return lhs.id < rhs.id
+        }
 
         var overdue: [PlannerTask] = []
         if calendar.isDate(day, inSameDayAs: now) {

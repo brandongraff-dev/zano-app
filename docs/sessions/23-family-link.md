@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.23, §24
-- **Status:** Scaffolded — Unverified. Blocked on Supabase project, Supabase Auth, Apple Developer enrollment
+- **Status:** Compiles + Core unit tests pass in CI (run 105, 2026-10-06). Device and Simulator behaviour still unverified (see "Needs verification on")
 - **Started / Last updated:** 2026-10-05
 
 ## Log

@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.25, §5.10, §24
-- **Status:** Scaffolded — Unverified
+- **Status:** Compiles + Core unit tests pass in CI (run 105, 2026-10-06). Device and Simulator behaviour still unverified (see "Needs verification on")
 - **Started / Last updated:** 2026-10-05
 
 ## Log

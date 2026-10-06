@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.24 (new), §5.10 (Bedtime Gate, the sibling timed lock), §9.7 (calendar awareness), §24 (privacy, health pause, emergency unlock), §27 (DeviceActivity limits)
-- **Status:** Scaffolded — Unverified (no compile yet; DeviceActivity and EventKit parts need a device)
+- **Status:** Compiles + Core unit tests pass in CI (run 105, 2026-10-06). Device and Simulator behaviour still unverified (see "Needs verification on")
 - **Started / Last updated:** 2026-10-05
 
 ## Scope

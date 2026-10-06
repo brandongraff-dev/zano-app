@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.17 (Trophy Case & Cosmetics, new Buddy Closet and Buddy emotions paragraphs), §15 (design system), §24 (no restrictive goals)
-- **Status:** Scaffolded — Unverified (art checked as rendered contact sheets; Swift not yet compiled, see Log)
+- **Status:** Compiles + Core unit tests pass in CI (run 105, 2026-10-06). Device and Simulator behaviour still unverified (see "Needs verification on")
 - **Started:** 2026-10-05
 - **Last updated:** 2026-10-05
 

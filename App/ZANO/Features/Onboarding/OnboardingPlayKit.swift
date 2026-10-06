@@ -86,6 +86,8 @@ struct OnboardingBuddyActor: View {
     /// A burst on each reaction in this colour; nil for a plain hop.
     var burstColor: Color? = nil
     var react: Int = 0
+    /// Scales the hop (Core leaps ~0.42 of the size): below 1 where there's little headroom above.
+    var hopScale: CGFloat = 1
 
     @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var storedBuddy: Buddy = .default
     @State private var jumpTick = 0
@@ -93,7 +95,7 @@ struct OnboardingBuddyActor: View {
 
     var body: some View {
         BuddySprite(buddy ?? storedBuddy, pose: pose, size: size)
-            .zanoMascot(mood: mood, jump: jumpTick, size: size, showsGlow: false)
+            .zanoMascot(mood: mood, jump: jumpTick, size: size * hopScale, showsGlow: false)
             .zanoChargeBurst(trigger: burstTick, color: burstColor ?? .clear, sparks: burstColor != nil)
             .onChange(of: pose) { _, _ in bump() }
             .onChange(of: react) { _, _ in bump() }

@@ -287,7 +287,8 @@ private struct HookStar: View {
     }
 
     private var hero: some View {
-        OnboardingBuddyActor(pose: pose, size: height, burstColor: buddy.color)
+        // Half-height hops: a full 128pt leap reached the wordmark above (CI clip, 2026-10-06).
+        OnboardingBuddyActor(pose: pose, size: height, burstColor: buddy.color, hopScale: 0.5)
             .background {
                 // Bigger than the star on purpose; a `background` never affects layout.
                 OnboardingKit.StarBloom(diameter: height * 3)

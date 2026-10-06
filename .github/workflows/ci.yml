@@ -157,7 +157,8 @@ jobs:
             xcrun simctl io "$SIM_ID" screenshot "shots/$SCREEN.png"
           done
           # Onboarding clips (session 30): the character animations only show in motion, so each
-          # onboarding step is also recorded for ~6s from launch (intros only: CI cannot tap).
+          # onboarding step is also recorded for ~10s from launch (intros only: CI cannot tap; the
+          # first ~4s are the launch splash).
           # Saved as shots/clip-onboarding-N.mp4. A recorder that ignores SIGINT is killed after 10s.
           for N in 1 2 3 4 5 6 7 8; do
             xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
@@ -165,7 +166,7 @@ jobs:
             REC=$!
             sleep 1
             xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "onboarding-$N" || echo "CLIP LAUNCH FAILED: $N"
-            sleep 6
+            sleep 10
             kill -INT "$REC" 2>/dev/null || true
             for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$REC" 2>/dev/null || break; sleep 1; done
             kill -9 "$REC" 2>/dev/null || true

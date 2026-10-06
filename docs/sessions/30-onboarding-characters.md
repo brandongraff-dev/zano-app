@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/peaceful-cannon-w0thfg` (built on `claude/quirky-wozniak-bf8h1v`, which has the 8-step flow and session 29's characters)
 - **Spec sections:** §7 (onboarding flow), §5.17a (buddies / Cal), §21 (paywall rules, kept as they were)
-- **Status:** Scaffolded — Unverified (waiting on CI to compile it; the animations need the CI clips or a device to check)
+- **Status:** Compiles + tested in CI (run 37482275783: app, watch, Core tests, UI test build, tour and clips all green, no crashes). The tap reactions are still unverified (they need a device or the Simulator UI)
 - **Started / Last updated:** 2026-10-06
 
 ## Log
@@ -24,3 +24,9 @@
 - **Decisions:** no new libraries and no new copy. Every motion goes through Core's existing mascot, burst and spring tokens. Reduce Motion: the faces still change and nothing moves. The CTAs work from the first frame on every step; the only added wait is 0.55s after "Team up".
 - **Known issues / not done:** the clips only show each screen's intro (CI can't tap), so the tap reactions (picker, goal, apps, hold) need a device or the Simulator UI. There is no conversion data yet: PostHog isn't set up, so we can't compare drop-off per step before and after.
 - **Needs verification on:** CI compile; the clips and screenshots (layout of the hook's crew row and the corner buddy on Your why, especially on the SE); a device for the haptics.
+
+### 2026-10-06 — first CI clips reviewed
+
+- **Result:** run 37482275783 passed (build, watch, Core tests, UI test build, screenshot tour, 8 clips, no crash reports). The screenshots show the crew on the Hook, Cal on the plan and the paywall, and the corner buddy on Your why; the SE layout still fits.
+- **Fixed:** the Hook hero's hop (Core's leap is 0.42 of the size, ~54pt at 128pt) reached the wordmark. It now hops at half height (`OnboardingBuddyActor.hopScale`).
+- **CI:** clips now record ~10s instead of 6s, because the launch splash took the first ~4s of each.

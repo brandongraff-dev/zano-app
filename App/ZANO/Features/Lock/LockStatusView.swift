@@ -163,6 +163,7 @@ struct LockStatusView: View {
             oldValue == nil && newValue != nil
         }
         .navigationTitle(Copy.lockStatus.screenTitle)
+        .pageBuddy(.guarding)
         // Large, like every other tab (it used to fall back to a small inline title here).
         .navigationBarTitleDisplayMode(.large)
     }

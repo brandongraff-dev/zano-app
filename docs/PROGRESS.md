@@ -71,6 +71,7 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 26 | Launch prep: privacy/permission text fixes, hide unfinished features, Supabase setup guide, final checklist | `claude/quirky-wozniak-bf8h1v` | §24, launch docs | Compiles + Core tests pass in CI (runs 114, 115). Geofence without background location needs a device | 2026-10-06 | [26-launch-prep.md](sessions/26-launch-prep.md) |
 | 27 | Planner: Apple-style calendar, tasks, reminders and event alerts | `claude/quirky-wozniak-bf8h1v` | §5.30 | Compiles + Core tests pass in CI (run 118). Notifications and the event editor need a device | 2026-10-06 | [27-planner.md](sessions/27-planner.md) |
 | 28 | Sharing: share sheets for tasks and days (works now) and Household shared tasks (hidden until backend/sign-in) | `claude/quirky-wozniak-bf8h1v` | §5.31 | Scaffolded — Unverified. Awaiting CI; Household blocked on Supabase project and sign-in | 2026-10-06 | [28-household-sharing.md](sessions/28-household-sharing.md) |
+| 29 | Cal (calendar character), fire/ice streak buddy, a small buddy on each tab | `claude/quirky-wozniak-bf8h1v` | §5.17a | Scaffolded — Unverified. Art checked as sheets; Swift awaits CI | 2026-10-06 | [29-page-companions.md](sessions/29-page-companions.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.

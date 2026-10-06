@@ -18,7 +18,8 @@ ORDER = ['stash', 'zib', 'lox', 'pip', 'moko', 'brick', 'tank', 'volt', 'howl']
 # Swift case name -> art expression. `idle` is the content face.
 POSES = [('idle', 'content'), ('sleepy', 'sleepy'), ('happy', 'happy'), ('drained', 'drained'),
          ('sad', 'sad'), ('meh', 'meh'), ('excited', 'excited'), ('ecstatic', 'ecstatic')] + \
-    [(e, e) for e in ('lifting', 'flexing', 'sipping', 'thirsty', 'eating', 'hungry', 'focused', 'yawning', 'proud', 'lovey')]
+    [(e, e) for e in ('lifting', 'flexing', 'sipping', 'thirsty', 'eating', 'hungry', 'focused', 'yawning', 'proud', 'lovey',
+                      'blaze', 'frozen', 'guarding', 'tinkering', 'analyzing')]
 
 def encode(img):
     pal, rows = [], []
@@ -81,6 +82,14 @@ for st in monsterlib.STATES:
         DATA.append((ident, pal, rows))
         MONSTER_CASES.append((st, str(v) if v < 2 else '_', ident))
 
+import cal as callib
+CAL_CASES = []      # (state, ident)
+for st in callib.STATES:
+    pal, rows = encode(callib.cal(st).render())
+    ident = f'cal{st.capitalize()}'
+    DATA.append((ident, pal, rows))
+    CAL_CASES.append((st, ident))
+
 def data_defs(pixels_type):
     defs = []
     for ident, pal, rows in DATA:
@@ -114,6 +123,9 @@ out += ['}', '', 'extension ScrollMonster {', '    /// The boss in `state`; `var
         '    public static func pixels(_ state: ScrollMonster.State, variant: Int) -> BuddyPixels {',
         '        switch (state, ((variant % 3) + 3) % 3) {']
 out += [f'        case (.{s}, {v}): BuddySpriteData.{i}' for s, v, i in MONSTER_CASES]
+out += ['        }', '    }', '}', '', 'extension CalPose {', '    /// The calendar character in this mood.',
+        '    public var pixels: BuddyPixels {', '        switch self {']
+out += [f'        case .{s}: BuddySpriteData.{i}' for s, i in CAL_CASES]
 out += ['        }', '    }', '}', '', 'enum BuddySpriteData {']
 out.append(data_defs('BuddyPixels'))
 out += ['}', '']

@@ -236,6 +236,7 @@ struct SettingsView: View {
         .zanoBackdrop()
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.screenTitle)
+        .pageBuddy(.tinkering)
         .onAppear {
             Analytics.shared.capture(event: "settings_viewed")
             autoFocusIsSetUp = AutoFocusIntegration.isSetUp

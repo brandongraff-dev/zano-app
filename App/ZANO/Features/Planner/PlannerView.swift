@@ -201,10 +201,32 @@ struct PlannerView: View {
     // MARK: Agenda
 
     private var dayHeader: some View {
-        Text(selected.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-            .font(Theme.Typography.headline)
-            .foregroundStyle(Theme.Colors.text)
-            .accessibilityAddTraits(.isHeader)
+        HStack(spacing: Theme.Spacing.sm) {
+            Text(selected.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.text)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            CalSprite(calPose, size: 40)
+        }
+    }
+
+    /// Cal's mood for the chosen day: worried with overdue work, asleep with nothing planned, delighted
+    /// when every task is ticked, calm otherwise.
+    private var calPose: CalPose {
+        let agenda = self.agenda
+        if !agenda.overdue.isEmpty { return .alarm }
+        if agenda.isEmpty { return .sleepy }
+        let open = agenda.anytimeTasks.filter { !$0.isDone }.count
+            + agenda.timed.filter { item in
+                if case .task(let task) = item { return !task.isDone }
+                return false
+            }.count
+        let hasTasks = !agenda.anytimeTasks.isEmpty || agenda.timed.contains { item in
+            if case .task = item { return true }
+            return false
+        }
+        return hasTasks && open == 0 ? .happy : .idle
     }
 
     @ViewBuilder

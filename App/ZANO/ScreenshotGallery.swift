@@ -160,6 +160,8 @@ struct ScreenshotHost: View {
             NavigationStack { BuddyClosetView() }
         case "planner":
             PlannerView()
+        case "characters":
+            CharacterSheet()
         case "locksetup":
             NavigationStack { LockSetupView() }
         case "trophy":
@@ -418,3 +420,33 @@ enum DemoData {
     }
 #endif
 }
+
+#if DEBUG
+/// Every new page companion on one screen: Cal's four moods, the streak's fire and ice faces, and the
+/// four tab buddies (session 29). Screenshot runs only.
+private struct CharacterSheet: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                Text("Cal").font(Theme.Typography.title).foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach(CalPose.allCases, id: \.self) { CalSprite($0, size: 72) }
+                }
+                Text("Streak").font(Theme.Typography.title).foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach([BuddyPose.blaze, .frozen, .sleepy], id: \.self) { StoredBuddySprite(pose: $0, size: 96) }
+                }
+                Text("Tabs").font(Theme.Typography.title).foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach([BuddyPose.guarding, .eating, .analyzing, .tinkering], id: \.self) { StoredBuddySprite(pose: $0, size: 72) }
+                }
+                StreakPill(count: 14)
+                StreakPill(count: 3, isFrozen: true)
+                StreakPill(count: 0)
+            }
+            .padding(Theme.Spacing.lg)
+        }
+        .zanoBackdrop()
+    }
+}
+#endif

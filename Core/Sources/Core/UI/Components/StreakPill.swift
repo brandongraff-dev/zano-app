@@ -39,6 +39,8 @@ public struct StreakPill: View {
     /// doesn't read as a celebratory bounce (spec §8's "no shame" principle is about copy, but the
     /// same spirit applies to motion — docs/design/animation-opportunities.md row 6b).
     @State private var bounceTrigger = 0
+    /// True for a moment after the count goes up: the buddy pops.
+    @State private var pop = false
 
     public init(count: Int, isFrozen: Bool = false, accessibilityLabelOverride: String? = nil) {
         self.count = count
@@ -47,30 +49,18 @@ public struct StreakPill: View {
     }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xxs) {
-            Group {
-                if reduceMotion {
-                    // Reduce Motion: no `.symbolEffect` at all — the flame/snowflake swap still
-                    // reflects `isFrozen` via `.contentTransition(.opacity)` below, and the
-                    // count change is still reflected by the numeral redraw, so no information
-                    // is lost, only the bounce/morph motion.
-                    Image(systemName: isFrozen ? "snowflake" : "flame.fill")
-                        .contentTransition(.opacity)
-                } else {
-                    Image(systemName: isFrozen ? "snowflake" : "flame.fill")
-                        .contentTransition(.symbolEffect(.replace))
-                        .symbolEffect(.bounce, value: bounceTrigger)
-                }
-            }
-            .font(Theme.Typography.icon(.medium))
-            .symbolRenderingMode(.hierarchical)
-            // v2: the flame is ember (streak and fire moments are ember's only job).
-            .foregroundStyle(isFrozen ? Theme.Colors.Ring.water : Theme.Colors.ember)
+        HStack(alignment: .center, spacing: Theme.Spacing.xxs) {
+            // The streak is the person's own buddy: fire eyes while the streak is alive, ice eyes while a
+            // freeze holds it, asleep at zero (session 29). It bounces when the count goes up.
+            StoredBuddySprite(pose: isFrozen ? .frozen : (count > 0 ? .blaze : .sleepy), size: 34)
+                .frame(width: 34, height: 34)
+                .scaleEffect(pop ? 1.18 : 1)
+                .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: pop)
 
             NumeralText("\(count)", size: .small)
         }
         .padding(.horizontal, Theme.Spacing.sm + 2)
-        .padding(.vertical, Theme.Spacing.xs - 2)
+        .padding(.vertical, 2)
         // Pass 2 (playful): the pill warms with the streak, an ember tint that grows to full at 30
         // days (the same curve as the aurora's warmth). Paint over the glass, never the label.
         // Pass 3 (restraint): one flat tint (up to 18%), no gradient, no flame glow.
@@ -89,6 +79,12 @@ public struct StreakPill: View {
         .onChange(of: count) { oldValue, newValue in
             guard newValue > oldValue else { return }
             bounceTrigger += 1
+            guard !reduceMotion else { return }
+            pop = true
+            Task {
+                try? await Task.sleep(nanoseconds: 220_000_000)
+                pop = false
+            }
         }
     }
 

@@ -408,6 +408,14 @@ struct TodayView: View {
 
     // MARK: - Header
 
+    /// Cal's mood on Today's calendar button.
+    private var calPose: CalPose {
+        let overdue = PlannerAgenda.dueNow(tasks: PlannerStore.tasks).contains {
+            ($0.due ?? .now) < Calendar.current.startOfDay(for: .now)
+        }
+        return overdue ? .alarm : .idle
+    }
+
     /// The wordmark on the left, the streak on the right. v2: the date caption is gone (the phone's
     /// own clock says it; one fewer small grey line).
     private var header: some View {
@@ -415,9 +423,8 @@ struct TodayView: View {
             ZanoWordmark(height: 18)
             Spacer(minLength: Theme.Spacing.sm)
             Button { showPlanner = true } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Theme.Colors.accent)
+                // Cal, the calendar character: worried while something is overdue, calm otherwise.
+                CalSprite(calPose, size: 36)
                     .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
             }
             .buttonStyle(.plain)

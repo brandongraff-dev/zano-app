@@ -122,8 +122,9 @@ struct BuddyTests {
     }
 
     @Test func everyActivityEmotionExistsForEveryBuddy() {
-        let activity: [BuddyPose] = [.lifting, .flexing, .sipping, .thirsty, .eating, .hungry, .focused, .yawning, .proud, .lovey]
-        #expect(BuddyPose.allCases.count == 18)
+        let activity: [BuddyPose] = [.lifting, .flexing, .sipping, .thirsty, .eating, .hungry, .focused, .yawning, .proud, .lovey,
+                                     .blaze, .frozen, .guarding, .tinkering, .analyzing]
+        #expect(BuddyPose.allCases.count == 23)
         for buddy in Buddy.allCases {
             for pose in activity {
                 #expect(buddy.image(pose: pose) != nil, "\(buddy) \(pose)")
@@ -237,5 +238,17 @@ struct BuddyTests {
         #expect(defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
         BuddyProgress.recordRank(.bronze, defaults: defaults)
         #expect(defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
+    }
+
+    // MARK: - Cal, the calendar character
+
+    @Test func calDrawsEveryMood() {
+        for pose in CalPose.allCases {
+            let pixels = pose.pixels
+            #expect(pixels.rows.count == BuddyPixels.size, "\(pose)")
+            #expect(pixels.rows.joined().filter { $0 != "." }.count > 0, "\(pose) is fully transparent")
+            #expect(pixels.cgImage() != nil, "\(pose): no image")
+        }
+        #expect(CalPose.allCases.count == 4)
     }
 }

@@ -5,6 +5,8 @@ EXPRS=['drained','sad','meh','content','happy','excited','ecstatic','sleepy']
 # Activity emotions (session 15): what the buddy feels while you work out, drink, eat, focus.
 # All additive and positive; hunger/thirst read as "ready for it", never guilt.
 ACTIVITY=['lifting','flexing','sipping','thirsty','eating','hungry','focused','yawning','proud','lovey']
+# Page companions (session 29): the streak's fire eyes and ice eyes, and one face per tab.
+PAGE=['blaze','frozen','guarding','tinkering','analyzing']
 INKC='#1A1633'; MOUTH_IN='#7A2240'; TONGUE='#FF7A93'; TEAR='#7FD3FF'; WHITE='#FFFFFF'
 
 def oval(w,h):
@@ -26,6 +28,15 @@ def eye(s,x,y,w,h,expr,iris,side,skin,lid=INKC,rim=None):
         hx0=x+(w-5)//2
         s.rowsF(hx0,y,["KK.KK","KKKKK","KKKKK",".KKK.","..K.."],{'K':'#FF4F7B'})
         s.F(hx0+1,y+1,'#FFC2D1','~h'); return
+    if expr=='blaze':                           # fire eyes: a little flame in each eye
+        fx=x+(w-5)//2; fy=y+(h-6)//2
+        s.rowsF(fx,fy,["..R..",".RO..",".ROR.","ROYOR","ROYYR",".ROR."],{'R':'#FF4D2E','O':'#FF9A2E','Y':'#FFE066'}); return
+    if expr=='frozen':                          # ice eyes: pale crystal with a small dark pupil
+        for (i,j) in O: s.F(x+i,y+j,'#CFF3FF')
+        cx=x+w//2; cy=y+h//2
+        for dx in (0,1):
+            for dy in (-1,0,1): s.F(cx-1+dx,cy+dy,INKC)
+        s.F(x+1,y+1,WHITE); s.F(x+2,y+1,WHITE); return
     if rim and expr not in ('ecstatic','sleepy','drained','yawning'):
         for (i,j) in oval(w+2,h+2): s.F(x-1+i,y-1+j,rim)
     if expr=='ecstatic':           # ^ ^, 2px thick
@@ -68,7 +79,7 @@ def eye(s,x,y,w,h,expr,iris,side,skin,lid=INKC,rim=None):
     if expr in ('happy','flexing'):  # smiling lower lid
         r,p=skin
         for i in range(1,w-1): s.put(x+i,y+h-1,r,p)
-    if expr in ('meh','thirsty','focused'):  # heavy lid: top half becomes skin, lid line
+    if expr in ('meh','thirsty','focused','guarding'):  # heavy lid: top half becomes skin, lid line
         r,p=skin
         for (i,j) in O:
             if j<h//2: s.put(x+i,y+j,r,p)
@@ -85,10 +96,10 @@ def brows(s,lx,rx,y,w,expr,col):
             s.F(lx+i, y+1-(i*2)//(w-1), col); s.F(rx+w-2-i, y+1-(i*2)//(w-1), col)
     elif expr=='meh':
         for i in range(w-1): s.F(lx+1+i,y+1,col); s.F(rx+i,y+1,col)
-    elif expr in ('lifting','focused'):    # angry-V: determined, never mean (no mouth to match)
+    elif expr in ('lifting','focused','blaze','guarding'):    # angry-V: determined, never mean (no mouth to match)
         for i in range(w-1):
             s.F(lx+i, y-1+(i*2)//(w-1), col); s.F(rx+w-2-i, y-1+(i*2)//(w-1), col)
-    elif expr=='hungry':
+    elif expr in ('hungry','frozen'):
         for i in range(w-1):
             s.F(lx+i, y+1-(i*2)//(w-1), col); s.F(rx+w-2-i, y+1-(i*2)//(w-1), col)
     elif expr in ('excited','flexing','proud'):
@@ -113,6 +124,11 @@ MOUTHS={
  'yawning':[".KKK.","KRRRK","KRTRK","KRRRK",".KKK."],
  'proud':  ["K...K",".KKK."],
  'lovey':  ["KKKKK","KRRRK",".KTK."],
+ 'blaze':  ["KKKKKK","KWWWWK","KKKKKK"],
+ 'frozen': ["KKKKK","KWKWK","KKKKK"],
+ 'guarding':["KKKK"],
+ 'tinkering':["K...K",".KKK."],
+ 'analyzing':["K...K",".KKK."],
 }
 CAT={'content':["K.K.K",".K.K."]}
 
@@ -122,7 +138,7 @@ def mouth(s,cx,y,expr,style='smile'):
     s.rowsF(x,y,rows,{'K':INKC,'R':MOUTH_IN,'T':TONGUE,'W':WHITE})
 
 def blush(s,lx,rx,y,expr,col='#FF8FAB'):
-    if expr in ('drained','sad','meh','thirsty','hungry','focused'): return
+    if expr in ('drained','sad','meh','thirsty','hungry','focused','guarding'): return
     w=4 if expr in ('happy','excited','ecstatic','flexing','proud','lovey','eating','sipping') else 3
     for i in range(w):
         s.F(lx+i,y,col,'_bl'); s.F(rx+i-(w-3),y,col,'_bl')
@@ -158,6 +174,11 @@ PROPS={
  'drop':([".D.","DDD","DWD",".D."],{'D':'#7FD3FF','W':'#FFFFFF'}),
  'sweat':([".D.",".D.","DDD",".D."],{'D':'#7FD3FF'}),
  'spark':([".Y.","YWY",".Y."],{'Y':'#FFD447','W':'#FFFFFF'}),
+ 'flame':(["..R..",".RO..",".ROR.","ROYOR","ROYYR",".ROR."],{'R':'#FF4D2E','O':'#FF9A2E','Y':'#FFE066'}),
+ 'snow':(["..S..","S.S.S",".SSS.","S.S.S","..S.."],{'S':'#BFEFFF'}),
+ 'padlock':(["..GGGG..",".GG..GG.",".G....G.","YYYYYYYY","YYYKKYYY","YYYKKYYY","YYYYYYYY"],{'G':'#C9D2F0','Y':'#FFC94A','K':'#7A5A10'}),
+ 'hammer':(["SSSSSS","SSSSSS","SSSSSS","..WW..","..WW..","..WW..","..WW..","..WW.."],{'S':'#B7C0DE','W':'#C4691F'}),
+ 'chart':(["......CC","......CC","...BB.CC","...BB.CC","AA.BB.CC","AA.BB.CC","WWWWWWWW"],{'A':'#7FD3FF','B':'#6AF0B0','C':'#FFD447','W':'#D5DBEE'}),
 }
 def place(s,name,prefer='tr',margin=1):
     """Draw a prop in the free space nearest `prefer` (tr, tl, br, bl): the nine buddies are all
@@ -213,8 +234,19 @@ def extras(s,expr,top_right=(40,4),top_left=(3,4),cheek=(36,20)):
         place(s,'medal','tr'); place(s,'spark','tl')
     elif expr=='lovey':
         heart(s,top_right[0]-1,top_right[1]); heart(s,top_left[0],top_left[1]+4,'#FFB3C7')
+    elif expr=='blaze':
+        place(s,'flame','tr'); place(s,'spark','tl')
+    elif expr=='frozen':
+        place(s,'snow','tr'); place(s,'snow','tl')
+    elif expr=='guarding':
+        place(s,'padlock','tr')
+    elif expr=='tinkering':
+        place(s,'hammer','tr'); place(s,'spark','tl')
+    elif expr=='analyzing':
+        place(s,'chart','tr')
 
 def arms_pose(expr):
     return {'ecstatic':'up','excited':'wave','drained':'droop','sad':'droop',
-            'lifting':'up','yawning':'up','flexing':'wave','sipping':'wave','proud':'wave'}.get(expr,'down')
+            'lifting':'up','yawning':'up','flexing':'wave','sipping':'wave','proud':'wave',
+            'blaze':'up','tinkering':'wave'}.get(expr,'down')
 def ears_droop(expr): return expr in ('drained','sad')

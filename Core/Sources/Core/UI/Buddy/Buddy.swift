@@ -84,6 +84,16 @@ public enum BuddyPose: String, Sendable, CaseIterable {
     case proud
     /// Heart eyes: a friend's nudge, a squad cheer, a gift (not wired to a screen yet).
     case lovey
+    /// Fire eyes and raised fists: a streak that is alive (the streak pill).
+    case blaze
+    /// Pale ice eyes and snowflakes: a streak held safe by a freeze (the streak pill).
+    case frozen
+    /// Heavy-lidded and watchful with a padlock: the Lock tab.
+    case guarding
+    /// Curious, with a little hammer: Settings.
+    case tinkering
+    /// Bright eyes and a bar chart: Progress.
+    case analyzing
 
     /// The App Group defaults key for the pose Today's hero is in. Today writes it as the day's
     /// mood changes; the `ZANOReport` extension (which draws Today's hero on a device, but knows

@@ -45,6 +45,8 @@ struct GoalActionItem: Identifiable, Equatable {
     var secondaryLine: String? = nil
     var isRequired: Bool = false
     let trailing: Trailing
+    /// The goal's own type, so the tile can show the buddy's face for it (nil for rows with no goal).
+    var goalType: GoalType? = nil
 }
 
 struct GoalActionList: View {
@@ -210,7 +212,40 @@ struct GoalTile: View {
 
     /// The goal's glyph as a chunky sticker; a filled check once done. Tilted a little while open
     /// (decoration: it carries no words), straight once done.
+    @ViewBuilder
     private var sticker: some View {
+        if let pose = buddyPose {
+            // The buddy wears the goal's face: lifting, sipping, eating, focused, flexing...
+            StoredBuddySprite(pose: pose, size: 48)
+                .frame(width: 48, height: 48)
+                .accessibilityHidden(true)
+        } else {
+            plainSticker
+        }
+    }
+
+    /// The face for this goal right now, for the goals that have one (spec §5.17).
+    private var buddyPose: BuddyPose? {
+        guard let type = item.goalType, Self.hasFace.contains(type) else { return nil }
+        let moment: BuddyPose.Moment
+        if isDone {
+            moment = .done
+        } else if case .status(_, let live) = item.trailing, live {
+            moment = .doing
+        } else if item.progress > 0 {
+            moment = .doing
+        } else {
+            moment = .needed
+        }
+        return BuddyPose(goal: type, moment: moment)
+    }
+
+    private static let hasFace: Set<GoalType> = [
+        .workoutGym, .workoutHomeOutdoor, .steps, .water, .protein, .mealPrep,
+        .focusSession, .reading, .sunriseAlarm, .stretchMobility,
+    ]
+
+    private var plainSticker: some View {
         ZanoSticker(
             systemImage: isDone ? "checkmark" : item.icon,
             color: item.color,

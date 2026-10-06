@@ -1072,7 +1072,8 @@ struct TodayView: View {
             primaryLine: primary,
             secondaryLine: secondary,
             isRequired: required,
-            trailing: trailing(for: goal, progress: p)
+            trailing: trailing(for: goal, progress: p),
+            goalType: goal.type
         )
     }
 

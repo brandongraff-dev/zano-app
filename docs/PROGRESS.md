@@ -66,8 +66,8 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 21 | Earned It video clip with the chosen buddy | `claude/quirky-wozniak-bf8h1v` | §5.27 | Compiles + Core tests pass in CI (run 105, 2026-10-06).  | 2026-10-05 | [21-earned-it-clip.md](sessions/21-earned-it-clip.md) |
 | 22 | Starter plans (goal templates) | `claude/quirky-wozniak-bf8h1v` | §5.28 | Compiles + Core tests pass in CI (run 105, 2026-10-06).  | 2026-10-05 | [22-goal-templates.md](sessions/22-goal-templates.md) |
 | 23 | Family Link: parent tasks, view-once photo proof | `claude/quirky-wozniak-bf8h1v` | §5.23, §24 | Compiles + tests pass in CI (run 105). Not live: no Supabase project/Auth wired, no Apple enrollment; screen shows not-available | 2026-10-05 | [23-family-link.md](sessions/23-family-link.md) |
-| 24 | Buddy faces on Today goal tiles; focus-lock question card on Today | `claude/quirky-wozniak-bf8h1v` | §5.17, §5.24 | Scaffolded — Unverified. Not yet compiled in CI | 2026-10-06 | [24-buddy-faces-focus-ask.md](sessions/24-buddy-faces-focus-ask.md) |
-| 25 | Focus break coach (Pomodoro-style rest nudge after focus blocks) | `claude/quirky-wozniak-bf8h1v` | §5.29 | Scaffolded — Unverified. Not yet compiled in CI | 2026-10-06 | [25-break-coach.md](sessions/25-break-coach.md) |
+| 24 | Buddy faces on Today goal tiles; focus-lock question card on Today | `claude/quirky-wozniak-bf8h1v` | §5.17, §5.24 | Compiles + Core tests pass in CI (run 112). Look in the Simulator unchecked | 2026-10-06 | [24-buddy-faces-focus-ask.md](sessions/24-buddy-faces-focus-ask.md) |
+| 25 | Focus break coach (Pomodoro-style rest nudge after focus blocks) | `claude/quirky-wozniak-bf8h1v` | §5.29 | Compiles + Core tests pass in CI (run 112). Look in the Simulator unchecked | 2026-10-06 | [25-break-coach.md](sessions/25-break-coach.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.

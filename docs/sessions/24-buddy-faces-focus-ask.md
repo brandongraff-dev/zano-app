@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/quirky-wozniak-bf8h1v`
 - **Spec sections:** §5.17 (buddy), §5.24 (focus lock)
-- **Status:** Scaffolded — Unverified (not yet compiled in CI)
+- **Status:** Compiles + Core unit tests pass in CI (run 112, 2026-10-06). Simulator look and device behaviour unverified
 - **Started / Last updated:** 2026-10-06
 
 ## Log

@@ -156,7 +156,7 @@ private struct MainTabView: View {
                 .tabItem { Label(Copy.settings.screenTitle, systemImage: "gearshape.fill") }
                 .tag(AppTab.settings)
         }
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         // Held back (getter returns `nil`) while the alarm is ringing, then presents as soon as it
         // clears — the queued `router.unlockCelebration` isn't lost. `UnlockCelebrationView`'s own
         // "Nice" button calls `dismiss()`, which writes `nil` back through the setter.

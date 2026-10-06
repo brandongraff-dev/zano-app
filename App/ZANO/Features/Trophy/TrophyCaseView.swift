@@ -105,7 +105,7 @@ public struct TrophyCaseView: View {
         .zanoBackdrop(glow: earnedMilestoneCount > 0 ? Theme.Colors.accent : nil, intensity: 0.12)
         .navigationTitle(Copy.trophyCase.screenTitle)
         .task { await CosmeticsStore.shared.refresh() }
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
         // `LockSetupView.swift`'s comment for the full rationale.
         .preferredColorScheme(.dark)
@@ -362,7 +362,7 @@ private struct TrophyTile: View {
         .frame(maxWidth: .infinity)
         // Earned = an accent wash and an accent-dim edge (`accentDim` is the token for "a
         // highlighted border"); the disc carries the glow, so the card itself stays flat.
-        .zanoCard(radius: Theme.Radius.medium, tint: isEarned ? Theme.Colors.accent : nil)
+        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.accent, active: isEarned)
         .overlay {
             if isEarned {
                 RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)

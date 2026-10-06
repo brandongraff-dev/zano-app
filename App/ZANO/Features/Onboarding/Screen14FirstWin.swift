@@ -200,9 +200,6 @@ struct Screen14FirstWin: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.10)
-        }
         .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.firstWinStartButton,
@@ -239,9 +236,6 @@ struct Screen14FirstWin: View {
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
-        }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.Ring.focus, opacity: 0.10)
         }
         .onboardingKitActionBar {
             if let emergencyUnlock {
@@ -635,11 +629,11 @@ private struct FirstWinCelebration: View {
             // Static radial glow; only its opacity changes, once, at the unlock beat. Never an
             // animated blur or radius.
             OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.18)
-                .opacity(showBurst ? 1 : 0.3)
+                .opacity(showBurst ? 1 : 0)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: showBurst)
         }
         .onboardingKitActionBar {
-            PrimaryButton(title: Copy.onboarding.firstWinDoneButton, action: onDone)
+            PrimaryButton(title: Copy.onboarding.firstWinDoneButton, tint: .accent, action: onDone)
         }
         .sensoryFeedback(.success, trigger: hapticTick)
         .task { await play() }
@@ -798,7 +792,7 @@ private struct FirstWinWidgetPrompt: View {
             .padding(.vertical, Theme.Spacing.lg)
         }
         .onboardingKitActionBar {
-            PrimaryButton(title: Copy.onboarding.firstWinDoneButton, action: onDone)
+            PrimaryButton(title: Copy.onboarding.firstWinDoneButton, tint: .accent, action: onDone)
         }
         .task { await runGuide() }
     }

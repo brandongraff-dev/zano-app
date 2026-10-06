@@ -52,8 +52,12 @@ public struct PrimaryButton: View {
 
     /// The fill hue of `.standard` and the sweep/border hue of `.holdToCommit`.
     public enum Tint: Sendable, Equatable {
-        /// The earned/unlock accent. The default — use it only for the one primary action on a
-        /// screen and for earned states (spec §15: "ONE accent only").
+        /// White with a black label — the default for every ordinary primary action ("Continue",
+        /// "Save", "Go to gym"). The way Apple's own apps draw a primary capsule on dark, and what
+        /// keeps the accent rare enough to mean something.
+        case neutral
+        /// The earned/unlock accent. Only for an action that *is* the reward moment (dismissing
+        /// the unlock celebration, the first win) — spec §15: "ONE accent only", used rarely.
         case accent
         /// An exit that costs something (emergency unlock, ending a lock early).
         case danger
@@ -62,6 +66,7 @@ public struct PrimaryButton: View {
 
         var color: Color {
             switch self {
+            case .neutral: Theme.Colors.text
             case .accent: Theme.Colors.accent
             case .danger: Theme.Colors.danger
             case .warning: Theme.Colors.warning
@@ -91,7 +96,7 @@ public struct PrimaryButton: View {
     ///   - isEnabled: Disables interaction and shows the disabled treatment when `false`.
     ///     Defaults to `true`. Prefer not to use a disabled button for *status* ("Focus running…"):
     ///     that is information, not an unavailable action — show it as a status row instead.
-    ///   - tint: Fill hue for `.standard`, sweep hue for `.holdToCommit`. Defaults to `.accent`.
+    ///   - tint: Fill hue for `.standard`, sweep hue for `.holdToCommit`. Defaults to `.neutral`.
     ///   - action: For `.standard`/`.secondary`, called on tap. For `.holdToCommit`, called once
     ///     the full hold duration completes.
     public init(
@@ -99,7 +104,7 @@ public struct PrimaryButton: View {
         systemImage: String? = nil,
         style: Style = .standard,
         isEnabled: Bool = true,
-        tint: Tint = .accent,
+        tint: Tint = .neutral,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -322,36 +327,13 @@ private struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let isFilled = kind == .filled && isEnabled
 
+        // A flat capsule, like the system's `.borderedProminent` / `.bordered`: no rim, no glow.
+        // The 2026-10-06 pass removed the specular top edge and the pressed accent glow — a lit
+        // outline on every button was a large part of what made the app read as generated.
         return configuration.label
             .foregroundStyle(labelColor)
-            .background {
-                Capsule()
-                    .fill(fillColor)
-                    // Accent glow only on the *pressed* CTA (spec §16: "inner glow on active
-                    // elements") — never a resting shadow: drop shadows don't show on near-black,
-                    // and a glow on every button would dilute the one that matters.
-                    .shadow(color: isFilled && pressed ? tint.color.opacity(0.35) : .clear, radius: 14)
-            }
-            .overlay {
-                if isFilled {
-                    // A 1px top-lit highlight: the same edge light the cards get.
-                    Capsule().strokeBorder(
-                        LinearGradient(
-                            colors: [Theme.Colors.specular, Theme.Colors.specular.opacity(0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
-                } else {
-                    Capsule().strokeBorder(
-                        kind == .secondary && isEnabled ? Theme.Colors.hairlineStrong : Theme.Colors.hairline,
-                        lineWidth: 1
-                    )
-                }
-            }
+            .background(fillColor, in: Capsule())
             .scaleEffect(pressed && !reduceMotion ? 0.96 : 1)
             .opacity(pressed ? 0.92 : 1)
             .contentShape(Capsule())

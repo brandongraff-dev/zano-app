@@ -17,9 +17,10 @@
 import SwiftUI
 
 enum ZANOWidgetColor {
-    static let background = Color(red: 0x0A / 255.0, green: 0x0A / 255.0, blue: 0x0B / 255.0)
-    static let surface = Color(red: 0x14 / 255.0, green: 0x14 / 255.0, blue: 0x16 / 255.0)
-    static let surface2 = Color(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1F / 255.0)
+    // Neutrals follow Apple's dark grouped palette (spec §15, 2026-10-06), same as `Theme.Colors`.
+    static let background = Color(red: 0x00 / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
+    static let surface = Color(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0)
+    static let surface2 = Color(red: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2E / 255.0)
     static let textPrimary = Color(red: 0xF5 / 255.0, green: 0xF5 / 255.0, blue: 0xF7 / 255.0)
     static let textMuted = Color(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0)
 

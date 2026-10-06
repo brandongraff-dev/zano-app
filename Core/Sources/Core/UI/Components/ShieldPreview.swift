@@ -163,7 +163,7 @@ public struct ShieldPreview: View {
             .padding(.bottom, Theme.Spacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .zanoBackdrop(glow: Theme.Colors.danger, intensity: 0.12)
+        .zanoBackdrop()
         .onAppear { hasAppeared = true }
     }
 

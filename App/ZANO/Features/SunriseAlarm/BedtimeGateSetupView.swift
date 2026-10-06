@@ -119,6 +119,9 @@ struct BedtimeGateSetupView: View {
                     Toggle(Copy.bedtimeGate.windDownToggleLabel, isOn: $settings.windDownReminderEnabled)
                         .font(Theme.Typography.headline)
                         .foregroundStyle(Theme.Colors.text)
+                        // Explicit: the app root tint is white (2026-10-06), which would draw a white
+                        // knob on a white track. An "on" switch is the accent, as the system's is green.
+                        .tint(Theme.Colors.accent)
                         .frame(minHeight: SleepSetupMetrics.minTapTarget)
 
                     Text(Copy.bedtimeGate.windDownHelperText)

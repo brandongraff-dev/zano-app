@@ -87,8 +87,6 @@ struct Screen10PlanReveal: View {
 
     var body: some View {
         ZStack {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.08)
-
             switch visiblePhase {
             case .building:
                 buildingView

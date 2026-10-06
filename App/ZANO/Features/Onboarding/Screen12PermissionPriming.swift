@@ -62,9 +62,6 @@ struct Screen12PermissionPriming: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.lg)
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.08)
-        }
         .onboardingKitActionBar {
             PrimaryButton(
                 title: Copy.onboarding.permissionAllowButton,

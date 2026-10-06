@@ -40,6 +40,13 @@
 //     `PrimaryButton` carry no opacity literals of their own. Their hue wash (10% / 18% active), glow
 //     (22%) and pressed-glow (35%) strengths are still local to those two files: they are one-off
 //     recipe constants, not shared tokens.
+//   * Apple-native pass (2026-10-06, docs/sessions/14-apple-native-surfaces.md). Neutrals moved to
+//     Apple's dark grouped palette (`#000000` / `#1C1C1E` / `#2C2C2E`); cards lost their default
+//     outline and glow; decorative screen glows were removed outside earned moments; the default
+//     button became white so the accent only appears where something was *earned*. Contrast
+//     figures quoted below were measured against the old `#0A0A0B` / `#141416` pair — on the new
+//     values text ratios are equal or higher, and the white-overlay neutrals read slightly lighter
+//     on `surface`.
 //   * Everything new is additive: no token was renamed or removed, and every `Theme.*` reference in
 //     App and Core resolves against this file (the widget and watch targets keep their own mirrored
 //     token files, `ZANOWidgetColor` and `WatchTheme`, and are unaffected). Two *existing* tokens
@@ -59,13 +66,20 @@ public enum Theme {
 
     /// Color tokens from docs/spec.md §15's "Tokens" table, reproduced exactly (hex values are
     /// spec-authoritative; do not retune here without updating §15 first).
+    ///
+    /// Surfaces (2026-10-06, Apple-native pass): the neutrals are Apple's own dark-mode grouped
+    /// palette — `systemBackground` black, `secondarySystemGroupedBackground` cells,
+    /// `tertiarySystemGroupedBackground` wells — so ZANO screens sit beside system sheets, the tab
+    /// bar and Settings without a seam. The old near-black `#0A0A0B` / `#141416` pair was off by a
+    /// few values from every system surface and read as a "custom dark theme" rather than iOS.
     public enum Colors {
-        /// `#0A0A0B` — app background.
-        public static let background = Color(zanoHex: 0x0A0A0B)
-        /// `#141416` — card / primary surface.
-        public static let surface = Color(zanoHex: 0x14_14_16)
-        /// `#1C1C1F` — secondary surface (nested cards, tracks, pressed states).
-        public static let surface2 = Color(zanoHex: 0x1C_1C_1F)
+        /// `#000000` — app background (Apple `systemBackground`, dark).
+        public static let background = Color(zanoHex: 0x00_00_00)
+        /// `#1C1C1E` — card / primary surface (Apple `secondarySystemGroupedBackground`, dark).
+        public static let surface = Color(zanoHex: 0x1C_1C_1E)
+        /// `#2C2C2E` — secondary surface: nested wells, pressed states, disabled controls (Apple
+        /// `tertiarySystemGroupedBackground`, dark).
+        public static let surface2 = Color(zanoHex: 0x2C_2C_2E)
         /// `#F5F5F7` — primary text.
         public static let text = Color(zanoHex: 0xF5_F5_F7)
         /// `#8E8E93` — secondary / muted text.
@@ -98,9 +112,10 @@ public enum Theme {
 
         // MARK: Card edge light
 
-        /// The card edge is a 1px *top-lit* gradient (light falling from above), not a box outline:
-        /// drop shadows are invisible on near-black, and a lit rim is what dark design systems (and
-        /// iOS's own glass chrome) use for depth. Top and bottom stops, pure white.
+        /// The 1px *top-lit* card edge. Since the 2026-10-06 pass `zanoCard` draws it only under
+        /// Increase Contrast: a `#1C1C1E` card on true black separates on its own (as every system
+        /// grouped cell does), and an outline on every card was the strongest "generated UI" tell.
+        /// Top and bottom stops, pure white.
         public static let edgeTop = Color.white.opacity(0.14)
         public static let edgeBottom = Color.white.opacity(0.06)
         /// The same edge under Increase Contrast (`colorSchemeContrast == .increased`): doubled.

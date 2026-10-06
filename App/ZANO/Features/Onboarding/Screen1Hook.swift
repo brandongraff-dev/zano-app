@@ -72,7 +72,7 @@ struct Screen1Hook: View {
             // Bottom-heavy padding lifts the group above true center, where the eye rests.
             .padding(.bottom, Theme.Spacing.xl * 2)
         }
-        .zanoBackdrop(glow: Theme.Colors.accent, intensity: 0.12)
+        .zanoBackdrop()
         .onboardingPinnedContinue(title: Copy.onboarding.hookCTA) {
             flowState.advance()
         }
@@ -166,7 +166,7 @@ private struct HookHero: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                Theme.Colors.accent.opacity(isUnlocked ? 0.26 : 0.12),
+                                Theme.Colors.accent.opacity(isUnlocked ? 0.20 : 0),
                                 Theme.Colors.accent.opacity(0),
                             ],
                             center: .center,

@@ -116,7 +116,7 @@ struct AlwaysAllowedWarningView: View {
             }
         }
         .padding(Theme.Spacing.md)
-        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.warning)
+        .zanoCard(radius: Theme.Radius.medium, tint: Theme.Colors.warning, active: true)
         .overlay {
             RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
                 .strokeBorder(Theme.Colors.warning.opacity(0.4), lineWidth: Theme.Metrics.edgeWidth)

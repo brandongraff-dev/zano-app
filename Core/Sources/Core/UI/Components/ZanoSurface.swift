@@ -7,26 +7,24 @@
 // DEP-02, composition-audit.md S-2). Spec §16's own style paragraph asks for "subtle inner glow on
 // active elements, crisp 1px hairline dividers"; the flat fills could deliver neither.
 //
-// The recipe, and why it is built this way:
+// The recipe, and why it is built this way (revised 2026-10-06, Apple-native pass —
+// docs/sessions/14-apple-native-surfaces.md):
 //
-//   * A 1px *top-lit* gradient edge (`Theme.Colors.edgeGradient`, white 14% → 6%), not a drop shadow. Drop shadows are
-//     invisible on near-black; a highlight rim is what dark design systems use for depth, and it
-//     is the same idea iOS's own glass chrome now uses (lighter specular rim, darker interior), so
-//     opaque ZANO cards and system chrome read as one family without ZANO cards becoming glass —
-//     Apple is explicit that glass belongs to the navigation layer, not the content layer.
-//   * Increase Contrast doubles the edge (`colorSchemeContrast`), for free.
-//   * An optional hue wash (`tint`) that fades from the top-leading corner — locked = danger,
-//     unlocked = accent — so a state reads from across the room, not from a 17pt label.
-//   * A *static* glow (`active`) for earned states only. Never animated: HIG asks apps to avoid
-//     animating depth/blur changes under Reduce Motion, and a pulsing glow would be looping motion
-//     on the most-seen screens.
+//   * A flat `surface` (`#1C1C1E`) on true black, exactly like a system inset-grouped cell. No
+//     outline and no drop shadow by default: the earlier 1px top-lit edge on *every* card, plus
+//     tinted washes and outer glows, were the main things that made ZANO read as a generated
+//     dashboard rather than an iOS app.
+//   * Increase Contrast restores the 1px edge (`colorSchemeContrast`), for free.
+//   * `tint` is drawn only on an `active` card (earned/unlocked, or a warning that needs action): a
+//     soft hue wash from the top-leading corner. A resting card never carries colour.
+//   * No glow. Ever. Depth comes from the surface step, not from light bleeding off the card.
 
 import SwiftUI
 
 extension View {
 
     /// Wraps the view in a ZANO card: `fill` (default `surface`) in a continuous rounded rect of
-    /// `radius`, a 1px top-lit edge, and — optionally — a `tint` wash and an `active` glow.
+    /// `radius` and — on an `active` card only — a soft `tint` wash.
     ///
     /// Pad the content *before* calling this (`.padding(Theme.Spacing.md).zanoCard()`), exactly as
     /// the `.background(...)` recipe it replaces was used.
@@ -34,9 +32,10 @@ extension View {
     /// - Parameters:
     ///   - radius: Corner radius. `Theme.Radius.medium` for standard cards, `.large` for hero
     ///     surfaces, `.small` for compact rows. Nested surfaces: see `Theme.Radius`.
-    ///   - tint: A hue wash fading from the top-leading corner (10% of `tint`, 18% when `active`).
-    ///   - active: Adds a static outer glow in `tint` (accent when `tint` is `nil`) and strengthens
-    ///     the wash. Reserve for *earned/unlocked* surfaces — the glow is the reward.
+    ///   - tint: The hue of the `active` wash (accent when `nil`). Ignored on a resting card.
+    ///   - active: Draws a 14% `tint` wash fading from the top-leading corner. Reserve for
+    ///     *earned/unlocked* surfaces (the colour arriving is the reward) and for the rare
+    ///     `warning` card that needs the user's attention.
     ///   - fill: Base fill. Defaults to `Theme.Colors.surface`.
     public func zanoCard(
         radius: CGFloat = Theme.Radius.medium,
@@ -68,19 +67,17 @@ struct ZanoSurface: ViewModifier {
         return content
             .background {
                 ZStack {
-                    shape
-                        .fill(fill)
-                        .shadow(color: glowColor, radius: 18)
-                    if let tint {
-                        shape.fill(wash(tint))
+                    shape.fill(fill)
+                    if active {
+                        shape.fill(wash(tint ?? Theme.Colors.accent))
                     }
                 }
             }
             .overlay {
-                if showsEdge {
+                if showsEdge && contrast == .increased {
                     shape
                         .strokeBorder(
-                            Theme.Colors.edgeGradient(increasedContrast: contrast == .increased),
+                            Theme.Colors.edgeGradient(increasedContrast: true),
                             lineWidth: Theme.Metrics.edgeWidth
                         )
                         // The edge is paint, not a control: it must never swallow a tap meant for
@@ -92,15 +89,10 @@ struct ZanoSurface: ViewModifier {
 
     private func wash(_ tint: Color) -> LinearGradient {
         LinearGradient(
-            colors: [tint.opacity(active ? 0.18 : 0.10), tint.opacity(0)],
+            colors: [tint.opacity(0.14), tint.opacity(0)],
             startPoint: .topLeading,
             endPoint: UnitPoint(x: 0.8, y: 0.8)
         )
-    }
-
-    private var glowColor: Color {
-        guard active else { return .clear }
-        return (tint ?? Theme.Colors.accent).opacity(0.22)
     }
 }
 
@@ -113,14 +105,14 @@ struct ZanoSurface: ViewModifier {
             .padding(Theme.Spacing.md)
             .zanoCard()
 
-        Text("Locked (danger wash)")
+        Text("Tint without active (plain)")
             .font(Theme.Typography.headline)
             .foregroundStyle(Theme.Colors.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Theme.Spacing.md)
             .zanoCard(tint: Theme.Colors.danger)
 
-        Text("Earned (active glow)")
+        Text("Earned (active wash)")
             .font(Theme.Typography.headline)
             .foregroundStyle(Theme.Colors.text)
             .frame(maxWidth: .infinity, alignment: .leading)

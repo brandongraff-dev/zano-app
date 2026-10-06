@@ -76,7 +76,6 @@ struct Screen9WakeUp: View {
         .background {
             ZStack {
                 Theme.Colors.background.ignoresSafeArea()
-                OnboardingKit.Glow(tint: Theme.Colors.danger, opacity: 0.10, anchor: .top)
                 OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.12, anchor: .bottom)
                     .opacity(visibleStage >= 2 ? 1 : 0)
                     .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: visibleStage)
@@ -208,7 +207,6 @@ private struct YearBar: View {
             Capsule()
                 .fill(color)
                 .frame(width: Self.width * (isFilled ? fraction : 0))
-                .shadow(color: color.opacity(0.3), radius: 4)
         }
         .frame(width: Self.width, height: Theme.Spacing.xs)
         .animation(reduceMotion ? nil : Theme.Motion.ringFill, value: isFilled)

@@ -187,11 +187,10 @@ struct OnboardingScaffold<Content: View>: View {
                 Capsule()
                     .fill(Theme.Colors.track)
                 Capsule()
-                    .fill(Theme.Colors.accent)
+                    // White, not the accent: progressing through setup is not an earned state, and
+                    // keeping the lime off every onboarding screen is what makes the first win land.
+                    .fill(Theme.Colors.text)
                     .frame(width: max(0, proxy.size.width * flowState.progressFraction))
-                    // Static glow on the active fill (spec §16 "inner glow on active elements");
-                    // never animated in radius.
-                    .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 5)
                     .animation(
                         reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill,
                         value: flowState.progressFraction

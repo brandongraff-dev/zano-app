@@ -36,12 +36,12 @@ public enum WatchTheme {
     // MARK: - Colors (mirrors `Theme.Colors`, spec §15's token table)
 
     public enum Colors {
-        /// Mirrors `Theme.Colors.background` (`#0A0A0B`).
-        public static let background = Color(watchThemeHex: 0x0A_0A_0B)
-        /// Mirrors `Theme.Colors.surface` (`#141416`).
-        public static let surface = Color(watchThemeHex: 0x14_14_16)
-        /// Mirrors `Theme.Colors.surface2` (`#1C1C1F`).
-        public static let surface2 = Color(watchThemeHex: 0x1C_1C_1F)
+        /// Mirrors `Theme.Colors.background` (`#000000`).
+        public static let background = Color(watchThemeHex: 0x00_00_00)
+        /// Mirrors `Theme.Colors.surface` (`#1C1C1E`).
+        public static let surface = Color(watchThemeHex: 0x1C_1C_1E)
+        /// Mirrors `Theme.Colors.surface2` (`#2C2C2E`).
+        public static let surface2 = Color(watchThemeHex: 0x2C_2C_2E)
         /// Mirrors `Theme.Colors.text` (`#F5F5F7`).
         public static let text = Color(watchThemeHex: 0xF5_F5_F7)
         /// Mirrors `Theme.Colors.muted` (`#8E8E93`).

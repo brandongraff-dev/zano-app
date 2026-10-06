@@ -168,9 +168,10 @@ struct SettingsView: View {
         // system background there. No `glow:` — this is an admin screen, not a moment.
         .zanoBackdrop()
         .preferredColorScheme(.dark)
-        // No root tint exists yet (`ZANOApp`/`ContentView` belong to another workflow this run), so
-        // toolbar buttons, sliders, and menus in this screen would otherwise render system blue.
-        .tint(Theme.Colors.accent)
+        // White, matching the app root (`ContentView`): toolbar buttons, sliders and menus are
+        // neutral; the accent is reserved for earned states (spec §15, 2026-10-06). Kept here as
+        // well as at the root because sheet tint inheritance is unverified on device.
+        .tint(Theme.Colors.text)
         .navigationTitle(Copy.settings.screenTitle)
         .onAppear {
             // Mirrors `ProgressView.swift`'s exact `"<screen>_viewed"` precedent (read, not
@@ -1268,7 +1269,7 @@ private struct GymSetupDetailView: View {
         }
         .zanoBackdrop()
         .preferredColorScheme(.dark)
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         .sensoryFeedback(.success, trigger: confirmTick)
         .navigationTitle(Copy.settings.gymSetupTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -1389,7 +1390,7 @@ private struct GymSetupDetailView: View {
         // An unconfirmed gym does not count for Tier A verification, so its card wears the warning
         // wash ("needs attention", not "failed": `warning`, never `danger` — typography-color C9)
         // and reads as a to-do from across the list; a confirmed gym is a plain card.
-        .zanoCard(tint: gym.confirmed ? nil : Theme.Colors.warning)
+        .zanoCard(tint: Theme.Colors.warning, active: !gym.confirmed)
         .contextMenu {
             Button(role: .destructive) {
                 pendingDeletion = gym
@@ -1544,7 +1545,7 @@ private struct AddGymSheet: View {
         // inheritance from the presenter (`.preferredColorScheme` propagation into sheets is not
         // verified on device — typography-color-findings §7).
         .preferredColorScheme(.dark)
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         .sensoryFeedback(.success, trigger: locateSuccessTick)
         .sensoryFeedback(.selection, trigger: Int(radius))
     }
@@ -1633,7 +1634,7 @@ private struct AddGymSheet: View {
             Slider(value: $radius, in: 50...500, step: 10) {
                 Text(Copy.settings.gymRadiusFieldLabel(meters: Int(radius)))
             }
-            .tint(Theme.Colors.accent)
+            .tint(Theme.Colors.text)
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1882,7 +1883,7 @@ private struct NFCTagSetupDetailView: View {
         }
         .zanoBackdrop()
         .preferredColorScheme(.dark)
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         .navigationTitle(Copy.settings.nfcSetupTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -2210,7 +2211,7 @@ private struct MapTagSheet: View {
             .settingsErrorAlert($errorAlert)
         }
         .preferredColorScheme(.dark)
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         // One selection tick per kind change only: picking a kind also auto-applies its suggested
         // action (`onChange(of: kind)` below), and a second tick for that would double-buzz.
         .sensoryFeedback(.selection, trigger: kind)

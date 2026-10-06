@@ -87,7 +87,7 @@ struct Screen11Commitment: View {
         .background {
             OnboardingKit.Glow(
                 tint: Theme.Colors.accent,
-                opacity: isCommitted ? 0.20 : 0.08,
+                opacity: isCommitted ? 0.20 : 0,
                 anchor: .center
             )
         }

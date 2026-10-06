@@ -116,7 +116,7 @@ struct PaywallView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .zanoBackdrop(glow: Theme.Colors.accent, intensity: 0.10)
+        .zanoBackdrop()
         .zanoActionBar {
             pinnedBar
         }

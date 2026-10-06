@@ -208,9 +208,9 @@ public struct GoalRing: View {
                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
             .rotationEffect(.degrees(-90))
-            // The static "active element" glow (spec §16): soft while in progress, stronger once
-            // earned. Never animated — a function of progress only.
-            .shadow(color: color.opacity(isComplete ? 0.5 : 0.28), radius: lineWidth * 0.7)
+            // A static glow only once the ring closes (the earned moment); an in-progress ring is
+            // flat, like Activity's. Never animated — a function of progress only.
+            .shadow(color: color.opacity(isComplete ? 0.35 : 0), radius: lineWidth * 0.7)
             .padding(lineWidth / 2)
             .opacity(clampedProgress > 0.001 && !isPlaceholder ? 1 : 0)
             // The fill itself is information (a progress fraction), not decoration, so

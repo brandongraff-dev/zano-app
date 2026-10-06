@@ -121,8 +121,6 @@ public struct TimeBankBar: View {
                     .fill(barTint)
                     // A bank with anything in it shows at least a dot; 0 shows nothing.
                     .frame(width: fraction > 0 ? max(Theme.Metrics.progressBarHeight, proxy.size.width * fraction) : 0)
-                    // The static "earned/active element" glow (spec §16), in the fill's own hue.
-                    .shadow(color: barTint.opacity(fraction > 0 ? 0.35 : 0), radius: 6)
                     .opacity(pulseActive ? 0.55 : 1.0)
                     // The fill's width is information (a live balance), not decoration, so
                     // Reduce Motion shortens the curve rather than removing it.

@@ -45,9 +45,6 @@ struct Screen8CoachVoice: View {
                 }
             }
         }
-        .background {
-            OnboardingKit.Glow(tint: Theme.Colors.accent, opacity: 0.07)
-        }
         .onboardingKitActionBar {
             PrimaryButton(title: Copy.common.continueButtonLabel) {
                 flowState.advance()

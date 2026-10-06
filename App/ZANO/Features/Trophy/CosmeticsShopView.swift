@@ -101,7 +101,7 @@ public struct CosmeticsShopView: View {
                 dismissButton: .default(Text(Copy.common.ok))
             )
         }
-        .tint(Theme.Colors.accent)
+        .tint(Theme.Colors.text)
         // Fixed, dark-only design system — see `docs/design/ui-stress-test-findings.md` §2.1 and
         // `LockSetupView.swift`'s comment for the full rationale. Also matters here specifically:
         // this screen's `.alert` above would otherwise follow the *system* appearance while the

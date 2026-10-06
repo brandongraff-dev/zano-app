@@ -176,7 +176,7 @@ public struct UnlockCelebrationView: View {
 
             Spacer(minLength: Theme.Spacing.lg)
 
-            PrimaryButton(title: Copy.celebration.dismissButtonLabel) {
+            PrimaryButton(title: Copy.celebration.dismissButtonLabel, tint: .accent) {
                 dismiss()
             }
             .padding(.horizontal, Theme.Spacing.lg)

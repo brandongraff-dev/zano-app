@@ -6,6 +6,10 @@
 // composites to a drab olive rather than a dimmer lime (docs/design/better-ui-findings.md RAD-05,
 // DEP-03). One component, three sizes from `Theme.Metrics`, fills from `Theme.Colors.wash(_:)`.
 //
+// 2026-10-06 (Apple-native pass): the disc is a neutral `surface2`, not a wash of the tint. A
+// coloured glyph in a coloured disc on every row was the most recognisable "template dashboard"
+// tell; a neutral disc lets the glyph carry the hue, the way Fitness and Health draw them.
+//
 // The badge is a circle on purpose: a circle is the capsule case of iOS 26's concentric shapes, so
 // it needs no radius token and never fights the corner of the card it sits in.
 
@@ -44,7 +48,7 @@ public struct IconBadge: View {
 
     /// - Parameters:
     ///   - systemName: SF Symbol name (an identifier, not copy).
-    ///   - tint: Glyph color; the disc is `Theme.Colors.wash(tint)`. Defaults to the accent.
+    ///   - tint: Glyph color; the disc is always the neutral `surface2`. Defaults to the accent.
     ///   - size: `.small`, `.medium` (default) or `.large`.
     public init(systemName: String, tint: Color = Theme.Colors.accent, size: Size = .medium) {
         self.systemName = systemName
@@ -56,9 +60,10 @@ public struct IconBadge: View {
         let resolved = size.baseDiameter * min(scale, 1.4)
         return ZStack {
             Circle()
-                .fill(Theme.Colors.wash(tint))
+                .fill(Theme.Colors.surface2)
             Image(systemName: systemName)
                 .font(.system(size: resolved * 0.45, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(tint)
                 // Same-family swaps (lock ↔ unlock, flame ↔ snowflake) morph instead of popping
                 // (docs/design/better-ui-findings.md MOT-03); Reduce Motion cross-fades.

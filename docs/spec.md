@@ -524,12 +524,12 @@ NFC tag URL scheme: `zano://tag/<uuid>` → mapped in-app to one of the above wi
 
 ## 15. Design System & UI Direction
 
-**Feel:** dark, confident, game-progress energy without being childish. Think: fitness tracker × ranked mode in a game × premium minimal.
+**Feel:** dark, confident, game-progress energy without being childish. Think: fitness tracker × ranked mode in a game × premium minimal. **It should look like Apple built it** (decision 2026-10-06): system-native surfaces, no decorative glow, playfulness carried by motion and the rare accent moment rather than by effects on every screen.
 
 **Tokens (starting point, tune after image-gen exploration)**
-- Background: `#0A0A0B` ; Surface: `#141416` ; Surface-2: `#1C1C1F`
+- Background: `#000000` ; Surface: `#1C1C1E` ; Surface-2: `#2C2C2E` — Apple's dark grouped palette (changed 2026-10-06 from `#0A0A0B` / `#141416` / `#1C1C1F`, which read as a "custom dark theme" next to system chrome)
 - Text: `#F5F5F7` ; Muted: `#8E8E93`
-- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only
+- Accent (earned/unlock): `#B8FF3C` (acid green) — ONE accent only, **used rarely** (2026-10-06): earned/unlocked states, closed rings, the unlock celebration and first-win CTAs, "on" switches. Ordinary primary buttons, the tab bar, toolbar items, sliders and onboarding progress are white. Cards are flat (no outline except under Increase Contrast, no glow); a tinted wash appears only on an earned card or an attention-needed warning card. Screen-level glows exist only on earned moments.
 - Danger: `#FF453A` (real failures and the emergency exit only) ; Warning: `#FFB020`. **Locked is shown `muted`, not red** (decision 2026-09-23: a routine locked day should read calm; only failures are red)
 - Ring colors: workout = accent, protein = `#FF7A00`, focus = `#5E5CE6`, water = `#32ADE6`
 - Radius: 12 / 20 / 28 ; Spacing scale: 4, 8, 12, 16, 24, 32

@@ -740,7 +740,6 @@ private struct ProgressStreakCell: View {
                     EmptyView()
                 }
             }
-            .shadow(color: Theme.Colors.accent.opacity(kind == .head ? 0.45 : 0), radius: 8)
             .aspectRatio(ProgressMetrics.cellAspect, contentMode: .fit)
     }
 
@@ -802,7 +801,6 @@ private struct ProgressTrophyTile: View {
                             Circle().strokeBorder(Theme.Colors.accentDim, lineWidth: Theme.Metrics.edgeWidth)
                         }
                     }
-                    .shadow(color: Theme.Colors.accent.opacity(entry.isEarned ? 0.30 : 0), radius: 10)
 
                 if !entry.isEarned {
                     Image(systemName: "lock.fill")

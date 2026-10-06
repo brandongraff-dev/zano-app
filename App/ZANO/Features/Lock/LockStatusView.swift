@@ -243,7 +243,6 @@ struct LockStatusView: View {
                     heroNumeral(
                         next.formatted(date: .omitted, time: .shortened),
                         color: Theme.Colors.text,
-                        glows: false,
                         changeKey: Int(next.timeIntervalSince1970)
                     )
                 }
@@ -262,7 +261,6 @@ struct LockStatusView: View {
                 heroNumeral(
                     Copy.lockStatus.heroBankLine(minutes: minutes),
                     color: numeralColor,
-                    glows: minutes > 0 && !isLow,
                     changeKey: minutes
                 )
                 // Decorative here (the hero card speaks the balance); no `label`, so the bar is just
@@ -284,7 +282,6 @@ struct LockStatusView: View {
                 heroNumeral(
                     Copy.lockStatus.heroGoalsLeftLine(count: remaining),
                     color: Theme.Colors.text,
-                    glows: false,
                     changeKey: remaining
                 )
                 SegmentedProgress(total: total, done: total - remaining, filled: Theme.Colors.accent)
@@ -303,13 +300,11 @@ struct LockStatusView: View {
 
     /// The hero number with its unit on the same baseline (`NumeralText` styles the caller-composed
     /// line: "45" over "min available"; "10:30" over "PM"). It rolls the digits when the value
-    /// changes (inert under Reduce Motion, where the ambient animation is nil). `glows` adds a
-    /// static text glow for spendable earned minutes only, dropped under Reduce Transparency —
-    /// never an animated blur radius.
-    private func heroNumeral(_ line: String, color: Color, glows: Bool, changeKey: Int) -> some View {
+    /// changes (inert under Reduce Motion, where the ambient animation is nil). No text glow: the
+    /// accent colour of a spendable balance is the signal on its own.
+    private func heroNumeral(_ line: String, color: Color, changeKey: Int) -> some View {
         NumeralText(line, size: .hero, color: color)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .shadow(color: Theme.Colors.accent.opacity(glows && !reduceTransparency ? 0.35 : 0), radius: 14)
             .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: changeKey)
     }
 

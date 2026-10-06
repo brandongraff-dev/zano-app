@@ -133,6 +133,8 @@ struct TodayView: View {
     /// completedGoalCount)` below. `nil` until the first load completes, which keeps the ghost row
     /// off screen for that one frame instead of handing it a fabricated empty comparison.
     @State private var ghostComparison: GhostMode.GhostComparison?
+    /// Day-5 trial card (spec §21). Read once per appearance; the card's own hide button clears it.
+    @State private var showTrialValueCard = false
 
     var body: some View {
         NavigationStack {
@@ -141,6 +143,9 @@ struct TodayView: View {
                     header
                     heroCard
                     ringsSection
+                    if showTrialValueCard, let trial = TrialReminderScheduler.shared.currentTrial {
+                        trialValueCard(trial)
+                    }
                     if let ghostComparison {
                         ghostRow(ghostComparison)
                     }
@@ -175,6 +180,7 @@ struct TodayView: View {
                 ghostComparison = await GhostMode.shared.ghostComparison(for: .now)
             }
             .task {
+                showTrialValueCard = TrialReminderScheduler.shared.showsValueCard()
                 // docs/spec.md §23: "every screen view... (count only, on device → aggregate)".
                 Analytics.shared.capture(event: "screen_viewed", properties: ["screen": "today"])
             }
@@ -602,6 +608,30 @@ struct TodayView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+    }
+
+    // MARK: - Trial value card (spec §21, decision 2026-10-06)
+
+    /// Everything counted since the trial started: minutes of ended locks (the same rule as the
+    /// Progress tab's Time Reclaimed), the current streak, and goal completions.
+    private func trialValueCard(_ trial: TrialSchedule) -> some View {
+        let start = trial.startedAt
+        let reclaimed = lockSessions.reduce(0) { total, session in
+            guard let endedAt = session.endedAt, endedAt >= start else { return total }
+            return total + max(0, Int(endedAt.timeIntervalSince(session.startedAt) / 60))
+        }
+        let goalsHit = goalEvents.filter { $0.kind == .complete && $0.ts >= start }.count
+        return TrialValueCard(
+            reclaimedMinutes: reclaimed,
+            streakDays: streak?.current ?? 0,
+            goalsHit: goalsHit,
+            endDate: trial.endsAt(),
+            priceLine: trial.priceLine,
+            onDismiss: {
+                TrialReminderScheduler.shared.dismissValueCard()
+                showTrialValueCard = false
+            }
+        )
     }
 
     // MARK: - Ghost Mode (one quiet line, not a card — it is the third most important thing here)

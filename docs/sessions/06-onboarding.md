@@ -63,3 +63,29 @@ key and offering.
   copy or "up to 6 people" label, and the day-5 card and reminder notification aren't built.
   Needs a follow-up coding task (proposed, awaiting approval).
 - **Needs verification on:** N/A (docs). App Store Connect + RevenueCat product setup once enrolled.
+
+### 2026-10-06 — Family plan + trial reminders + day-5 card (code)
+
+- **Files touched:** `Core/Sources/Core/Monetization/RevenueCatManager.swift` (`SubscriptionPackage.isFamilyShareable`,
+  `isInTrialPeriod()`), `Core/Sources/Core/Monetization/PaywallViewModel.swift` (default selection skips Family,
+  `displayOrder`, records the trial after purchase), `Core/Sources/Core/Monetization/TrialReminderScheduler.swift` (new),
+  `Core/Sources/Core/Copy/PaywallCopy.swift` (family + `Copy.trial` strings, shared `priceLine(for:)`),
+  `App/ZANO/Features/Onboarding/PaywallView.swift` (Family compact card), `App/ZANO/Features/Today/TrialValueCard.swift` (new),
+  `App/ZANO/Features/Today/TodayView.swift`, `App/ZANO/Features/Onboarding/Screen12PermissionPriming.swift`,
+  `App/ZANO/ZANOApp.swift`, `Core/Tests/CoreTests/MonetizationTests.swift` (new).
+- **What changed:** the paywall identifies the Family plan by the product's Family Sharing flag and shows it as a
+  compact "Family · Up to 6 people" card under the highlighted individual annual. The individual annual stays the
+  default even if the offering lists Family first. After a purchase that RevenueCat confirms is in a trial, the trial
+  is recorded locally and one notification is scheduled at 10 AM on the reminder date the paywall's timeline shows
+  (re-added at launch and right after the notification permission prompt). Today shows a hideable "What your trial
+  earned you" card from day 5 to the end of the trial (time reclaimed, streak, goals hit since the trial began).
+- **Decisions made and why:** Family detected via `StoreProduct.isFamilyShareable` instead of a package-ID naming
+  convention, since Family Sharing is the thing that defines the plan. Reminder only when RevenueCat reports
+  `periodType == .trial`, because a product's intro offer is still listed for people who already used their trial.
+  Restored purchases schedule nothing (no trial info), erring toward no wrong "you'll be charged" message.
+- **Known issues / TODOs left behind:** RevenueCat isn't linked, so the `#if canImport(RevenueCat)` code
+  (`isFamilyShareable`, `periodType`) is not compile-checked. Pre-existing: the paywall shows a trial to
+  people who aren't eligible for one (needs RevenueCat's trial-eligibility check). If a user cancels during the
+  trial, the reminder still fires; its copy is worded to be correct either way.
+- **Needs verification on:** CI build + `MonetizationTests`; device with sandbox purchase for the notification and
+  Family Sharing flow, once Apple enrollment + RevenueCat exist.

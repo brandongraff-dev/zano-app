@@ -27,6 +27,8 @@
 // storeProduct, PackageType cases, StoreProduct.localizedPriceString/price/subscriptionPeriod/
 // introductoryDiscount/priceFormatter, SubscriptionPeriod.value/unit/numberOfUnitsAs(unit:),
 // StoreProductDiscount.paymentMode/subscriptionPeriod, CustomerInfo.entitlements,
+// StoreProduct.isFamilyShareable (added 2026-10-06 for the Family plan; not compile-checked yet,
+// since the SDK isn't linked),
 // EntitlementInfos.all, EntitlementInfo.isActive) was checked against the RevenueCat/
 // purchases-ios `main` branch source on GitHub during this task — these are real, verified
 // method/type names, not guessed from memory. What could **not** be verified without a Swift
@@ -123,6 +125,10 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
     /// (`StoreProductDiscount.paymentMode == .freeTrial`) — spec §21: "7-day trial... (test
     /// 3-day vs 7-day)". `nil` if this package has no trial.
     public let introductoryTrialDays: Int?
+    /// Whether the App Store product has Family Sharing turned on (`StoreProduct.isFamilyShareable`).
+    /// Spec §21 (decision 2026-10-06): the Family annual plan is its own product with Family
+    /// Sharing on, so this is how the paywall tells it apart from the individual annual plan.
+    public let isFamilyShareable: Bool
 
     public init(
         id: String,
@@ -130,7 +136,8 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
         period: Period,
         priceString: String,
         pricePerMonthString: String? = nil,
-        introductoryTrialDays: Int? = nil
+        introductoryTrialDays: Int? = nil,
+        isFamilyShareable: Bool = false
     ) {
         self.id = id
         self.productIdentifier = productIdentifier
@@ -138,6 +145,7 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
         self.priceString = priceString
         self.pricePerMonthString = pricePerMonthString
         self.introductoryTrialDays = introductoryTrialDays
+        self.isFamilyShareable = isFamilyShareable
     }
 }
 
@@ -335,6 +343,20 @@ public final class RevenueCatManager {
         #endif
     }
 
+    /// Whether the Pro entitlement is currently in a free-trial period. Checked after a purchase
+    /// before scheduling the trial reminder (spec §21): a product's introductory offer is listed
+    /// even for someone who already used their one trial, so the package alone can't tell.
+    /// `false` when not configured or unreachable, so no "your trial ends" message goes out on a
+    /// guess. (`EntitlementInfo.periodType`; not compile-checked yet, since the SDK isn't linked.)
+    public func isInTrialPeriod() async -> Bool {
+        #if canImport(RevenueCat)
+        guard isConfigured, let info = try? await Purchases.shared.customerInfo() else { return false }
+        return info.entitlements.all[Self.proEntitlementIdentifier]?.periodType == .trial
+        #else
+        return false
+        #endif
+    }
+
     /// Current Pro entitlement state (spec §21 tiers). Never throws — deliberately, unlike the
     /// three methods above: this is read on ordinary screen loads/gating checks, and a
     /// transient network failure or an unconfigured SDK must degrade to `false` (treated as Free
@@ -378,7 +400,8 @@ public final class RevenueCatManager {
             period: period(for: package.packageType),
             priceString: product.localizedPriceString,
             pricePerMonthString: pricePerMonthString(for: product),
-            introductoryTrialDays: trialDays(for: product)
+            introductoryTrialDays: trialDays(for: product),
+            isFamilyShareable: product.isFamilyShareable
         )
     }
 

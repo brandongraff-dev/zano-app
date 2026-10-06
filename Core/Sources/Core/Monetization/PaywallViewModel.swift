@@ -104,9 +104,8 @@ public final class PaywallViewModel {
     public var coachVoice: CoachVoice
 
     /// Reminder window spec §7.13 promises: "we'll remind you 2 days before it ends." A single
-    /// source of truth so `PaywallView`'s copy and (once built — see knownIssues) any actual
-    /// scheduled local notification agree.
-    public static let trialReminderDaysBefore = 2
+    /// source of truth so `PaywallView`'s copy and `TrialReminderScheduler`'s notification agree.
+    public static let trialReminderDaysBefore = TrialSchedule.reminderDaysBefore
 
     public var selectedPackage: SubscriptionPackage? {
         packages.first { $0.id == selectedPackageID }
@@ -162,7 +161,7 @@ public final class PaywallViewModel {
             let offerings = try await revenueCat.fetchOfferings()
             packages = offerings.packages
             if selectedPackageID == nil || !packages.contains(where: { $0.id == selectedPackageID }) {
-                selectedPackageID = defaultSelection(in: packages)
+                selectedPackageID = Self.defaultSelection(in: packages)
             }
             loadState = .loaded
         } catch {
@@ -174,9 +173,33 @@ public final class PaywallViewModel {
         }
     }
 
-    private func defaultSelection(in packages: [SubscriptionPackage]) -> String? {
-        (packages.first { $0.period == .annual } ?? packages.first)?.id
+    /// The individual annual plan (spec §21: highlighted, default selection). The Family annual
+    /// plan is also `.annual`, so it is skipped here; it only becomes the default if it is the
+    /// sole annual plan in the offering.
+    static func defaultSelection(in packages: [SubscriptionPackage]) -> String? {
+        (packages.first { $0.period == .annual && !$0.isFamilyShareable }
+            ?? packages.first { $0.period == .annual }
+            ?? packages.first)?.id
     }
+
+    /// The order `PaywallView` shows plans in (spec §21, §16 P5): individual annual, family
+    /// annual, monthly, then anything else (lifetime, etc.) in the offering's own order.
+    public static func displayOrder(_ packages: [SubscriptionPackage]) -> [SubscriptionPackage] {
+        func rank(_ package: SubscriptionPackage) -> Int {
+            switch package.period {
+            case .annual: package.isFamilyShareable ? 1 : 0
+            case .monthly: 2
+            default: 3
+            }
+        }
+        // `enumerated` keeps the offering's order within a rank (a plain sort isn't stable).
+        return packages.enumerated()
+            .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }
+            .map(\.element)
+    }
+
+    /// Plans in `displayOrder`, for `PaywallView`'s cards.
+    public var orderedPackages: [SubscriptionPackage] { Self.displayOrder(packages) }
 
     // MARK: - Selection
 
@@ -198,6 +221,13 @@ public final class PaywallViewModel {
             let granted = try await revenueCat.purchase(package)
             if granted {
                 markLocallyPro(product: package.productIdentifier)
+                if let trialDays = package.introductoryTrialDays, trialDays > 0,
+                   await revenueCat.isInTrialPeriod() {
+                    TrialReminderScheduler.shared.trialStarted(
+                        trialDays: trialDays,
+                        priceLine: Copy.paywall.priceLine(for: package)
+                    )
+                }
             }
             isProSubscriber = granted
             purchaseState = .succeeded

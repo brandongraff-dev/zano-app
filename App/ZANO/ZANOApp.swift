@@ -74,6 +74,10 @@ struct ZANOApp: App {
         // never schedules anything or asks for permission.
         SunriseAlarmManager.shared.registerNotificationCategories()
 
+        // Keeps the paywall's "we'll remind you 2 days before" promise across relaunches and a
+        // permission granted after purchase (spec §21). No-op when no trial was recorded.
+        TrialReminderScheduler.shared.rescheduleIfNeeded()
+
         // Apple Watch link (`WatchSyncManager.activate()`: "call once, early at launch (the watch
         // may be waiting on the phone to wake it)"). Safe to call repeatedly and on a device with
         // no watch support; returns immediately (the work runs on the main actor afterwards).

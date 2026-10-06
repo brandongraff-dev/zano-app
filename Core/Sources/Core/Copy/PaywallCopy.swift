@@ -37,6 +37,27 @@ extension Copy {
         public static let monthlyPlanTitle = "Monthly"
         public static let weeklyPlanTitle = "Weekly"
         public static let lifetimePlanTitle = "Lifetime"
+        /// Spec §21 Family annual plan (decision 2026-10-06).
+        public static let familyPlanTitle = "Family"
+        /// Apple Family Sharing covers the buyer plus up to 5 family members.
+        public static let familyPeopleLabel = "Up to 6 people"
+
+        /// The family card's detail line, e.g. "Up to 6 people · 7 days free".
+        public static func familyDetailLine(trialDays: Int?) -> String {
+            guard let trialDays, trialDays > 0 else { return familyPeopleLabel }
+            let days = trialDays == 1 ? "1 day" : "\(trialDays) days"
+            return "\(familyPeopleLabel) · \(days) free"
+        }
+
+        /// The price with its period, e.g. "$39.99/yr" or "$6.99/mo". Shared by the paywall's
+        /// cards and the trial reminder notification so both quote the same thing.
+        public static func priceLine(for package: SubscriptionPackage) -> String {
+            switch package.period {
+            case .annual: annualPriceLine(price: package.priceString)
+            case .monthly: monthlyPriceLine(price: package.priceString)
+            default: package.priceString
+            }
+        }
 
         public static func annualPriceLine(price: String) -> String {
             "\(price)/yr"
@@ -93,5 +114,48 @@ extension Copy {
         public static let autoRenewNote = "Auto-renews until you cancel. Cancel anytime in your Apple ID settings."
         public static let termsLinkLabel = "Terms of use"
         public static let privacyLinkLabel = "Privacy policy"
+    }
+}
+
+// MARK: - Free trial (docs/spec.md §21 "Free trials, done well", decision 2026-10-06)
+//
+// The reminder notification the paywall promises, and the day-5 "what your trial earned you" card
+// on Today. Calm and factual: no countdown, no guilt, and the cancel path is named plainly.
+
+extension Copy {
+    public enum trial {
+
+        public static func reminderTitle(daysBefore: Int) -> String {
+            "Your free trial ends in \(daysBefore) \(daysBefore == 1 ? "day" : "days")"
+        }
+
+        /// e.g. "On Oct 13 your plan continues at $39.99/yr. Want to stop? Cancel anytime in
+        /// Settings > Apple ID > Subscriptions."
+        public static func reminderBody(endDate: String, priceLine: String) -> String {
+            "On \(endDate) your plan continues at \(priceLine). Want to stop? Cancel anytime in Settings > Apple ID > Subscriptions."
+        }
+
+        public static let valueCardTitle = "What your trial earned you"
+        public static let reclaimedLabel = "Reclaimed"
+        public static let streakLabel = "Streak"
+        public static let goalsHitLabel = "Goals hit"
+        public static let dismissLabel = "Hide"
+
+        public static func streakValue(days: Int) -> String {
+            days == 1 ? "1 day" : "\(days) days"
+        }
+
+        /// e.g. "6h 40m", "25m".
+        public static func duration(minutes: Int) -> String {
+            let hours = minutes / 60
+            let mins = minutes % 60
+            guard hours > 0 else { return "\(mins)m" }
+            return "\(hours)h \(mins)m"
+        }
+
+        /// e.g. "Trial ends Oct 13, then $39.99/yr. Cancel anytime in Settings."
+        public static func valueCardFooter(endDate: String, priceLine: String) -> String {
+            "Trial ends \(endDate), then \(priceLine). Cancel anytime in Settings."
+        }
     }
 }

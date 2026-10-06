@@ -28,8 +28,8 @@
 //   benefits    three quiet rows, glyphs in `text` on a neutral disc — accent is for the CTA and the
 //               selection, not decoration (typography-color C7).
 //   plans       annual is a HERO card (28pt radius, price as a numeral, "Best value", the monthly
-//               equivalent and the trial in its detail line); monthly and anything else is a COMPACT
-//               card. Selection is an accent edge over the on-hue `accentWash`, drawn inside so it
+//               equivalent and the trial in its detail line); the Family plan ("Up to 6 people",
+//               spec §21, 2026-10-06), monthly and anything else are COMPACT cards. Selection is an accent edge over the on-hue `accentWash`, drawn inside so it
 //               never shifts layout, with a haptic tick. The two were previously identical.
 //   timeline    only when the selected plan has a trial: Today / reminder / trial ends, with real
 //               calendar dates from `Date` (a date removes the ambiguity of "Day 7"), backing up the
@@ -322,13 +322,14 @@ struct PaywallView: View {
 
     private var planCards: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            ForEach(orderedPackages) { package in
+            ForEach(viewModel.orderedPackages) { package in
+                let isHero = package.period == .annual && !package.isFamilyShareable
                 PaywallPlanCard(
-                    emphasis: package.period == .annual ? .hero : .compact,
+                    emphasis: isHero ? .hero : .compact,
                     title: planTitle(for: package),
                     priceLine: priceLine(for: package),
                     detailLine: detailLine(for: package),
-                    badgeLabel: package.period == .annual ? Copy.paywall.annualBadgeLabel : nil,
+                    badgeLabel: isHero ? Copy.paywall.annualBadgeLabel : nil,
                     isSelected: viewModel.selectedPackageID == package.id,
                     action: { viewModel.selectPackage(id: package.id) }
                 )
@@ -336,16 +337,12 @@ struct PaywallView: View {
         }
     }
 
-    /// Annual first (spec §21/§16 P5: annual is the highlighted, default choice), then monthly,
-    /// then whatever else the offering configures (lifetime, etc.) in their original order.
-    private var orderedPackages: [SubscriptionPackage] {
-        let annual = viewModel.packages.filter { $0.period == .annual }
-        let monthly = viewModel.packages.filter { $0.period == .monthly }
-        let rest = viewModel.packages.filter { $0.period != .annual && $0.period != .monthly }
-        return annual + monthly + rest
-    }
+    // Order (individual annual, family annual, monthly, rest) is `PaywallViewModel.displayOrder`.
+    // Only the individual annual plan is the hero with the badge (spec §21: highlighted default);
+    // the Family plan is a compact card under it.
 
     private func planTitle(for package: SubscriptionPackage) -> String {
+        if package.isFamilyShareable { return Copy.paywall.familyPlanTitle }
         switch package.period {
         case .annual: Copy.paywall.annualPlanTitle
         case .monthly: Copy.paywall.monthlyPlanTitle
@@ -356,17 +353,16 @@ struct PaywallView: View {
     }
 
     private func priceLine(for package: SubscriptionPackage) -> String {
-        switch package.period {
-        case .annual: Copy.paywall.annualPriceLine(price: package.priceString)
-        case .monthly: Copy.paywall.monthlyPriceLine(price: package.priceString)
-        default: package.priceString
-        }
+        Copy.paywall.priceLine(for: package)
     }
 
     /// `pricePerMonthString` already ends in "/mo" (`SubscriptionPackage`), so this uses
     /// `Copy.paywallTimeline.perMonthAndTrialLine` — `Copy.paywall.annualDetailLine` appends a
     /// second "/mo" ("$3.33/mo/mo · 7 days free").
     private func detailLine(for package: SubscriptionPackage) -> String? {
+        if package.isFamilyShareable {
+            return Copy.paywall.familyDetailLine(trialDays: package.introductoryTrialDays)
+        }
         if let perMonth = package.pricePerMonthString, let trialDays = package.introductoryTrialDays {
             return Copy.paywallTimeline.perMonthAndTrialLine(perMonth: perMonth, trialDays: trialDays)
         }

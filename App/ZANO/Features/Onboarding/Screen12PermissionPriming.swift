@@ -176,6 +176,9 @@ struct Screen12PermissionPriming: View {
         Task {
             _ = try? await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound, .badge])
+            // The trial reminder was scheduled at purchase, one screen earlier, before permission
+            // existed. Re-add it now that the user has answered (spec §21).
+            TrialReminderScheduler.shared.rescheduleIfNeeded()
             isRequesting = false
             flowState.advance()
         }

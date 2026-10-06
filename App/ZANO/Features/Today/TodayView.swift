@@ -92,6 +92,8 @@ struct TodayView: View {
 
     // MARK: - Data
 
+    @State private var showPlanner = false
+    @State private var plannerReloadToken = 0
     @Query private var users: [User]
     @Query private var goals: [Goal]
     @Query private var goalEvents: [GoalEvent]
@@ -235,6 +237,8 @@ struct TodayView: View {
                     FocusLockAskCard()
                     // For 15 minutes after a verified focus block (draws nothing otherwise).
                     BreakCoachCard()
+                    // Open tasks due today or earlier (draws nothing when there are none).
+                    PlannerTodayCard(reloadToken: plannerReloadToken) { showPlanner = true }
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist
@@ -281,6 +285,9 @@ struct TodayView: View {
             }
             .navigationDestination(isPresented: $showNFCTags) {
                 NFCTagsView()
+            }
+            .sheet(isPresented: $showPlanner, onDismiss: { plannerReloadToken += 1 }) {
+                PlannerView()
             }
             .sheet(isPresented: $showHealthPrimer) {
                 HealthPermissionPrimer(onFinished: {
@@ -407,6 +414,14 @@ struct TodayView: View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
             ZanoWordmark(height: 18)
             Spacer(minLength: Theme.Spacing.sm)
+            Button { showPlanner = true } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.planner.openLabel)
             StreakPill(
                 count: streak?.current ?? 0,
                 isFrozen: isStreakFrozenToday,

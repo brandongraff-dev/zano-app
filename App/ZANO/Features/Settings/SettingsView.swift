@@ -435,6 +435,16 @@ struct SettingsView: View {
                     ContextRulesView()
                 }
 
+                SettingsRowDivider()
+
+                SettingsNavRow(
+                    Copy.planner.settingsRow,
+                    systemImage: "calendar",
+                    tint: SettingsPalette.calendar
+                ) {
+                    PlannerSettingsView()
+                }
+
                 if FamilyLinkAvailability.isLive {
                     SettingsRowDivider()
 

@@ -85,9 +85,27 @@ enum ScreenshotMode {
         }
     }
 
+    /// A few tasks around today so the calendar shot shows dots, an agenda and an overdue item.
+    private static func seedPlannerDemo() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        func day(_ offset: Int, hour: Int? = nil) -> Date {
+            let d = cal.date(byAdding: .day, value: offset, to: today) ?? today
+            return hour.flatMap { cal.date(bySettingHour: $0, minute: 0, second: 0, of: d) } ?? d
+        }
+        PlannerStore.tasks = [
+            PlannerTask(title: "Send the invoice", due: day(-1)),
+            PlannerTask(title: "Call the dentist", due: day(0, hour: 15), hasTime: true, remind: true),
+            PlannerTask(title: "Read chapter 4", due: day(0)),
+            PlannerTask(title: "Plan next week", due: day(2, hour: 10), hasTime: true),
+            PlannerTask(title: "Renew passport", due: day(5)),
+        ]
+    }
+
     /// The Buddy Closet shot (and any run with `-ZANOOutfit demo`) shows a dressed buddy; every other
     /// shot clears the saved outfit, so an earlier launch can't leave one behind.
     private static func applyOutfitArgument(screen name: String) {
+        if name == "planner" { seedPlannerDemo() } else { PlannerStore.tasks = [] }
         let buddy = Buddy.stored
         let wantsDemo = name == "buddy-closet" || UserDefaults.standard.string(forKey: "ZANOOutfit") == "demo"
         if wantsDemo {
@@ -140,6 +158,8 @@ struct ScreenshotHost: View {
             NavigationStack { BuddyPickerView(context: .settings) }
         case "buddy-closet":
             NavigationStack { BuddyClosetView() }
+        case "planner":
+            PlannerView()
         case "locksetup":
             NavigationStack { LockSetupView() }
         case "trophy":

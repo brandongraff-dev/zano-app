@@ -2,7 +2,7 @@
 // ZANOUITests -- scenario 2: create a lock set and start a manual lock (the LockSetup flow).
 //
 // docs/spec.md §2 (core loop: "Manual button" is one of the lock triggers), §4 v1 ("App picker with
-// saved 'lock sets'"), §21 (Free tier: "1 lock set"). Screens under test:
+// saved 'lock sets'"). Screens under test:
 //   * App/ZANO/Features/LockSetup/LockSetupView.swift + AppPickerView.swift -- list, "New Lock Set"
 //     editor sheet (name + FamilyActivityPicker; Save is enabled only with a name AND a selection)
 //   * App/ZANO/Features/Today/TodayView.swift -- the "Start today's lock" primary button, a plain
@@ -23,13 +23,8 @@
 // -> Lock and hold "Hold to unlock in an emergency" (always available; whether it costs a streak
 // point is NOT settled -- see the footnote comment on `Copy.lockStatus.emergencyUnlockFootnote`).
 //
-// Free-tier interaction that shapes test2_: onboarding's Plan Reveal already creates one default
-// lock set ("Distractions"), and `TierGating.freeLockSetLimit` is 1 with RevenueCat not linked (so
-// every user is Free). Creating a SECOND lock set is therefore EXPECTED to fail with
-// `LockSetManagerError.freeTierLockSetLimitReached` -> the "Couldn't save" alert. test2_ decides
-// its expectation from the pre-state it observes (empty list -> row appears; list not empty ->
-// cap alert), which is the spec §21 rule, rather than accepting either outcome. If the tester
-// account is ever Pro this test's second branch would need to change.
+// There is no free tier (spec §21), so there is no lock-set cap: onboarding's Plan Reveal creates
+// a default set ("Distractions") and test2_ adds another; it must save and appear in the list.
 //
 // UNVERIFIED -- see ZANOUIScenarioSupport.swift header. No accessibility identifiers exist yet
 // (re-grepped 2026-09-23: zero `accessibilityIdentifier` in the repo), so every lookup here is by
@@ -90,13 +85,11 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
         try requireOnboardedApp(app)
         openLockSets(app)
 
-        // Decide the expected outcome from the pre-state (spec §21 Free tier: 1 lock set).
         let emptyState = app.anyElement(labelContaining: L.emptyStateTitle)
         XCTAssertTrue(
             poll(timeout: 8) { emptyState.exists || app.cells.count > 0 },
             "Lock Sets screen showed neither the empty state nor any rows."
         )
-        let hadLockSets = !emptyState.exists
 
         openNewLockSetEditor(app)
 
@@ -116,38 +109,18 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
         )
         save.tap()
 
-        if hadLockSets {
-            // Free tier already holds its one lock set -> LockSetManager throws
-            // freeTierLockSetLimitReached -> the editor stays open with a "Couldn't save" alert.
-            let alert = app.alerts.firstMatch
-            XCTAssertTrue(
-                alert.waitForExistence(timeout: 10),
-                "Expected the free-tier cap alert ('\(L.saveErrorTitle)') when creating a second lock set (spec §21)."
-            )
-            XCTAssertTrue(
-                alert.label.contains(L.saveErrorTitle),
-                "Alert appeared but its title was '\(alert.label)', expected '\(L.saveErrorTitle)'."
-            )
-            alert.buttons[L.ok].tap()
-            app.navigationBars.buttons[L.cancel].tap()
-            XCTAssertTrue(
-                poll(timeout: 10) { !app.navigationBars[L.newLockSet].exists },
-                "Editor sheet did not dismiss after Cancel."
-            )
-            XCTAssertFalse(
-                app.anyElement(labelContaining: Self.testLockSetName).exists,
-                "A second lock set was created on the Free tier (limit is 1, spec §21)."
-            )
-        } else {
-            XCTAssertTrue(
-                poll(timeout: 15) { !app.navigationBars[L.newLockSet].exists },
-                "Editor sheet did not dismiss after a successful Save."
-            )
-            XCTAssertTrue(
-                app.anyElement(labelContaining: Self.testLockSetName).waitForExistence(timeout: 10),
-                "New lock set '\(Self.testLockSetName)' is not in the list after Save."
-            )
-        }
+        XCTAssertFalse(
+            app.alerts.firstMatch.exists,
+            "Saving a lock set raised an alert ('\(L.saveErrorTitle)'?) -- there is no lock-set cap any more."
+        )
+        XCTAssertTrue(
+            poll(timeout: 15) { !app.navigationBars[L.newLockSet].exists },
+            "Editor sheet did not dismiss after a successful Save."
+        )
+        XCTAssertTrue(
+            app.anyElement(labelContaining: Self.testLockSetName).waitForExistence(timeout: 10),
+            "New lock set '\(Self.testLockSetName)' is not in the list after Save."
+        )
     }
 
     // MARK: - test3: manual lock, then emergency exit (device)

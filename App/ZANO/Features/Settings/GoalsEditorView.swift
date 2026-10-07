@@ -39,6 +39,7 @@ struct GoalsEditorView: View {
 
     @State private var pendingRemoval: Goal?
     @State private var isChoosingNewGoal = false
+    @State private var isChoosingTemplate = false
     @State private var saveFailed = false
     @State private var stepTick = 0
     @State private var activeSetup: GoalSetupStep?
@@ -113,6 +114,9 @@ struct GoalsEditorView: View {
         }
         .sheet(isPresented: $isChoosingNewGoal, onDismiss: { setupRefreshTick += 1 }) {
             GoalTypePickerSheet()
+        }
+        .sheet(isPresented: $isChoosingTemplate, onDismiss: { setupRefreshTick += 1 }) {
+            GoalTemplatesSheet()
         }
         .sheet(item: $activeSetup, onDismiss: { setupRefreshTick += 1 }) { step in
             GoalSetupDestination(step: step)
@@ -323,8 +327,13 @@ struct GoalsEditorView: View {
                 .foregroundStyle(Theme.Colors.muted)
                 .frame(maxWidth: .infinity)
         } else {
-            PrimaryButton(title: Copy.settings.goalsAddButtonLabel, systemImage: "plus") {
-                isChoosingNewGoal = true
+            VStack(spacing: Theme.Spacing.xs) {
+                PrimaryButton(title: Copy.settings.goalsAddButtonLabel, systemImage: "plus") {
+                    isChoosingNewGoal = true
+                }
+                PrimaryButton(title: Copy.goalTemplates.startButton, systemImage: "square.stack.fill", style: .secondary) {
+                    isChoosingTemplate = true
+                }
             }
         }
     }

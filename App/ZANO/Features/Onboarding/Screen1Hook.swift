@@ -38,6 +38,13 @@
 // star finishes charging: the screen's one orchestrated moment. The offline / location claims
 // moved out of the first screen (they read as a spec sheet); the plan step and Today carry them.
 
+// CHARACTER PASS (session 30, 2026-10-06, "fun, with super good animations"): the buddy runs in
+// from the left with two crewmates hopping in beside it (a tease of the next step's picker), and
+// then acts out the loop as each sticker lands: guarding (Lock it), lifting (Earn it), ecstatic (Get
+// it back), settling happy. The stickers now land one at a time (~0.45s apart) so each beat has
+// its face. Still one orchestrated moment; the CTA is live from frame one. Reduce Motion: everyone
+// is in place, the loop is shown, the hero is happy.
+
 import SwiftUI
 import Core
 
@@ -52,19 +59,24 @@ struct Screen1Hook: View {
     @State private var revealed = false
     @State private var charge: Double = 0
     @State private var chargedTick = 0
-    /// The loop stickers pop in once the star has charged (Reduce Motion: shown from the start).
-    @State private var loopRevealed = false
+    /// How many loop stickers have landed (0...3). Reduce Motion: all of them from the start.
+    @State private var litBeats = 0
+    /// The hero runs in from off-screen left; the crew hops in after it lands.
+    @State private var heroArrived = false
+    @State private var crewArrived = false
+    @State private var heroPose: BuddyPose = .idle
 
     /// Where the intro leaves the star: nearly full, so there is still something left to earn.
     private static let introCharge = 0.85
-    /// `ZanoLivingMark` eases a charge change over 1.2s; the haptic lands as it settles.
-    private static let chargeMilliseconds = 1200
     /// The loop row is shorter than the old proof card, so the hero can be big. 128 = 4x the
     /// buddy's 32px grid (crisp pixels).
     private static let starHeight: CGFloat = 128
 
     private var isShown: Bool { revealed || reduceMotion }
-    private var loopShown: Bool { loopRevealed || reduceMotion }
+    private var shownBeats: Int { reduceMotion ? 3 : litBeats }
+    /// The face for each landed beat: Lock it, Earn it, Get it back.
+    private static let beatPoses: [BuddyPose] = [.guarding, .lifting, .ecstatic]
+    private static let beatMilliseconds = 450
 
     /// Under Reduce Motion the star is drawn charged from the first frame (derived here, not set in
     /// `.task`, so there is no frame of an empty star).
@@ -78,18 +90,23 @@ struct Screen1Hook: View {
                     .opacity(isShown ? 1 : 0)
                     .animation(reveal(delay: 0), value: revealed)
 
-                HookStar(charge: shownCharge, height: Self.starHeight)
-                    .opacity(isShown ? 1 : 0)
-                    .scaleEffect(isShown ? 1 : 0.9)
-                    .animation(reduceMotion ? nil : Theme.Motion.springCelebration.delay(0.05), value: revealed)
-                    .padding(.vertical, Theme.Spacing.md)
+                HookStar(
+                    charge: shownCharge,
+                    height: Self.starHeight,
+                    pose: reduceMotion ? .happy : heroPose,
+                    heroArrived: heroArrived || reduceMotion,
+                    crewArrived: crewArrived || reduceMotion
+                )
+                .opacity(isShown ? 1 : 0)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: revealed)
+                .padding(.vertical, Theme.Spacing.md)
 
                 headline
                     .opacity(isShown ? 1 : 0)
                     .offset(y: isShown ? 0 : Theme.Spacing.sm)
                     .animation(reveal(delay: 0.35), value: revealed)
 
-                HookLoopRow(isShown: loopShown)
+                HookLoopRow(litBeats: shownBeats)
             }
             .padding(.horizontal, Theme.Spacing.md)
             // Bottom padding keeps the strip clear of the pinned CTA.
@@ -99,6 +116,7 @@ struct Screen1Hook: View {
             flowState.advance()
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: chargedTick)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: litBeats)
         .task { await playIntro() }
         .onAppear {
             // docs/spec.md §23 "Instrument from day one: every screen view..."
@@ -146,27 +164,39 @@ struct Screen1Hook: View {
 
     // MARK: - Intro sequence
 
-    /// One-shot: fade the star in, then charge it to `introCharge` (the star eases the fill itself,
-    /// ~1.2s), and tick one soft haptic as it settles. Under Reduce Motion there is no sequence and no
-    /// haptic: `body` already draws the charged star.
+    /// One-shot: the hero runs in and lands (one soft haptic), the crew hops in beside it, then the
+    /// three loop stickers land one at a time while the hero acts each one out, and it settles happy.
+    /// Under Reduce Motion there is no sequence and no haptic: `body` already draws the end state.
     @MainActor
     private func playIntro() async {
         revealed = true
         guard !reduceMotion else { return }
-        try? await Task.sleep(for: .milliseconds(250))
+        try? await Task.sleep(for: .milliseconds(100))
         guard !Task.isCancelled else { return }
+        heroArrived = true
         charge = Self.introCharge
-        try? await Task.sleep(for: .milliseconds(Self.chargeMilliseconds))
+        try? await Task.sleep(for: .milliseconds(650))
         guard !Task.isCancelled else { return }
         chargedTick += 1
-        loopRevealed = true
+        crewArrived = true
+        try? await Task.sleep(for: .milliseconds(500))
+        for beat in 0..<Self.beatPoses.count {
+            guard !Task.isCancelled else { return }
+            litBeats = beat + 1
+            heroPose = Self.beatPoses[beat]
+            try? await Task.sleep(for: .milliseconds(Self.beatMilliseconds))
+        }
+        try? await Task.sleep(for: .milliseconds(Self.beatMilliseconds))
+        guard !Task.isCancelled else { return }
+        heroPose = .happy
     }
 }
 
-/// Lock it -> Earn it -> Get it back: three stickers in a row, joined by little arrows. Each pops in
-/// 120ms after the one before when `isShown` turns on. One VoiceOver element for the whole loop.
+/// Lock it -> Earn it -> Get it back: three stickers in a row, joined by little arrows. The first
+/// `litBeats` are shown; each pops in (and its arrow with it) as the count reaches it. One VoiceOver
+/// element for the whole loop.
 private struct HookLoopRow: View {
-    let isShown: Bool
+    let litBeats: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -185,8 +215,8 @@ private struct HookLoopRow: View {
                         .font(Theme.Typography.icon(.xsmall, weight: .heavy))
                         .foregroundStyle(Theme.Colors.muted)
                         .padding(.top, 20)
-                        .opacity(isShown ? 1 : 0)
-                        .animation(pop(index), value: isShown)
+                        .opacity(index < litBeats ? 1 : 0)
+                        .animation(pop, value: litBeats)
                 }
                 beatView(beat, index: index)
             }
@@ -197,6 +227,7 @@ private struct HookLoopRow: View {
 
     private func beatView(_ beat: Copy.onboarding.LoopBeat, index: Int) -> some View {
         let i = index % Self.symbols.count
+        let isShown = index < litBeats
         return VStack(spacing: Theme.Spacing.xs) {
             OnboardingSticker(systemImage: Self.symbols[i], tint: Self.tints[i], size: 52, bounceTrigger: isShown ? 1 : 0, tilt: Self.tilts[i])
             Text(beat.title)
@@ -211,34 +242,98 @@ private struct HookLoopRow: View {
         .frame(maxWidth: .infinity)
         .opacity(isShown ? 1 : 0)
         .scaleEffect(isShown || reduceMotion ? 1 : 0.6)
-        .animation(pop(index), value: isShown)
+        .offset(y: isShown || reduceMotion ? 0 : -Theme.Spacing.md)
+        .animation(pop, value: isShown)
     }
 
-    private func pop(_ index: Int) -> Animation? {
-        reduceMotion ? nil : Theme.Motion.springPop.delay(Double(index) * 0.12)
+    private var pop: Animation? {
+        reduceMotion ? nil : Theme.Motion.springPop
     }
 }
 
 /// The hero: the user's buddy (the living star until 2026-10-03) over a blue bloom that brightens
-/// with the intro's charge. The bloom only ever changes opacity (never an animated blur or radius).
-/// Decorative; the headline carries the meaning.
+/// with the intro's charge, flanked by two crewmates (session 30). The hero runs in from the left
+/// with little hops; the crew pops up from below once it lands, waving. The bloom only ever changes
+/// opacity (never an animated blur or radius). Decorative; the headline carries the meaning.
 private struct HookStar: View {
     let charge: Double
     let height: CGFloat
+    let pose: BuddyPose
+    let heroArrived: Bool
+    let crewArrived: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(Buddy.storageKey, store: SharedDefaults.store) private var buddy: Buddy = .default
 
+    /// A crewmate is half the hero (still a multiple of 16pt).
+    private var crewSize: CGFloat { height / 2 }
+
+    /// One cozy and one hype buddy that aren't the hero, so the row shows the range on offer.
+    private var crew: [Buddy] {
+        let others = Buddy.allCases.filter { $0 != buddy }
+        let cozy = others.first { $0.crew == .cozy } ?? .zib
+        let hype = others.first { $0.crew == .hype } ?? .brick
+        return [cozy, hype]
+    }
+
     var body: some View {
-        BuddySprite(buddy, pose: charge >= 0.8 ? .happy : .idle, size: height)
-            .zanoMascot(mood: .idle, size: height, showsGlow: false)
+        HStack(alignment: .bottom, spacing: -Theme.Spacing.sm) {
+            crewmate(crew[0], delay: 0)
+            hero
+                .zIndex(1)
+            crewmate(crew[1], delay: 0.12)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var hero: some View {
+        OnboardingBuddyActor(pose: pose, size: height, burstColor: buddy.color)
             .background {
                 // Bigger than the star on purpose; a `background` never affects layout.
                 OnboardingKit.StarBloom(diameter: height * 3)
                     .opacity(0.2 + 0.8 * charge)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 1.2), value: charge)
             }
-            .accessibilityHidden(true)
+            .modifier(HookRunIn(arrived: heroArrived, distance: height * 3))
+    }
+
+    private func crewmate(_ crewBuddy: Buddy, delay: Double) -> some View {
+        OnboardingBuddyActor(pose: crewArrived ? .excited : .idle, size: crewSize, buddy: crewBuddy)
+            .opacity(crewArrived ? 0.9 : 0)
+            .offset(y: crewArrived ? 0 : crewSize * 0.6)
+            .scaleEffect(crewArrived ? 1 : 0.5, anchor: .bottom)
+            .animation(reduceMotion ? nil : Theme.Motion.springPop.delay(delay), value: crewArrived)
+    }
+}
+
+/// Runs the hero in from `distance` points to the left: a springy slide with three quick hops on
+/// the way, and a little lean into the run that straightens as it lands. Reduce Motion: in place.
+private struct HookRunIn: ViewModifier {
+    let arrived: Bool
+    let distance: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            let hop = Double(distance / 18)
+            content
+                .rotationEffect(.degrees(arrived ? 0 : 10), anchor: .bottom)
+                .offset(x: arrived ? 0 : -distance)
+                .animation(.spring(response: 0.6, dampingFraction: 0.78), value: arrived)
+                .keyframeAnimator(initialValue: 0.0, trigger: arrived) { view, lift in
+                    view.offset(y: -lift)
+                } keyframes: { _ in
+                    CubicKeyframe(hop, duration: 0.1)
+                    CubicKeyframe(0, duration: 0.1)
+                    CubicKeyframe(hop, duration: 0.1)
+                    CubicKeyframe(0, duration: 0.1)
+                    CubicKeyframe(hop * 0.6, duration: 0.09)
+                    SpringKeyframe(0, duration: 0.25, spring: .bouncy)
+                }
+        }
     }
 }
 

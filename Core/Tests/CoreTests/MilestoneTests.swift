@@ -162,6 +162,64 @@ struct MilestoneTests {
         #expect(MilestoneEngine.newlyReached(reached, celebrated: []) == [.lockedHours(25)])
     }
 
+    // MARK: Year in review
+
+    private static func earnedDays(_ month: Int, count: Int, year: Int = 2026) -> [Date] {
+        (1...count).map { date(year, month, $0, 8) }
+    }
+
+    @Test func yearInReviewOnlyShowsInDecemberAndTheFirstWeekOfJanuary() throws {
+        let snapshot = MilestoneSnapshot(earnedUnlockDates: Self.earnedDays(3, count: 20))
+        func review(_ now: Date) -> YearInReview? {
+            MilestoneEngine.yearInReview(now: now, snapshot: snapshot, calendar: Self.calendar)
+        }
+        #expect(review(Self.date(2026, 10, 2)) == nil)
+        #expect(review(Self.date(2026, 11, 30)) == nil)
+        #expect(review(Self.date(2026, 12, 1))?.year == 2026)
+        #expect(review(Self.date(2026, 12, 31))?.year == 2026)
+        #expect(review(Self.date(2027, 1, 7))?.year == 2026)
+        #expect(review(Self.date(2027, 1, 8)) == nil)
+    }
+
+    @Test func yearInReviewNeedsFourteenEarnedDays() {
+        let december = Self.date(2026, 12, 5)
+        let thirteen = MilestoneSnapshot(earnedUnlockDates: Self.earnedDays(3, count: 13))
+        let fourteen = MilestoneSnapshot(earnedUnlockDates: Self.earnedDays(3, count: 14))
+        #expect(MilestoneEngine.yearInReview(now: december, snapshot: thirteen, calendar: Self.calendar) == nil)
+        #expect(MilestoneEngine.yearInReview(now: december, snapshot: fourteen, calendar: Self.calendar)?.earnedDays == 14)
+    }
+
+    @Test func yearInReviewFindsTheBestMonthTopGoalAndClipsToTheYear() throws {
+        let snapshot = MilestoneSnapshot(
+            lockIntervals: [DateInterval(start: Self.date(2025, 12, 31, 22), end: Self.date(2026, 1, 1, 2))],
+            earnedUnlockDates: Self.earnedDays(3, count: 10) + Self.earnedDays(4, count: 5) + [Self.date(2025, 12, 30, 8)],
+            goalCompletions: [
+                .init(date: Self.date(2026, 3, 1), goalTitle: "Water"),
+                .init(date: Self.date(2026, 3, 2), goalTitle: "Gym session"),
+                .init(date: Self.date(2026, 4, 2), goalTitle: "Gym session"),
+                .init(date: Self.date(2025, 12, 30), goalTitle: "Water"),
+                .init(date: Self.date(2025, 12, 31), goalTitle: "Water"),
+            ]
+        )
+        let review = try #require(MilestoneEngine.yearInReview(now: Self.date(2026, 12, 10), snapshot: snapshot, calendar: Self.calendar))
+        #expect(review.earnedDays == 15, "last year's December unlock is not in 2026")
+        #expect(review.bestMonth == 3)
+        #expect(review.bestMonthDays == 10)
+        #expect(review.bestStreak == 10)
+        #expect(review.lockedMinutes == 120, "only the 2 hours inside 2026 count")
+        #expect(review.topGoalTitle == "Gym session", "last year's completions don't count")
+    }
+
+    @Test func yearInReviewComesFirstAndHasItsOwnLedgerId() {
+        let review = YearInReview(year: 2026, earnedDays: 20, earnedUnlocks: 20, lockedMinutes: 600, bestStreak: 5,
+                                  topGoalTitle: nil, bestMonth: 3, bestMonthDays: 10)
+        let story = MonthlyStory(year: 2026, month: 11, earnedDays: 9, earnedUnlocks: 9, lockedMinutes: 60, bestStreak: 4, topGoalTitle: nil)
+        #expect(Milestone.yearInReview(review).id == "year-2026")
+        let ordered = MilestoneEngine.newlyReached([.streak(days: 7), .monthlyStory(story), .yearInReview(review)], celebrated: [])
+        #expect(ordered.first == .yearInReview(review))
+        #expect(MilestoneEngine.newlyReached([.yearInReview(review)], celebrated: ["year-2026"]).isEmpty, "shown once")
+    }
+
     // MARK: Monthly story
 
     @Test func monthlyStoryNeedsThreeEarnedDays() throws {

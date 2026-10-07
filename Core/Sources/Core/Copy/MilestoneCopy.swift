@@ -37,6 +37,7 @@ extension Copy {
             case .earnedUnlocks(let count): count == 1 ? "First earned unlock" : "Earned unlocks"
             case .earlyBird: "Early bird"
             case .monthlyStory(let story): monthEyebrow(monthName: story.monthName())
+            case .yearInReview(let review): yearEyebrow(year: review.year)
             }
         }
 
@@ -48,6 +49,7 @@ extension Copy {
             case .earnedUnlocks(let count): "\(count)"
             case .earlyBird(let checkInAt): checkInAt.formatted(date: .omitted, time: .shortened)
             case .monthlyStory(let story): "\(story.earnedDays)"
+            case .yearInReview(let review): "\(review.earnedDays)"
             }
         }
 
@@ -58,7 +60,7 @@ extension Copy {
             case .lockedHours: "hours locked in"
             case .earnedUnlocks(let count): count == 1 ? "earned unlock" : "earned unlocks"
             case .earlyBird: "gym check-in"
-            case .monthlyStory: monthDaysUnit
+            case .monthlyStory, .yearInReview: monthDaysUnit
             }
         }
 
@@ -77,6 +79,8 @@ extension Copy {
                 "At the gym before 7 AM. My apps waited."
             case .monthlyStory:
                 monthIntroLine
+            case .yearInReview:
+                yearIntroLine
             }
         }
 
@@ -124,6 +128,13 @@ extension Copy {
                 case .chill: return "That was your \(month). Not bad at all."
                 case .data: return "\(month): \(story.earnedDays) earned days, best run \(story.bestStreak)."
                 }
+            case .yearInReview(let review):
+                switch voice {
+                case .hype: return "\(review.year) was YOURS. \(review.earnedDays) days earned. Show it off!"
+                case .toughLove: return "\(review.earnedDays) days earned in \(review.year). Now beat it."
+                case .chill: return "That was your \(review.year). A lot of quiet wins."
+                case .data: return "\(review.year): \(review.earnedDays) earned days, best run \(review.bestStreak), \(review.lockedHours) hours locked."
+                }
             }
         }
 
@@ -143,12 +154,28 @@ extension Copy {
                 "Gym before 7 AM. ZANO kept my apps locked till I showed up. #zano"
             case .monthlyStory(let story):
                 "My \(story.monthName()) on ZANO: \(story.earnedDays) days earned. #zano"
+            case .yearInReview(let review):
+                "My \(review.year) on ZANO: \(review.earnedDays) days earned. #zano"
             }
         }
 
         /// The share sheet's preview title.
         public static func sharePreviewTitle(for milestone: Milestone) -> String {
             "\(numeral(for: milestone)) \(unit(for: milestone))"
+        }
+
+        // MARK: Year in review pages
+
+        public static let yearlyMomentHeadline = "Your year, ready to post"
+        public static func yearEyebrow(year: Int) -> String { "Your \(year)" }
+        public static let yearIntroLine = "A whole year of earning my screen time back."
+        public static let yearHoursLine = "A year of keeping the apps that eat my day locked away."
+        public static func yearBestMonthEyebrow(monthName: String) -> String { "Best month: \(monthName)" }
+        public static let yearBestMonthUnit = "days earned in one month"
+        public static let yearBestMonthLine = "The month I showed up the most."
+        public static func yearTopGoalLine(goal: String) -> String { "Top goal of the year: \(goal)" }
+        public static func yearUnlocksLine(count: Int) -> String {
+            count == 1 ? "1 earned unlock this year." : "\(count) earned unlocks this year."
         }
 
         // MARK: Monthly story pages

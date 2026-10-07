@@ -153,6 +153,11 @@ public struct LockSchedule: Codable, Sendable, Hashable {
         }
     }
 
+    /// Minutes after midnight for a time picker's date (the editors in the app can't reach the internal helper).
+    public static func minuteOfDayForUI(_ date: Date, calendar: Calendar = .current) -> Int {
+        minuteOfDay(date, calendar: calendar)
+    }
+
     static func minuteOfDay(_ date: Date, calendar: Calendar) -> Int {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
@@ -218,6 +223,8 @@ public struct PendingScheduledLock: Codable, Sendable, Equatable {
     public enum Source: String, Codable, Sendable {
         case schedule
         case bedtime
+        /// A calendar focus window (`FocusLockScheduler`): lock for exactly that window, no goals.
+        case focus
     }
 
     public var id: UUID
@@ -467,6 +474,10 @@ public enum ScheduledLockMonitor {
     /// A scheduled window (or the Bedtime Gate's nightly schedule) started.
     public static func intervalDidStart(for activity: DeviceActivityName, now: Date = .now) {
         let raw = activity.rawValue
+        if ContextRuleActivity.isContextActivity(raw) {
+            contextRulesBoundary(now: now)
+            return
+        }
         defer { LockEngineSharedState.refreshNextScheduledLockAt(now: now) }
         // Spec §24: no scheduled or bedtime lock starts during a health pause.
         guard !HealthPause.isActive else { return }
@@ -480,6 +491,22 @@ public enum ScheduledLockMonitor {
                 activityRawName: raw,
                 mode: .full,
                 requiredGoalIDs: nil,
+                now: now
+            )
+            return
+        }
+
+        if FocusLockStore.armedWindow(forActivityRawName: raw) != nil {
+            // A calendar focus window: shield the apps now, with no goals to earn. It ends at the
+            // window's end (`intervalDidEnd`), by emergency unlock, or by hand.
+            let settings = FocusLockStore.settings
+            guard settings.isEnabled else { return }
+            arm(
+                source: .focus,
+                lockSetID: settings.lockSetID ?? LockEngineSharedState.defaultLockSetID,
+                activityRawName: raw,
+                mode: .full,
+                requiredGoalIDs: [],
                 now: now
             )
             return
@@ -509,8 +536,18 @@ public enum ScheduledLockMonitor {
     /// A window ended. Scheduled locks end with it; Earn Mode spend windows re-shield.
     public static func intervalDidEnd(for activity: DeviceActivityName, now: Date = .now) {
         let raw = activity.rawValue
+        if ContextRuleActivity.isContextActivity(raw) {
+            contextRulesBoundary(now: now)
+            return
+        }
         if raw == LockScheduleActivity.spendRawName {
             spendWindowDidEnd(now: now)
+            return
+        }
+        // A focus window's lock ends with the window, whatever was earned.
+        if FocusLockActivity.isFocusActivity(raw) {
+            endScheduledLock(activityRawName: raw, now: now)
+            LockEngineSharedState.refreshNextScheduledLockAt(now: now)
             return
         }
         // Bedtime and per-session keep-alive registrations end at 23:59 but their locks continue
@@ -525,6 +562,19 @@ public enum ScheduledLockMonitor {
     public static func intervalWillEndWarning(for activity: DeviceActivityName, now: Date = .now) {
         guard activity.rawValue == LockScheduleActivity.spendRawName else { return }
         spendWindowDidEnd(now: now)
+    }
+
+    /// A context rule (spec §5.26) started or ended: if a lock is running (or the monitor just armed
+    /// one), shield again with the rules as they are now, so the rule's apps open or close on time. Not
+    /// during a Time Bank window, which re-shields by itself when it ends.
+    static func contextRulesBoundary(now: Date) {
+        let lockRunning = SharedDefaults.activeLockSessionID != nil || LockEngineSharedState.pendingStart != nil
+        guard lockRunning else { return }
+        if let window = LockEngineSharedState.spendWindow, window.endsAt > now { return }
+        guard let blob = LockEngineSharedState.intendedShieldSelection,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: blob)
+        else { return }
+        ManagedSettingsStore(named: .zanoLock).applyZanoShield(selection, now: now)
     }
 
     // MARK: Internals
@@ -739,6 +789,30 @@ public final class LockScheduler {
             } catch {
                 logger.error("Bedtime hand-off failed: \(String(describing: error), privacy: .public)")
             }
+        case .focus:
+            guard let lockSetID = pending.lockSetID else { return }
+            var sessionID: UUID?
+            do {
+                // No required goals: a timed lock nothing can "earn" (`evaluateUnlockEligibility`
+                // is false for an empty list), so it ends at the window's end or by emergency unlock.
+                sessionID = try await engine.startLock(
+                    lockSetID: lockSetID,
+                    mode: .full,
+                    requiredGoalIDs: [],
+                    trigger: .schedule,
+                    startedAt: pending.startedAt
+                )
+            } catch LockEngineError.deviceActivitySchedulingFailed {
+                sessionID = SharedDefaults.activeLockSessionID
+            } catch {
+                logger.error("Focus lock hand-off failed: \(String(describing: error), privacy: .public)")
+            }
+            guard let sessionID else { return }
+            LockEngineSharedState.scheduleOwnedLock = ScheduleOwnedLock(
+                sessionID: sessionID,
+                lockSetID: lockSetID,
+                activityRawName: pending.activityRawName
+            )
         case .schedule:
             guard let lockSetID = pending.lockSetID else { return }
             var sessionID: UUID?

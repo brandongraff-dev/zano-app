@@ -46,6 +46,9 @@ public enum HealthGoalChecks {
         }
 
         if !workoutGoalIDs.isEmpty, !(await HomeWorkoutVerifier.shared.needsAuthorizationRequest()) {
+            // Wake the app when a new workout lands in Health, so a run finished while the app was
+            // closed unlocks without anyone opening ZANO (idempotent).
+            await HealthWorkoutObserver.shared.startObserving()
             for goalID in workoutGoalIDs {
                 do {
                     _ = try await HomeWorkoutVerifier.shared.checkToday(goalID: goalID)

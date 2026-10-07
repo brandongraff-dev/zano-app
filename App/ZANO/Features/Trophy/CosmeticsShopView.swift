@@ -153,7 +153,7 @@ public struct CosmeticsShopView: View {
     private var categoryPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.xs) {
-                ForEach(CosmeticCategory.allCases, id: \.self) { category in
+                ForEach(CosmeticCategory.allCases.filter { $0 != .buddyStyle }, id: \.self) { category in
                     categoryChip(category)
                 }
             }
@@ -461,7 +461,7 @@ private struct CosmeticPreview: View {
                     endRadius: 90
                 )
             }
-        case .ringStyle, .coachVoicePack:
+        case .ringStyle, .coachVoicePack, .buddyStyle:
             Theme.Colors.surface2
         case .shieldBackground:
             LinearGradient(
@@ -492,6 +492,11 @@ private struct CosmeticPreview: View {
                 .font(Theme.Typography.icon(.large))
                 .imageScale(.large)
                 .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+        case .buddyStyle:
+            Image(systemName: "tshirt.fill")
+                .font(Theme.Typography.icon(.large))
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+                .foregroundStyle(Theme.Colors.text)
         case .coachVoicePack:
             VStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: CosmeticIconMap.systemImage(forKey: item.key, category: item.category))
@@ -613,6 +618,7 @@ private enum CosmeticIconMap {
         case .ringStyle: "circle.circle"
         case .shieldBackground: "shield.fill"
         case .coachVoicePack: "quote.bubble.fill"
+        case .buddyStyle: "tshirt.fill"
         }
     }
 
@@ -652,6 +658,7 @@ private enum CosmeticIconMap {
         case .ringStyle: "circle.circle"
         case .shieldBackground: "shield.fill"
         case .coachVoicePack: "quote.bubble.fill"
+        case .buddyStyle: "tshirt.fill"
         }
     }
 }

@@ -1,131 +1,345 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ZANO — The app that won't let you open TikTok until you hit the gym.</title>
-  <meta name="description" content="ZANO locks distracting apps until you earn them back by training, hitting your protein, focusing, or hydrating. Tap in. Earn it. Join the waitlist." />
-
-  <!-- Open Graph / share preview -->
-  <meta property="og:title" content="ZANO — Tap in. Earn it." />
-  <meta property="og:description" content="The app that won't let you open TikTok until you hit the gym." />
+  <title>ZANO — Earn your screen time</title>
+  <meta name="description" content="ZANO locks distracting apps until you hit the gym, hit your protein, or finish a focus session. Join the waitlist." />
+  <meta property="og:title" content="ZANO — Earn your screen time" />
+  <meta property="og:description" content="Distracting apps stay locked until you do the work." />
   <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary" />
-
-  <link rel="icon" href="data:," />
+  <link rel="icon" href="assets/buddies/stash-happy.webp" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script>document.documentElement.className = "js";</script>
 </head>
 <body>
 
-  <header class="site-header">
-    <div class="wrap site-header__inner">
-      <svg class="logo" role="img" aria-label="ZANO" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 815.59 100.00"><defs></defs><path fill="#F2F1ED" fill-rule="evenodd" transform="translate(0.00 0.00) scale(1.0000)" d="M595.15 99.60 C596.65 99.41 598.96 98.71 600.21 98.07 C603.24 96.52 605.57 93.33 605.98 90.19 C606.23 88.29 606.22 9.45 605.98 7.54 C605.87 6.75 605.71 6.00 605.62 5.88 C605.52 5.76 605.35 5.36 605.23 4.98 C604.95 4.12 603.45 2.38 602.39 1.71 C601.95 1.42 600.98 0.98 600.22 0.72 C598.94 0.28 598.60 0.25 594.37 0.24 C590.04 0.24 589.83 0.26 588.36 0.75 C586.36 1.41 585.32 2.04 584.32 3.18 C583.18 4.47 582.66 5.59 582.29 7.54 C582.01 9.03 581.98 12.63 581.98 40.93 C581.98 68.18 581.94 72.68 581.70 72.88 C581.39 73.14 581.27 73.09 579.00 71.67 C578.28 71.21 576.30 70.00 574.61 68.97 C570.42 66.42 560.49 60.11 553.62 55.64 C551.43 54.21 547.17 51.53 545.13 50.28 C544.66 50.00 542.46 48.58 540.24 47.13 C538.02 45.68 535.57 44.10 534.78 43.62 C533.14 42.61 531.95 41.87 530.56 40.99 C530.02 40.65 528.90 39.94 528.06 39.41 C525.93 38.06 523.30 36.36 520.90 34.77 C519.77 34.03 517.75 32.76 516.41 31.95 C515.07 31.15 512.83 29.75 511.44 28.83 C507.39 26.17 504.75 24.50 504.61 24.50 C504.56 24.50 503.97 24.13 503.30 23.68 C501.12 22.24 495.96 19.03 495.81 19.03 C495.76 19.03 495.30 18.74 494.79 18.37 C494.27 18.01 493.56 17.55 493.20 17.35 C492.38 16.89 492.17 16.76 490.75 15.83 C489.37 14.93 487.98 14.05 486.70 13.26 C486.18 12.95 484.43 11.82 482.79 10.76 C481.16 9.70 479.34 8.52 478.75 8.15 C478.16 7.78 477.46 7.33 477.19 7.14 C476.92 6.96 476.13 6.48 475.43 6.08 C474.74 5.68 473.81 5.14 473.38 4.88 C471.88 3.96 467.91 2.08 466.46 1.60 C462.41 0.27 461.92 0.20 456.21 0.21 C451.09 0.22 450.90 0.23 449.27 0.73 C447.12 1.39 445.81 2.03 444.45 3.07 C443.25 4.00 441.88 5.72 441.29 7.07 C440.28 9.35 440.31 7.93 440.31 51.83 C440.31 80.91 440.37 92.88 440.53 93.62 C441.18 96.76 443.47 98.89 446.79 99.42 C448.37 99.68 455.46 99.68 457.03 99.43 C459.52 99.02 461.97 97.48 463.06 95.62 C463.32 95.18 463.73 94.29 463.97 93.66 L464.41 92.50 L464.46 59.83 C464.50 36.39 464.57 27.09 464.73 26.90 C464.85 26.76 465.10 26.64 465.28 26.64 C465.67 26.64 467.23 27.45 468.74 28.43 C469.30 28.79 470.34 29.43 471.04 29.86 C471.75 30.29 473.95 31.70 475.93 32.99 C479.54 35.34 482.00 36.90 484.47 38.42 C485.19 38.86 487.15 40.11 488.81 41.18 C490.47 42.26 492.24 43.39 492.75 43.70 C493.26 44.02 494.91 45.08 496.41 46.06 C499.45 48.04 501.26 49.20 504.02 50.94 C505.05 51.58 506.97 52.81 508.30 53.67 C509.63 54.53 512.09 56.11 513.76 57.18 C517.01 59.27 519.63 60.96 524.32 64.02 C525.93 65.07 528.96 67.00 531.05 68.31 C533.14 69.61 536.04 71.47 537.49 72.42 C538.94 73.38 541.35 74.93 542.85 75.86 C544.36 76.79 546.70 78.29 548.07 79.18 C549.43 80.07 551.38 81.32 552.41 81.97 C553.44 82.61 555.24 83.75 556.41 84.50 C557.58 85.25 559.39 86.40 560.42 87.04 C561.45 87.68 563.25 88.82 564.41 89.58 C565.58 90.33 567.11 91.29 567.82 91.72 C568.52 92.15 569.78 92.94 570.61 93.48 C572.61 94.78 576.19 96.83 576.75 97.00 C577.00 97.07 577.37 97.24 577.59 97.37 C577.80 97.51 579.12 97.97 580.52 98.41 C582.79 99.13 585.54 99.65 588.42 99.89 C589.65 100.00 593.29 99.84 595.15 99.60 Z M393.34 99.63 C398.32 99.47 398.84 99.42 399.65 99.03 C400.30 98.71 400.63 98.39 400.93 97.78 L401.33 96.96 L400.84 96.19 C400.58 95.77 399.79 94.81 399.09 94.06 C398.39 93.31 397.18 91.95 396.39 91.04 C395.61 90.13 394.55 88.94 394.05 88.41 C393.54 87.87 392.49 86.68 391.71 85.77 C390.93 84.86 389.23 82.94 387.93 81.50 C385.15 78.42 382.98 75.94 380.51 72.99 C379.52 71.81 378.01 70.09 377.16 69.18 C376.32 68.27 375.23 67.04 374.75 66.45 C374.28 65.86 373.22 64.63 372.41 63.72 C371.59 62.81 370.41 61.45 369.77 60.70 C369.13 59.94 367.59 58.19 366.35 56.79 C365.11 55.40 363.71 53.77 363.23 53.19 C362.75 52.60 361.79 51.50 361.10 50.75 C360.41 49.99 359.15 48.54 358.30 47.52 C357.45 46.50 356.34 45.23 355.83 44.69 C354.89 43.69 350.99 39.25 347.44 35.15 C346.31 33.85 344.60 31.91 343.63 30.83 C340.07 26.88 337.54 24.01 336.53 22.75 C335.95 22.05 334.63 20.55 333.58 19.42 C332.53 18.30 331.07 16.68 330.33 15.83 C323.96 8.49 321.64 6.30 317.92 4.11 C314.76 2.24 312.70 1.40 309.47 0.65 C307.68 0.24 307.07 0.20 302.05 0.21 C296.97 0.21 296.47 0.24 294.83 0.67 C290.59 1.77 287.79 3.10 283.84 5.90 C283.26 6.31 281.73 7.74 280.43 9.08 C278.34 11.24 268.92 21.69 263.93 27.38 C262.92 28.53 261.25 30.40 260.21 31.52 C259.18 32.65 257.81 34.19 257.17 34.94 C256.53 35.69 253.94 38.62 251.42 41.44 C248.89 44.27 246.10 47.43 245.20 48.47 C244.30 49.50 242.37 51.70 240.91 53.35 C239.44 55.00 237.76 56.90 237.17 57.58 C236.58 58.25 235.04 59.97 233.76 61.41 C232.47 62.84 230.98 64.54 230.45 65.18 C229.91 65.83 228.55 67.36 227.42 68.60 C226.29 69.83 224.88 71.41 224.29 72.11 C223.70 72.80 223.09 73.51 222.93 73.68 C221.24 75.49 220.49 76.31 219.52 77.48 C218.89 78.23 217.25 80.12 215.89 81.67 C214.52 83.23 211.72 86.42 209.66 88.77 C206.03 92.92 204.53 94.59 203.68 95.42 C203.46 95.64 203.12 96.11 202.94 96.47 C202.54 97.24 202.75 98.13 203.49 98.83 C204.22 99.51 206.90 99.67 215.60 99.58 C223.87 99.49 223.45 99.54 227.02 98.24 C228.50 97.71 231.25 96.34 232.19 95.68 C232.62 95.37 233.28 94.91 233.66 94.66 C235.03 93.72 239.21 89.25 243.51 84.13 C245.19 82.13 250.03 76.61 252.00 74.45 C253.57 72.74 255.59 70.45 259.51 65.98 C260.36 65.01 262.43 62.67 264.10 60.79 C265.77 58.91 268.94 55.35 271.13 52.87 C273.33 50.39 276.00 47.38 277.08 46.18 C278.15 44.98 279.59 43.36 280.28 42.59 C280.96 41.81 282.80 39.79 284.35 38.10 C285.90 36.40 287.48 34.65 287.86 34.20 C289.10 32.70 290.53 31.06 291.71 29.76 C292.36 29.05 293.89 27.34 295.12 25.95 C299.31 21.22 299.91 20.79 302.22 20.79 C303.41 20.79 303.82 20.88 304.57 21.30 C305.47 21.80 307.56 23.94 310.87 27.75 C315.82 33.45 326.78 45.87 330.14 49.57 C331.02 50.54 332.12 51.81 332.59 52.40 C333.07 52.99 334.29 54.40 335.32 55.52 C336.35 56.65 337.67 58.14 338.25 58.84 C338.84 59.54 340.33 61.21 341.57 62.56 C343.64 64.83 345.48 66.93 349.44 71.58 C350.28 72.57 351.70 74.17 352.58 75.14 C353.47 76.10 355.06 77.91 356.12 79.15 C358.37 81.77 363.33 87.53 365.79 90.38 C369.19 94.30 372.04 96.43 376.21 98.17 C379.71 99.63 383.48 99.95 393.34 99.63 Z M160.77 99.07 C164.82 97.70 167.42 95.12 168.39 91.51 C168.75 90.17 168.81 85.24 168.49 84.03 C168.24 83.12 167.62 82.31 166.94 82.00 C166.56 81.83 153.81 81.75 115.01 81.67 C66.40 81.58 63.54 81.56 62.58 81.23 C60.99 80.69 60.88 80.06 62.18 78.97 C62.95 78.32 63.58 77.91 68.57 74.83 C70.88 73.41 73.66 71.67 74.75 70.96 C77.81 68.97 83.88 65.12 88.09 62.49 C90.19 61.18 92.82 59.51 93.95 58.78 C95.07 58.05 98.01 56.16 100.48 54.58 C102.95 52.99 105.71 51.22 106.62 50.62 C109.30 48.89 114.55 45.53 120.25 41.92 C121.57 41.09 123.48 39.87 124.49 39.23 C125.50 38.59 126.77 37.80 127.31 37.47 C127.86 37.15 129.66 36.01 131.31 34.94 C134.83 32.65 135.49 32.23 139.11 30.00 C140.62 29.07 142.50 27.85 143.31 27.29 C144.11 26.72 145.33 25.93 146.01 25.52 C146.69 25.12 147.48 24.64 147.77 24.45 C148.05 24.27 148.59 23.94 148.97 23.72 C149.81 23.23 150.17 23.00 151.30 22.24 C151.79 21.91 152.67 21.36 153.26 21.01 C153.85 20.66 154.95 19.99 155.70 19.52 C156.45 19.05 157.37 18.48 157.75 18.26 C158.13 18.03 158.67 17.70 158.95 17.52 C159.24 17.33 159.98 16.88 160.61 16.52 C162.28 15.55 164.52 13.87 165.82 12.62 C167.86 10.66 168.62 8.28 168.44 4.39 C168.33 2.09 168.09 1.44 167.09 0.69 L166.43 0.20 L102.92 0.20 L39.40 0.20 L36.38 0.74 C34.71 1.04 32.87 1.43 32.28 1.60 C30.50 2.12 28.29 2.89 28.09 3.06 C27.99 3.15 27.76 3.23 27.59 3.23 C27.11 3.23 23.57 5.10 22.21 6.06 C20.52 7.27 18.95 9.05 18.22 10.59 C17.58 11.93 17.05 14.08 17.06 15.33 C17.07 16.22 17.69 17.56 18.26 17.92 C18.65 18.17 24.74 18.22 63.76 18.32 L108.81 18.44 L109.85 18.92 C111.82 19.82 111.42 20.82 108.19 23.10 C106.27 24.44 106.08 24.57 105.14 25.12 C104.83 25.30 102.51 26.80 99.99 28.46 C95.54 31.40 93.54 32.70 87.40 36.70 C85.79 37.75 83.11 39.50 81.45 40.59 C78.86 42.29 75.82 44.22 71.94 46.64 C71.43 46.95 68.33 48.98 65.06 51.13 C61.79 53.29 58.54 55.39 57.84 55.81 C57.14 56.23 54.29 58.07 51.50 59.91 C46.33 63.30 43.93 64.87 40.02 67.36 C35.80 70.06 31.74 72.70 25.06 77.07 C23.82 77.88 21.76 79.19 20.47 79.99 C19.18 80.79 17.01 82.17 15.64 83.07 C14.27 83.96 12.12 85.35 10.86 86.15 C3.06 91.09 1.88 92.04 0.76 94.24 C0.03 95.68 0.00 97.26 0.69 97.99 C1.58 98.95 2.21 99.27 3.55 99.42 C4.27 99.51 39.63 99.57 82.13 99.55 L159.41 99.53 L160.77 99.07 Z M766.68 99.43 C769.18 99.25 771.62 98.90 774.29 98.32 C775.04 98.16 776.05 97.95 776.53 97.85 C778.12 97.55 783.78 95.72 785.21 95.05 C791.66 92.03 795.43 89.68 799.08 86.40 C806.26 79.94 810.48 73.51 813.18 64.89 C814.13 61.89 814.36 61.04 814.48 60.21 C814.55 59.72 814.73 58.71 814.89 57.96 C815.59 54.53 815.54 45.50 814.79 41.46 C814.21 38.31 812.86 33.75 811.71 31.03 C810.74 28.75 808.83 25.02 808.23 24.23 C807.89 23.79 807.50 23.20 807.36 22.94 C806.85 21.96 803.83 18.12 802.44 16.67 C799.14 13.22 794.69 9.77 790.42 7.36 C789.63 6.91 788.90 6.54 788.80 6.54 C788.62 6.54 788.23 6.36 786.35 5.40 C785.90 5.17 785.43 4.98 785.30 4.98 C785.18 4.98 784.80 4.86 784.46 4.70 C782.04 3.61 776.91 1.98 775.17 1.76 C774.57 1.68 773.89 1.54 773.64 1.45 C773.39 1.35 772.12 1.14 770.81 0.98 C769.50 0.82 767.95 0.59 767.36 0.46 C765.94 0.17 699.00 0.00 694.58 0.28 C691.48 0.47 688.37 0.89 686.28 1.38 C685.64 1.53 684.76 1.71 684.33 1.78 C683.01 1.99 678.78 3.20 677.11 3.86 C672.64 5.60 669.95 6.91 667.25 8.65 C661.24 12.54 656.57 16.97 652.83 22.33 C649.75 26.75 648.19 29.81 646.64 34.45 C644.72 40.21 644.03 44.46 644.03 50.62 C644.04 55.48 644.62 59.68 645.82 63.53 C647.16 67.81 647.65 69.11 649.02 72.03 C649.64 73.33 652.77 78.10 654.14 79.82 C656.70 83.04 660.79 87.11 662.77 88.43 C663.14 88.68 663.98 89.26 664.62 89.72 C665.68 90.49 666.68 91.12 668.78 92.34 C669.68 92.86 672.75 94.41 673.79 94.86 C675.99 95.81 680.64 97.36 682.57 97.79 C686.93 98.74 689.93 99.24 692.43 99.41 C695.62 99.64 763.59 99.65 766.68 99.43 Z M699.84 81.74 C695.43 81.41 693.67 81.20 692.06 80.81 C687.89 79.79 684.48 78.35 681.30 76.25 C679.35 74.96 675.81 71.51 674.20 69.30 C673.16 67.90 671.35 64.66 671.35 64.23 C671.35 64.13 671.13 63.49 670.86 62.81 C670.16 61.07 669.24 57.41 668.89 54.97 C668.18 50.05 668.76 43.69 670.35 39.04 C671.45 35.81 672.96 32.78 674.46 30.79 C675.59 29.30 678.20 26.52 679.55 25.37 C680.95 24.18 685.50 21.38 686.03 21.38 C686.18 21.38 686.39 21.29 686.50 21.18 C686.87 20.81 689.35 19.96 692.13 19.26 C694.13 18.76 696.31 18.42 698.61 18.25 C701.96 18.01 758.15 18.01 761.30 18.26 C762.64 18.36 764.00 18.53 764.33 18.64 C764.65 18.75 765.62 18.96 766.48 19.12 C769.23 19.63 771.28 20.32 774.04 21.67 C775.97 22.61 775.99 22.63 777.79 23.80 C782.45 26.83 785.97 31.06 788.13 36.21 C788.42 36.90 788.78 37.74 788.93 38.06 C789.08 38.38 789.29 39.00 789.39 39.43 C789.50 39.85 789.71 40.60 789.87 41.08 C790.24 42.26 790.54 43.76 790.80 45.77 C791.06 47.78 790.90 55.05 790.57 56.31 C790.44 56.79 790.23 57.75 790.10 58.45 C789.96 59.15 789.74 60.03 789.61 60.40 C789.47 60.78 789.19 61.57 788.99 62.16 C787.59 66.12 783.84 71.54 780.67 74.18 C778.19 76.24 776.37 77.35 773.03 78.83 C770.81 79.81 769.12 80.34 766.48 80.88 C762.37 81.71 761.34 81.74 730.38 81.77 C714.07 81.79 700.33 81.78 699.84 81.74 Z"/></svg>
-      <span class="kicker kicker--nav">Tap in. Earn it.</span>
+  <header class="nav glass">
+    <div class="wrap nav__in">
+      <a href="#top" class="logo">zan<i>o</i></a>
+      <a href="#join" class="btn btn--sm">Join waitlist</a>
     </div>
   </header>
 
-  <main>
-    <!-- Hero -->
-    <section class="hero">
-      <div class="wrap">
-        <p class="kicker">Tap in. Earn it.</p>
-        <h1 class="hero__headline">
-          The app that won&rsquo;t let you open TikTok<br class="br-desktop" />
-          until you hit the gym.
-        </h1>
-        <p class="hero__sub">
-          Your phone works for your goals instead of against them. Distracting apps stay locked
-          until you earn them back by doing the things you actually want to do: train, hit your
-          protein, focus, sleep, hydrate.
-        </p>
-
+  <main id="top">
+    <section class="hero3">
+      <h1 class="sr-only">Earn your screen time.</h1>
+      <div class="hero3__stage">
+        <div class="crew" aria-label="Your ZANO buddies"><div class="crew__row"><img class="crew__b crew__b--lead" src="assets/buddies/stash-happy.webp" alt="Stash" /><img class="crew__b" src="assets/buddies/lox-happy.webp" alt="Lox" /></div><div class="crew__row"><img class="crew__b" src="assets/buddies/pip-happy.webp" alt="Pip" /><img class="crew__b" src="assets/buddies/zib-happy.webp" alt="Zib" /><img class="crew__b" src="assets/buddies/moko-happy.webp" alt="Moko" /></div><div class="crew__row"><img class="crew__b" src="assets/buddies/brick-happy.webp" alt="Brick" /><img class="crew__b" src="assets/buddies/tank-happy.webp" alt="Tank" /><img class="crew__b" src="assets/buddies/volt-happy.webp" alt="Volt" /><img class="crew__b" src="assets/buddies/howl-happy.webp" alt="Howl" /></div></div>
+        <div class="hero3__phone"><div class="phone float"><div class="mock mock--home">
+<div class="home__top"><b class="home__logo">zan<i>o</i></b><span class="home__streak"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/></svg>14</span></div>
+<div class="home__hero"><span class="home__bub">One more!</span><img src="assets/buddies/stash-ecstatic.webp" alt="" /><div class="home__num"><b>1</b><span>goal to unlock</span><span class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div></div>
+<div class="home__lock"><span class="a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Social locked</span><span class="b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>Social open</span></div>
+<div class="home__cards">
+<div class="hc hc--gym"><span class="hc__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M3 10v4M18 7v10M21 10v4M6 12h12"/></svg></span><span class="home__ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><b>Gym</b><small>45 of 45 min</small></div>
+<div class="hc hc--pro"><span class="hc__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 0 0M5 3v5a2 2 0 0 0 4 0V3M7 10v11M17 3c-2 2.5-3 5-3 8h3v10"/></svg></span><span class="home__ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><b>Protein</b><small>150 of 150g</small></div>
+<div class="hc hc--foc"><span class="hc__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg></span><b>Focus</b><small>40 of 50 min</small><span class="hc__bar"><i></i></span></div>
+<div class="hc hc--wat"><span class="hc__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><span class="home__ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><b>Water</b><small>3 of 3 L</small></div>
+</div>
+<div class="home__tabs"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+</div></div></div>
+      </div>
+      <div class="hero2__cta glass">
         <form id="waitlist-form" class="waitlist-form" novalidate>
           <div class="waitlist-form__row">
             <label class="sr-only" for="email">Email address</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              class="waitlist-form__input"
-              placeholder="you@example.com"
-              autocomplete="email"
-              required
-            />
-            <!-- Honeypot — hidden from real users via CSS, bots tend to fill every field -->
-            <input
-              id="company"
-              name="company"
-              type="text"
-              class="hp-field"
-              tabindex="-1"
-              autocomplete="off"
-            />
-            <button type="submit" class="btn-primary" id="waitlist-submit">
-              <span class="btn-primary__label">Join the waitlist</span>
-            </button>
+            <input id="email" name="email" type="email" class="waitlist-form__input" placeholder="you@example.com" autocomplete="email" required />
+            <input id="company" name="company" type="text" class="hp-field" tabindex="-1" autocomplete="off" />
+            <button type="submit" class="btn btn--blue" id="waitlist-submit">Join<span class="long">&nbsp;waitlist</span></button>
           </div>
           <p id="waitlist-status" class="waitlist-form__status" role="status" aria-live="polite"></p>
         </form>
-
-        <p class="hero__note">No spam. One email when we open the doors.</p>
+        <div class="store store--row store--pill">
+          <button type="button" class="store__btn" aria-disabled="true" disabled>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+            <span><small>Download on the</small>App Store</span>
+          </button>
+          <p class="store__note">Coming soon</p>
+        </div>
       </div>
+    
     </section>
 
-    <!-- How it works -->
-    <section class="how" id="how">
-      <div class="wrap">
-        <h2 class="section-title">No willpower required.</h2>
-        <div class="how__grid">
-          <div class="how__card">
-            <span class="how__ring how__ring--workout" aria-hidden="true"></span>
-            <h3>Locked</h3>
-            <p>TikTok, Instagram, YouTube &mdash; shielded the moment you open ZANO. No manual
-              blocking, no toggling off when you feel weak.</p>
+    <!-- Scroll story: phone stays put, screens + buddy change as you scroll -->
+    <section class="story" id="story" data-step="0">
+      <div class="story__stick">
+        <div class="wrap story__grid">
+          <div class="story__text">
+            <p class="eyebrow">How it works</p>
+            <div class="story__copy">
+              <div class="copy on"><h2>Lock it.</h2><p>Pick the apps that waste your time. They go dark.</p></div>
+              <div class="copy"><h2>Earn it.</h2><p>Train, focus, eat protein, drink water. ZANO checks it for real.</p></div>
+              <div class="copy"><h2>Get it back.</h2><p>Apps open the second you finish.</p></div>
+              <div class="copy"><h2>Keep the streak.</h2><p>Every day you earn it, the number grows.</p></div>
+            </div>
+            <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
           </div>
-          <div class="how__card">
-            <span class="how__ring how__ring--focus" aria-hidden="true"></span>
-            <h3>Earn it</h3>
-            <p>Verified goals unlock time: a gym session (geofence), a focus block, hitting your
-              protein or water target. Real verification, not an honor system.</p>
-          </div>
-          <div class="how__card">
-            <span class="how__ring how__ring--water" aria-hidden="true"></span>
-            <h3>Unlocked</h3>
-            <p>Apps open the second a goal verifies &mdash; instantly, offline. No logging when it
-              can be avoided.</p>
+          <div class="story__phone">
+            <div class="story__disc" data-d="0.2"></div>
+            <div class="fl story__ghost story__ghost--l" data-d="0.5"><div class="phone"><div class="mock mock--splash"><b class="mock__logo">zan<i>o</i></b><img src="assets/buddies/stash-happy.webp" alt="" /></div></div></div>
+            <div class="fl story__ghost story__ghost--r" data-d="0.5"><div class="phone"><img src="assets/screen-today-light.webp" alt="" /></div></div>
+            <div class="phone">
+              <div class="screens">
+                <div class="mock mock--locked on"><span class="mock__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><img src="assets/buddies/stash-sleepy.webp" alt="" /><b>Social is locked</b><small>2 goals to go</small><span class="seg"><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+                <img src="assets/screen-today-dark.webp" alt="Today screen with 2 goals left" />
+                <div class="mock mock--win"><span class="confetti" aria-hidden="true"><i style="left:10%;top:12%;--c:#ff8a2b;--d:3.1s"></i><i style="left:24%;top:6%;--c:#8b6bff;--d:4s"></i><i style="left:40%;top:14%;--c:#2f6bff;--d:3.4s"></i><i style="left:58%;top:5%;--c:#ff5c8a;--d:4.4s"></i><i style="left:76%;top:12%;--c:#7cc21b;--d:3.7s"></i><i style="left:88%;top:22%;--c:#ff8a2b;--d:3.2s"></i><i style="left:8%;top:40%;--c:#2db7f5;--d:4.2s"></i><i style="left:92%;top:48%;--c:#8b6bff;--d:3.5s"></i><i style="left:16%;top:70%;--c:#ff5c8a;--d:3.9s"></i><i style="left:84%;top:74%;--c:#2f6bff;--d:3.3s"></i></span><img src="assets/buddies/volt-ecstatic.webp" alt="" /><b>Unlocked</b><span class="mock__pill">Open Social</span></div>
+                <img src="assets/screen-streak.webp" alt="30 day streak card" />
+              </div>
+            </div>
+            <div class="story__buddy">
+              <div class="orb"><img src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
+              <div class="bubble" id="storyBubble">Locked in.</div>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- What it's not -->
-    <section class="not">
-      <div class="wrap">
-        <h2 class="section-title">What ZANO isn&rsquo;t.</h2>
-        <ul class="not__list">
-          <li>Not a calorie counter. Never restrictive goals &mdash; only additive ones.</li>
-          <li>Not a prison. Emergency unlock always exists. Calls always work.</li>
-          <li>Not a chatbot. It just knows you.</li>
-        </ul>
+    <!-- Scroll Monster: its HP drains as you scroll the section -->
+    <section class="boss" id="boss">
+      <div class="boss__stick">
+        <div class="wrap boss__in">
+          <div class="boss__stage">
+            <div class="boss__disc" data-d="0.2"></div>
+            <img class="boss__side boss__side--l" src="assets/buddies/monster-1-healthy.webp" alt="" loading="lazy" />
+            <img class="boss__side boss__side--r" src="assets/buddies/monster-2-healthy.webp" alt="" loading="lazy" />
+            <img class="boss__m" id="bossImg" src="assets/buddies/monster-0-healthy.webp" alt="The Scroll Monster" />
+            <div class="boss__buddy"><img id="bossBuddy" src="assets/buddies/stash-happy.webp" alt="Stash the raccoon" /></div>
+            <span class="boss__coins" id="bossCoins">+50 coins</span>
+          </div>
+          <div class="hp" role="img" aria-label="Scroll Monster health"><i id="hpFill"></i></div>
+          <h2>Beat the Scroll Monster.</h2>
+          <p class="lede">A new one shows up every week. Locked minutes and finished goals knock its health down.</p>
+        </div>
       </div>
     </section>
 
-    <!-- Second CTA -->
-    <section class="cta">
+    <section class="section section--soft sheet">
+      <div class="fl peek peek--l" data-d="0.25"><img class="bob b3" src="assets/buddies/brick-happy.webp" alt="" loading="lazy" /></div>
+      <div class="fl peek peek--r" data-d="0.25"><img class="bob b4" src="assets/buddies/tank-happy.webp" alt="" loading="lazy" /></div>
       <div class="wrap">
-        <h2 class="section-title">Be first in when we open the doors.</h2>
-        <p class="cta__sub">We&rsquo;re building in public. Get the waitlist email, then the invite.</p>
-        <a href="#waitlist-form" class="btn-primary btn-primary--ghost">Join the waitlist</a>
+        <div class="head reveal">
+          <p class="eyebrow">Goals</p>
+          <h2>Four ways to earn.</h2>
+        </div>
+        <div class="goals">
+          <div class="goal reveal"><b>Gym</b><span>45 min, verified</span><div class="bar"><i style="--w:30%"></i></div></div>
+          <div class="goal reveal" style="--d:.08s"><b>Protein</b><span>150g a day</span><div class="bar"><i style="--w:48%"></i></div></div>
+          <div class="goal reveal" style="--d:.16s"><b>Focus</b><span>50 min blocks</span><div class="bar"><i style="--w:50%"></i></div></div>
+          <div class="goal reveal" style="--d:.24s"><b>Water</b><span>3 L a day</span><div class="bar"><i style="--w:50%"></i></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NFC tags -->
+    <section class="section feat" id="tags">
+      <div class="wrap feat__grid">
+        <div class="feat__text">
+          <p class="eyebrow reveal">NFC tags</p>
+          <h2 class="reveal">Tap to log.</h2>
+          <p class="lede reveal">Stick a tag on your bottle, shaker or gym bag. One tap and it&rsquo;s logged.</p>
+          <ul class="chips reveal">
+            <li>Water</li><li>Protein</li><li>Focus</li><li>Gym</li>
+          </ul>
+        </div>
+        <div class="feat__art reveal">
+          <div class="nfc">
+            <div class="nfc__disc"></div>
+            <div class="nfc__tag"><span class="nfc__ripple"></span><span class="nfc__ripple r2"></span><span class="nfc__ripple r3"></span><span class="nfc__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <div class="nfc__phone"><div class="phone"><div class="mock mock--log"><span class="mock__drop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><b>+750 ml</b><small>Water logged</small><img src="assets/buddies/stash-happy.webp" alt="" /></div></div></div>
+            <span class="nfc__toast">Logged</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sunrise alarm -->
+    <section class="section feat feat--flip" id="sunrise">
+      <div class="wrap feat__grid">
+        <div class="feat__text">
+          <p class="eyebrow reveal">Sunrise alarm</p>
+          <h2 class="reveal">Get up to turn it off.</h2>
+          <p class="lede reveal">Put a tag across the room. The alarm only stops when you tap it.</p>
+        </div>
+        <div class="feat__art reveal">
+          <div class="sun">
+            <div class="sun__sky"><span class="sun__orb"></span><span class="sun__ground"></span></div>
+            <div class="sun__mirror"><span class="sun__tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 8.5a6 6 0 0 1 0 7"/><path d="M10 6a10 10 0 0 1 0 12"/><path d="M14 3.5a14 14 0 0 1 0 17"/></svg></span></div>
+            <div class="sun__phone"><div class="phone"><div class="mock mock--alarm"><b class="mock__time">6:30</b><span class="mock__bub" id="sunBubble">Zzz</span><img id="sunBuddy" src="assets/buddies/stash-sleepy.webp" alt="" /><span class="mock__pill mock__pill--o">Tap your tag</span></div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Buddy picker -->
+    <section class="section" id="buddy">
+      <div class="wrap">
+        <div class="head reveal">
+          <p class="eyebrow">Your buddy</p>
+          <h2>Pick who keeps you honest.</h2>
+          <p class="lede">Nine buddies to choose from. Yours levels up with your streak.</p>
+        </div>
+        <div class="picker reveal">
+          <div class="picker__stage">
+            <div class="stage__disc"></div>
+            <div class="orb orb--xl" id="pickOrb"></div>
+            <div class="bubble" id="pickBubble"></div>
+            <div class="picker__meta"><b id="pickName"></b><span id="pickTrait"></span></div>
+          </div>
+          <div class="picker__list" role="radiogroup" aria-label="Choose your buddy" id="pickList"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--soft sheet cta" id="join">
+      <div class="wrap">
+        <div class="crowd reveal" aria-hidden="true"><img class="b1" style="--i:0" src="assets/buddies/stash-happy.webp" alt="" loading="lazy" /><img class="bob b2" style="--i:1" src="assets/buddies/zib-happy.webp" alt="" loading="lazy" /><img class="bob b3" style="--i:2" src="assets/buddies/lox-happy.webp" alt="" loading="lazy" /><img class="bob b4" style="--i:3" src="assets/buddies/pip-happy.webp" alt="" loading="lazy" /><img class="bob b5" style="--i:4" src="assets/buddies/moko-happy.webp" alt="" loading="lazy" /><img class="bob b6" style="--i:5" src="assets/buddies/brick-happy.webp" alt="" loading="lazy" /><img class="bob b1" style="--i:6" src="assets/buddies/tank-happy.webp" alt="" loading="lazy" /><img class="bob b2" style="--i:7" src="assets/buddies/volt-happy.webp" alt="" loading="lazy" /><img class="bob b3" style="--i:8" src="assets/buddies/howl-happy.webp" alt="" loading="lazy" /></div>
+        <h2 class="reveal">Get early access.</h2>
+        <p class="lede reveal">One email when we open the doors.</p>
+        <p class="reveal"><a href="#waitlist-form" class="btn btn--blue" id="cta-btn">Join the waitlist</a></p>
+        <div class="store store--center">
+            <button type="button" class="store__btn" aria-disabled="true" disabled>
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+              <span><small>Download on the</small>App Store</span>
+            </button>
+            <p class="store__note">Coming soon</p>
+          </div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="wrap site-footer__inner">
-      <span>&copy; <span id="year"></span> ZANO</span>
-      <span class="site-footer__muted">Locked in.</span>
-    </div>
+  <footer class="footer">
+    <div class="wrap"><span>&copy; <span id="year"></span> ZANO</span><span>Locked in.</span></div>
   </footer>
+
+  <script>
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const io = new IntersectionObserver((es) => es.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }), { threshold: 0.12 });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    document.querySelectorAll(".bar").forEach((el) => io.observe(el.closest(".goal")));
+
+
+
+
+    // ---- depth: pointer + scroll parallax on every .fl layer ----
+    if (!reduce) {
+      const layers = [...document.querySelectorAll(".fl[data-d]")].map((el) => ({ el, d: +el.dataset.d, host: el.closest("section") }));
+      let mx = 0, my = 0, tx = 0, ty = 0, raf = 0;
+      const frame = () => {
+        raf = 0; tx += (mx - tx) * 0.08; ty += (my - ty) * 0.08;
+        for (const l of layers) {
+          const r = l.host.getBoundingClientRect();
+          if (r.bottom < -200 || r.top > innerHeight + 200) continue;
+          const prog = (r.top + r.height / 2 - innerHeight / 2) / innerHeight;
+          l.el.style.transform = "translate3d(" + (tx * l.d * 22).toFixed(1) + "px," + (ty * l.d * 16 + prog * l.d * 70).toFixed(1) + "px,0)";
+        }
+        if (Math.abs(mx - tx) > 0.002 || Math.abs(my - ty) > 0.002) raf = requestAnimationFrame(frame);
+      };
+      const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+      addEventListener("pointermove", (e) => { mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; kick(); }, { passive: true });
+      addEventListener("scroll", kick, { passive: true }); addEventListener("resize", kick); kick();
+    }
+
+
+    // ---- Scroll Monster: health drains with scroll, mood follows ----
+    const boss = document.getElementById("boss"), bImg = document.getElementById("bossImg"), bBuddy = document.getElementById("bossBuddy"), hp = document.getElementById("hpFill");
+    let bState = "";
+    function bossScroll() {
+      const r = boss.getBoundingClientRect(), total = r.height - innerHeight;
+      const p = Math.min(1, Math.max(0, -r.top / total));
+      const health = Math.max(0, 1 - p * 1.25);
+      hp.style.width = (health * 100).toFixed(1) + "%";
+      const st = health > 0.5 ? "healthy" : health > 0 ? "hurt" : "defeated";
+      if (st !== bState) {
+        bState = st; boss.dataset.state = st;
+        bImg.src = "assets/buddies/monster-0-" + st + ".webp";
+        bBuddy.src = "assets/buddies/stash-" + (st === "defeated" ? "ecstatic" : "happy") + ".webp";
+        bImg.style.animation = "none"; void bImg.offsetWidth; bImg.style.animation = "";
+      }
+    }
+    addEventListener("scroll", bossScroll, { passive: true }); addEventListener("resize", bossScroll); bossScroll();
+
+
+    // ---- sunrise alarm: buddy wakes up on a loop ----
+    const sunBuddy = document.getElementById("sunBuddy"), sunBubble = document.getElementById("sunBubble");
+    let awake = false;
+    if (!reduce) setInterval(() => {
+      awake = !awake;
+      sunBuddy.src = "assets/buddies/stash-" + (awake ? "ecstatic" : "sleepy") + ".webp";
+      sunBubble.textContent = awake ? "I\u2019m up!" : "Zzz";
+      sunBubble.style.animation = "none"; void sunBubble.offsetWidth; sunBubble.style.animation = "";
+    }, 3600);
+
+    // ---- scroll story ----
+    const story = document.getElementById("story");
+    const bubbleLines = ["Locked in.", "Two to go.", "Unlocked!", "30 days!"];
+    const sImgs = story.querySelectorAll(".screens > *"), sCopy = story.querySelectorAll(".copy"), sDots = story.querySelectorAll(".dots i");
+    const sBubble = document.getElementById("storyBubble");
+    let cur = -1;
+    function setStep(i) {
+      if (i === cur) return; cur = i; story.dataset.step = i;
+      [sImgs, sCopy, sDots].forEach((l) => l.forEach((el, j) => el.classList.toggle("on", j === i)));
+      sBubble.textContent = bubbleLines[i];
+      sBubble.style.animation = "none"; void sBubble.offsetWidth; sBubble.style.animation = "";
+    }
+    function onScroll() {
+      const r = story.getBoundingClientRect(), total = r.height - innerHeight;
+      const p = Math.min(0.999, Math.max(0, -r.top / total));
+      setStep(Math.floor(p * sImgs.length));
+    }
+    addEventListener("scroll", onScroll, { passive: true }); addEventListener("resize", onScroll); onScroll();
+    sDots.forEach((d, i) => d.addEventListener("click", () => {
+      const r = story.getBoundingClientRect(), total = r.height - innerHeight;
+      scrollTo({ top: scrollY + r.top + total * ((i + 0.5) / sImgs.length), behavior: "smooth" });
+    }));
+
+    // ---- buddy picker ----
+    const BUDDIES = [
+      { key: "stash", name: "Stash", kind: "Cheeky, loyal raccoon", line: "Gym first, scroll later!" },
+      { key: "zib", name: "Zib", kind: "Star-antenna mochi bunny", line: "Aww, you did it!" },
+      { key: "lox", name: "Lox", kind: "Clever fox with a lock charm", line: "Door\u2019s locked. Go earn it." },
+      { key: "pip", name: "Pip", kind: "Owl-axolotl with focus eyes", line: "Focus time. I\u2019m watching." },
+      { key: "moko", name: "Moko", kind: "Hatchling dino that grows with you", line: "We grow together." },
+      { key: "brick", name: "Brick", kind: "Gym-rat bulldog", line: "One more rep. I got you." },
+      { key: "tank", name: "Tank", kind: "Gym rhino in a team jersey", line: "Nothing stops us today." },
+      { key: "volt", name: "Volt", kind: "Lightning shark", line: "Zap! Unlocked." },
+      { key: "howl", name: "Howl", kind: "Night-run wolf in a hoodie", line: "Quiet work, loud finish." },
+    ];
+    const pickOrb = document.getElementById("pickOrb"), pickList = document.getElementById("pickList");
+    function art(b, pose) { const i = document.createElement("img"); i.src = "assets/buddies/" + b.key + "-" + pose + ".webp"; i.alt = ""; return i; }
+    function pick(i) {
+      const b = BUDDIES[i];
+      pickOrb.replaceChildren(art(b, "happy"));
+      document.getElementById("pickName").textContent = b.name;
+      document.getElementById("pickTrait").textContent = b.kind;
+      const bub = document.getElementById("pickBubble"); bub.textContent = b.line;
+      bub.style.animation = "none"; void bub.offsetWidth; bub.style.animation = "";
+      pickList.querySelectorAll("button").forEach((el, j) => { el.setAttribute("aria-checked", j === i); el.tabIndex = j === i ? 0 : -1; });
+    }
+    BUDDIES.forEach((b, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.setAttribute("role", "radio"); btn.className = "pick";
+      const thumb = document.createElement("span"); thumb.className = "pick__thumb"; thumb.appendChild(art(b, "content"));
+      const label = document.createElement("span"); label.textContent = b.name;
+      btn.append(thumb, label);
+      btn.addEventListener("click", () => pick(i));
+      btn.addEventListener("keydown", (e) => {
+        const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+        if (d) { e.preventDefault(); const n = (i + d + BUDDIES.length) % BUDDIES.length; pick(n); pickList.children[n].focus(); }
+      });
+      pickList.appendChild(btn);
+    });
+    pick(0);
+
+    document.getElementById("cta-btn").addEventListener("click", () => {
+      setTimeout(() => document.getElementById("email").focus({ preventScroll: true }), 600);
+    });
+  </script>
 
   <script type="module">
     // ---------------------------------------------------------------------

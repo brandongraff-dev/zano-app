@@ -105,6 +105,33 @@ struct BuddyTests {
         #expect(BuddyPose(ZanoMascotMood(done: 0, total: 0, isLocked: false)) == .idle)
     }
 
+    @Test func activityEmotionsFollowTheGoal() {
+        #expect(BuddyPose(goal: .workoutGym, moment: .doing) == .lifting)
+        #expect(BuddyPose(goal: .workoutHomeOutdoor, moment: .done) == .flexing)
+        #expect(BuddyPose(goal: .water, moment: .needed) == .thirsty)
+        #expect(BuddyPose(goal: .water, moment: .doing) == .sipping)
+        #expect(BuddyPose(goal: .water, moment: .done) == .proud)
+        #expect(BuddyPose(goal: .protein, moment: .needed) == .hungry)
+        #expect(BuddyPose(goal: .protein, moment: .doing) == .eating)
+        #expect(BuddyPose(goal: .mealPrep, moment: .doing) == .eating)
+        #expect(BuddyPose(goal: .focusSession, moment: .doing) == .focused)
+        #expect(BuddyPose(goal: .sunriseAlarm, moment: .doing) == .yawning)
+        #expect(BuddyPose(goal: .stretchMobility, moment: .doing) == .yawning)
+        #expect(BuddyPose(goal: .custom, moment: .done) == .proud)
+        #expect(BuddyPose(goal: .custom, moment: .needed) == .idle)
+    }
+
+    @Test func everyActivityEmotionExistsForEveryBuddy() {
+        let activity: [BuddyPose] = [.lifting, .flexing, .sipping, .thirsty, .eating, .hungry, .focused, .yawning, .proud, .lovey,
+                                     .blaze, .frozen, .guarding, .tinkering, .analyzing]
+        #expect(BuddyPose.allCases.count == 23)
+        for buddy in Buddy.allCases {
+            for pose in activity {
+                #expect(buddy.image(pose: pose) != nil, "\(buddy) \(pose)")
+            }
+        }
+    }
+
     @Test func poseRoundTripsThroughItsRawValue() {
         for pose in BuddyPose.allCases {
             #expect(BuddyPose(rawValue: pose.rawValue) == pose)
@@ -211,5 +238,17 @@ struct BuddyTests {
         #expect(defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
         BuddyProgress.recordRank(.bronze, defaults: defaults)
         #expect(defaults.bool(forKey: BuddyProgress.reachedDiamondKey))
+    }
+
+    // MARK: - Cal, the calendar character
+
+    @Test func calDrawsEveryMood() {
+        for pose in CalPose.allCases {
+            let pixels = pose.pixels
+            #expect(pixels.rows.count == BuddyPixels.size, "\(pose)")
+            #expect(pixels.rows.joined().filter { $0 != "." }.count > 0, "\(pose) is fully transparent")
+            #expect(pixels.cgImage() != nil, "\(pose): no image")
+        }
+        #expect(CalPose.allCases.count == 4)
     }
 }

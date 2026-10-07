@@ -101,6 +101,11 @@
 // Unverified without a device: that `Label(_:)` over an `ApplicationToken` renders (it needs the
 // Family Controls entitlement) and that `.labelStyle(.iconOnly)` is honored by it.
 
+// CHARACTER PASS (session 30, 2026-10-06): the build beat's buddy tinkers (a little hammer) while
+// the answers check off and turns proud when the plan is built; Cal, the calendar character, sits
+// on the schedule row; and the guide strains along with the hold: lifting while it charges, blazing
+// past 70%, ecstatic (with a burst) when it commits. Reduce Motion: the faces change, nothing hops.
+
 import SwiftUI
 import SwiftData
 import FamilyControls
@@ -128,6 +133,8 @@ struct Screen10PlanReveal: View {
     @State private var revealedGroups = 0
     /// The hold completed; guards a double commit while the save and the advance run.
     @State private var isCommitted = false
+    /// The hold-to-commit's charge (0...1), so the guide strains along.
+    @State private var commitCharge: Double = 0
 
     // If-then plan answers (see file header).
     @State private var gymDays: Set<Int> = ImplementationPlan.defaultWorkoutDays(perWeek: 3)
@@ -229,8 +236,13 @@ struct Screen10PlanReveal: View {
 
             // The buddy watches the answers check off; the bloom behind it brightens with them
             // (the star charged here until 2026-10-03). It perks up once everything has.
-            BuddySprite(buddy, pose: buildProgress >= 1 ? .happy : .idle, size: Self.buildStarHeight)
-                .zanoMascot(mood: buildProgress >= 1 ? .perky : .idle, size: Self.buildStarHeight, showsGlow: false)
+            OnboardingBuddyActor(
+                pose: buildProgress >= 1 ? .proud : .tinkering,
+                size: Self.buildStarHeight,
+                mood: buildProgress >= 1 ? .perky : .idle,
+                burstColor: Theme.Colors.accent,
+                react: builtRows
+            )
                 .background {
                     OnboardingKit.StarBloom(diameter: Self.buildStarHeight * 3.2)
                         .opacity(0.25 + 0.75 * buildProgress)
@@ -299,9 +311,10 @@ struct Screen10PlanReveal: View {
                     .accessibilityAddTraits(.isHeader)
                 OnboardingGuideStar(
                     line: Copy.onboarding.guidePlanLine,
-                    charge: revealStarCharge,
+                    charge: max(revealStarCharge, commitCharge),
                     starHeight: Self.revealStarHeight,
-                    mood: .perky
+                    mood: .perky,
+                    pose: guidePose
                 )
                 planCard
                 commitHint
@@ -314,10 +327,22 @@ struct Screen10PlanReveal: View {
         .onboardingKitActionBar {
             OnboardingChargeButton(
                 title: Copy.onboarding.commitHoldButtonLabel,
-                isEnabled: !isCommitted
+                isEnabled: !isCommitted,
+                onChargeChange: { commitCharge = $0 }
             ) {
                 Task { await commit() }
             }
+        }
+    }
+
+    /// The guide's face through the hold: happy at rest, lifting while it charges, blazing near the
+    /// top, ecstatic once committed.
+    private var guidePose: BuddyPose {
+        if isCommitted { return .ecstatic }
+        switch commitCharge {
+        case 0: return .happy
+        case ..<0.7: return .lifting
+        default: return .blaze
         }
     }
 
@@ -605,7 +630,9 @@ struct Screen10PlanReveal: View {
             sectionLabel(Copy.onboardingReveal.planTicketScheduleLabel)
 
             HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "sunrise.fill", tint: Theme.Colors.text, size: .medium)
+                // Cal, the calendar character, keeps the schedule (session 30; was a sunrise badge).
+                CalSprite(.happy, size: Theme.Metrics.iconBadgeMedium)
+                    .zanoMascot(mood: .idle, size: Theme.Metrics.iconBadgeMedium, showsGlow: false)
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(Copy.onboarding.planScheduleLine)

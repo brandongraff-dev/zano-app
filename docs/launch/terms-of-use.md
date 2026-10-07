@@ -34,9 +34,11 @@ Location, Motion and NFC features **on your device** to do this.
 
 ## 2. Eligibility
 
-You must be **at least 16 years old** to use ZANO. If you're under the age of majority where you
-live, you confirm that a parent or guardian has reviewed and agreed to these Terms. ZANO isn't a
-parental-control product and isn't designed to manage another person's device.
+You must be **at least 13 years old** to use ZANO (or the age of digital consent where you live, if
+higher). If you're under the age of majority where you live, you confirm that a parent or guardian
+has reviewed and agreed to these Terms. You can use ZANO entirely on your own. A parent can link to a
+teen's account only if the teen accepts, and ZANO does not replace Apple's Screen Time or Family
+Sharing controls and isn't designed to manage another person's device.
 [CONFIRM: keep in sync with Privacy Policy §9 and the App Store age rating.]
 
 ## 3. Subscriptions, free trials and payments

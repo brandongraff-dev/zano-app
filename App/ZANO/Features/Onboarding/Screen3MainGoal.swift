@@ -37,6 +37,11 @@
 // bouncing sticker icon. The "Your plan" ring preview row is gone: the star's reaction is the
 // consequence of the tap now, and the plan step shows the rings for real.
 
+// CHARACTER PASS (session 30, 2026-10-06): the guide acts out the answer: lifting for the gym,
+// eating for protein, guarding (its padlock) for doomscrolling, focused for work/school, and for
+// "All of it" it flexes while a confetti burst goes off behind it. Each change is a hop (the guide's
+// own reaction). Reduce Motion: the faces change, the confetti cross-fades in place (Core handles it).
+
 import SwiftUI
 import Core
 
@@ -64,8 +69,18 @@ struct Screen3MainGoal: View {
                     line: guideLine,
                     charge: flowState.mainGoal == nil ? 0.3 : 0.55,
                     tint: guideTint,
-                    mood: flowState.mainGoal == nil ? .idle : .perky
+                    mood: flowState.mainGoal == nil ? .idle : .perky,
+                    pose: flowState.mainGoal.map(pose(for:)) ?? .idle
                 )
+                .overlay(alignment: .leading) {
+                    if flowState.mainGoal == .allOfIt {
+                        // Mounted on the pick, so it fires once per "All of it".
+                        CelebrationBurst(trigger: 0)
+                            .frame(width: 200, height: 200)
+                            .offset(x: -68)
+                            .allowsHitTesting(false)
+                    }
+                }
                 tiles
             }
         }
@@ -125,6 +140,17 @@ struct Screen3MainGoal: View {
         .opacity(appeared || reduceMotion ? 1 : 0)
         .offset(y: appeared || reduceMotion ? 0 : Theme.Spacing.sm)
         .animation(reduceMotion ? nil : Theme.Motion.springStandard.delay(0.15 + Double(index) * 0.05), value: appeared)
+    }
+
+    /// The face the guide pulls for each answer.
+    private func pose(for goal: MainGoal) -> BuddyPose {
+        switch goal {
+        case .gymConsistency: .lifting
+        case .protein: .eating
+        case .stopDoomscrolling: .guarding
+        case .lockInWorkSchool: .focused
+        case .allOfIt: .flexing
+        }
     }
 
     /// SF Symbol identifiers (not user-facing copy).

@@ -236,6 +236,7 @@ struct SettingsView: View {
         .zanoBackdrop()
         .tint(Theme.Colors.accent)
         .navigationTitle(Copy.settings.screenTitle)
+        .pageBuddy(.tinkering)
         .onAppear {
             Analytics.shared.capture(event: "settings_viewed")
             autoFocusIsSetUp = AutoFocusIntegration.isSetUp
@@ -416,6 +417,62 @@ struct SettingsView: View {
                 SettingsRowDivider()
 
                 SettingsNavRow(
+                    Copy.focusLock.rowLabel,
+                    systemImage: "calendar.badge.clock",
+                    tint: SettingsPalette.calendar,
+                    value: FocusLockStore.settings.isEnabled ? Copy.focusLock.rowValueOn : nil
+                ) {
+                    FocusLockSettingsView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
+                    Copy.contextRules.rowLabel,
+                    systemImage: "lock.open.rotation",
+                    tint: SettingsPalette.lockSets,
+                    value: ContextRuleStore.rules.isEmpty ? nil : "\(ContextRuleStore.rules.count)"
+                ) {
+                    ContextRulesView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
+                    Copy.planner.settingsRow,
+                    systemImage: "calendar",
+                    tint: SettingsPalette.calendar
+                ) {
+                    PlannerSettingsView()
+                }
+
+                if HouseholdAvailability.isLive {
+                    SettingsRowDivider()
+
+                    SettingsNavRow(
+                        Copy.household.rowLabel,
+                        systemImage: "house.fill",
+                        tint: SettingsPalette.goals
+                    ) {
+                        HouseholdView()
+                    }
+                }
+
+                if FamilyLinkAvailability.isLive {
+                    SettingsRowDivider()
+
+                    SettingsNavRow(
+                        Copy.family.rowLabel,
+                        systemImage: "person.2.fill",
+                        tint: SettingsPalette.goals
+                    ) {
+                        FamilyLinkView()
+                    }
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
                     Copy.settings.gymSetupRowLabel,
                     systemImage: "dumbbell.fill",
                     tint: SettingsPalette.gym,
@@ -531,6 +588,17 @@ struct SettingsView: View {
                     tint: SettingsPalette.sleep
                 ) {
                     BedtimeGateSetupView()
+                }
+
+                SettingsRowDivider()
+
+                SettingsNavRow(
+                    Copy.sleep.rowLabel,
+                    systemImage: "bed.double.fill",
+                    tint: SettingsPalette.sleep,
+                    value: SleepStore.settings.checkInEnabled ? Copy.focusLock.rowValueOn : nil
+                ) {
+                    SleepInsightsView()
                 }
 
                 SettingsRowDivider()

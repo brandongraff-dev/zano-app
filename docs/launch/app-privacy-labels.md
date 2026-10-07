@@ -284,7 +284,7 @@ clean).
 | `NFCReaderUsageDescription` | "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock." | `NFCReader.swift`, `NFCWriter.swift` | OK. It also **writes** tags (`NFCWriter`). Consider "reads and sets up ZANO tags…" |
 | `NSCameraUsageDescription` | "ZANO uses the camera to scan food barcodes and photograph meals to log protein." | `MealPhotoCapture.swift`, VisionKit scanner in `FuelView.swift` | OK today. When meal vision goes live, add: "Meal photos you choose to analyze are sent securely to estimate protein." |
 | `NSMotionUsageDescription` | "ZANO uses motion data to verify workouts and prevent goal spoofing." | `MotionAntiCheat.swift`, `GymVerifier.swift`, `HomeWorkoutVerifier.swift`, `SunriseAlarmManager.swift` (`CMPedometer`) | OK. Optionally mention the Sunrise Alarm step check |
-| `NSCalendarsFullAccessUsageDescription` | "ZANO checks how busy your day is so it can go easier on your goals on packed days." | `CalendarAwareness.swift` (opt-in now triggered from `TodayView.swift` ~line 1909) | Good. Suggested addition: "It only counts events and never reads or uploads their details." The `project.yml` comment saying "nothing in the app calls that opt-in yet" is stale |
+| `NSCalendarsFullAccessUsageDescription` | "ZANO reads your calendar on this iPhone, never uploading it. It counts how busy your day is, and, only if you turn on Focus lock, uses meeting and focus-block times and titles to lock your apps while they run." | `CalendarAwareness.swift` (opt-in now triggered from `TodayView.swift` ~line 1909) | Good. Suggested addition: "It only counts events and never reads or uploads their details." The `project.yml` comment saying "nothing in the app calls that opt-in yet" is stale |
 | `NSAlarmKitUsageDescription` | "ZANO schedules your Sunrise Alarm…" | `SunriseAlarmManager.swift` | String fine. **Key name is UNVERIFIED** (flagged in `project.yml`). Confirm it against the iOS 26 SDK |
 | Watch `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription` | "…heart rate and workouts on your wrist…" / "…save workouts you start from your wrist." | `WatchWorkoutSessionController.swift` (`toShare: [workoutType]`) | OK |
 
@@ -344,3 +344,16 @@ Notifications need no plist string (requested in `Screen14FirstWin.swift`).
 - Whether Sign in with Apple will ship (there's no code for it).
 - How squad members are displayed to each other. `SquadMember` has no display-name field, so
   what other users see may change when the feature is finished.
+
+
+## 7. Added 2026-10-06 (sessions 17-23): re-answer these when the features go live
+
+- **Calendar (Focus lock):** event titles are read on the device and never leave it, so the label answer
+  stays "Data Not Collected" for Calendar. The usage string was rewritten to say so.
+- **Sleep:** read from Apple Health on request, kept on the device. Same: not collected.
+- **Family Link (switched off in the build until Supabase and sign-in are live):** when on, a parent's and a
+  teen's identifier, task text and one proof photo go to Supabase. Add **User ID**, **Other User Content**
+  and **Photos or Videos** (linked to the person, not for tracking, purpose App Functionality) the same day
+  it ships, and publish the privacy-policy row marked `[CONFIRM WHEN FAMILY LINK IS LIVE]`.
+- **Household (switched off in the build until Supabase and sign-in are live):** when on, add **Other User Content** (task text) and **User ID** with Family Link's answers; same publishing rule as the privacy-policy row marked `[CONFIRM WHEN HOUSEHOLD IS LIVE]`.
+- **Background modes:** none declared since 2026-10-06 (location removed).

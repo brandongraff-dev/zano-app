@@ -146,12 +146,20 @@ extension DeviceActivityName {
 extension ManagedSettingsStore {
     /// Shields exactly `selection` (apps, categories, web domains). Shared by `LockEngineManager`
     /// and `ScheduledLockMonitor` (the `ZANOMonitor` extension) so both shield identically.
-    func applyZanoShield(_ selection: FamilyActivitySelection) {
-        shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
-        shield.applicationCategories = selection.categoryTokens.isEmpty
+    ///
+    /// Apps kept open by an active context rule (`ContextRules`, spec §5.26) are taken out first, so a
+    /// work app can stay open during work hours while everything else stays locked. Rules only ever
+    /// remove apps from a shield.
+    func applyZanoShield(_ selection: FamilyActivitySelection, now: Date = .now) {
+        let open = ContextRules.exemptTokens(now: now)
+        let apps = selection.applicationTokens.subtracting(open.applications)
+        let categories = selection.categoryTokens.subtracting(open.categories)
+        let domains = selection.webDomainTokens.subtracting(open.webDomains)
+        shield.applications = apps.isEmpty ? nil : apps
+        shield.applicationCategories = categories.isEmpty
             ? nil
-            : .specific(selection.categoryTokens)
-        shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
+            : .specific(categories, except: open.applications)
+        shield.webDomains = domains.isEmpty ? nil : domains
     }
 }
 
@@ -322,7 +330,10 @@ public final class LockEngineManager {
             LockEngineSharedState.spendWindow = nil
             activityCenter.stopMonitoring([LockScheduleActivity.spend])
         }
-        if LockEngineSharedState.scheduleOwnedLock?.sessionID == sessionID {
+        if let owned = LockEngineSharedState.scheduleOwnedLock, owned.sessionID == sessionID {
+            // Ending a calendar focus lock early by emergency unlock tells the focus lock's memory
+            // that this event is one the user doesn't want locked (two of those and it stops asking).
+            if unlockKind == .emergency { FocusLockStore.recordEndedEarly(activityRawName: owned.activityRawName) }
             LockEngineSharedState.scheduleOwnedLock = nil
         }
         if unlockKind == .earned {

@@ -56,7 +56,10 @@ leaves your iPhone (or your paired Apple Watch). "Leaves device" names who recei
 | **Travel detection** | The last location your iPhone already knows (ZANO never starts a new location request for this), reduced to a "home area" and a distance from it | To suggest Travel Mode when you're away from home, so your goals adapt | On device. To show a city name, the coordinates are sent to **Apple's** reverse-geocoding service | Only works if you've already granted location for gyms |
 | **Nearby food search** | Your last known location, if you've already granted it | To bias a "high-protein food nearby" search | Handed to **Apple Maps** when you tap the button. ZANO stores nothing | Only when you tap it |
 | **Motion & Fitness** | Activity type (for example walking or driving) and, for the Sunrise Alarm, step counts | Anti-cheat: a gym visit doesn't count while you're driving, and the alarm can require you to get up and walk | On device only | Optional, through the iOS permission prompt |
-| **Calendar** (opt-in) | Only the **number** of timed events on a given day. ZANO never reads event titles, attendees, locations or notes | To go easier on your goals on packed days | On device only | Off unless you turn it on. Revoke anytime in iOS Settings |
+| **Calendar** (opt-in) | The **number** of timed events on a day (busy-day check). If you turn on **Focus lock**: the start and end time, title and whether other people are invited, for events in the next two days, and a one-way fingerprint of an event title to remember your yes or no. Never location or notes | To go easier on your goals on packed days, and, only with Focus lock on, to lock your apps during meetings and focus blocks you choose | On device only; never uploaded | Off unless you turn it on. Revoke anytime in iOS Settings |
+| **Sleep wind-down** (opt-in) | Your morning "how did you sleep" answers, the hours you slept (read from Apple Health if you allow it), and when you picked up the phone after bedtime | To show how your habits relate to your sleep and suggest a bedtime at most 30 minutes earlier | On device only; never uploaded; one button deletes it | Off unless you turn it on |
+| **Family Link** (opt-in) `[CONFIRM WHEN FAMILY LINK IS LIVE]` | A parent and a teen's account IDs, the tasks a parent sets, hand-in times and, if a parent asks for proof, one photo | To let a parent set tasks and a teen hand them in | Stored on our servers (**Supabase**, `[SUPABASE REGION]`). The photo is private, can be opened once by the parent, and is deleted 10 minutes after that, or 24 hours after upload if never opened. Never used to train models or shown to anyone else | Teen must accept the link and can leave any time |
+| **Household** (opt-in) `[CONFIRM WHEN HOUSEHOLD IS LIVE]` | The household's name, each member's account ID and the name they chose to show, and the shared tasks: title, notes, due time, who it is given to and who finished it | To keep one shared task list for the people someone lives or works with | Stored on our servers (**Supabase**, `[SUPABASE REGION]`) and visible only to the household's members. Finished tasks are cleared after 14 days. Leaving removes you from the list | Invite-only; anyone can leave at any time |
 | **NFC tags** | Which ZANO tag you tapped and what you mapped it to (for example "water, 500 ml") | One-tap logging and lock/unlock | On device only | Optional |
 | **Meal photos** | Photos you take or pick to log a meal or meal prep | To estimate protein and suggest quick repeats of meals you eat often | Saved on your device. [CONFIRM WHEN MEAL VISION IS LIVE: the photo is uploaded to a private storage folder only your account can access (Supabase). Our server then sends it to our AI provider (**Anthropic**, Claude API) for a protein estimate, and you confirm or edit the number.] | Optional. Manual entry always works |
 | **Barcode scan** | The barcode number of a food product you scan | To look up protein per serving | Sent to **Open Food Facts** (a public, non-profit food database) along with your device's IP address and a generic app identifier. No account or user ID is sent | Optional |
@@ -208,16 +211,17 @@ days (45 days under CCPA).
 
 ## 9. Children
 
-ZANO is not for children. You must be **at least 16 years old** to use ZANO. We don't knowingly
-collect personal information from anyone under 16. If you believe a child has given us data,
+ZANO is not for young children. You must be **at least 13 years old** to use ZANO (or the age of
+digital consent where you live, if higher). We don't knowingly collect personal information from
+anyone under 13. People aged 13 to 17 use ZANO on their own: no public profile, no behavioural
+advertising, and no sale or sharing of personal data. A parent can link only if the teen accepts. If you believe a child has given us data,
 email [CONTACT EMAIL] and we'll delete it.
 
-> Internal note on choosing the age: the spec (§24) says "rate 17+ … no under-13 users". Apple's 2025
-> age-rating system replaced 12+/17+ with 4+/9+/13+/16+/18+ [UNVERIFIED in this session, so
-> check App Store Connect]. A **16+ minimum** avoids COPPA (under 13) and the GDPR parental-consent
-> age (up to 16, depending on the EU country). It also fits the health and self-restriction nature
-> of the app. Set the App Store age rating to the matching or a higher tier, and keep the Terms of
-> Use (§2) and this section in sync.
+> Internal note on the age (founder decision 2026-10-05): **13+**, replacing 16+. Under 13 stays out
+> (COPPA). Teens 13-17 use the app on their own, so teen defaults apply to every under-18 user. In EU
+> countries where the age of digital consent is above 13 (up to 16) the minimum is that local age, as
+> the Terms say. [UNVERIFIED: counsel must review this, and check the live App Store Connect age
+> questionnaire.] Keep the Terms of Use (§2) and this section in sync.
 
 ## 10. Security
 

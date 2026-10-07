@@ -99,17 +99,17 @@ targets:
         # Matches what Core actually reads: step count (StepsVerifier requests it), workouts
         # (HomeWorkoutVerifier) and heart rate (GymVerifier / GymAutoDetect / HomeWorkoutVerifier).
         # Nothing reads sleep, so it is not mentioned.
-        NSHealthShareUsageDescription: "ZANO reads your steps, workouts, and heart rate to verify goals automatically, without you having to log them."
+        NSHealthShareUsageDescription: "ZANO reads your steps, workouts, and heart rate to verify goals automatically, and, only if you turn it on in Sleep settings, how long you slept. It never writes to Health."
         # Nothing writes to Health yet (every requestAuthorization passes `toShare: []`). Kept so a
         # HealthKit-linked binary never trips a missing-purpose-string check; no prompt shows it today.
         NSHealthUpdateUsageDescription: "ZANO may save workouts you start from inside the app."
         NFCReaderUsageDescription: "ZANO reads ZANO tags to log actions like water, protein, or a lock/unlock."
         NSCameraUsageDescription: "ZANO uses the camera to scan food barcodes and photograph meals to log protein."
         NSMotionUsageDescription: "ZANO uses motion data to verify workouts and prevent goal spoofing."
-        # CalendarAwareness (Core/Sources/Core/Retention) can call EKEventStore.requestFullAccessToEvents()
-        # from its opt-in; nothing in the app calls that opt-in yet, but EventKit is linked and
-        # iOS 17+ traps a full-access request with no purpose string, so declare it up front.
-        NSCalendarsFullAccessUsageDescription: "ZANO checks how busy your day is so it can go easier on your goals on packed days."
+        # CalendarAwareness (busy-day count) and the work-hours focus lock (FocusLockCalendarSource)
+        # both call EKEventStore.requestFullAccessToEvents() from their own opt-ins. The string must
+        # say what the focus lock reads: titles and whether others are invited, on the device only.
+        NSCalendarsFullAccessUsageDescription: "ZANO reads your calendar on this iPhone, never uploading it. It counts how busy your day is, and, only if you turn on Focus lock, uses meeting and focus-block times and titles to lock your apps while they run."
         # AlarmKit (iOS 26+) — SunriseAlarmManager calls AlarmManager.shared.requestAuthorization().
         # UNVERIFIED key name: believed to be NSAlarmKitUsageDescription per Apple's AlarmKit docs;
         # confirm against the iOS 26 SDK on first Mac/CI run.
@@ -139,8 +139,9 @@ targets:
         # NOTE: HealthKit has no UIBackgroundModes value. StepsVerifier's HKObserverQuery +
         # enableBackgroundDelivery wakes the app through the
         # `com.apple.developer.healthkit.background-delivery` entitlement instead.
-        UIBackgroundModes:
-          - location
+        # No UIBackgroundModes: the gym geofence uses CLMonitor, which relaunches the app on its own,
+        # and nothing runs continuous background location (App Review 2.5.4; docs/launch/review-notes.md
+        # RISK 2). Walk a real gym arrival on a device before submitting to confirm.
         # Registers the `zano://` URL scheme (added in the 2026-09-23 wiring-wave review).
         # `ZANOApp`'s `.onOpenURL` -> `AppRouter.handle(url:)` already routes `zano://tag/<uuid>`
         # (NFC tag URLs, spec §6/§14), `zano://goals` / `zano://emergency` (ShieldAction

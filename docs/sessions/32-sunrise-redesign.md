@@ -1,4 +1,4 @@
-# Session 14 — Sunrise Alarm redesign (sun character, wake moment, layout)
+# Session 32 — Sunrise Alarm redesign (sun character, wake moment, layout)
 
 - **Branch:** `claude/sunrise-redesign` (based on `claude/sharp-euler-npwt08`)
 - **Spec sections:** §5.10 (Bedtime Gate & Sunrise Alarm), §15 (motion: "unlock celebration <= 1.2s", "haptics on every verified event")

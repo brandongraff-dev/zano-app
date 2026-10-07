@@ -58,6 +58,7 @@ enum ScreenshotMode {
     static func prepare(screen name: String) {
         DemoData.seed()
         applyBuddyArgument()
+        applyOutfitArgument(screen: name)
 
         if name.hasPrefix("tab-") {
             AppRouter.shared.completeOnboarding()
@@ -81,6 +82,37 @@ enum ScreenshotMode {
             SharedDefaults.store.set(buddy.rawValue, forKey: Buddy.storageKey)
         } else {
             SharedDefaults.store.removeObject(forKey: Buddy.storageKey)
+        }
+    }
+
+    /// A few tasks around today so the calendar shot shows dots, an agenda and an overdue item.
+    private static func seedPlannerDemo() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        func day(_ offset: Int, hour: Int? = nil) -> Date {
+            let d = cal.date(byAdding: .day, value: offset, to: today) ?? today
+            return hour.flatMap { cal.date(bySettingHour: $0, minute: 0, second: 0, of: d) } ?? d
+        }
+        PlannerStore.tasks = [
+            PlannerTask(title: "Send the invoice", due: day(-1)),
+            PlannerTask(title: "Call the dentist", due: day(0, hour: 15), hasTime: true, remind: true),
+            PlannerTask(title: "Read chapter 4", due: day(0)),
+            PlannerTask(title: "Plan next week", due: day(2, hour: 10), hasTime: true),
+            PlannerTask(title: "Renew passport", due: day(5)),
+        ]
+    }
+
+    /// The Buddy Closet shot (and any run with `-ZANOOutfit demo`) shows a dressed buddy; every other
+    /// shot clears the saved outfit, so an earlier launch can't leave one behind.
+    private static func applyOutfitArgument(screen name: String) {
+        if name == "planner" { seedPlannerDemo() } else { PlannerStore.tasks = [] }
+        let buddy = Buddy.stored
+        let wantsDemo = name == "buddy-closet" || UserDefaults.standard.string(forKey: "ZANOOutfit") == "demo"
+        if wantsDemo {
+            BuddyOutfit(skin: .sunset, hat: .hatWizard, eyewear: .eyewearRoundGlasses, neck: .neckBowtie,
+                        backdrop: .backdropSunrise).save(for: buddy)
+        } else {
+            SharedDefaults.store.removeObject(forKey: BuddyOutfit.storageKey(for: buddy))
         }
     }
     #endif
@@ -124,6 +156,12 @@ struct ScreenshotHost: View {
         case "buddy-picker":
             // As pushed from Settings > Buddy (onboarding-2 shows it inside the flow's chrome).
             NavigationStack { BuddyPickerView(context: .settings) }
+        case "buddy-closet":
+            NavigationStack { BuddyClosetView() }
+        case "planner":
+            PlannerView()
+        case "characters":
+            CharacterSheet()
         case "locksetup":
             NavigationStack { LockSetupView() }
         case "trophy":
@@ -207,6 +245,15 @@ struct ScreenshotHost: View {
             MonthlyStoryView(
                 story: MonthlyStory(year: 2026, month: 9, earnedDays: 21, earnedUnlocks: 26,
                                     lockedMinutes: 84 * 60, bestStreak: 12, topGoalTitle: "Gym session"),
+                onDismiss: {}
+            )
+        case "earned-it-clip":
+            // One still frame of the clip's payoff beat (the video itself is made on a device).
+            EarnedItClipScene(buddy: Buddy.stored, goalName: "Gym session", streak: 14, doneGoal: .workoutGym, progress: 0.8)
+        case "year-in-review":
+            YearInReviewView(
+                review: YearInReview(year: 2026, earnedDays: 212, earnedUnlocks: 260, lockedMinutes: 900 * 60,
+                                     bestStreak: 41, topGoalTitle: "Gym session", bestMonth: 3, bestMonthDays: 27),
                 onDismiss: {}
             )
         default:
@@ -405,3 +452,33 @@ private struct AlarmSoundPreviewHost: View {
     @State private var sound = AlarmSoundChoice.daybreak
     var body: some View { AlarmSoundView(sound: $sound) }
 }
+
+#if DEBUG
+/// Every new page companion on one screen: Cal's four moods, the streak's fire and ice faces, and the
+/// four tab buddies (session 29). Screenshot runs only.
+private struct CharacterSheet: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                Text("Cal").font(Theme.Typography.title).foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach(CalPose.allCases, id: \.self) { CalSprite($0, size: 72) }
+                }
+                Text("Streak").font(Theme.Typography.title).foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach([BuddyPose.blaze, .frozen, .sleepy], id: \.self) { StoredBuddySprite(pose: $0, size: 96) }
+                }
+                Text("Tabs").font(Theme.Typography.title).foregroundStyle(Theme.Colors.text)
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach([BuddyPose.guarding, .eating, .analyzing, .tinkering], id: \.self) { StoredBuddySprite(pose: $0, size: 72) }
+                }
+                StreakPill(count: 14)
+                StreakPill(count: 3, isFrozen: true)
+                StreakPill(count: 0)
+            }
+            .padding(Theme.Spacing.lg)
+        }
+        .zanoBackdrop()
+    }
+}
+#endif

@@ -1,6 +1,6 @@
 // Core/Tests/CoreTests/SunriseAlarmRepeatTests.swift
 //
-// Session 14: repeat days, sounds and the backup alarm (docs/spec.md §5.10). Covers the pure parts:
+// Session 32: repeat days, sounds and the backup alarm (docs/spec.md §5.10). Covers the pure parts:
 // the next ring time for each repeat pattern, the Repeat row's wording, and that a settings row saved
 // before these fields existed still decodes (it must keep its wake time, not fall back to defaults).
 

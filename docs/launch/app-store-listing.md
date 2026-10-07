@@ -1,6 +1,6 @@
 # ZANO — App Store listing (v1.0)
 
-Status: **draft for the first submission, 2026-10-02** (updated the same day: age rating 16+
+Status: **draft for the first submission, 2026-10-02** (updated the same day: age rating 13+
 decided, squads/leaderboards hidden in v1, trial reminder and paywall grace period described). Supersedes `docs/marketing/app-store-listing.md`,
 which predates the hard-paywall decision (spec §21, 2026-09-23) and still describes a Free tier and
 "ZANO Pro". Don't paste from that file.
@@ -229,10 +229,10 @@ chart placement, so decide on purpose, not by default.
 
 ## 7. Age rating
 
-**Decision (founder, 2026-10-02): 16+.** It keeps the whole 17–27 target audience (spec §1), keeps
-under-13s and most COPPA complexity out, and replaces spec §24's "17+" (that scale no longer
-exists; Apple's old 17+ maps to the new 18+, which would exclude 17-year-olds). Update spec §24 to
-match.
+**Decision (founder, 2026-10-05): 13+** (replacing the 2026-10-02 decision of 16+). Anyone 13 or older
+can use ZANO on their own, so teen protections apply to every under-18 user (spec §24, §5.23).
+Under-13s stay out, which keeps COPPA out. Counsel should review the answers below before
+submission, and the live App Store Connect questionnaire may differ from what is recorded here.
 
 Background: spec §24 says "rate 17+ initially (avoid COPPA/teen data complexity). No under-13 users." Apple
 replaced the 4+/9+/12+/17+ scale in 2025 with **4+ / 9+ / 13+ / 16+ / 18+** and a longer
@@ -256,10 +256,10 @@ Honest answers for ZANO 1.0:
 | User-generated content | **No for 1.0** | Squads and leaderboards are hidden in v1. Answer **Yes** the release they ship (names, nudges). |
 | Messaging / chat | No | — |
 | Advertising | No | — |
-| Parental controls | No | ZANO uses Family Controls in *individual* mode, not parental controls. |
+| Parental controls | No at 1.0 | ZANO uses Family Controls in *individual* mode. Optional parent linking (spec §5.23) is teen-consented and comes later; answer this again when it ships. |
 | Age assurance | No | — |
 
-**Set the rating to 16+.** The questionnaire will likely compute 4+ or 9+; App Store Connect lets
+**Set the rating to 13+.** The questionnaire will likely compute 4+ or 9+; App Store Connect lets
 you choose a higher rating than the computed one (verify this option still exists when you set it;
 if it doesn't, record what the questionnaire allows and raise it with the founder before
 submitting).

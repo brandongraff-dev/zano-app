@@ -19,7 +19,10 @@ on:
         description: "Optional: space-separated screen names. Shoots only these (main device, no SE/light/buddy passes) so a focused check takes minutes, not an hour."
         required: false
         default: ""
-
+      skip_tour:
+        description: "Skip the screenshot tour (about 20 minutes): faster build and test feedback"
+        type: boolean
+        default: false
 
 jobs:
   build-and-test:
@@ -83,6 +86,8 @@ jobs:
       - name: Run Core unit tests (iOS Simulator)
         id: tests
         if: always()
+        # A hung test must end the step (and let the logs upload) instead of eating the whole job.
+        timeout-minutes: 15
         working-directory: Core
         run: |
           set -o pipefail
@@ -110,7 +115,7 @@ jobs:
       # launch is diagnosable without a Mac.
       - name: Screenshot tour (iOS Simulator)
         id: shots
-        if: always() && steps.build.outcome == 'success'
+        if: always() && steps.build.outcome == 'success' && github.event.inputs.skip_tour != 'true'
         continue-on-error: true
         # A hung simulator used to hold the whole job for ~90 minutes and take the already-captured
         # screenshots with it (run 81, 2026-10-05). The tour normally takes about 20 minutes. With a
@@ -154,12 +159,12 @@ jobs:
           # demo data and renders that screen through the real code paths.
           ONLY="$SCREENS_INPUT"
           SCREENS="onboarding-1 onboarding-2 onboarding-3 onboarding-4 onboarding-5 onboarding-6 onboarding-7 onboarding-8
-                   buddy-picker paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
+                   buddy-picker buddy-closet planner characters paywall tab-today tab-lock tab-fuel tab-squad tab-progress tab-settings
                    locksetup trophy cosmetics sunrise-setup bedtime-setup alarm-ringing wake-moment sun-moods repeat-days alarm-sound
                    celebration lockedout recap
                    gym-setup gym-checkin nfc-tags lock-card goals-editor lock-schedule earn-settings
                    tier-editor nudge-settings health-pause solo-duel squad-create referral
-                   gym-leaderboard autofocus milestone monthly-story"
+                   gym-leaderboard autofocus milestone monthly-story year-in-review earned-it-clip"
           if [ -n "$ONLY" ]; then SCREENS="$ONLY"; fi
           for SCREEN in $SCREENS; do
             sim terminate "$SIM_ID" com.zano.app 2>/dev/null || true
@@ -167,6 +172,23 @@ jobs:
             sleep 5
             sim io "$SIM_ID" screenshot "shots/$SCREEN.png"
           done
+          # Onboarding clips (session 30): the character animations only show in motion, so each
+          # onboarding step is also recorded for ~6s from launch (intros only: CI cannot tap).
+          # Saved as shots/clip-onboarding-N.mp4. A recorder that ignores SIGINT is killed after 10s.
+          # Skipped on a focused run (the screens input).
+          if [ -z "$ONLY" ]; then
+            for N in 1 2 3 4 5 6 7 8; do
+              xcrun simctl terminate "$SIM_ID" com.zano.app 2>/dev/null || true
+              xcrun simctl io "$SIM_ID" recordVideo --codec=h264 --force "shots/clip-onboarding-$N.mp4" &
+              REC=$!
+              sleep 1
+              xcrun simctl launch "$SIM_ID" com.zano.app -ZANOScreen "onboarding-$N" || echo "CLIP LAUNCH FAILED: $N"
+              sleep 6
+              kill -INT "$REC" 2>/dev/null || true
+              for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$REC" 2>/dev/null || break; sleep 1; done
+              kill -9 "$REC" 2>/dev/null || true
+            done
+          fi
           sim spawn "$SIM_ID" log show --style compact --last 3m \
             --predicate 'process == "ZANO"' > shots/app.log 2>&1 || true
           cp ~/Library/Logs/DiagnosticReports/ZANO* shots/ 2>/dev/null || true

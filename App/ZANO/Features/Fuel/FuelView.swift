@@ -392,6 +392,7 @@ struct FuelView: View {
             }
         }
         .navigationTitle(Copy.fuel.screenTitle)
+        .pageBuddy(.eating)
         .sensoryFeedback(.success, trigger: logTick)
         .task {
             Analytics.shared.capture(

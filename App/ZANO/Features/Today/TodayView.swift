@@ -92,6 +92,8 @@ struct TodayView: View {
 
     // MARK: - Data
 
+    @State private var showPlanner = false
+    @State private var plannerReloadToken = 0
     @Query private var users: [User]
     @Query private var goals: [Goal]
     @Query private var goalEvents: [GoalEvent]
@@ -229,6 +231,14 @@ struct TodayView: View {
                     TrialEarnedCard()
                     // First week only: one tip a day from the buddy (draws nothing otherwise).
                     BuddyTipCard()
+                    // Mornings only, and only when the sleep check-in is on (draws nothing otherwise).
+                    SleepCheckInCard()
+                    // Only while the work-hours focus lock has a question about an upcoming meeting.
+                    FocusLockAskCard()
+                    // For 15 minutes after a verified focus block (draws nothing otherwise).
+                    BreakCoachCard()
+                    // Open tasks due today or earlier (draws nothing when there are none).
+                    PlannerTodayCard(reloadToken: plannerReloadToken) { showPlanner = true }
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist
@@ -275,6 +285,9 @@ struct TodayView: View {
             }
             .navigationDestination(isPresented: $showNFCTags) {
                 NFCTagsView()
+            }
+            .sheet(isPresented: $showPlanner, onDismiss: { plannerReloadToken += 1 }) {
+                PlannerView()
             }
             .sheet(isPresented: $showHealthPrimer) {
                 HealthPermissionPrimer(onFinished: {
@@ -395,12 +408,27 @@ struct TodayView: View {
 
     // MARK: - Header
 
+    /// Cal's mood on Today's calendar button.
+    private var calPose: CalPose {
+        let overdue = PlannerAgenda.dueNow(tasks: PlannerStore.tasks).contains {
+            ($0.due ?? .now) < Calendar.current.startOfDay(for: .now)
+        }
+        return overdue ? .alarm : .idle
+    }
+
     /// The wordmark on the left, the streak on the right. v2: the date caption is gone (the phone's
     /// own clock says it; one fewer small grey line).
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
             ZanoWordmark(height: 18)
             Spacer(minLength: Theme.Spacing.sm)
+            Button { showPlanner = true } label: {
+                // Cal, the calendar character: worried while something is overdue, calm otherwise.
+                CalSprite(calPose, size: 36)
+                    .frame(width: Theme.Metrics.minTapTarget, height: Theme.Metrics.minTapTarget)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.planner.openLabel)
             StreakPill(
                 count: streak?.current ?? 0,
                 isFrozen: isStreakFrozenToday,
@@ -1070,7 +1098,8 @@ struct TodayView: View {
             primaryLine: primary,
             secondaryLine: secondary,
             isRequired: required,
-            trailing: trailing(for: goal, progress: p)
+            trailing: trailing(for: goal, progress: p),
+            goalType: goal.type
         )
     }
 

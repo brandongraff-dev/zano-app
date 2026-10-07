@@ -444,6 +444,15 @@ public final class BedtimeGateManager {
         logger.notice("Sleep goal broken by a pickup after bedtime.")
     }
 
+    /// Whether the phone was picked up after bedtime on the night that began at `nightStart`.
+    /// `nil` when there is no user or no Sleep goal to say (the sleep wind-down treats that as unknown).
+    public func pickedUpAfterBedtime(nightStarting nightStart: Date) -> Bool? {
+        guard let user = try? fetchCurrentUser(),
+              let sleepGoal = try? IntentSupport.activeGoal(ofType: .sleepOnTime, for: user.id, in: context)
+        else { return nil }
+        return hasPickupMissLogged(goalID: sleepGoal.id, forNightOf: nightStart)
+    }
+
     /// Mirrors `LockEngineManager.isGoalVerified`/`StreakEngine`'s documented `#Predicate`-
     /// conservatism tradeoff: only the `Date` field goes into the predicate (this session has no
     /// Mac/Swift toolchain to compile-verify how SwiftData's `#Predicate` macro handles a custom

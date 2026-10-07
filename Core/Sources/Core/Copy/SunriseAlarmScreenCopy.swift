@@ -199,7 +199,7 @@ extension Copy {
     }
 }
 
-// MARK: - Repeat days, sounds, backup alarm (session 14)
+// MARK: - Repeat days, sounds, backup alarm (session 32)
 //
 // The three rows of the alarm editor, worded the way the iOS Clock app words them.
 

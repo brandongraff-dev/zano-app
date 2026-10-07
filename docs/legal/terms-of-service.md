@@ -19,9 +19,11 @@ these Terms. If you don't agree, don't use the app.
 
 ## 1. Eligibility
 
-You must be at least **17 years old** to use ZANO (matching its App Store age rating), or the
-minimum age of digital consent in your jurisdiction if that's higher. ZANO is not directed at
-children under 13, and we do not knowingly allow anyone under 13 to create an account.
+You must be at least **13 years old** to use ZANO (matching its App Store age rating), or the
+minimum age of digital consent in your jurisdiction if that's higher. If you are under 18, you may
+use ZANO on your own; a parent or guardian can optionally link to your account only if you accept
+their invite. ZANO is not directed at children under 13, and we do not knowingly allow anyone under
+13 to create an account.
 
 ## 2. What ZANO is (and isn't)
 

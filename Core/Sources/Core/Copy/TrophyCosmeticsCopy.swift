@@ -120,6 +120,7 @@ extension Copy {
             case .ringStyle: "Ring styles"
             case .shieldBackground: "Shield backgrounds"
             case .coachVoicePack: "Coach voice packs"
+            case .buddyStyle: "Buddy closet"
             }
         }
 
@@ -127,11 +128,11 @@ extension Copy {
         /// defines today; an unrecognized future key falls back to a title-cased rendering rather
         /// than a blank label, same fallback `Copy.badges.title(forKey:)` uses.
         public static func title(forKey key: String) -> String {
-            fixedTitles[key] ?? Copy.badges.title(forKey: key)
+            fixedTitles[key] ?? Copy.buddyStyle.title(forCosmeticKey: key) ?? Copy.badges.title(forKey: key)
         }
 
         public static func itemDescription(forKey key: String) -> String {
-            fixedDescriptions[key] ?? "A cosmetic reward from your verified goals."
+            fixedDescriptions[key] ?? Copy.buddyStyle.description(forCosmeticKey: key) ?? "A cosmetic reward from your verified goals."
         }
 
         private static let fixedTitles: [String: String] = [

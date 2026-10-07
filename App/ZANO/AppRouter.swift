@@ -62,6 +62,10 @@ enum AppDeepLink: Equatable, Sendable {
     /// `zano://emergency` — `ShieldActionExtension`'s "Emergency". Lands on the Lock tab, whose
     /// `LockStatusView` carries the emergency-unlock hold for the active session.
     case emergency
+    /// `zano://timebank` — the Time Bank widget's "Spend" link and tap target (session 35). Lands
+    /// on the Lock tab, where `LockStatusView` offers the spend/borrow chips. Spending can't run in
+    /// the widget: it lifts shields, which needs the app's Family Controls entitlement.
+    case timeBank
     /// The Settings tab, where the gym and NFC-tag setup steps live. Deliberately *not* parsed from a
     /// URL (`init?(url:)` never returns it): no widget, extension or tag posts a `zano://settings`
     /// link, so an outside URL has no business steering the app here. Only
@@ -108,6 +112,7 @@ enum AppDeepLink: Equatable, Sendable {
             self = parts.first?.lowercased() == "end" ? .endFocus : .today
         case "goals": self = .goals
         case "emergency": self = .emergency
+        case "timebank": self = .timeBank
         case "gym": self = .gymSetup
         case "fuel": self = .fuel
         case "progress": self = .progress
@@ -297,7 +302,7 @@ final class AppRouter {
                 // The onboarding first-win screen runs its own session controls; a stale Live
                 // Activity link must not end that session behind its back.
                 logger.notice("Dropping a focus-end link received before onboarding finished.")
-            case .today, .goals, .emergency, .settings, .gymSetup, .fuel, .progress, .squad, .invite:
+            case .today, .goals, .emergency, .timeBank, .settings, .gymSetup, .fuel, .progress, .squad, .invite:
                 pendingDeepLink = link
             }
             return
@@ -339,7 +344,7 @@ final class AppRouter {
         switch link {
         case .today, .goals:
             selectedTab = .today
-        case .emergency:
+        case .emergency, .timeBank:
             selectedTab = .lock
         case .settings:
             selectedTab = .settings

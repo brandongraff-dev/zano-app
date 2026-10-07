@@ -5,6 +5,8 @@
 // activity catalog) and this session's task. Composes:
 //   - Home Screen widget (Small/Medium/Large) — HomeWidget/ZANOHomeWidget.swift
 //   - Lock Screen widget (circular/rectangular/inline) — LockScreenWidget/ZANOLockScreenWidget.swift
+//   - Time Bank widget (Small/Medium + Lock Screen circular/rectangular/inline) —
+//     TimeBankWidget/ZANOTimeBankWidget.swift (session 35)
 //   - 5 iOS 18 Controls (Start lock + Log Water/Shake/Focus/Creatine) — Controls/ZANOControls.swift
 //   - 3 Live Activities (Focus, Gym dwell, Earn meter) — LiveActivities/*.swift
 //
@@ -22,6 +24,7 @@ struct ZANOWidgetsBundle: WidgetBundle {
     var body: some Widget {
         ZANOHomeWidget()
         ZANOLockScreenWidget()
+        ZANOTimeBankWidget()
 
         ZANOFocusLiveActivity()
         ZANOGymDwellLiveActivity()

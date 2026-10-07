@@ -97,6 +97,57 @@ public enum WidgetCopy {
         total == 0 ? "No goals yet" : "\(done) of \(total) goals done"
     }
 
+    // MARK: - Time Bank widget (session 35, spec §5.2)
+    //
+    // "You've earned 20 min" at a glance. The balance is today's minutes still to spend; they
+    // expire at midnight, so nothing here says "saved" or "total".
+
+    public static let timeBankWidgetDescription = "The minutes you've earned today, ready to spend."
+    public static let timeBankSpendButton = "Spend"
+    public static let timeBankEarnMoreButton = "Earn more"
+    public static let timeBankOpenButton = "Open ZANO"
+    public static let timeBankAllEarned = "All goals banked today"
+    public static let timeBankEmptyHint = "Finish a goal to earn minutes"
+    /// The unit inside the circular Lock Screen gauge.
+    public static let timeBankMinutesUnit = "min"
+
+    /// The words beside the big number: "min earned" until something is spent, then "min left".
+    public static func timeBankUnit(spentMinutes: Int) -> String {
+        spentMinutes > 0 ? "min left" : "min earned"
+    }
+
+    /// "Earned 60 · spent 25", or just "Earned 60" before anything is spent.
+    public static func timeBankEarnedSpent(earned: Int, spent: Int) -> String {
+        spent > 0 ? "Earned \(earned) · spent \(spent)" : "Earned \(earned)"
+    }
+
+    /// "Gym +90 min": the next goal that adds minutes.
+    public static func timeBankNextEarn(title: String, minutes: Int) -> String {
+        "\(title) +\(minutes) min"
+    }
+
+    /// "Time Bank · 35 min" — the rectangular Lock Screen headline.
+    public static func timeBankHeadline(balance: Int) -> String {
+        "\(timeBankTitle) · \(balance) min"
+    }
+
+    /// "35 min earned" / "35 min left" — the inline Lock Screen line.
+    public static func timeBankInline(balance: Int, spent: Int) -> String {
+        "\(balance) \(timeBankUnit(spentMinutes: spent))"
+    }
+
+    /// VoiceOver for the balance: "20 minutes earned", or "35 minutes left, 60 earned and 25 spent
+    /// today", or "No minutes earned yet".
+    public static func timeBankAccessibility(balance: Int, earned: Int, spent: Int) -> String {
+        if earned == 0 && balance == 0 { return "No minutes earned yet" }
+        if spent == 0 { return "\(minutesWord(balance)) earned" }
+        return "\(minutesWord(balance)) left, \(earned) earned and \(spent) spent today"
+    }
+
+    private static func minutesWord(_ minutes: Int) -> String {
+        minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+
     // MARK: - Lock Screen widget
 
     public static let lockScreenConfigTitle = "ZANO Stat"

@@ -283,6 +283,10 @@ public struct StoredBuddySprite: View {
     }
 
     public var body: some View {
+        // `.id(buddy)`: `BuddySprite` reads the outfit through an `@AppStorage` keyed by the buddy,
+        // set in its init. A new identity per buddy makes sure a swap reads the new buddy's outfit
+        // rather than keeping the first key's storage (session 36).
         BuddySprite(buddy, pose: pose, size: size, gear: gear, showsBackdrop: showsBackdrop)
+            .id(buddy)
     }
 }

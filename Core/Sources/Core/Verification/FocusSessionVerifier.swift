@@ -319,7 +319,7 @@ public final class FocusSessionVerifier {
         endedResults[sessionID] = verified
         persist()
 
-        await endActivity(for: session, elapsedSeconds: elapsedSeconds, asOf: now)
+        await endActivity(for: session, elapsedSeconds: elapsedSeconds, verified: verified, asOf: now)
         try logOutcome(record: record, elapsedSeconds: elapsedSeconds, verified: verified, at: now)
         if verified { await onVerified(record.goalID) }
 
@@ -469,8 +469,9 @@ public final class FocusSessionVerifier {
         await activity.update(content)
     }
 
-    /// Ends `session`'s Live Activity (if any) showing its final countdown value.
-    private func endActivity(for session: RunningSession, elapsedSeconds: TimeInterval, asOf now: Date) async {
+    /// Ends `session`'s Live Activity (if any) showing its final countdown value and how it ended
+    /// (`outcome`, so the buddy on it looks proud or rests; session 36).
+    private func endActivity(for session: RunningSession, elapsedSeconds: TimeInterval, verified: Bool, asOf now: Date) async {
         guard let liveActivity = session.activity else { return }
         nonisolated(unsafe) let activity = liveActivity
 
@@ -478,7 +479,11 @@ public final class FocusSessionVerifier {
         let remaining = remainingSeconds(elapsedSeconds: elapsedSeconds, plannedSeconds: plannedSeconds)
 
         let content = ActivityContent(
-            state: FocusActivityAttributes.ContentState(secondsRemaining: remaining, isPaused: session.record.pausedAt != nil),
+            state: FocusActivityAttributes.ContentState(
+                secondsRemaining: remaining,
+                isPaused: session.record.pausedAt != nil,
+                outcome: verified ? .done : .broken
+            ),
             staleDate: nil
         )
         await activity.end(content, dismissalPolicy: .after(now.addingTimeInterval(Self.activityDismissalGracePeriod)))

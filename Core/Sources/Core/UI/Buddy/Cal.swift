@@ -47,12 +47,36 @@ public struct CalSprite: View {
 
 extension View {
     /// A small buddy in the navigation bar's trailing corner, doing something that suits the page
-    /// (guarding on Lock, eating on Fuel, analysing on Progress, tinkering on Settings). Decorative.
+    /// (guarding on Lock, eating on Fuel, analysing on Progress, tinkering on Settings). A page can
+    /// pass a pose that changes with what happens on it (Fuel, session 36); the buddy then pops once,
+    /// like the streak pill, and just swaps faces under Reduce Motion. Decorative.
     public func pageBuddy(_ pose: BuddyPose) -> some View {
         toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                StoredBuddySprite(pose: pose, size: 34)
+                PageBuddy(pose: pose)
             }
         }
+    }
+}
+
+/// The navigation-bar buddy behind `pageBuddy`: pops when its face changes (not under Reduce Motion).
+private struct PageBuddy: View {
+    let pose: BuddyPose
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pop = false
+
+    var body: some View {
+        StoredBuddySprite(pose: pose, size: 34)
+            .scaleEffect(pop ? 1.18 : 1)
+            .animation(reduceMotion ? nil : Theme.Motion.springStandard, value: pop)
+            .onChange(of: pose) { _, _ in
+                guard !reduceMotion else { return }
+                pop = true
+                Task {
+                    try? await Task.sleep(nanoseconds: 220_000_000)
+                    pop = false
+                }
+            }
     }
 }

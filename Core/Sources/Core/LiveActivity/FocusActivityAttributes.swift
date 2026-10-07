@@ -49,9 +49,16 @@ public struct FocusActivityAttributes: ActivityAttributes {
         /// that later session.
         public var isPaused: Bool
 
-        public init(secondsRemaining: Int, isPaused: Bool) {
+        /// How the block ended, set only on the final content `FocusSessionVerifier` ends the
+        /// Activity with (session 36), so the buddy can look proud (verified) or rest (ended early)
+        /// for the grace period the ended Activity stays up. `nil` while it runs. Optional, so
+        /// content encoded before this field existed still decodes.
+        public var outcome: FocusOutcome?
+
+        public init(secondsRemaining: Int, isPaused: Bool, outcome: FocusOutcome? = nil) {
             self.secondsRemaining = secondsRemaining
             self.isPaused = isPaused
+            self.outcome = outcome
         }
     }
 
@@ -72,4 +79,11 @@ public struct FocusActivityAttributes: ActivityAttributes {
         self.goalTitle = goalTitle
         self.plannedMinutes = plannedMinutes
     }
+}
+
+/// How a focus block ended (session 36): `done` reached its planned time and verified, `broken`
+/// ended early. Drives the buddy's face on the ended Live Activity (`BuddyPose.focus`).
+public enum FocusOutcome: String, Codable, Hashable, Sendable {
+    case done
+    case broken
 }

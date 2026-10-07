@@ -1575,7 +1575,12 @@ struct TodayView: View {
                 beginLock(lockSetID: lockSetID, requiredGoalIDs: requiredGoalIDs)
             }
         case .focusRunning:
-            TodayStatusRow(icon: "timer", title: Copy.today.focusRunningTitle, isLive: true)
+            TodayStatusRow(
+                icon: "timer",
+                title: Copy.today.focusRunningTitle,
+                isLive: true,
+                buddyPose: BuddyPose.focus(isPaused: FocusSessionVerifier.shared.activeSession?.isPaused ?? false)
+            )
         case .verifyingAtGym:
             TodayStatusRow(
                 icon: "location.fill",
@@ -2496,13 +2501,19 @@ private struct TodayStatusRow: View {
     let icon: String
     let title: String
     let isLive: Bool
+    /// When set, the user's buddy in this face replaces the icon (the running focus block, session 36).
+    var buddyPose: BuddyPose? = nil
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
             // Pass 3 (restraint): no indefinite pulse on the live glyph; the title carries the state.
-            Image(systemName: icon)
-                .font(Theme.Typography.icon(.medium))
-                .foregroundStyle(Theme.Colors.accent)
+            if let buddyPose {
+                StoredBuddySprite(pose: buddyPose, size: 32)
+            } else {
+                Image(systemName: icon)
+                    .font(Theme.Typography.icon(.medium))
+                    .foregroundStyle(Theme.Colors.accent)
+            }
             Text(title)
                 .font(Theme.Typography.headline)
                 .foregroundStyle(Theme.Colors.text)

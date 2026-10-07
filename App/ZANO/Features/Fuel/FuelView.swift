@@ -306,6 +306,9 @@ struct FuelView: View {
     @State private var isLogging = false
     /// Bumped once per successfully logged amount; drives the `.success` haptic below.
     @State private var logTick = 0
+    /// What was just logged, for a few seconds after a log: the navigation-bar buddy eats or sips
+    /// (or looks proud if that log finished the goal), then settles (session 36, `fuelBuddyPose`).
+    @State private var justLogged: GoalType?
 
     @State private var quickRepeatMeal: Meal?
     @State private var gapOptions: [ProteinGapOption] = []
@@ -392,7 +395,14 @@ struct FuelView: View {
             }
         }
         .navigationTitle(Copy.fuel.screenTitle)
-        .pageBuddy(.eating)
+        .pageBuddy(fuelBuddyPose)
+        // The buddy's after-log face lasts a few seconds, then it settles back to the day's face.
+        .task(id: logTick) {
+            guard justLogged != nil else { return }
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            justLogged = nil
+        }
         .sensoryFeedback(.success, trigger: logTick)
         .task {
             Analytics.shared.capture(
@@ -431,6 +441,7 @@ struct FuelView: View {
             MealCaptureSheet(
                 onLogged: { _ in
                     isMealPhotoSheetPresented = false
+                    justLogged = .protein
                     logTick += 1
                     Task { await refreshFuelState() }
                 },
@@ -922,6 +933,7 @@ struct FuelView: View {
             var intent = QuickRepeatMealIntent()
             intent.meal = MealEntity(id: meal.id, label: mealDisplayName(meal))
             _ = try await intent.perform()
+            justLogged = .protein
             logTick += 1
             // Consumed — clear immediately so the prompt doesn't sit there offering a second,
             // now-stale tap; `refreshFuelState()` (next pull-to-refresh or screen revisit) will
@@ -1018,6 +1030,7 @@ struct FuelView: View {
             default:
                 break
             }
+            justLogged = goalType
             logTick += 1
             if let undoMessage, let eventID = insertedEventID(goalType: goalType, source: source, since: startedAt) {
                 undoItem = FuelUndoItem(message: undoMessage, eventID: eventID)
@@ -1097,6 +1110,17 @@ struct FuelView: View {
     private var waterTarget: Double { waterPlan?.plannedValue ?? waterGoal?.targetValue ?? 0 }
 
     private var proteinGapGrams: Int { max(0, Int((proteinTarget - proteinToday).rounded())) }
+
+    /// The navigation-bar buddy's face (spec §5.17 buddy emotions, session 36; rules in
+    /// `BuddyPose.fuelPage`): eating or sipping right after a log, proud once every fuel goal is
+    /// met, hungry or thirsty before anything is logged, eating otherwise.
+    private var fuelBuddyPose: BuddyPose {
+        BuddyPose.fuelPage(
+            protein: proteinGoal == nil ? nil : BuddyPose.Moment(logged: proteinToday, target: proteinTarget),
+            water: waterGoal == nil ? nil : BuddyPose.Moment(logged: waterToday, target: waterTarget),
+            justLogged: justLogged
+        )
+    }
 }
 
 // MARK: - File-scoped supporting types

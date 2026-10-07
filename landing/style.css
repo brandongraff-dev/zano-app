@@ -547,3 +547,23 @@ h2 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.
   .hero3__phone { width: min(66vw, 270px); align-self: center; margin-top: 6px; }
   .hero3__phone .phone { rotate: 0deg; }
 }
+
+/* legal + support pages (privacy.html, terms.html, support.html; session 33) */
+.legal { padding-block: 112px 64px; max-width: 760px; }
+.legal h1 { font-size: clamp(2rem, 5vw, 2.6rem); letter-spacing: -0.03em; margin: 0 0 24px; }
+.legal h2 { font-size: 1.35rem; letter-spacing: -0.01em; margin: 40px 0 12px; }
+.legal h3 { font-size: 1.05rem; margin: 28px 0 8px; }
+.legal p, .legal li { color: #2a2e3b; }
+.legal li { margin-block: 6px; }
+.legal a { color: var(--blue); }
+.legal code { font-size: 0.9em; background: var(--soft); padding: 1px 5px; border-radius: 5px; }
+.legal hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0; }
+.legal__table { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 12px; }
+.legal table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 560px; }
+.legal th, .legal td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.legal th { background: var(--soft); font-weight: 600; }
+.legal tr:last-child td { border-bottom: 0; }
+.legal__draft { background: #fff4d6; border: 1px solid #f0d58a; border-radius: 10px; padding: 10px 14px; font-weight: 600; }
+.legal__faq dt { font-weight: 600; margin-top: 20px; }
+.legal__faq dd { margin: 6px 0 0; color: #2a2e3b; }
+.footer a { color: inherit; }

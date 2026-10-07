@@ -49,3 +49,6 @@ ml-service/.venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Draft legal page previews (scripts/build-legal-pages.py --draft)
+build/

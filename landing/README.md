@@ -65,3 +65,24 @@ Options (not deployed as part of this change, just noting them):
 
 Whichever host is picked, point the domain/subdomain (e.g. `zano.app` or `waitlist.zano.app`) at
 it and update any links in the bio/content-plan posts (docs/spec.md §22) to match.
+
+## 5. Privacy, Terms and Support pages (session 33)
+
+The app links to `https://zano.app/privacy` and `/terms`, and App Store Connect needs a Support URL.
+App Review opens all three and rejects the app if one is missing.
+
+- **Support** (`support.html`) is hand-written and ready to publish. Keep its answers in step with
+  the app (emergency unlock, Restore purchases, Delete all my data) and its email with
+  `Copy.settings.supportEmail`.
+- **Privacy** and **Terms** are generated from the lawyer-reviewed Markdown in `docs/launch/`:
+
+  ```sh
+  python3 scripts/build-legal-pages.py --draft   # preview in build/legal-draft/ (not for publishing)
+  python3 scripts/build-legal-pages.py           # writes landing/privacy.html + landing/terms.html
+  ```
+
+  The second command refuses to write anything while a `[PLACEHOLDER]` or `[CONFIRM …]` marker is
+  left and lists each one with its line. Internal notes (`>` lines) are always dropped. Edit the
+  Markdown, never the generated HTML.
+- Pretty URLs: the app links `/privacy`, not `/privacy.html`. Netlify, Vercel and GitHub Pages all
+  serve `privacy.html` at `/privacy` by default; check this on the host you pick.

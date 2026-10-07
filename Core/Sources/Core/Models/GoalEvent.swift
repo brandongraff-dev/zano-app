@@ -27,7 +27,8 @@ public enum GoalEventKind: String, Codable, CaseIterable, Sendable {
 }
 
 /// Matches the `goal_events.source` check constraint exactly (`'nfc' | 'widget' | 'photo' |
-/// 'barcode' | 'geofence' | 'healthkit' | 'timer' | 'manual' | 'siri'`).
+/// 'barcode' | 'geofence' | 'healthkit' | 'timer' | 'manual' | 'siri' | 'strava'`; `strava` added by
+/// `0008_strava.sql`, session 40).
 public enum GoalEventSource: String, Codable, CaseIterable, Sendable {
     case nfc
     case widget
@@ -38,6 +39,9 @@ public enum GoalEventSource: String, Codable, CaseIterable, Sendable {
     case timer
     case manual
     case siri
+    /// A workout verified from a Strava activity fetched through the direct Strava link (session 40),
+    /// not from Apple Health.
+    case strava
 }
 
 /// A minimal, self-contained representation of an arbitrary JSON value, used only to give

@@ -165,6 +165,10 @@ struct SettingsView: View {
     /// Mirrors `AutoFocusIntegration.isSetUp` for the row's trailing value; refreshed on appear.
     @State private var autoFocusIsSetUp = AutoFocusIntegration.isSetUp
     @State private var calendarAwarenessOn = false
+    /// Session 40: the Strava row exists only when a Supabase project is in the build and someone is
+    /// signed in (`StravaClient.isAvailable()`), so nothing non-working is visible (App Review 2.1).
+    @State private var stravaAvailable = false
+    @State private var stravaLinked = StravaActivityStore.isLinked
     /// Settings > Appearance (light mode). App Group defaults so widgets match; `ZANOApp` applies it.
     @AppStorage(ZanoAppearance.storageKey, store: SharedDefaults.store)
     private var appearance: ZanoAppearance = .system
@@ -446,6 +450,19 @@ struct SettingsView: View {
                     PlannerSettingsView()
                 }
 
+                if stravaAvailable {
+                    SettingsRowDivider()
+
+                    SettingsNavRow(
+                        Copy.strava.rowLabel,
+                        systemImage: "figure.run",
+                        tint: SettingsPalette.gym,
+                        value: stravaLinked ? Copy.strava.rowValueConnected : nil
+                    ) {
+                        StravaConnectView()
+                    }
+                }
+
                 if HouseholdAvailability.isLive {
                     SettingsRowDivider()
 
@@ -499,6 +516,10 @@ struct SettingsView: View {
                     NFCTagsView()
                 }
             }
+        }
+        .task {
+            stravaAvailable = await StravaClient.shared.isAvailable()
+            stravaLinked = StravaActivityStore.isLinked
         }
     }
 
@@ -927,6 +948,8 @@ struct SettingsView: View {
         // notifications, the Sunrise alarm (AlarmKit + fallback), Live Activities, running focus
         // sessions, and every App Group ledger (milestones, rewards, nudges). Audit N5.
         await DeviceDataReset.eraseDeviceState()
+        // Strava (session 40): best effort, revoke and delete the server-side tokens too.
+        if StravaActivityStore.isLinked { try? await StravaClient.shared.disconnect() }
         SettingsDataReset.clearDefaults()
         MealPhotoStore.deleteAll()
         Analytics.shared.capture(event: "settings_all_data_deleted")
@@ -957,8 +980,10 @@ private enum SettingsDataReset {
 
     /// App-local (`UserDefaults.standard`) keys that describe this person's setup: the morning
     /// schedule created after onboarding (`ContentView.runForegroundChecks`) and a kept referral
-    /// invite code (`AppRouter.referralInviteCodeKey`). Cleared so a fresh start really is fresh.
+    /// invite code (`AppRouter.referralInviteCodeKey`), and the Strava link's cached activities
+    /// (`StravaActivityStore`, session 40). Cleared so a fresh start really is fresh.
     static let appLocalSetupKeys = ["zano.morningScheduleCreated.v1", AppRouter.referralInviteCodeKey]
+        + StravaActivityStore.allKeys
 
     static func clearDefaults() {
         UserDefaults(suiteName: AppGroup.identifier)?.removePersistentDomain(forName: AppGroup.identifier)

@@ -49,6 +49,12 @@
 // already-written `GoalEvent` rows; nothing yet calls any verifier and writes the resulting event —
 // the same gap GymVerifier's header already flags for the gym row).
 //
+// Update (session 40, 2026-10-07): `checkToday` also accepts a Strava activity from the direct Strava
+// link (`Strava/`, cached on device by `StravaActivitySync`) when no Health workout qualified, written
+// with source `.strava`. `WorkoutDedupe` drops a Strava activity that overlaps a Health workout (start
+// time + duration), so a run that reached both never counts twice; Strava entries typed by hand don't
+// count (`StravaNotCountedReason.enteredByHand`, spec §3 Tier A / §9.8).
+//
 // Update (buildout Wave 1D, 2026-09-25): the GoalEvent-writing gap above is now closed for the
 // HealthKit-workout signal. `checkToday(goalID:)` writes one verified `.complete` (source
 // `.healthKit`) when a single HealthKit workout today meets the goal's minutes, then calls
@@ -220,10 +226,11 @@ public final class HomeWorkoutVerifier: Sendable {
         await state.needsAuthorizationRequest()
     }
 
-    /// The longest single HealthKit workout today, in whole minutes (`0` with no workouts or no
-    /// read access). For the row's live progress ring.
+    /// The longest single workout today, in whole minutes (`0` with none): HealthKit workouts plus
+    /// counted Strava activities from the direct link, deduped (session 40). For the row's live
+    /// progress ring.
     public func longestWorkoutMinutesToday() async -> Int {
-        await state.longestWorkoutMinutes(in: Self.defaultWindow())
+        await state.longestWorkoutMinutesIncludingStrava(in: Self.defaultWindow())
     }
 
     /// The minutes one workout must reach for `goalID`: today's planned value (else the goal's
@@ -329,23 +336,40 @@ actor HomeWorkoutQueryState {
         }
         if hasVerifiedCompletion(goalID: goalID, since: window.start) { return .alreadyComplete }
 
-        guard let result = await verifyViaHealthKitWorkout(window: window, requiredMinutes: requiredMinutes),
-              result.verified, result.source == .healthKitWorkout
-        else { return .notYet }
+        // Evidence: a Health workout first; otherwise a Strava workout from the direct link (session 40)
+        // that isn't a copy of a Health workout (`WorkoutDedupe`), so one workout never counts twice.
+        let minutes: Int
+        let heartRate: Bool?
+        let source: GoalEventSource
+        var stravaActivityID: String?
+        if let result = await verifyViaHealthKitWorkout(window: window, requiredMinutes: requiredMinutes),
+           result.verified, result.source == .healthKitWorkout {
+            minutes = result.minutes
+            heartRate = result.heartRateCorroboration
+            source = .healthKit
+        } else if let strava = await qualifyingStravaWorkout(window: window, requiredMinutes: requiredMinutes) {
+            minutes = strava.wholeMinutes
+            heartRate = strava.heartRateCorroboration
+            source = .strava
+            stravaActivityID = strava.externalID
+        } else {
+            return .notYet
+        }
 
         // Re-check after the HealthKit await: another call may have written it meanwhile.
         if hasVerifiedCompletion(goalID: goalID, since: window.start) { return .alreadyComplete }
 
         var meta: [String: JSONValue] = [
-            "workoutMinutes": .number(Double(result.minutes)),
+            "workoutMinutes": .number(Double(minutes)),
             "requiredMinutes": .number(Double(requiredMinutes)),
         ]
-        if let hr = result.heartRateCorroboration { meta["heartRateCorroborated"] = .bool(hr) }
+        if let heartRate { meta["heartRateCorroborated"] = .bool(heartRate) }
         if isTravelGym { meta["travelMode"] = .bool(true) }
+        if let stravaActivityID { meta["stravaActivityID"] = .string(stravaActivityID) }
         let event = GoalEvent(
             kind: .complete,
-            value: Double(result.minutes),
-            source: .healthKit,
+            value: Double(minutes),
+            source: source,
             verified: true,
             meta: .object(meta),
             user: goal.user,
@@ -353,8 +377,29 @@ actor HomeWorkoutQueryState {
         )
         context.insert(event)
         try context.save()
-        logger.notice("Home/outdoor workout goal \(goalID.uuidString, privacy: .public) completed: \(result.minutes, privacy: .public) min.")
+        logger.notice("Home/outdoor workout goal \(goalID.uuidString, privacy: .public) completed (\(source.rawValue, privacy: .public)): \(minutes, privacy: .public) min.")
         return .wroteCompletion
+    }
+
+    /// A qualifying Strava workout in `window` from the on-device cache (`StravaActivityStore`), deduped
+    /// against today's Health workouts. `nil` when Strava isn't linked or nothing qualifies.
+    private func qualifyingStravaWorkout(window: DateInterval, requiredMinutes: Int) async -> WorkoutCandidate? {
+        let strava = StravaWorkoutMapping.countedCandidates(StravaActivityStore.activities(in: window))
+        guard !strava.isEmpty else { return nil }
+        let health = await fetchWorkouts(in: window).map {
+            WorkoutCandidate(start: $0.startDate, end: $0.endDate, activeSeconds: $0.duration, source: .healthKit)
+        }
+        return WorkoutDedupe.qualifyingStravaWorkout(health: health, strava: strava, requiredMinutes: requiredMinutes)
+    }
+
+    /// Today's longest workout from either source, deduped, in whole minutes (live progress ring).
+    func longestWorkoutMinutesIncludingStrava(in window: DateInterval) async -> Int {
+        let health = await fetchWorkouts(in: window).map {
+            WorkoutCandidate(start: $0.startDate, end: $0.endDate, activeSeconds: $0.duration, source: .healthKit)
+        }
+        let strava = StravaWorkoutMapping.countedCandidates(StravaActivityStore.activities(in: window))
+        let longest = WorkoutDedupe.merge(health: health, strava: strava).map(\.activeSeconds).max() ?? 0
+        return Int(longest / 60)
     }
 
     private func fetchGoal(id: UUID) -> Goal? {
@@ -386,14 +431,6 @@ actor HomeWorkoutQueryState {
                 continuation.resume(returning: status == .shouldRequest)
             }
         }
-    }
-
-    // MARK: Live progress
-
-    func longestWorkoutMinutes(in window: DateInterval) async -> Int {
-        let workouts = await fetchWorkouts(in: window)
-        let longest = workouts.map(\.duration).max() ?? 0
-        return Int(longest / 60)
     }
 
     private func fetchWorkouts(in window: DateInterval) async -> [HKWorkout] {

@@ -42,7 +42,7 @@ struct ZANOFocusLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
-                        ZANOFocusBuddy(isPaused: context.state.isPaused, size: 32)
+                        ZANOFocusBuddy(state: context.state, size: 32)
                         Text(context.attributes.goalTitle)
                             .font(.caption.weight(.semibold))
                             .lineLimit(1)
@@ -68,7 +68,7 @@ struct ZANOFocusLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                ZANOFocusBuddy(isPaused: context.state.isPaused, size: 16)
+                ZANOFocusBuddy(state: context.state, size: 16)
             } compactTrailing: {
                 ZANOFocusCountdownText(state: context.state)
                     .font(.caption.weight(.semibold))
@@ -90,7 +90,7 @@ private struct ZANOFocusLockScreenView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                ZANOFocusBuddy(isPaused: state.isPaused, size: 48)
+                ZANOFocusBuddy(state: state, size: 48)
                 Label(attributes.goalTitle, systemImage: "timer")
                     .font(.headline)
                     .foregroundStyle(ZANOWidgetColor.textPrimary)
@@ -129,14 +129,17 @@ private struct ZANOFocusLockScreenView: View {
     }
 }
 
-/// The user's buddy (App Group, buddy everywhere 2026-10-03): happy while the session runs,
-/// content while it's paused. A 48px sprite, so 16/32/48pt sizes stay crisp. Decorative.
+/// The user's buddy (App Group, buddy everywhere 2026-10-03), wearing its closet outfit
+/// (`StoredBuddySprite` reads it from the App Group). Its face follows the block (session 36,
+/// `BuddyPose.focus`): focused while it runs, resting while paused, proud on the ended Activity of a
+/// verified block, resting (never sad) on one that ended early. No animation: Live Activities are
+/// static snapshots. A 48px sprite, so 16/32/48pt sizes stay crisp. Decorative.
 private struct ZANOFocusBuddy: View {
-    let isPaused: Bool
+    let state: FocusActivityAttributes.ContentState
     let size: CGFloat
 
     var body: some View {
-        StoredBuddySprite(pose: isPaused ? .idle : .happy, size: size)
+        StoredBuddySprite(pose: BuddyPose.focus(isPaused: state.isPaused, outcome: state.outcome), size: size)
     }
 }
 

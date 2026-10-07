@@ -28,6 +28,14 @@
 // watch app's last WatchConnectivity sync" live — see `WatchStateStore.swift`'s header) ring data
 // from day one, with no further changes needed here.
 
+// Session 39 update: the watchOS WidgetKit extension target now exists (`ZANOWatchComplications`
+// in project.yml, sources in Watch/ZANOWatchComplications) and ships `StreakComplication`, whose
+// circular face already wraps the streak in a ring of today's average goal progress. The type
+// below is still NOT registered there: moving it means also moving `WatchRingKind` and the ring
+// colours (or decoding ring kinds in `ComplicationSnapshot`), and it would compete with the streak
+// complication for the same four families. Left for a follow-up; this file stays compiled in the
+// app target only, unregistered.
+
 import SwiftUI
 import WidgetKit
 

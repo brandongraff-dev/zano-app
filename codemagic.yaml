@@ -60,7 +60,9 @@ workflows:
             exit 1
           fi
       # The Apple Watch app (session 13b): the standalone ZANOWatch scheme, unsigned, watchOS
-      # Simulator SDK. Not embedded in ZANO yet, so the build above doesn't compile it. A failure
+      # Simulator SDK; since session 39 it also builds the embedded complication extension
+      # (ZANOWatchComplications). Plain `xcodegen generate` doesn't embed the watch app in ZANO, so
+      # the build above doesn't compile it. A failure
       # here marks the run "watch-build-failed" (when the iOS build passed) and its errors land in
       # errors.txt via watch.log, but it doesn't stop the tests or the screenshot tour.
       - name: Build ZANOWatch (watchOS Simulator)
@@ -84,6 +86,28 @@ workflows:
       - name: Screenshot tour
         ignore_failure: true
         script: scripts/ci/screenshots.sh
+      # Session 39: ZANO with the watch app embedded (ZANO_EMBED_WATCH=YES pulls in
+      # project.watch-embed.yml). Last and non-blocking: it regenerates the project in place and
+      # overwrites ZANO.app, so it runs after the screenshot tour used the plain build. Mostly
+      # incremental thanks to the shared derived data. A failure marks the run
+      # "embed-build-failed" only when everything else passed; its errors land in errors.txt.
+      - name: Build ZANO with the watch app embedded
+        ignore_failure: true
+        script: |
+          set -o pipefail
+          [ "$(cat .build-status 2>/dev/null)" = "build-failed" ] && exit 0
+          ZANO_EMBED_WATCH=YES xcodegen generate
+          if xcodebuild -project ZANO.xcodeproj -scheme ZANO \
+               -destination 'generic/platform=iOS Simulator' \
+               -derivedDataPath build/DerivedData \
+               CODE_SIGNING_ALLOWED=NO build 2>&1 | tee embed.log \
+             && ls -d build/DerivedData/Build/Products/Debug-iphonesimulator/ZANO.app/Watch/ZANOWatch.app/PlugIns/ZANOWatchComplications.appex; then
+            echo "embedded watch app OK"
+          else
+            echo "error: ZANO with the embedded watch app failed to build or is missing the watch app/complication" >> embed.log
+            [ "$(cat .build-status 2>/dev/null)" = "success" ] && echo "embed-build-failed" > .build-status
+            true
+          fi
       - name: Push results to GitHub
         ignore_failure: true
         script: scripts/ci/push-results.sh "$(cat .build-status 2>/dev/null || echo unknown)"
@@ -91,4 +115,5 @@ workflows:
       - shots/**
       - build.log
       - watch.log
+      - embed.log
       - test.log

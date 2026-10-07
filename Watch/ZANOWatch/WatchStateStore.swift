@@ -10,10 +10,10 @@
 // `UserDefaults(suiteName: "group.com.zano.app")` on watchOS opens a container that is LOCAL TO
 // THIS APPLE WATCH. App Groups do not sync their contents between a paired iPhone and Watch —
 // each physical device has its own separate copy of "group.com.zano.app", the same identifier
-// string but not the same bytes. So this class's persistence exists ONLY so a future WidgetKit
-// complication extension running on this same watch (see `ComplicationPlaceholder.swift`'s header
-// comment — that extension target doesn't exist yet, project.yml's job) can read the same
-// last-known snapshot this app process wrote, mirroring the exact pattern CLAUDE.md already uses
+// string but not the same bytes. So this class's persistence exists ONLY so the WidgetKit
+// complication extension running on this same watch (`ZANOWatchComplications`, session 39 — it
+// decodes this JSON with `ComplicationSnapshot`) can read the same last-known snapshot this app
+// process wrote, mirroring the exact pattern CLAUDE.md already uses
 // for `ZANOWidgets` on iOS ("Extensions... read state from the App Group only"). It is NOT how a
 // snapshot gets onto the watch in the first place — that is entirely `WatchConnectivityBridge`'s
 // job (a real cross-device transport), and losing connectivity does not make this class fall back
@@ -22,6 +22,7 @@
 import Foundation
 import Observation
 import os
+import WidgetKit
 
 @MainActor
 @Observable
@@ -48,8 +49,10 @@ public final class WatchStateStore {
     /// with no main-actor hop (a future complication extension process has no reason to ever be
     /// on this app's main actor) — an immutable `String` constant carries no actor-isolated state
     /// to protect, so opting it out of this class's `@MainActor` default is safe.
-    private nonisolated static let appGroupIdentifier = "group.com.zano.app"
-    private nonisolated static let snapshotDefaultsKey = "watch.lastKnownStateSnapshot"
+    /// Both values live in `Watch/Shared/WatchAppGroup.swift` since session 39, so the
+    /// complication extension (`ZANOWatchComplications`) reads exactly what this writes.
+    private nonisolated static let appGroupIdentifier = WatchAppGroup.identifier
+    private nonisolated static let snapshotDefaultsKey = WatchAppGroup.snapshotKey
 
     private init() {
         let defaults = UserDefaults(suiteName: Self.appGroupIdentifier) ?? .standard
@@ -68,9 +71,16 @@ public final class WatchStateStore {
         let crossedThreshold = isNowVerified && !wasVerified
 
         let earnedSomething = Self.isWin(from: snapshot, to: newSnapshot)
+        let complicationChanged = Self.complicationChanged(from: snapshot, to: newSnapshot)
 
         snapshot = newSnapshot
         persist(newSnapshot)
+        // After `persist`, so the reloaded timeline reads the new bytes. Only when something the
+        // complication shows changed: watchOS budgets complication reloads, and the phone resends
+        // the snapshot every 15–60 s.
+        if complicationChanged {
+            WidgetCenter.shared.reloadTimelines(ofKind: WatchAppGroup.streakComplicationKind)
+        }
 
         if crossedThreshold {
             logger.notice("Gym dwell threshold reached (\(newSnapshot.gymDwell?.elapsedMinutes ?? -1, privacy: .public) min) — playing verified haptic.")
@@ -93,6 +103,16 @@ public final class WatchStateStore {
         }
         let doneBefore = Set(old.rings.filter { $0.progress >= 1 }.map(\.kind))
         return new.rings.contains { $0.progress >= 1 && !doneBefore.contains($0.kind) }
+    }
+
+    /// What `StreakComplication` draws: the streak, the buddy's level, today's rings (and the day
+    /// they belong to).
+    private static func complicationChanged(from old: WatchStateSnapshot, to new: WatchStateSnapshot) -> Bool {
+        old.currentStreak != new.currentStreak
+            || old.level != new.level
+            || old.rings.map(\.progress) != new.rings.map(\.progress)
+            || old.hasSynced != new.hasSynced
+            || !Calendar.current.isDate(old.updatedAt, inSameDayAs: new.updatedAt)
     }
 
     /// Shows the ecstatic buddy for `celebrationDuration`, restarting the timer on a repeat win.

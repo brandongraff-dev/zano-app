@@ -69,7 +69,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build.log
 
-      # The Apple Watch app (session 13b). Not embedded in ZANO yet, so the build above doesn't
+      # The Apple Watch app (session 13b) and, since session 39, its embedded complication
+      # extension (ZANOWatchComplications, built as a dependency of the ZANOWatch scheme). The plain
+      # `xcodegen generate` above doesn't embed the watch app in ZANO, so the build above doesn't
       # compile it; this builds the standalone ZANOWatch scheme, unsigned, for the watchOS
       # Simulator SDK. Runs even when the iOS build failed so both error lists show up at once.
       - name: Build ZANOWatch (watchOS Simulator)
@@ -265,10 +267,31 @@ jobs:
           path: shots
           if-no-files-found: ignore
 
+      # Session 39: ZANO with the watch app embedded (`ZANO_EMBED_WATCH=YES` pulls in
+      # project.watch-embed.yml). Non-blocking and last on purpose: it regenerates the project in
+      # place and overwrites ZANO.app in build/DerivedData, so it runs after the screenshot tour and
+      # the simulator-build upload have used the plain build. Shared derived data keeps it mostly
+      # incremental. Checks the bundle actually contains the watch app and its complication.
+      - name: Build ZANO with the watch app embedded (non-blocking)
+        id: embed
+        if: always() && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ZANO_EMBED_WATCH=YES xcodegen generate
+          xcodebuild -project ZANO.xcodeproj -scheme ZANO \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee embed.log
+          APP=build/DerivedData/Build/Products/Debug-iphonesimulator/ZANO.app
+          ls -d "$APP/Watch/ZANOWatch.app/PlugIns/ZANOWatchComplications.appex" \
+            || { echo "error: embedded watch app or complication missing from ZANO.app" | tee -a embed.log; exit 1; }
+
       - name: Summarize errors (deduplicated)
         if: always()
         run: |
-          for f in build.log watch.log test.log uitests.log; do
+          for f in build.log watch.log test.log uitests.log embed.log; do
             [ -f "$f" ] || continue
             echo "=================== $f: unique errors ==================="
             grep -E "error:" "$f" | sed -E 's|^.*/zano-app/zano-app/||' | sort -u | head -150
@@ -298,6 +321,7 @@ jobs:
             watch.log
             test.log
             uitests.log
+            embed.log
           if-no-files-found: ignore
 
   testflight:

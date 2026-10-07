@@ -13,6 +13,19 @@
 
 name: ZANO
 
+# Session 39: embedding the Apple Watch app in ZANO is OPT-IN, via an included spec that only adds
+# `- target: ZANOWatch` to ZANO's dependencies (XcodeGen merges arrays by appending). Plain
+# `xcodegen generate` leaves ZANO exactly as before, so the main iOS Simulator build in CI and the
+# fastlane `beta` lane (which signs no watch bundle ids yet) can't break on the watch. To build the
+# bundled app:  ZANO_EMBED_WATCH=YES xcodegen generate
+# How the gate works (checked against XcodeGen's Docs/ProjectSpec.md "Include" and
+# Sources/ProjectSpec/SpecFile.swift, not against a real generate run): `${VAR}` is replaced only
+# when the variable is set; an unset one stays the literal "${ZANO_EMBED_WATCH}", which
+# NSString.boolValue reads as false, so the include is skipped. "YES"/"true"/"1" enable it.
+include:
+  - path: project.watch-embed.yml
+    enable: ${ZANO_EMBED_WATCH}
+
 options:
   bundleIdPrefix: com.zano.app
   deploymentTarget:
@@ -352,6 +365,13 @@ targets:
   # still deliberately open: embedding changes the main ZANO build and needs signing + a paired
   # device to mean anything. Gap 2 stands; the watch has its own generated copy of the buddy art
   # (Watch/ZANOWatch/Generated, from scripts/buddies/export_swift.py) instead of importing Core.
+  #
+  # Session 39 (2026-10-07): gap 1 is closed behind a switch — `ZANO_EMBED_WATCH=YES xcodegen
+  # generate` pulls in project.watch-embed.yml, which embeds this app in ZANO ("Embed Watch
+  # Content" -> ZANO.app/Watch; XcodeGen picks that phase for any watchOS `application` dependency
+  # of an app target, PBXProjGenerator.swift). Off by default; see the `include:` note at the top.
+  # This target now also embeds the ZANOWatchComplications WidgetKit extension (below) and shares
+  # Watch/Shared with it (App Group id + snapshot key + complication kind).
   ZANOWatch:
     type: application
     platform: watchOS
@@ -363,6 +383,12 @@ targets:
     deploymentTarget: "10.0"
     sources:
       - path: Watch/ZANOWatch
+      - path: Watch/Shared
+    dependencies:
+      # The watch-face complications. `embed` defaults to true for an application target; an
+      # `app-extension` dependency lands in "Embed Foundation Extensions" (PlugIns), which is where
+      # Xcode's own watchOS "Widget Extension" template puts it.
+      - target: ZANOWatchComplications
     settings:
       base:
         # Explicit override: this project's default bundle-id derivation (bundleIdPrefix + target
@@ -386,6 +412,37 @@ targets:
           - group.com.zano.app
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+
+  # Watch-face complications (session 39, docs/spec.md §5.21 "complication with rings"): a watchOS
+  # WidgetKit extension embedded in ZANOWatch. It only reads the snapshot ZANOWatch persists in the
+  # watch's own App Group (WatchStateStore); no networking, no WatchConnectivity, nothing heavy.
+  # No Core dependency for the same reason as ZANOWatch (Core is iOS-only), and it does NOT compile
+  # the 16k-line generated sprite file either: it decodes only the snapshot fields it shows.
+  # UNVERIFIED on a real `xcodegen generate` / watch: the extension point string is the same one
+  # ZANOWidgets uses on iOS, and Xcode's watchOS widget template uses it too.
+  ZANOWatchComplications:
+    type: app-extension
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: Watch/ZANOWatchComplications
+      - path: Watch/Shared
+    settings:
+      base:
+        # Must be prefixed by the watch app's id, the same rule ZANOWatch follows for ZANO's.
+        PRODUCT_BUNDLE_IDENTIFIER: com.zano.app.watchkitapp.complications
+        TARGETED_DEVICE_FAMILY: "4"
+    info:
+      path: Watch/ZANOWatchComplications/Info.plist
+      properties:
+        CFBundleDisplayName: ZANO
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Watch/ZANOWatchComplications/ZANOWatchComplications.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.zano.app
 
   # UI-test bundle for the ZANO app. Appended after ZANOWatch — no existing target block above was
   # touched to add it (same discipline as the ZANOWatch addition). Mirrors what Xcode's own

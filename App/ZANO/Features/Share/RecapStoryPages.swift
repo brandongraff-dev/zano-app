@@ -40,6 +40,10 @@ struct RecapStoryData {
     let rings: [Ring]
     /// The Weekly Recap Writer's one-line insight, if it has run.
     let insight: String?
+    /// "+40m vs last week" for the time page (session 37); `nil` without a last week to compare.
+    let timeVsLastWeek: String?
+    /// "Reached for a locked app 12 times, closed it 5" (session 37); `nil` when neither happened.
+    let reachedLine: String?
 
     /// Share of planned goals completed, 0...1. Drives the intro star's charge and page 3's arc.
     var completion: Double {
@@ -280,7 +284,8 @@ struct RecapTimePage: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 0) {
-                StoryEyebrow(text: Copy.progress.timeReclaimedTitle)
+                // Named for what it counts, not "screen time" (session 37).
+                StoryEyebrow(text: Copy.weeklyRecap.appsLockedTitle)
                     .storyReveal(appeared)
 
                 Spacer(minLength: Theme.Spacing.lg)
@@ -306,6 +311,9 @@ struct RecapTimePage: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, Theme.Spacing.md)
                         .storyReveal(appeared, delay: 0.45)
+                    timeDetails
+                        .padding(.top, Theme.Spacing.sm)
+                        .storyReveal(appeared, delay: 0.55)
                 } else {
                     Text(Copy.share.storyTimeEmptyHeadline)
                         .font(Theme.Typography.display)
@@ -316,6 +324,9 @@ struct RecapTimePage: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .padding(.top, Theme.Spacing.sm)
                         .storyReveal(appeared, delay: 0.25)
+                    timeDetails
+                        .padding(.top, Theme.Spacing.sm)
+                        .storyReveal(appeared, delay: 0.35)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -324,6 +335,31 @@ struct RecapTimePage: View {
         .padding(.top, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.xl)
         .onAppear { appeared = true }
+    }
+
+    /// Last week's comparison, the reached/closed count and where the numbers come from (session
+    /// 37). Empty when the recap has none of them.
+    @ViewBuilder
+    private var timeDetails: some View {
+        if data.timeVsLastWeek != nil || data.reachedLine != nil {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                if let timeVsLastWeek = data.timeVsLastWeek {
+                    Text(timeVsLastWeek)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.text)
+                }
+                if let reachedLine = data.reachedLine {
+                    Text(reachedLine)
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Theme.Colors.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(Copy.weeklyRecap.screenTimeFootnote)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 

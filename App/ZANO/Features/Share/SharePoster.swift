@@ -302,6 +302,9 @@ struct RecapPoster: View {
     let statLine: String?
     let highlightLine: String?
     let footerLabel: String?
+    /// Optional third sticker: "Reached for a locked app 12×" (session 37,
+    /// `Copy.weeklyRecap.reachedPill`).
+    var reachLine: String? = nil
     var hue: PosterHue = .sky
 
     var body: some View {
@@ -313,7 +316,7 @@ struct RecapPoster: View {
                     PosterRingGrid(rings: rings)
                 }
 
-                if statLine != nil || highlightLine != nil {
+                if statLine != nil || highlightLine != nil || reachLine != nil {
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                         if let statLine {
                             PosterStickerPill(text: statLine, hue: .volt, systemImage: "checkmark")
@@ -322,6 +325,10 @@ struct RecapPoster: View {
                         if let highlightLine {
                             PosterStickerPill(text: highlightLine, hue: .sun, systemImage: "star.fill")
                                 .rotationEffect(.degrees(-1.5), anchor: .leading)
+                        }
+                        if let reachLine {
+                            PosterStickerPill(text: reachLine, hue: .pink, systemImage: "hand.raised.fill")
+                                .rotationEffect(.degrees(1), anchor: .leading)
                         }
                     }
                 }

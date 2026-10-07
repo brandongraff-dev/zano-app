@@ -120,5 +120,58 @@ extension Copy {
             let tenths = Int((Double(minutes) / 6).rounded())
             return tenths % 10 == 0 ? "\(tenths / 10)h" : "\(tenths / 10).\(tenths % 10)h"
         }
+
+        // MARK: - Screen time saved (session 37)
+        //
+        // An estimate from ZANO's own locks and shield taps. Apple's Screen Time numbers can only be
+        // read inside the DeviceActivityReport extension, so this copy never says "screen time" as
+        // if it were Apple's figure: it names exactly what was counted. These are stat labels on
+        // the recap card and poster (like `Copy.progress`'s), so they aren't voiced; the voiced part
+        // of the recap is the coach line above.
+
+        /// Story page eyebrow and the full name of the stat.
+        public static let appsLockedTitle = "Time your apps stayed locked"
+        /// Short form under a big numeral (poster hero caption).
+        public static let appsLockedCaption = "Apps stayed locked"
+
+        /// Recap card stat cell: "6h 40m apps stayed locked" (numeral, then the unit line).
+        public static func appsLockedLabel(duration: String) -> String { "\(duration) apps stayed locked" }
+
+        /// Change against last week, stated as a fact (spec §8 rule 9: no shame for a lower week).
+        public static func appsLockedVsLastWeek(deltaMinutes: Int) -> String {
+            if deltaMinutes > 0 { return "+\(Copy.progress.duration(minutes: deltaMinutes)) vs last week" }
+            if deltaMinutes < 0 { return "\(Copy.progress.duration(minutes: -deltaMinutes)) less than last week" }
+            return "Same as last week"
+        }
+
+        /// "Reached for a locked app 12 times, closed it 5". `nil` when neither happened.
+        public static func reachedLine(attempts: Int, closes: Int) -> String? {
+            let reached = "Reached for a locked app \(attempts) \(attempts == 1 ? "time" : "times")"
+            switch (attempts > 0, closes > 0) {
+            case (true, true): return "\(reached), closed it \(closes)"
+            case (true, false): return reached
+            case (false, true): return "Closed a locked app \(closes) \(closes == 1 ? "time" : "times")"
+            case (false, false): return nil
+            }
+        }
+
+        /// Short form for the share poster's one-line sticker. `nil` when neither happened.
+        public static func reachedPill(attempts: Int, closes: Int) -> String? {
+            if attempts > 0 { return "Reached for a locked app \(attempts)×" }
+            if closes > 0 { return "Closed a locked app \(closes)×" }
+            return nil
+        }
+
+        /// Says where the numbers come from, wherever they're shown in-app.
+        public static let screenTimeFootnote = "Counted from your ZANO locks, not Apple Screen Time."
+
+        /// The quiet lines under the recap card's stats: the comparison with last week (when there
+        /// was a last week) and the reached/closed counts.
+        public static func timeSavedNotes(appsLockedDeltaMinutes: Int?, attempts: Int, closes: Int) -> [String] {
+            var notes: [String] = []
+            if let appsLockedDeltaMinutes { notes.append(appsLockedVsLastWeek(deltaMinutes: appsLockedDeltaMinutes)) }
+            if let reached = reachedLine(attempts: attempts, closes: closes) { notes.append(reached) }
+            return notes
+        }
     }
 }

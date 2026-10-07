@@ -13,10 +13,18 @@
 //   - "time reclaimed" = time locked in (lock sessions clipped to the week, overlaps counted once,
 //     the same rule `MilestoneEngine` uses)
 //   - a coach line in the user's voice from templates (`Copy.weeklyRecap`): one win, one suggestion
+//   - rank movement over the week (`SeasonsAndRanks.weeklyRankMovement`, session 37)
 // Extras the `Recap` model has no column for (earned days, completions per goal type, best streak,
 // shield "Close app" taps, the comparison with last week) are kept as a `WeeklyRecapSummary` in the
 // App Group (`summary(forWeekStart:)`), so Progress or a milestone can show them without a schema
 // migration.
+//
+// "Screen time saved" (session 37) is an on-device estimate from ZANO's own data, NOT Apple Screen
+// Time (usage numbers are only readable inside the DeviceActivityReport extension and never reach
+// the app): time apps stayed locked = lock time minus Time Bank minutes spent opening them, plus how
+// many times the user reached for a locked app (shield renders, `LockedOutAttemptTracker`'s per-day
+// tally) and closed it (`ReclaimedOpens`). The attempt and close counts stay in the on-device
+// summary; only the minutes go into the synced `RecapStats.timeReclaimedMinutes`, as before.
 //
 // A week with no data at all gets NO row, and `NudgeScheduler` skips that Sunday's nudge
 // (`hasData(weekContaining:)`). Running it again is safe: the due week's row is recomputed and only
@@ -37,6 +45,11 @@ public struct WeeklyRecapSummary: Codable, Sendable, Equatable {
         public var goalsCompletedDelta: Int
         public var earnedDaysDelta: Int
         public var lockedMinutesDelta: Int
+        /// Change in `appsLockedMinutes`. Optional only so summaries stored before session 37
+        /// still decode.
+        public var appsLockedMinutesDelta: Int?
+        /// Change in `lockedAppAttempts` (same decoding note).
+        public var lockedAppAttemptsDelta: Int?
     }
 
     public var weekStart: Date
@@ -57,8 +70,24 @@ public struct WeeklyRecapSummary: Codable, Sendable, Equatable {
     /// `nil` when last week had nothing to compare with.
     public var vsLastWeek: Comparison?
 
+    // Added in session 37. Optional so summaries stored before it still decode.
+
+    /// Ranks moved over the week (positive = up); `nil` when there's no honest comparison
+    /// (new season, placement, first week; see `SeasonsAndRanks.rankMovement(from:to:)`).
+    public var rankMovement: Int?
+    /// Time Bank minutes spent opening locked apps this week (they were unlocked for that long).
+    public var timeBankSpentMinutes: Int?
+    /// Times a shield showed for a locked app this week ("reached for a locked app").
+    public var lockedAppAttempts: Int?
+
+    /// "Time your apps stayed locked": lock time minus the Time Bank minutes spent opening them.
+    /// An estimate from ZANO's own locks, not Apple Screen Time.
+    public var appsLockedMinutes: Int {
+        max(0, lockedMinutes - (timeBankSpentMinutes ?? 0))
+    }
+
     public var hasData: Bool {
-        earnedDays > 0 || goalsCompleted > 0 || lockedMinutes > 0 || reclaimedCloses > 0
+        earnedDays > 0 || goalsCompleted > 0 || lockedMinutes > 0 || reclaimedCloses > 0 || (lockedAppAttempts ?? 0) > 0
     }
 }
 
@@ -91,13 +120,27 @@ public struct RecapWeekInputs: Sendable, Equatable {
     public var lockIntervals: [DateInterval]
     public var earnedUnlockDates: [Date]
     public var reclaimedCloses: Int
+    /// Time Bank minutes spent this week (`TimeBank.spentMin` summed over the week's days).
+    public var timeBankSpentMinutes: Int
+    /// Shield renders for locked apps this week (`LockedOutAttemptTracker.attempts`).
+    public var lockedAppAttempts: Int
 
-    public init(weekStart: Date, goals: [RecapGoalInput], lockIntervals: [DateInterval], earnedUnlockDates: [Date], reclaimedCloses: Int) {
+    public init(
+        weekStart: Date,
+        goals: [RecapGoalInput],
+        lockIntervals: [DateInterval],
+        earnedUnlockDates: [Date],
+        reclaimedCloses: Int,
+        timeBankSpentMinutes: Int = 0,
+        lockedAppAttempts: Int = 0
+    ) {
         self.weekStart = weekStart
         self.goals = goals
         self.lockIntervals = lockIntervals
         self.earnedUnlockDates = earnedUnlockDates
         self.reclaimedCloses = reclaimedCloses
+        self.timeBankSpentMinutes = timeBankSpentMinutes
+        self.lockedAppAttempts = lockedAppAttempts
     }
 }
 
@@ -142,8 +185,16 @@ public final class WeeklyRecapBuilder {
         let previousStart = calendar.date(byAdding: .day, value: -7, to: weekStart) ?? weekStart
         let previous = inputs(weekStart: previousStart, userID: userID, now: now, context: readContext)
         let streak = streakValues(userID: userID, context: readContext)
+        let rankMovement = SeasonsAndRanks(modelContainer: modelContainer).weeklyRankMovement(weekStart: weekStart, calendar: calendar)
 
-        let summary = Self.summarize(current, previous: previous, currentStreak: streak.current, bestStreak: streak.best, calendar: calendar)
+        let summary = Self.summarize(
+            current,
+            previous: previous,
+            currentStreak: streak.current,
+            bestStreak: streak.best,
+            rankMovement: rankMovement,
+            calendar: calendar
+        )
         guard summary.hasData else { return nil }
         storeSummary(summary)
 
@@ -200,6 +251,7 @@ public final class WeeklyRecapBuilder {
         previous: RecapWeekInputs?,
         currentStreak: Int,
         bestStreak: Int,
+        rankMovement: Int? = nil,
         calendar: Calendar
     ) -> WeeklyRecapSummary {
         let completed = week.goals.reduce(0) { $0 + $1.completedDays.count }
@@ -224,16 +276,21 @@ public final class WeeklyRecapBuilder {
         let earnedDays = Set(week.earnedUnlockDates.map { calendar.startOfDay(for: $0) }).count
         let lockedMinutes = Int(MilestoneEngine.lockedSeconds(week.lockIntervals) / 60)
 
+        let appsLocked = appsLockedMinutes(lockedMinutes: lockedMinutes, spentMinutes: week.timeBankSpentMinutes)
+
         var comparison: WeeklyRecapSummary.Comparison?
         if let previous {
             let previousCompleted = previous.goals.reduce(0) { $0 + $1.completedDays.count }
             let previousEarned = Set(previous.earnedUnlockDates.map { calendar.startOfDay(for: $0) }).count
             let previousLocked = Int(MilestoneEngine.lockedSeconds(previous.lockIntervals) / 60)
-            if previousCompleted > 0 || previousEarned > 0 || previousLocked > 0 {
+            let previousAppsLocked = appsLockedMinutes(lockedMinutes: previousLocked, spentMinutes: previous.timeBankSpentMinutes)
+            if previousCompleted > 0 || previousEarned > 0 || previousLocked > 0 || previous.lockedAppAttempts > 0 {
                 comparison = .init(
                     goalsCompletedDelta: completed - previousCompleted,
                     earnedDaysDelta: earnedDays - previousEarned,
-                    lockedMinutesDelta: lockedMinutes - previousLocked
+                    lockedMinutesDelta: lockedMinutes - previousLocked,
+                    appsLockedMinutesDelta: appsLocked - previousAppsLocked,
+                    lockedAppAttemptsDelta: week.lockedAppAttempts - previous.lockedAppAttempts
                 )
             }
         }
@@ -250,8 +307,17 @@ public final class WeeklyRecapBuilder {
             currentStreak: currentStreak,
             bestStreak: max(bestStreak, MilestoneEngine.longestRun(of: week.earnedUnlockDates, calendar: calendar)),
             reclaimedCloses: week.reclaimedCloses,
-            vsLastWeek: comparison
+            vsLastWeek: comparison,
+            rankMovement: rankMovement,
+            timeBankSpentMinutes: week.timeBankSpentMinutes,
+            lockedAppAttempts: week.lockedAppAttempts
         )
+    }
+
+    /// Lock time minus Time Bank minutes spent (spending opens the locked apps for that long, so
+    /// that time wasn't locked). Never negative.
+    nonisolated static func appsLockedMinutes(lockedMinutes: Int, spentMinutes: Int) -> Int {
+        max(0, lockedMinutes - max(0, spentMinutes))
     }
 
     private nonisolated static func mondayIndex(_ weekday: Int) -> Int { (weekday + 5) % 7 }
@@ -305,9 +371,10 @@ public final class WeeklyRecapBuilder {
         RecapStats(
             goalCompletionRings: summary.rings,
             bestDay: summary.bestWeekday.map { calendar.weekdaySymbols[($0 - 1) % 7] },
-            timeReclaimedMinutes: summary.lockedMinutes,
+            // Net of Time Bank spend: the apps were open for those minutes, so they weren't reclaimed.
+            timeReclaimedMinutes: summary.appsLockedMinutes,
             streak: summary.currentStreak,
-            rankMovement: nil,
+            rankMovement: summary.rankMovement,
             goalsCompleted: summary.goalsCompleted,
             goalsPlanned: summary.goalsPlanned
         )
@@ -373,8 +440,23 @@ public final class WeeklyRecapBuilder {
             }
         }
 
+        // Time Bank rows are one per local day, dated at local midnight (`TimeBankEngine`).
+        let banks = (try? context.fetch(FetchDescriptor<TimeBank>(
+            predicate: #Predicate<TimeBank> { $0.userID == userID && $0.date >= weekStart && $0.date < weekEnd }
+        ))) ?? []
+        let spent = banks.reduce(0) { $0 + max(0, $1.spentMin) }
+
         let closes = ReclaimedOpens.count(from: weekStart, to: weekEnd, calendar: calendar, defaults: defaults)
-        return RecapWeekInputs(weekStart: weekStart, goals: goalInputs, lockIntervals: intervals, earnedUnlockDates: earned, reclaimedCloses: closes)
+        let attempts = LockedOutAttemptTracker.attempts(from: weekStart, to: weekEnd, calendar: calendar, defaults: defaults)
+        return RecapWeekInputs(
+            weekStart: weekStart,
+            goals: goalInputs,
+            lockIntervals: intervals,
+            earnedUnlockDates: earned,
+            reclaimedCloses: closes,
+            timeBankSpentMinutes: spent,
+            lockedAppAttempts: attempts
+        )
     }
 
     /// A gym goal set to "N workouts" a week expects N days; a weekly goal 1; a daily goal every

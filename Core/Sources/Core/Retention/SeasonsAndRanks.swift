@@ -17,12 +17,9 @@
 // monthly-challenge badge this file awards live in that same `badges` table (`Models/Badge.swift`),
 // the same pattern `StreakEngine.swift`'s "Comeback" badge and `ComebackMode.swift`'s
 // "comeback_challenge_*" badge already use.
-// docs/spec.md §5.14 Weekly Report Card: "...streak, rank movement..." and
-// `Models/Recap.swift`'s existing `rankMovement: Int?` field / `Copy.progress.
-// rankMovementLabel(delta:)` / `RecapCard.rankLabel` (already wired in `ProgressView.swift`,
-// `PreviewCatalog.swift`) are the pre-existing integration points a future Weekly Report Card
-// session should read this file's `currentRank(asOf:)` through — not this task's file list to
-// wire up (cross-module; see the TODO near `currentRank` below).
+// docs/spec.md §5.14 Weekly Report Card: "...streak, rank movement..." — `weeklyRankMovement(
+// weekStart:)` below is what `WeeklyRecapBuilder` writes into `RecapStats.rankMovement` (session
+// 37), which `RecapCard.rankLabel` / the recap story already render.
 //
 // Not part of any other file's SYSTEM CONTRACTS block (only `LockEngineManager`,
 // `FocusSessionVerifier`, `GymVerifier`, `TimeBankEngine`, `StreakEngine`, `AdaptiveGoalEngine`,
@@ -243,19 +240,61 @@ public final class SeasonsAndRanks {
     /// "consistency" means and why it isn't `Streak.current`. Never throws: no local `User` row
     /// (or any other read failure) degrades to a placement-period Bronze `RankStatus` rather than
     /// propagating an error, matching every other read-only method in this codebase's engines.
-    ///
-    /// TODO(cross-module, Weekly Report Card session, spec §5.14; not this task's file list):
-    /// `Recap.rankMovement` / `Copy.progress.rankMovementLabel(delta:)` / `RecapCard.rankLabel`
-    /// already exist and are wired into `ProgressView.swift`, but nothing yet calls this method to
-    /// populate them — that integration (comparing this week's `currentRank(asOf:)` against last
-    /// week's) belongs to whichever session builds the Recap-generation job, not this file.
     public func currentRank(asOf date: Date = .now) async -> RankStatus {
+        rankStatus(asOf: date)
+    }
+
+    /// `currentRank(asOf:)` without the `async` signature, for synchronous main-actor callers
+    /// (`WeeklyRecapBuilder.buildIfDue`).
+    func rankStatus(asOf date: Date) -> RankStatus {
         let season = currentSeason(asOf: date)
         guard let user = try? fetchCurrentUser() else {
             return RankStatus(rank: .bronze, consistency: 0, weeklyConsistency: [], season: season, isPlacement: true)
         }
         let goals = fetchActiveGoals(userID: user.id)
         return computeRankStatus(userID: user.id, goals: goals, asOf: date, season: season)
+    }
+
+    // MARK: - Weekly rank movement (spec §5.14 "rank movement")
+
+    /// How many ranks the user moved over the Monday-start week beginning `weekStart` (positive =
+    /// up), for `RecapStats.rankMovement`. `nil` when there's no honest comparison — see
+    /// `rankMovement(from:to:)`, plus: no local user, or the account didn't exist yet on the
+    /// previous comparison day (a first week would otherwise read as a climb from an empty Bronze).
+    ///
+    /// Why recompute instead of persisting last week's rank: rank is derived live from `GoalEvent`
+    /// history (this file's header), so the rank "as of last Sunday" reconstructs exactly from the
+    /// same rows, with the same active goals' cadence on both sides of the comparison. A stored
+    /// snapshot would be computed against whatever goals were active then, so a goal added midweek
+    /// would show up as rank movement that no completion caused.
+    public func weeklyRankMovement(weekStart: Date, calendar: Calendar = .current) -> Int? {
+        guard let user = try? fetchCurrentUser() else { return nil }
+        let days = Self.rankMovementDays(weekStart: weekStart, calendar: calendar)
+        guard calendar.startOfDay(for: user.createdAt) <= days.previous else { return nil }
+        return Self.rankMovement(from: rankStatus(asOf: days.previous), to: rankStatus(asOf: days.current))
+    }
+
+    /// The two days a week's rank movement compares: the Sunday before `weekStart` (end of last
+    /// week) and the week's own Sunday. Calendar-day arithmetic (`.day`), never 86,400-second
+    /// steps, so a week that crosses a daylight-saving change still lands on the right days.
+    nonisolated static func rankMovementDays(weekStart: Date, calendar: Calendar) -> (previous: Date, current: Date) {
+        let start = calendar.startOfDay(for: weekStart)
+        let previous = calendar.date(byAdding: .day, value: -1, to: start) ?? start
+        let current = calendar.date(byAdding: .day, value: 6, to: start) ?? start
+        return (previous, current)
+    }
+
+    /// Signed rank change from `previous` to `current`, or `nil` when the two can't be compared
+    /// honestly:
+    ///   - different seasons: a new season resets rank (spec §5.9), so Gold last season → Bronze
+    ///     placement this season is a reset, not a drop (spec §8 rule 9, "No shame");
+    ///   - either side in placement: placement forces Bronze regardless of consistency, so
+    ///     comparing against it would show a fake drop going in or a fake climb coming out.
+    nonisolated static func rankMovement(from previous: RankStatus, to current: RankStatus) -> Int? {
+        guard previous.season == current.season, !previous.isPlacement, !current.isPlacement else { return nil }
+        let order = Rank.allCases
+        guard let from = order.firstIndex(of: previous.rank), let to = order.firstIndex(of: current.rank) else { return nil }
+        return to - from
     }
 
     private func computeRankStatus(userID: UUID, goals: [Goal], asOf date: Date, season: Season) -> RankStatus {

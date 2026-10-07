@@ -8,7 +8,8 @@
 // Called from `ZANOApp.init` (so the `HKObserverQuery` exists early in a background relaunch for a
 // HealthKit delivery, as HealthKit requires) and from every app foreground. Never prompts: a
 // verifier whose Health request was never shown (`needsAuthorizationRequest`) is skipped, and
-// Today's "Connect Apple Health" row stays the only place that asks. Local only, no networking.
+// Today's "Connect Apple Health" row stays the only place that asks. Local only, except the throttled
+// Strava fetch (`StravaActivitySync`, session 40) when someone connected Strava.
 
 import Foundation
 import SwiftData
@@ -45,10 +46,15 @@ public enum HealthGoalChecks {
             }
         }
 
-        if !workoutGoalIDs.isEmpty, !(await HomeWorkoutVerifier.shared.needsAuthorizationRequest()) {
+        guard !workoutGoalIDs.isEmpty else { return }
+        let healthAsked = !(await HomeWorkoutVerifier.shared.needsAuthorizationRequest())
+        // Direct Strava link (session 40): pull recent Strava activities first (throttled, no-op when not
+        // linked), so the workout check below sees them alongside Health's.
+        await StravaActivitySync.refreshIfDue()
+        if healthAsked || StravaActivityStore.isLinked {
             // Wake the app when a new workout lands in Health, so a run finished while the app was
             // closed unlocks without anyone opening ZANO (idempotent).
-            await HealthWorkoutObserver.shared.startObserving()
+            if healthAsked { await HealthWorkoutObserver.shared.startObserving() }
             for goalID in workoutGoalIDs {
                 do {
                     _ = try await HomeWorkoutVerifier.shared.checkToday(goalID: goalID)

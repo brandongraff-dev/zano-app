@@ -1683,7 +1683,8 @@ struct TodayView: View {
                 }
             }
             if !workoutGoalIDs.isEmpty {
-                let needs = await HomeWorkoutVerifier.shared.needsAuthorizationRequest()
+                // A Strava-linked person (session 40) has a workout source already; don't ask for Health.
+                let needs = await HomeWorkoutVerifier.shared.needsAuthorizationRequest() && !StravaActivityStore.isLinked
                 workoutNeedsHealth = needs
                 if !needs {
                     let minutes = await HomeWorkoutVerifier.shared.longestWorkoutMinutesToday()

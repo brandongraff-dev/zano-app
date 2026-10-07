@@ -851,12 +851,11 @@ struct SleepTimeCard: View {
                             Spacer(minLength: 0)
                         }
 
-                        Text(time, format: .dateTime.hour().minute())
-                            .font(Theme.Typography.score(size: art == .sun ? timeSize * 0.84 : timeSize))
+                        // Proportional digits plus a small AM/PM: the shared score face left a hole after
+                        // a "1" ("1 0:30") and ran into the moon art.
+                        ClockDigitsText(date: time, size: art == .sun ? timeSize * 0.84 : timeSize * 0.9)
                             .foregroundStyle(Theme.Colors.text)
                             .shadow(color: tint.opacity(0.35), radius: 14)
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(1)
                     }
 
                     // The sun beside the time, not behind it (its stripes ran through the digits).

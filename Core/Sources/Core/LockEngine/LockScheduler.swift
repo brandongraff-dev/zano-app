@@ -482,17 +482,8 @@ public enum ScheduledLockMonitor {
         // Spec §24: no scheduled or bedtime lock starts during a health pause.
         guard !HealthPause.isActive else { return }
 
-        if raw == DeviceActivityName.zanoBedtimeGate.rawValue {
-            // The Bedtime Gate arms the user's default set now; the app's reconcile hands off to
-            // `BedtimeGateManager.autoArmBedtimeLock`, which applies its own lock-set/mode settings.
-            arm(
-                source: .bedtime,
-                lockSetID: LockEngineSharedState.defaultLockSetID,
-                activityRawName: raw,
-                mode: .full,
-                requiredGoalIDs: nil,
-                now: now
-            )
+        if BedtimeGateActivity.isBedtimeActivity(raw) {
+            bedtimeNightDidStart(activityRawName: raw, now: now)
             return
         }
 
@@ -544,14 +535,20 @@ public enum ScheduledLockMonitor {
             spendWindowDidEnd(now: now)
             return
         }
+        // Wake time: only a bedtime lock with nothing to earn ends here (see `bedtimeNightDidEnd`).
+        if BedtimeGateActivity.isBedtimeActivity(raw) {
+            bedtimeNightDidEnd(activityRawName: raw, now: now)
+            LockEngineSharedState.refreshNextScheduledLockAt(now: now)
+            return
+        }
         // A focus window's lock ends with the window, whatever was earned.
         if FocusLockActivity.isFocusActivity(raw) {
             endScheduledLock(activityRawName: raw, now: now)
             LockEngineSharedState.refreshNextScheduledLockAt(now: now)
             return
         }
-        // Bedtime and per-session keep-alive registrations end at 23:59 but their locks continue
-        // until goals are earned — only a lock schedule's own window end ends its lock.
+        // Per-session keep-alive registrations end at 23:59 but their locks continue until goals
+        // are earned — only a lock schedule's own window end ends its lock.
         guard LockScheduleActivity.lockSetID(fromRawName: raw) != nil else { return }
         endScheduledLock(activityRawName: raw, now: now)
         LockEngineSharedState.refreshNextScheduledLockAt(now: now)
@@ -577,8 +574,60 @@ public enum ScheduledLockMonitor {
         ManagedSettingsStore(named: .zanoLock).applyZanoShield(selection, now: now)
     }
 
+    // MARK: Bedtime Gate (spec §5.10, session 38)
+
+    /// Bedtime: shield the gate's lock set (its own lock set and mode from
+    /// `BedtimeGateAdvancedSettings`, else the default set) and leave a `.bedtime` pending record the
+    /// app adopts (`BedtimeGateManager.adoptMonitorArmedLock`). One decision per night, shared with the
+    /// app's foreground backstop, so a late or repeated callback (iOS starts the interval again when
+    /// the schedule is re-registered mid-night) never re-arms after an emergency unlock.
+    static func bedtimeNightDidStart(activityRawName raw: String, now: Date) {
+        guard let schedule = BedtimeGateSharedState.currentSchedule(),
+              let night = schedule.night(forStartCallbackAt: now)
+        else {
+            logger.notice("Ignoring a stale Bedtime Gate activity \(raw, privacy: .public).")
+            return
+        }
+        guard !BedtimeGateSharedState.hasArmed(nightStartingAt: night.start) else { return }
+        // Never stacked on a running lock; the night counts as decided, as in the app's path.
+        if SharedDefaults.activeLockSessionID != nil || LockEngineSharedState.pendingStart != nil {
+            BedtimeGateSharedState.markArmed(nightStartingAt: night.start)
+            return
+        }
+        let advanced = BedtimeGateSharedState.advancedSettings
+        let armed = arm(
+            source: .bedtime,
+            lockSetID: advanced.lockSetID ?? LockEngineSharedState.defaultLockSetID,
+            activityRawName: raw,
+            mode: advanced.mode,
+            requiredGoalIDs: advanced.requiredGoalIDs,
+            now: now
+        )
+        // Not marked when nothing could be shielded (no mirrored apps): the app's backstop, which
+        // reads SwiftData, can still arm this night.
+        if armed { BedtimeGateSharedState.markArmed(nightStartingAt: night.start) }
+    }
+
+    /// Wake time. A bedtime lock with goals keeps going: morning goals are its key (spec §4 v2
+    /// "Bedtime lock with morning goals as key", §5.10 step 5). One with nothing to earn ends here,
+    /// otherwise only the emergency unlock could end it. A stray end before the night is over (iOS
+    /// may end the interval when the schedule is re-registered) changes nothing.
+    static func bedtimeNightDidEnd(activityRawName raw: String, now: Date) {
+        if let schedule = BedtimeGateSharedState.currentSchedule(), !schedule.isNightOver(at: now) { return }
+        if let pending = LockEngineSharedState.pendingStart, pending.activityRawName == raw {
+            // The app never opened tonight. The goal count is the monitor's best guess (the mirror
+            // counts every active goal); the app drops any lock nothing can earn when it adopts it.
+            let goals = pending.requiredGoalIDs?.count ?? LockEngineSharedState.activeGoalCount
+            guard goals == 0 else { return }
+        }
+        // Lifts a matching pending lock, or a session the app marked as owned by this window (only
+        // ever a bedtime lock with no goals, `BedtimeGateManager.finishArming`).
+        endScheduledLock(activityRawName: raw, now: now)
+    }
+
     // MARK: Internals
 
+    @discardableResult
     private static func arm(
         source: PendingScheduledLock.Source,
         lockSetID: UUID?,
@@ -586,15 +635,15 @@ public enum ScheduledLockMonitor {
         mode: LockMode,
         requiredGoalIDs: [UUID]?,
         now: Date
-    ) {
+    ) -> Bool {
         // Never stack a second lock on an active one.
-        guard SharedDefaults.activeLockSessionID == nil, LockEngineSharedState.pendingStart == nil else { return }
+        guard SharedDefaults.activeLockSessionID == nil, LockEngineSharedState.pendingStart == nil else { return false }
         guard let lockSetID,
               let blob = LockEngineSharedState.lockSetSelectionData(for: lockSetID),
               let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: blob)
         else {
             logger.error("No mirrored app selection for the scheduled lock set; nothing shielded.")
-            return
+            return false
         }
 
         ManagedSettingsStore(named: .zanoLock).applyZanoShield(selection)
@@ -613,6 +662,7 @@ public enum ScheduledLockMonitor {
         SharedDefaults.activeLockMode = mode
         SharedDefaults.goalsRemainingForActiveLock = requiredGoalIDs?.count ?? LockEngineSharedState.activeGoalCount
         logger.notice("Scheduled lock armed from the monitor (\(source.rawValue, privacy: .public)).")
+        return true
     }
 
     private static func endScheduledLock(activityRawName raw: String, now: Date) {
@@ -784,11 +834,9 @@ public final class LockScheduler {
         guard !HealthPause.isActive else { return }
         switch pending.source {
         case .bedtime:
-            do {
-                _ = try await BedtimeGateManager.shared.autoArmBedtimeLock(trigger: .schedule, now: now)
-            } catch {
-                logger.error("Bedtime hand-off failed: \(String(describing: error), privacy: .public)")
-            }
+            // Uses the monitor's lock set, mode and start time; owns the session to its night's
+            // window when it has no goals to earn. `nil` = couldn't adopt; the caller lifts the shield.
+            await BedtimeGateManager.shared.adoptMonitorArmedLock(pending, now: now)
         case .focus:
             guard let lockSetID = pending.lockSetID else { return }
             var sessionID: UUID?

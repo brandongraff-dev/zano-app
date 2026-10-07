@@ -99,13 +99,16 @@ struct ContentView: View {
     /// The Sunrise Alarm is kept scheduled here (it's scheduled one occurrence at a time, audit V1),
     /// but only behind `SunriseAlarmManager.hasBeenConfigured`: `Settings.enabled` defaults to
     /// `true`, and someone who never opened the alarm setup must never get a 06:30 alarm (spec
-    /// §5.10 frames it as opt-in). `BedtimeGateManager.evaluateOnForeground()` is still not called
-    /// here (its daily schedule is a DeviceActivity registration that runs without the app).
+    /// §5.10 frames it as opt-in). The Bedtime Gate arms from `ZANOMonitor` while the app is closed;
+    /// `BedtimeGateManager.evaluateOnForeground()` is the backstop (re-registers lost windows, arms a
+    /// night the monitor missed) and does nothing unless the gate was set up.
     private func runForegroundChecks() async {
         // Record any fully missed days first, so Never Miss Twice / Comeback see them.
         await StreakEngine.shared.reconcileMissedDays()
         // Turn any lock the monitor started while the app was closed into a real session.
         await LockScheduler.shared.reconcile()
+        // Bedtime Gate backstop, after reconcile so a night the monitor armed is never armed twice.
+        await BedtimeGateManager.shared.evaluateOnForeground()
         // Re-plan calendar focus locks against the next two days (no-op unless turned on).
         FocusLockScheduler.shared.refresh()
         await PlannerReminders.refresh()

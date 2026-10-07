@@ -16,11 +16,10 @@
 // real now (`Core/Sources/Core/Verification/SunriseAlarmManager.swift`); copy keys are the real
 // `Copy.bedtimeGate.*` (`Core/Sources/Core/Copy/SunriseAlarmScreenCopy.swift`).
 //
-// "Phone becomes a clock" / the actual DeviceActivity-scheduled shield that "auto-arms at bedtime"
-// is `LockEngineManager`'s job (a `LockTrigger.schedule` lock, spec §11) once a bedtime is saved
-// here; wiring a recurring nightly schedule to this saved `bedtime` is scheduling work outside a
-// single settings screen's scope. This screen's job ends at persisting the user's chosen bedtime +
-// wind-down preference.
+// "Phone becomes a clock": saving here re-registers the nightly bedtime-to-wake DeviceActivity
+// window (`SunriseAlarmManager.saveSettings` → `BedtimeGateManager.rearmDailySchedule`), and
+// `ZANOMonitor` shields at bedtime even with the app closed (session 38). This screen's job ends at
+// persisting the user's chosen bedtime + wind-down preference.
 //
 // VISUAL DESIGN (design-quality wave, 2026-09-23). The previous version was a stock `Form`: a
 // one-line `DatePicker`, a switch, a caption paragraph, a link row, and a toolbar-only Save that

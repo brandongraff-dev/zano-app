@@ -10,8 +10,11 @@ import Core
 // short-lived and memory-limited, spec §27):
 //   - intervalDidStart of a lock schedule / the Bedtime Gate → shield the lock set's apps and leave
 //     a pending record the app turns into a real LockSession on its next foreground
-//     (`LockScheduler.reconcile`), so emergency unlock, goals and the Earn Meter all work.
+//     (`LockScheduler.reconcile`), so emergency unlock, goals and the Earn Meter all work. The
+//     Bedtime Gate shields its own lock set, once per night (`ScheduledLockMonitor.bedtimeNightDidStart`).
 //   - intervalDidEnd of a lock schedule → lift that schedule's lock; the app records `.scheduleEnd`.
+//   - intervalDidEnd of the Bedtime Gate (wake time) → lift a bedtime lock only if it has no goals to
+//     earn; one with goals stays until they're earned (morning goals are the key, spec §4 v2).
 //   - intervalDidEnd / intervalWillEndWarning of an Earn Mode spend window → shield back on.
 // Bedtime pickups (`eventDidReachThreshold`) are not wired: BedtimeGateManager defines no
 // DeviceActivityEvent yet.

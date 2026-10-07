@@ -273,6 +273,14 @@ public final class SunriseAlarmManager {
         defaults.data(forKey: settingsKey) != nil
     }
 
+    /// The saved settings row, or `nil` if it was never set up (unlike `currentSettings()`, which
+    /// hands back defaults). Nonisolated, one App Group read, so `ZANOMonitor` can read bedtime and
+    /// wake time without the main actor (`BedtimeGateSharedState.currentSchedule`, session 38).
+    public nonisolated static func storedSettings() -> Settings? {
+        guard let data = defaults.data(forKey: settingsKey) else { return nil }
+        return try? JSONDecoder().decode(Settings.self, from: data)
+    }
+
     public func currentSettings() async -> Settings {
         guard
             let data = Self.defaults.data(forKey: Self.settingsKey),

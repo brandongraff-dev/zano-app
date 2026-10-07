@@ -39,8 +39,12 @@ Legend: **[YOU]** only you can do it · **[ME]** I can build it next · **[BOTH]
   "latest". Apple has been requiring the newest SDK for new uploads (an Xcode 26 / iOS 26 SDK requirement
   started in 2026 as far as I know; **check Apple's "Upload builds" page for the current rule**). Moving to
   Xcode 26 may surface new Swift errors; I would fix them in one pass.
-- **[ME] Sign in with Apple + auth provider**, only if you want Supabase features in 1.0 (`supabase-setup.md`
-  step 9). Not needed to submit.
+- **[DONE 2026-10-07, session 34, unverified] Sign in with Apple + Supabase auth.** Settings > Account,
+  sign out, delete account (`delete-account` Edge Function), Keychain session with refresh. Off unless
+  the build has `SUPABASE_URL` / `SUPABASE_ANON_KEY`, so 1.0 can ship without it. **[YOU]** to switch it on:
+  `supabase-setup.md` steps 9-10 (Apple capability on the App ID, Apple provider in Supabase, deploy
+  `delete-account`, add the two keys), then test sign-in, refresh, sign-out and delete on a device.
+  Squads stay hidden: their server side is not built.
 - **[ME] Landing pages for `/privacy` and `/terms`.** The app links to `https://zano.app/privacy` and
   `/terms`, but `landing/` only has `index.html`. **Reviewers open these links and reject if they 404.** I
   will generate them from the markdown the moment the lawyer-approved text and placeholders exist (publishing
@@ -51,6 +55,12 @@ Legend: **[YOU]** only you can do it · **[ME]** I can build it next · **[BOTH]
 
 ## D. Accounts and keys
 
+- **Build keys (env var names, fixed 2026-10-07):** `REVENUECAT_API_KEY`, `SUPABASE_URL`,
+  `SUPABASE_ANON_KEY`. Set them in Codemagic's `github` environment group and as GitHub repository secrets.
+  Every build (Codemagic, `ci.yml`, `fastlane beta`) now passes them to `xcodebuild` on the command line;
+  before session 34 a key set only in the environment was silently ignored, because project.yml's empty
+  target-level settings override env vars. Empty = that service is off. PostHog/Sentry keys have no
+  Info.plist entry yet (their SDKs aren't linked), so they aren't passed.
 - **[BOTH] RevenueCat:** account, the app, products (monthly, yearly with a 7-day trial, lifetime), one
   offering, the public SDK key as `REVENUECAT_API_KEY` in Codemagic. Create the same products in App Store
   Connect, then sandbox-buy each one. Without a key the paywall only offers "Continue for now" (3 days), which

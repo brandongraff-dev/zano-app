@@ -5,10 +5,10 @@
 // tasks), the RPCs in `0006_family_link.sql` (every state change), Storage (the teen's proof upload) and the
 // `family-proof-open` Edge Function (the parent's one view of a photo).
 //
-// Not live yet, and honest about it: it follows `MealVisionClient`'s shape and uses its configuration, and
-// like it only works once a Supabase project exists AND something implements
-// `SupabaseAuthTokenProviding` (nothing does yet; Supabase Auth isn't wired). Until then `isConfigured` is
-// `false` and the Family screens say so instead of failing. No network call is made without both.
+// Honest about availability: it follows `MealVisionClient`'s shape and uses its configuration, and like it
+// only works once a Supabase project exists AND someone is signed in (session 34: `SupabaseAuthSession`,
+// wired by `BackendConnections.connect()`). Until then `isConfigured` is `false` and the Family screens say
+// so instead of failing. No network call is made without both.
 //
 // Privacy: a proof photo is never written to disk by this client. `openProof` downloads the bytes with an
 // ephemeral session (no cache, no cookies) and hands them straight back; the caller shows them from memory.
@@ -45,7 +45,13 @@ public actor FamilyLinkClient {
         self.tokenProvider = tokenProvider
     }
 
-    public var isConfigured: Bool { configuration != nil && tokenProvider != nil }
+    /// Configured AND signed in (session 34): a signed-out person gets the offline state, not a failed call.
+    public var isConfigured: Bool {
+        get async {
+            guard configuration != nil, let tokenProvider else { return false }
+            return await tokenProvider.hasSupabaseSession()
+        }
+    }
 
     // MARK: Links
 

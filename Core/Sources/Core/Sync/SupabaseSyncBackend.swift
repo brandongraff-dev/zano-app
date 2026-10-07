@@ -74,20 +74,25 @@ import os
 /// every request (index.ts: "every request must carry `Authorization: Bearer <supabase user
 /// JWT>`... anonymous or Sign-in-with-Apple-linked").
 ///
-/// A seam, not a concrete type, on purpose: no Auth/session module exists yet anywhere in `Core` —
-/// docs/sessions/07-backend.md's own known issue is that "Anonymous → Sign in with Apple account
-/// linking... is not built," only the downstream Postgres trigger is. Guessing that future
-/// module's shape here is exactly the mistake this wave's own instructions warn against, so this
-/// file only declares the seam a future Auth session type conforms to and hands in at
-/// `SupabaseSyncBackend.init(...)` — mirroring `BarcodeNutritionFallbackProvider`'s
-/// (`Verification/BarcodeProteinLookup.swift`) identical situation: a real vendor/module doesn't
-/// exist yet, so only the protocol ships.
+/// Session 34: the concrete conformer is `SupabaseAuthSession` (`Core/Auth`), a Sign in with Apple
+/// session exchanged with Supabase Auth and kept in the Keychain. `BackendConnections.connect()` hands
+/// it to this backend and to every other Supabase client at launch.
 public protocol SupabaseAuthTokenProviding: Sendable {
     /// Returns the current user's Supabase access token, refreshing it first if the conformer
     /// knows it has expired. Throws — never returns an empty/placeholder string — when no session
     /// exists yet or a refresh failed, since `SupabaseSyncBackend` has nothing meaningful to try
     /// without a real token (the Edge Function rejects a missing/invalid one with 401 regardless).
     func supabaseAccessToken() async throws -> String
+
+    /// Whether a session exists right now, without refreshing or touching the network. Clients use it for
+    /// their `isConfigured` check, so a signed-out person goes straight to the offline path instead of
+    /// meeting a spinner that ends in "unauthorized". Session 34: `SupabaseAuthSession` is the real conformer.
+    func hasSupabaseSession() async -> Bool
+}
+
+extension SupabaseAuthTokenProviding {
+    /// Default for simple conformers (test doubles): assume a token is available.
+    public func hasSupabaseSession() async -> Bool { true }
 }
 
 // MARK: - Errors

@@ -126,6 +126,16 @@ targets:
         # `xcodebuild ... REVENUECAT_API_KEY=appl_xxx` in CI/Codemagic from a secret. Empty = the
         # not-configured path: the paywall can't load plans, and onboarding offers the grace period.
         REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)
+        # Supabase (session 34): project URL + public anon key, read by Core's BackendAvailability /
+        # MealVisionConfiguration.fromMainBundle. EMPTY build settings below on purpose (never commit
+        # them); with either empty the app has no backend at all: no Account section, no Household /
+        # Family Link, no network. Supply them on the xcodebuild command line from env vars
+        # (codemagic.yaml, .github/workflows/ci.yml, fastlane `beta`). A bare host
+        # (`abcd.supabase.co`) is also accepted and gets `https://`, which is the safe form for an
+        # .xcconfig file where `//` starts a comment. The anon key is public by design; the
+        # service-role key must never appear here.
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
         # Background execution the verifiers depend on. Without this declared, iOS never wakes the
         # app for geofence/visit events and the gym verifier silently never fires:
         #   location - GymVerifier (Core/Sources/Core/Verification/GymVerifier.swift): CLMonitor
@@ -172,6 +182,11 @@ targets:
         com.apple.developer.nfc.readersession.formats:
           - NDEF
         aps-environment: development
+        # Sign in with Apple (session 34; Settings > Account, only shown when the build has Supabase
+        # keys). Enable the "Sign in with Apple" capability on the com.zano.app App ID in the Apple
+        # Developer portal so the provisioning profile carries it.
+        com.apple.developer.applesignin:
+          - Default
     settings:
       base:
         # Icon + accent come from App/ZANO/Assets.xcassets (AppIcon.appiconset, AccentColor.colorset).
@@ -202,6 +217,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.zano.app
         # Placeholder for the Info.plist key above. Leave empty here; override per build.
         REVENUECAT_API_KEY: ""
+        # Session 34: placeholders for the Info.plist keys above, overridden per build (see there).
+        SUPABASE_URL: ""
+        SUPABASE_ANON_KEY: ""
 
   ZANOWidgets:
     type: app-extension

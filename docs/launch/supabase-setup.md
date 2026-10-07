@@ -7,10 +7,17 @@ screen, search the Supabase docs if it has changed. Nothing here has been run ag
 
 ZANO is local-first. Everything that gates a lock (goals, shield, timers, emergency unlock) works with no
 server. Supabase powers extras: cloud backup/sync, photo meal estimates (`meal-vision`), the weekly recap
-text, the risk check, the RevenueCat webhook and Family Link. **None of them can run yet anyway:** the app
-has no sign-in, and nothing implements `SupabaseAuthTokenProviding` (step 9). Recommended: submit 1.0 without
-Supabase, with Family Link hidden (`FamilyLinkAvailability.isLive = false`) and the photo-estimate buttons
-saying "not available right now". Turn Supabase on in 1.1 once sign-in is built.
+text, the risk check, the RevenueCat webhook, Household and Family Link.
+
+**Sign in with Apple is built (session 34, 2026-10-07)** but untested against a live project. The switch is
+the build itself: with no `SUPABASE_URL` / `SUPABASE_ANON_KEY` in the build, the app has no Account section,
+no Household, no Family Link and makes no Supabase calls, exactly as before. Add the two keys (step 10) and
+Settings gains an Account section; once someone signs in, Household and Family Link appear for them, meal
+photo estimates start working, and sync pushes on every app open. Squads stay hidden either way: their
+server side (invite lookup, squadmates' rings) is not built (`SquadAvailability.hasServerSupport`).
+
+Recommended: submit 1.0 without the keys (nothing else to hide), then do the steps below and ship 1.1 with
+them once you have tested sign-in on a device.
 
 If you would rather ship it in 1.0, do all ten steps below and then re-check the privacy policy, the
 App Store privacy answers and each `PrivacyInfo.xcprivacy` (`docs/launch/README.md`, "keep these four
@@ -61,19 +68,45 @@ things in agreement").
 8. **Schedule the weekly recap** (optional): the SQL example is in the header of
    `functions/weekly-recap/index.ts`. Skip it if you are not shipping recaps from the server.
 
-9. **Build sign-in (the missing code).** The app needs a type that conforms to `SupabaseAuthTokenProviding`
-   and is passed to `FamilyLinkClient.shared.configure(tokenProvider:)`, `MealVisionClient` and the sync
-   backend at launch. Recommended: Sign in with Apple exchanged for a Supabase session
-   (`POST /auth/v1/token?grant_type=id_token` with `provider: apple`), refresh tokens kept in the Keychain.
-   Dashboard side: Authentication > Providers > Apple (needs your Services ID and key from the Apple
-   Developer portal), and add the "Sign in with Apple" capability to the app. This is a code task I can do
-   next; it cannot be tested without the project and a device.
+9. **Turn on Sign in with Apple** (the app code exists since session 34: `Core/Sources/Core/Auth/`).
+   - Apple Developer portal: on the App ID `com.zano.app`, tick **Sign in with Apple** and regenerate the
+     provisioning profiles. project.yml already adds the `com.apple.developer.applesignin` entitlement.
+   - Supabase: Authentication > Sign In / Providers > **Apple**: enable it and add `com.zano.app` to the
+     **Client IDs** list (the native app's bundle ID is the audience of the identity token). The
+     Services ID, Team ID, Key ID and `.p8` secret key are only needed for web/OAuth sign-in, which ZANO
+     does not use; if the dashboard insists on them, create a Services ID in the developer portal. Check
+     Supabase's current "Login with Apple" guide for the exact fields, they move.
+   - Deploy the account deletion function (App Store 5.1.1(v), required once sign-in exists):
+     `supabase functions deploy delete-account` (keep JWT verification on).
+   - How the app signs in (for reference, unverified against a live project): Apple sign-in sheet with
+     the SHA-256 of a random nonce, then `POST {SUPABASE_URL}/auth/v1/token?grant_type=id_token` with
+     `{"provider":"apple","id_token":…,"nonce":<raw nonce>}` and the `apikey` header. The session lives in
+     the Keychain (this device only) and refreshes with `grant_type=refresh_token` a minute before expiry.
 
-10. **Point the app at it.** Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` as build settings (the anon key is
-    public by design, safe to ship) the way `REVENUECAT_API_KEY` is passed (`project.yml`, Codemagic env
-    group). Then set `FamilyLinkAvailability.isLive = true` and `HouseholdAvailability.isLive = true` and rebuild.
+10. **Point the app at it.** The build reads two Info.plist keys fed from build settings (project.yml):
+    `SUPABASE_URL` (Project Settings > API > Project URL, e.g. `https://abcd.supabase.co`) and
+    `SUPABASE_ANON_KEY` (the **anon / publishable** key; public by design, safe to ship. Never the
+    service-role / secret key). They are empty in the repo; set them as environment variables where builds
+    run, and every build script passes them to `xcodebuild` on the command line (project.yml's empty
+    target settings would otherwise override plain env vars):
+    - **Codemagic:** Team settings > Environment variables, group `github` (already listed in
+      `codemagic.yaml`): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (and `REVENUECAT_API_KEY`).
+    - **GitHub Actions:** repository secrets with the same three names (`ci.yml` build steps and the
+      TestFlight job, which hands them to `fastlane beta`).
+    - **Local Xcode:** `xcodebuild ... SUPABASE_URL=https://abcd.supabase.co SUPABASE_ANON_KEY=...`. If you
+      use an `.xcconfig` instead, write the host only (`SUPABASE_URL = abcd.supabase.co`): `//` starts a
+      comment in xcconfig files, and the app adds `https://` itself.
+    Nothing else changes in code: `HouseholdAvailability.isLive` and `FamilyLinkAvailability.isLive` are
+    computed (keys present AND signed in). Check after building: Settings shows an **Account** section.
 
 ## Check it works (needs two phones or two Apple IDs)
+
+- Settings > Account > Sign in with Apple: the section switches to "Signed in with Apple"; Household and
+  Family Link rows appear under Setup. In Supabase, Authentication > Users shows the new user and
+  Table Editor > `users` has the matching row (0002's trigger).
+- Leave the app for over an hour, come back, open Household: it still loads (the token refreshed).
+- Sign out: the rows disappear. Sign in again, then Delete account: the user is gone from Authentication
+  and their rows and meal photos are gone too.
 
 - Parent creates an invite, teen accepts it: both see the link.
 - Parent adds a task needing a photo; teen hands in a photo; parent opens it **once**; the second open says

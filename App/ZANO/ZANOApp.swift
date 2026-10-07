@@ -67,8 +67,15 @@ struct ZANOApp: App {
         // is supplied yet (Session 7, `feat/backend`, owns that); `enqueue` works without one and
         // only `flush()` needs it, so outbox rows queue safely from day one and start actually
         // pushing the moment Session 7 calls `SyncEngine.shared.setBackend(_:)`.
+        //
+        // Session 34: right after that, `BackendConnections.connect()` hands the Sign in with Apple session
+        // (`SupabaseAuthSession`) to the sync backend, meal vision, Household and Family Link. It must run
+        // after `configure` (which resets the backend), hence the same task. With no SUPABASE_URL /
+        // SUPABASE_ANON_KEY in the build both calls below return immediately and nothing goes online.
         Task {
             await SyncEngine.shared.configure(modelContainer: ModelContainer.appGroup)
+            await BackendConnections.connect()
+            await BackendConnections.syncIfSignedIn()
         }
 
         // --- App-shell wiring (added when ContentView/AppRouter replaced the Session-0
@@ -226,6 +233,9 @@ struct ZANOApp: App {
                     switch phase {
                     case .active:
                         Task { await FocusSessionVerifier.shared.appDidBecomeActive() }
+                        // Session 34: push the outbox / pull on every return to the app. A no-op with
+                        // no backend keys or nobody signed in; never blocks anything.
+                        Task { await BackendConnections.syncIfSignedIn() }
                     case .background:
                         FocusSessionVerifier.shared.appDidEnterBackground()
                     default:

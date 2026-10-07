@@ -52,6 +52,8 @@
 #   ZANOWatch isn't embedded as ZANO's companion yet, and the v1 target is iPhone-only
 #   (`TARGETED_DEVICE_FAMILY: "1"` in project.yml). Add it here only once that's true.
 
+require "shellwords" # session 34: escaping the key xcargs in build_appstore_ipa
+
 default_platform(:ios)
 
 # ── Shared constants ───────────────────────────────────────────────────────────────────────────
@@ -203,6 +205,12 @@ platform :ios do
       output_directory: OUTPUT_DIR,
       output_name: "ZANO.ipa",
       clean: true,
+      # Session 34: public service keys from the environment (CI secrets), as command-line build
+      # settings, because project.yml's empty target-level settings override plain env vars. Empty
+      # when unset = no backend / no RevenueCat. Shell-escaped so a value can't break the command.
+      xcargs: %w[REVENUECAT_API_KEY SUPABASE_URL SUPABASE_ANON_KEY]
+        .map { |name| "#{name}=#{Shellwords.escape(ENV.fetch(name, ''))}" }
+        .join(" "),
       export_options: {
         method: "app-store",
         signingStyle: "manual",

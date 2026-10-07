@@ -7,10 +7,11 @@
 
 import Foundation
 
-/// Whether this build shows Household at all. `false` until the Supabase project is live and sign-in is
-/// wired (`docs/launch/supabase-setup.md`, step 9), so nobody meets a feature that does nothing.
+/// Whether this build shows Household at all: only when the build has Supabase keys AND the person is
+/// signed in (session 34, `AccountStatus`). With no keys it is always `false`, so nobody meets a feature that
+/// does nothing. Main-actor and observable: a view reading it updates the moment someone signs in or out.
 public enum HouseholdAvailability {
-    public static let isLive = false
+    @MainActor public static var isLive: Bool { AccountStatus.shared.isLive }
 }
 
 public struct Household: Codable, Sendable, Identifiable, Equatable {

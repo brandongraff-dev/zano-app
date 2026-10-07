@@ -75,6 +75,12 @@ public struct ZANOWidgetSnapshot: Sendable {
     // already zeroed out by the loader when the mirror is stale (see
     // `SharedDefaults.earnedMinutesMirrorIsForToday`) so nobody downstream has to re-check that.
     public let earnedMinutesRemainingToday: Int
+    /// Today's earned and spent totals (Time Bank widget, session 35), zeroed with the balance when
+    /// the mirror is stale. Read 0 on a store written before session 35; `TimeBankGlance` copes.
+    public let timeBankEarnedToday: Int
+    public let timeBankSpentToday: Int
+    /// The unfinished goal that would add the most minutes ("Gym +90 min"), or `nil`.
+    public let timeBankNextEarn: TimeBankGlance.NextEarn?
 
     // Next scheduled lock (spec §5.1, §5.2) — mirrors `SharedDefaults.nextScheduledLockAt`.
     public let nextScheduledLockAt: Date?
@@ -100,6 +106,9 @@ public struct ZANOWidgetSnapshot: Sendable {
         lockSetName: String?,
         remainingGoalTitles: [String] = [],
         earnedMinutesRemainingToday: Int,
+        timeBankEarnedToday: Int = 0,
+        timeBankSpentToday: Int = 0,
+        timeBankNextEarn: TimeBankGlance.NextEarn? = nil,
         nextScheduledLockAt: Date?,
         protein: ZANORingProgress,
         water: ZANORingProgress,
@@ -116,6 +125,9 @@ public struct ZANOWidgetSnapshot: Sendable {
         self.lockSetName = lockSetName
         self.remainingGoalTitles = remainingGoalTitles
         self.earnedMinutesRemainingToday = earnedMinutesRemainingToday
+        self.timeBankEarnedToday = timeBankEarnedToday
+        self.timeBankSpentToday = timeBankSpentToday
+        self.timeBankNextEarn = timeBankNextEarn
         self.nextScheduledLockAt = nextScheduledLockAt
         self.protein = protein
         self.water = water
@@ -216,12 +228,14 @@ public enum ZANOWidgetDataStore {
         // engine uses (`GoalDayProgress.isVerifiedCompletion` since the start of the session's
         // day), read from the goals already fetched above. UUID-only predicate: no enum compares.
         var remainingGoalTitles: [String] = []
+        var requiredGoalIDs: [UUID] = []
         if let sessionID = SharedDefaults.activeLockSessionID {
             var descriptor = FetchDescriptor<LockSession>(
                 predicate: #Predicate<LockSession> { $0.id == sessionID }
             )
             descriptor.fetchLimit = 1
             if let session = (try? context.fetch(descriptor))?.first {
+                requiredGoalIDs = session.requiredGoalIDs
                 let sessionDayStart = calendar.startOfDay(for: session.startedAt)
                 remainingGoalTitles = session.requiredGoalIDs.compactMap { goalID in
                     guard let goal = activeGoals.first(where: { $0.id == goalID }) else { return nil }
@@ -233,9 +247,22 @@ public enum ZANOWidgetDataStore {
             }
         }
 
-        let remainingMinutes = SharedDefaults.earnedMinutesMirrorIsForToday
-            ? SharedDefaults.earnedMinutesRemainingToday
-            : 0
+        let mirrorIsForToday = SharedDefaults.earnedMinutesMirrorIsForToday
+        let remainingMinutes = mirrorIsForToday ? SharedDefaults.earnedMinutesRemainingToday : 0
+
+        // Time Bank widget (session 35): the next goal that would deposit minutes. The active
+        // lock's required goals come first, so a tie goes to the goal that also unlocks.
+        let requiredFirst = activeGoals.filter { requiredGoalIDs.contains($0.id) }
+            + activeGoals.filter { !requiredGoalIDs.contains($0.id) }
+        let earnCandidates = requiredFirst.map { goal in
+            TimeBankGlance.Candidate(
+                title: goal.title,
+                goalType: goal.type,
+                isDoneToday: goal.events.contains { event in
+                    event.ts >= startOfToday && GoalDayProgress.isVerifiedCompletion(event)
+                }
+            )
+        }
 
         return ZANOWidgetSnapshot(
             asOf: .now,
@@ -247,6 +274,9 @@ public enum ZANOWidgetDataStore {
             lockSetName: activeLockSetName,
             remainingGoalTitles: remainingGoalTitles,
             earnedMinutesRemainingToday: remainingMinutes,
+            timeBankEarnedToday: mirrorIsForToday ? SharedDefaults.timeBankEarnedToday : 0,
+            timeBankSpentToday: mirrorIsForToday ? SharedDefaults.timeBankSpentToday : 0,
+            timeBankNextEarn: TimeBankGlance.nextEarn(from: earnCandidates),
             nextScheduledLockAt: SharedDefaults.nextScheduledLockAt,
             protein: ring(for: .protein, title: "Protein", defaultUnit: "g"),
             water: ring(for: .water, title: "Water", defaultUnit: "ml"),

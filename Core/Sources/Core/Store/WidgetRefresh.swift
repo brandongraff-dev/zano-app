@@ -11,6 +11,9 @@ public enum WidgetRefresh {
     /// The Control Center lock control's kind (`ZANOLockControl` in the widget extension).
     public static let lockControlKind = "com.zano.app.control.lockToggle"
 
+    /// The Time Bank widget's kind (`ZANOTimeBankWidget` in the widget extension, session 35).
+    public static let timeBankWidgetKind = "com.zano.app.widget.timebank"
+
     /// Cheap and safe to call often: WidgetKit coalesces reloads and budgets them itself.
     public static func reloadAll() {
         WidgetCenter.shared.reloadAllTimelines()

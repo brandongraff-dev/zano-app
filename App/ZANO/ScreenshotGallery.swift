@@ -423,6 +423,8 @@ enum DemoData {
         SharedDefaults.activeLockSetID = lockSet.id
         SharedDefaults.activeLockMode = .full
         SharedDefaults.goalsRemainingForActiveLock = 2
+        SharedDefaults.timeBankEarnedToday = 90
+        SharedDefaults.timeBankSpentToday = 0
         SharedDefaults.earnedMinutesRemainingToday = 90
     }
 

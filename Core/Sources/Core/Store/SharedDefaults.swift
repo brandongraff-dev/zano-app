@@ -48,6 +48,8 @@ public enum SharedDefaults {
         static let goalsRemainingForActiveLock = "shared.goalsRemainingForActiveLock"
         static let earnedMinutesRemainingToday = "shared.earnedMinutesRemainingToday"
         static let earnedMinutesMirrorDate = "shared.earnedMinutesMirrorDate"
+        static let timeBankEarnedToday = "shared.timeBank.earnedToday"
+        static let timeBankSpentToday = "shared.timeBank.spentToday"
         static let nextScheduledLockAt = "shared.nextScheduledLockAt"
         static let shieldImpressionCount = "shared.shieldImpressionCount"
         static let lockedSelectionData = "shared.lockedSelectionData"
@@ -253,6 +255,21 @@ public enum SharedDefaults {
             defaults.set(newValue, forKey: Keys.earnedMinutesRemainingToday)
             defaults.set(Date.now, forKey: Keys.earnedMinutesMirrorDate)
         }
+    }
+
+    /// Today's total earned minutes (`TimeBank.earnedMin`), for the Time Bank widget (session 35).
+    /// Written by `TimeBankEngine` just before ``earnedMinutesRemainingToday``, so it shares that
+    /// key's mirror date: read it only when ``earnedMinutesMirrorIsForToday``. Missing on stores
+    /// written before session 35, where it reads 0 (`TimeBankGlance` copes with that).
+    public static var timeBankEarnedToday: Int {
+        get { defaults.integer(forKey: Keys.timeBankEarnedToday) }
+        set { defaults.set(newValue, forKey: Keys.timeBankEarnedToday) }
+    }
+
+    /// Today's total spent minutes (`TimeBank.spentMin`). Same rules as ``timeBankEarnedToday``.
+    public static var timeBankSpentToday: Int {
+        get { defaults.integer(forKey: Keys.timeBankSpentToday) }
+        set { defaults.set(newValue, forKey: Keys.timeBankSpentToday) }
     }
 
     /// `false` once local midnight has passed since ``earnedMinutesRemainingToday`` was last

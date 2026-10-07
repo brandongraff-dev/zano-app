@@ -117,6 +117,9 @@ extension ZANOWidgetSnapshot {
         lockSetName: placeholder.lockSetName,
         remainingGoalTitles: ["Gym", placeholder.water.title],
         earnedMinutesRemainingToday: 35,
+        timeBankEarnedToday: 60,
+        timeBankSpentToday: 25,
+        timeBankNextEarn: TimeBankGlance.NextEarn(title: "Gym", minutes: TimeBankEarnRates.gymSessionMinutes),
         nextScheduledLockAt: placeholder.nextScheduledLockAt,
         protein: ZANORingProgress(
             goalID: UUID(), title: placeholder.protein.title, current: 150, target: 150, unit: placeholder.protein.unit
@@ -141,6 +144,9 @@ extension ZANOWidgetSnapshot {
         goalsRemainingForActiveLock: 0,
         lockSetName: nil,
         earnedMinutesRemainingToday: 70,
+        timeBankEarnedToday: 90,
+        timeBankSpentToday: 20,
+        timeBankNextEarn: TimeBankGlance.NextEarn(title: placeholder.focus.title, minutes: TimeBankEarnRates.focusBlockMinutes),
         nextScheduledLockAt: placeholder.nextScheduledLockAt,
         protein: galleryPreview.protein,
         water: ZANORingProgress(
@@ -161,6 +167,8 @@ enum ZANOWidgetLink {
     static let today = URL(string: "zano://today")!
     /// Fuel: protein logging.
     static let fuel = URL(string: "zano://fuel")!
+    /// The Lock tab, where Time Bank minutes are spent (session 35).
+    static let timeBank = URL(string: "zano://timebank")!
 }
 
 // MARK: - Buddy

@@ -358,7 +358,12 @@ public final class TimeBankEngine {
     /// fetch; mirroring a backfilled past/future date's balance there would show the wrong number.
     private func mirrorIfToday(_ bank: TimeBank, for date: Date) async {
         guard Calendar.current.isDateInToday(date) else { return }
+        // Earned/spent first: the balance setter stamps the mirror date all three share.
+        SharedDefaults.timeBankEarnedToday = bank.earnedMin
+        SharedDefaults.timeBankSpentToday = bank.spentMin
         SharedDefaults.earnedMinutesRemainingToday = bank.remainingMin
+        // Session 35: the Time Bank widget shows this balance; redraw it on every earn/spend/refund.
+        WidgetRefresh.reloadAll()
         // Spec §5.11: the Dynamic Island's draining bar follows every bank change.
         await EarnMeterActivityManager.shared.refreshFromTimeBank(earnedMinutesRemaining: bank.remainingMin)
     }

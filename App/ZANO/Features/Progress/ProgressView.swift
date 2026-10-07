@@ -238,6 +238,7 @@ struct ProgressView: View {
             WeeklyRecapShareView(
                 recap: recap,
                 goalTitles: Dictionary(allGoals.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first }),
+                summary: WeeklyRecapBuilder.shared.summary(forWeekStart: recap.weekStart),
                 onDismiss: { sharingRecap = nil }
             )
         }
@@ -575,7 +576,17 @@ struct ProgressView: View {
     // MARK: - Weekly Report Card (spec §5.14)
 
     private func recapSection(_ recap: Recap) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // The on-device extras the `Recap` row has no column for (session 37: last week's
+        // comparison, reached/closed counts). `nil` for a recap that came from elsewhere.
+        let summary = WeeklyRecapBuilder.shared.summary(forWeekStart: recap.weekStart)
+        let timeSavedNotes: [String] = summary.map { summary in
+            Copy.weeklyRecap.timeSavedNotes(
+                appsLockedDeltaMinutes: summary.vsLastWeek?.appsLockedMinutesDelta,
+                attempts: summary.lockedAppAttempts ?? 0,
+                closes: summary.reclaimedCloses
+            )
+        } ?? []
+        return VStack(alignment: .leading, spacing: 0) {
             ProgressSectionLabel(text: Copy.progress.recapSectionTitle)
 
             // `RecapCard` (Core/UI) is already a `zanoCard` (surface, top-lit edge, radius 20), the
@@ -591,10 +602,14 @@ struct ProgressView: View {
                     completed: recap.stats.goalsCompleted,
                     planned: recap.stats.goalsPlanned
                 ),
-                timeReclaimedLabel: Copy.progress.timeReclaimedLabel(
+                // Named for what it counts (time ZANO kept the apps locked), not "screen time":
+                // Apple's Screen Time numbers aren't readable here (session 37).
+                timeReclaimedLabel: Copy.weeklyRecap.appsLockedLabel(
                     duration: Copy.progress.duration(minutes: recap.stats.timeReclaimedMinutes)
                 ),
                 bestDayLabel: recap.stats.bestDay.map { Copy.progress.bestDayLabel(day: $0) },
+                timeSavedNotes: timeSavedNotes,
+                timeSavedFootnote: Copy.weeklyRecap.screenTimeFootnote,
                 streak: recap.stats.streak
             )
 

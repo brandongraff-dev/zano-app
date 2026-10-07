@@ -6,8 +6,9 @@
 //
 // Writer: `ShieldConfigurationExtension` (ZANOShieldConfig) calls `recordAttempt(appName:)` each
 // time the system asks it for a shield — the only "the user just opened a blocked app" signal iOS
-// gives. Readers: the app (Today's locked-out card, the Lock tab). Lives in Core so both the
-// extension and the app can reach it.
+// gives. Readers: the app (Today's locked-out card, the Lock tab) and `WeeklyRecapBuilder` (the
+// weekly "times you reached for a locked app" count, via the per-day tally, session 37). Lives in
+// Core so both the extension and the app can reach it.
 //
 // Extension budget (spec §11, §27): one App Group defaults read and one write per call, no
 // SwiftData, no networking. Only a display-name string is ever stored, never an
@@ -26,6 +27,9 @@ public enum LockedOutAttemptTracker {
     /// The system can render the shield more than once for one attempt (e.g. returning to the
     /// app switcher and back). Renders this close together count once.
     static let sameAttemptInterval: TimeInterval = 10
+    /// Local days of per-day attempt counts kept for the weekly recap: this week and last week
+    /// (the comparison), plus a day of slack.
+    static let dayRetention = 15
 
     /// Same rationale and annotation as `SharedDefaults.defaults`: documented thread-safe, not yet
     /// marked `Sendable` by the SDK.
@@ -33,10 +37,14 @@ public enum LockedOutAttemptTracker {
         UserDefaults(suiteName: AppGroup.identifier) ?? .standard
 
     private enum Keys {
-        /// `["times": [TimeInterval since 1970], "app": String]` — one key so a record is one write.
+        /// `["times": [TimeInterval since 1970], "app": String, "days": ["yyyy-MM-dd": Int]]` —
+        /// one key so a record is one write.
         static let state = "shared.lockedOut.attempts"
         static let times = "times"
         static let app = "app"
+        /// Per local day attempt counts (`ReclaimedOpens.dayKey` format). `times` only keeps a day,
+        /// which is enough for the hour window but not for a weekly total.
+        static let days = "days"
     }
 
     // MARK: - Writing (shield configuration extension)
@@ -48,15 +56,21 @@ public enum LockedOutAttemptTracker {
         recordAttempt(appName: appName, at: date, defaults: suite)
     }
 
-    static func recordAttempt(appName: String?, at date: Date, defaults: UserDefaults) {
+    static func recordAttempt(appName: String?, at date: Date, defaults: UserDefaults, calendar: Calendar = .current) {
         let state = defaults.dictionary(forKey: Keys.state) ?? [:]
         let now = date.timeIntervalSince1970
         var times = (state[Keys.times] as? [Double] ?? []).filter { now - $0 < retention && $0 <= now }
+        var days = state[Keys.days] as? [String: Int] ?? [:]
         // A re-render of the same attempt only refreshes the name.
         if times.last.map({ now - $0 >= sameAttemptInterval }) ?? true {
             times.append(now)
+            days[ReclaimedOpens.dayKey(date, calendar: calendar), default: 0] += 1
+            if days.count > dayRetention {
+                let keep = Set(days.keys.sorted().suffix(dayRetention))
+                days = days.filter { keep.contains($0.key) }
+            }
         }
-        var updated: [String: Any] = [Keys.times: times]
+        var updated: [String: Any] = [Keys.times: times, Keys.days: days]
         if let name = appName ?? state[Keys.app] as? String {
             updated[Keys.app] = name
         }
@@ -90,6 +104,25 @@ public enum LockedOutAttemptTracker {
               date.timeIntervalSince1970 - last < window
         else { return nil }
         return defaults.dictionary(forKey: Keys.state)?[Keys.app] as? String
+    }
+
+    /// Attempts on the local days in `[start, end)` — the weekly recap's "times you reached for a
+    /// locked app". Counted per day from the day this tally shipped; older days read as 0.
+    public static func attempts(from start: Date, to end: Date, calendar: Calendar = .current) -> Int {
+        attempts(from: start, to: end, calendar: calendar, defaults: suite)
+    }
+
+    static func attempts(from start: Date, to end: Date, calendar: Calendar, defaults: UserDefaults) -> Int {
+        let days = defaults.dictionary(forKey: Keys.state)?[Keys.days] as? [String: Int] ?? [:]
+        guard !days.isEmpty else { return 0 }
+        var total = 0
+        var day = calendar.startOfDay(for: start)
+        while day < end {
+            total += days[ReclaimedOpens.dayKey(day, calendar: calendar)] ?? 0
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return total
     }
 
     private static func storedTimes(_ defaults: UserDefaults) -> [Double] {

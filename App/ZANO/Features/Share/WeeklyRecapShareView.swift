@@ -66,6 +66,12 @@
 //     the exported image: P7's own content list doesn't include it, and `RecapCard` already
 //     surfaces it in-app.
 //
+// Session 37 ("screen time saved"): an optional `WeeklyRecapSummary` (the on-device extras
+// `WeeklyRecapBuilder` keeps beside the `Recap` row) adds the comparison with last week and the
+// "reached for a locked app" count to the time page and the poster. The time stat is named for what
+// it is ("Apps stayed locked"), never "screen time", because Apple's Screen Time numbers aren't
+// readable outside the DeviceActivityReport extension.
+//
 // Copy: `Copy.share.*` (`ShareCopy.swift`) and `Copy.progress.*` (`ProgressCopy.swift`), reused
 // rather than declaring near-duplicates for the same semantics. `Copy.share.weeklyRecapStatLine` is no
 // longer used here: it folded the time reclaimed into the goals line, which would now say the hero's
@@ -92,6 +98,9 @@ public struct WeeklyRecapShareView: View {
     /// Optional rank-tier label (e.g. `"Gold"`) — see this file's header on why this isn't
     /// resolved from `Recap`/`RecapStats` today. `nil` renders the title as just `"Week N"`.
     private let rankTierLabel: String?
+    /// The week's on-device extras (`WeeklyRecapBuilder.summary(forWeekStart:)`), when the recap
+    /// was built on this device. `nil` hides the comparison and reached/closed lines.
+    private let summary: WeeklyRecapSummary?
     private let onDismiss: () -> Void
 
     // MARK: Story state
@@ -142,11 +151,13 @@ public struct WeeklyRecapShareView: View {
         recap: Recap,
         goalTitles: [UUID: String] = [:],
         rankTierLabel: String? = nil,
+        summary: WeeklyRecapSummary? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self.recap = recap
         self.goalTitles = goalTitles
         self.rankTierLabel = rankTierLabel
+        self.summary = summary
         self.onDismiss = onDismiss
     }
 
@@ -364,7 +375,13 @@ public struct WeeklyRecapShareView: View {
             rankMovement: recap.stats.rankMovement,
             bestDay: recap.stats.bestDay,
             rings: rings,
-            insight: recap.text
+            insight: recap.text,
+            timeVsLastWeek: (summary?.vsLastWeek?.appsLockedMinutesDelta).map {
+                Copy.weeklyRecap.appsLockedVsLastWeek(deltaMinutes: $0)
+            },
+            reachedLine: summary.flatMap {
+                Copy.weeklyRecap.reachedLine(attempts: $0.lockedAppAttempts ?? 0, closes: $0.reclaimedCloses)
+            }
         )
     }
 
@@ -440,11 +457,14 @@ public struct WeeklyRecapShareView: View {
         return RecapPoster(
             title: Copy.share.weeklyRecapTitle(weekNumber: weekNumber, rankTierLabel: rankTierLabel),
             heroValue: hasReclaimedTime ? Copy.progress.duration(minutes: minutes) : goalsLabel,
-            heroCaption: hasReclaimedTime ? Copy.progress.timeReclaimedTitle : Copy.progress.recapSectionTitle,
+            heroCaption: hasReclaimedTime ? Copy.weeklyRecap.appsLockedCaption : Copy.progress.recapSectionTitle,
             rings: goalRings,
             statLine: hasReclaimedTime ? goalsLabel : nil,
             highlightLine: recap.stats.bestDay.map { Copy.progress.bestDayLabel(day: $0) },
-            footerLabel: Copy.share.footerWordmark
+            footerLabel: Copy.share.footerWordmark,
+            reachLine: summary.flatMap {
+                Copy.weeklyRecap.reachedPill(attempts: $0.lockedAppAttempts ?? 0, closes: $0.reclaimedCloses)
+            }
         )
     }
 

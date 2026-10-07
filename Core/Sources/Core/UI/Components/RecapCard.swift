@@ -53,6 +53,13 @@ public struct RecapCard: View {
     private let timeReclaimedLabel: String?
     /// Caller-composed, e.g. `"Best day: Thursday"` (from `RecapStats.bestDay`).
     private let bestDayLabel: String?
+    /// Caller-composed quiet lines about the time-locked stat (session 37), e.g. `"+40m vs last
+    /// week"`, `"Reached for a locked app 12 times, closed it 5"` (`Copy.weeklyRecap.
+    /// timeSavedNotes`). Empty shows nothing.
+    private let timeSavedNotes: [String]
+    /// Caller-composed source note for those numbers (`Copy.weeklyRecap.screenTimeFootnote`), so
+    /// the card never reads as Apple Screen Time. Shown only with a time stat or notes.
+    private let timeSavedFootnote: String?
     /// Raw streak count (`RecapStats.streak`) — numeric data, so this card renders it directly via
     /// `StreakPill` without needing a caller-composed string.
     private let streak: Int?
@@ -79,6 +86,8 @@ public struct RecapCard: View {
         completionLabel: String? = nil,
         timeReclaimedLabel: String? = nil,
         bestDayLabel: String? = nil,
+        timeSavedNotes: [String] = [],
+        timeSavedFootnote: String? = nil,
         streak: Int? = nil,
         shareLabel: String? = nil,
         onShare: (() -> Void)? = nil
@@ -90,6 +99,8 @@ public struct RecapCard: View {
         self.completionLabel = completionLabel
         self.timeReclaimedLabel = timeReclaimedLabel
         self.bestDayLabel = bestDayLabel
+        self.timeSavedNotes = timeSavedNotes
+        self.timeSavedFootnote = timeSavedFootnote
         self.streak = streak
         self.shareLabel = shareLabel
         self.onShare = onShare
@@ -119,7 +130,7 @@ public struct RecapCard: View {
     }
 
     private var hasStats: Bool {
-        completionLabel != nil || timeReclaimedLabel != nil || bestDayLabel != nil
+        completionLabel != nil || timeReclaimedLabel != nil || bestDayLabel != nil || !timeSavedNotes.isEmpty
     }
 
     public var body: some View {
@@ -209,6 +220,17 @@ public struct RecapCard: View {
                 }
             }
 
+            if !timeSavedNotes.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    ForEach(timeSavedNotes, id: \.self) { note in
+                        Text(note)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
             if let bestDayLabel {
                 HStack(spacing: Theme.Spacing.xs) {
                     Image(systemName: "star.fill")
@@ -219,6 +241,13 @@ public struct RecapCard: View {
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
+            }
+
+            if let timeSavedFootnote, timeReclaimedLabel != nil || !timeSavedNotes.isEmpty {
+                Text(timeSavedFootnote)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -284,8 +313,10 @@ public struct RecapCard: View {
                     RingClusterItem(title: "Focus", progress: 0.5, color: Theme.Colors.Ring.focus)
                 ],
                 completionLabel: "4/6 goals",
-                timeReclaimedLabel: "6h 40m reclaimed",
+                timeReclaimedLabel: "6h 40m apps stayed locked",
                 bestDayLabel: "Best day: Thursday",
+                timeSavedNotes: ["+40m vs last week", "Reached for a locked app 12 times, closed it 5"],
+                timeSavedFootnote: "Counted from your ZANO locks, not Apple Screen Time.",
                 streak: 14,
                 shareLabel: "Share",
                 onShare: {}

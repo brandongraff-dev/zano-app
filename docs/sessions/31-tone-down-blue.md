@@ -2,9 +2,9 @@
 
 - **Branch:** `claude/sweet-mayer-a9hzwo` (rebuilt on `main` @ a520809)
 - **Spec sections:** §15 (design tokens; `docs/design/visual-direction-v2.md` owns the palette)
-- **Status:** Scaffolded — Unverified
+- **Status:** Compiles + tested in CI (run 37540966066); screenshots approved by the user
 - **Started:** 2026-10-06
-- **Last updated:** 2026-10-06
+- **Last updated:** 2026-10-07
 
 ## Scope
 
@@ -36,3 +36,9 @@ layout, component or character changes.
   Its commits remain in this branch's history, but a merge with the `ours` strategy discards their
   content: the branch tree is exactly `main` plus this change.
 - **Needs verification on:** CI build + screenshot tour (dark and light).
+
+### 2026-10-07 — Verified in CI, approved
+
+- CI run 37540966066: app build and Core tests green; screenshot tour reviewed (Today, Progress,
+  light Today). User approved and asked to merge. Still open: two card-level tints (Progress
+  "Time reclaimed" blue-grey, Focus tile purple) and an on-device look.

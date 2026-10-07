@@ -1,0 +1,16 @@
+# Included by project.yml only when ZANO_EMBED_WATCH is set (session 39):
+#   ZANO_EMBED_WATCH=YES xcodegen generate
+# Adds the Apple Watch app to ZANO's dependencies. XcodeGen merges this array into the one in
+# project.yml by appending, and wires a watchOS `application` dependency of an app target as an
+# "Embed Watch Content" copy phase into $(CONTENTS_FOLDER_PATH)/Watch. ZANOWatch already declares
+# `WKCompanionAppBundleIdentifier: com.zano.app` and the id `com.zano.app.watchkitapp`, which is
+# what the embedded-binary validation checks.
+#
+# Building ZANO this way also builds ZANOWatch (and its complication extension) for the matching
+# watchOS SDK, so the machine needs the watchOS SDK too. CI builds it in a separate, non-blocking
+# step after the plain iOS build; see .github/workflows/ci.yml and codemagic.yaml.
+targets:
+  ZANO:
+    dependencies:
+      - target: ZANOWatch
+        embed: true

@@ -131,6 +131,8 @@ import SwiftData
 // AlwaysAllowedWarningView.swift` and `AppPickerView.swift` (this same app target) already carry
 // for the same reason.
 import FamilyControls
+// Session 34: `SignInWithAppleButton` and `ASAuthorizationAppleIDCredential` (Account section).
+import AuthenticationServices
 import Core
 
 // MARK: - Settings root
@@ -220,6 +222,10 @@ struct SettingsView: View {
                 rewardsSection
                 notificationsSection
                 subscriptionSection
+                // Session 34: only exists when the build has Supabase keys (App Review 2.1).
+                if BackendAvailability.isConfigured {
+                    SettingsAccountSection()
+                }
                 aboutSection
                 dataSection
                 founderSeriesCard
@@ -484,6 +490,21 @@ struct SettingsView: View {
                         tint: SettingsPalette.goals
                     ) {
                         FamilyLinkView()
+                    }
+                }
+
+                // Session 34: Squad lives here rather than as a sixth tab (the floating glass bar is
+                // designed for five). Hidden until the build has a backend, the person is signed in,
+                // and the squad server pieces exist (`SquadAvailability.hasServerSupport`).
+                if SquadAvailability.isLive {
+                    SettingsRowDivider()
+
+                    SettingsNavRow(
+                        Copy.squad.screenTitle,
+                        systemImage: "person.3.fill",
+                        tint: SettingsPalette.goals
+                    ) {
+                        SquadHomeView()
                     }
                 }
 
@@ -957,6 +978,200 @@ struct SettingsView: View {
             title: Copy.settings.deleteAllDataDoneTitle,
             message: Copy.settings.deleteAllDataDoneMessage
         )
+    }
+}
+
+// MARK: - Account (session 34: Sign in with Apple + Supabase)
+
+/// Sign in with Apple, the signed-in state, sign out and delete account (App Store 5.1.1(v): an app that
+/// offers sign-in must offer account deletion in the app). Shown only when the build has Supabase keys.
+/// Reads `AccountStatus` (observable), so it and the Household / Family Link rows update the moment the
+/// state changes. All network work goes through `SupabaseAuthSession` in Core.
+private struct SettingsAccountSection: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The raw nonce for the Apple request in flight. Apple gets its SHA-256; Supabase gets the raw value.
+    @State private var currentNonce: String?
+    @State private var isSigningIn = false
+    @State private var isSigningOut = false
+    @State private var isDeleting = false
+    @State private var isConfirmingSignOut = false
+    @State private var isConfirmingDelete = false
+    @State private var alert: SettingsErrorAlert?
+
+    private var account: AccountStatus { AccountStatus.shared }
+
+    var body: some View {
+        SettingsSection(title: Copy.account.sectionTitle, info: Copy.account.sectionInfo) {
+            if account.isSignedIn {
+                signedInCard
+            } else {
+                signedOutCard
+            }
+        }
+        .settingsErrorAlert($alert)
+        .confirmationDialog(
+            Copy.account.signOutConfirmTitle,
+            isPresented: $isConfirmingSignOut,
+            titleVisibility: .visible
+        ) {
+            Button(Copy.account.signOutConfirmButtonLabel, role: .destructive) {
+                Task { await signOut() }
+            }
+            Button(Copy.common.cancel, role: .cancel) {}
+        } message: {
+            Text(Copy.account.signOutConfirmMessage)
+        }
+        .confirmationDialog(
+            Copy.account.deleteConfirmTitle,
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button(Copy.account.deleteConfirmButtonLabel, role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button(Copy.common.cancel, role: .cancel) {}
+        } message: {
+            Text(Copy.account.deleteConfirmMessage)
+        }
+    }
+
+    private var signedOutCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.account.signedOutBody)
+                .font(Theme.Typography.body)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SignInWithAppleButton(.signIn) { request in
+                let nonce = AppleSignInNonce.random()
+                currentNonce = nonce
+                request.requestedScopes = [.email]
+                request.nonce = AppleSignInNonce.sha256(nonce)
+            } onCompletion: { result in
+                handleAppleResult(result)
+            }
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: Theme.Metrics.minTapTarget)
+            .disabled(isSigningIn)
+            .overlay {
+                if isSigningIn {
+                    SwiftUI.ProgressView()
+                        .controlSize(.small)
+                }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .settingsClippedCard()
+    }
+
+    private var signedInCard: some View {
+        SettingsGroupCard {
+            HStack(spacing: Theme.Spacing.sm) {
+                SettingsIconBadge(systemImage: "person.crop.circle.badge.checkmark", tint: SettingsPalette.goals)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Copy.account.signedInTitle)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                    if let email = account.email {
+                        Text(Copy.account.signedInAs(email))
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
+            .frame(minHeight: Theme.Metrics.minTapTarget)
+            .accessibilityElement(children: .combine)
+
+            SettingsRowDivider()
+
+            SettingsActionRow(
+                title: Copy.account.signOutRowLabel,
+                systemImage: "rectangle.portrait.and.arrow.right",
+                accessory: .none,
+                isBusy: isSigningOut
+            ) {
+                isConfirmingSignOut = true
+            }
+
+            SettingsRowDivider()
+
+            SettingsActionRow(
+                title: Copy.account.deleteRowLabel,
+                systemImage: "person.crop.circle.badge.xmark",
+                tint: SettingsPalette.danger,
+                accessory: .none,
+                isBusy: isDeleting,
+                isDestructive: true
+            ) {
+                isConfirmingDelete = true
+            }
+        }
+    }
+
+    // MARK: Actions
+
+    /// Pulls the identity token out of Apple's credential here, on the main actor, so only `String`s cross
+    /// into the `Task` (`ASAuthorization` is not `Sendable`).
+    private func handleAppleResult(_ result: Result<ASAuthorization, any Error>) {
+        switch result {
+        case .success(let authorization):
+            guard
+                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let tokenData = credential.identityToken,
+                let idToken = String(data: tokenData, encoding: .utf8),
+                let nonce = currentNonce
+            else {
+                alert = SettingsErrorAlert(title: Copy.account.signInFailedTitle, message: Copy.account.signInFailedMessage)
+                return
+            }
+            currentNonce = nil
+            Task { await signIn(idToken: idToken, rawNonce: nonce) }
+        case .failure(let error):
+            currentNonce = nil
+            // Closing Apple's sheet is not an error.
+            if (error as? ASAuthorizationError)?.code == .canceled { return }
+            alert = SettingsErrorAlert(title: Copy.account.signInFailedTitle, message: Copy.account.signInFailedMessage)
+        }
+    }
+
+    private func signIn(idToken: String, rawNonce: String) async {
+        isSigningIn = true
+        defer { isSigningIn = false }
+        do {
+            try await SupabaseAuthSession.shared.signInWithApple(idToken: idToken, rawNonce: rawNonce)
+            Analytics.shared.capture(event: "account_signed_in")
+            Task { await BackendConnections.syncIfSignedIn() }
+        } catch SupabaseAuthError.offline {
+            alert = SettingsErrorAlert(title: Copy.account.signInFailedTitle, message: Copy.account.signInOfflineMessage)
+        } catch {
+            alert = SettingsErrorAlert(title: Copy.account.signInFailedTitle, message: Copy.account.signInFailedMessage)
+        }
+    }
+
+    private func signOut() async {
+        isSigningOut = true
+        defer { isSigningOut = false }
+        await SupabaseAuthSession.shared.signOut()
+        Analytics.shared.capture(event: "account_signed_out")
+    }
+
+    private func deleteAccount() async {
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await SupabaseAuthSession.shared.deleteAccount()
+            Analytics.shared.capture(event: "account_deleted")
+            alert = SettingsErrorAlert(title: Copy.account.deleteDoneTitle, message: Copy.account.deleteDoneMessage)
+        } catch {
+            alert = SettingsErrorAlert(title: Copy.account.deleteFailedTitle, message: Copy.account.deleteFailedMessage)
+        }
     }
 }
 

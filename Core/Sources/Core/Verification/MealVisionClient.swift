@@ -23,9 +23,9 @@
 //
 // Configuration / degrade-gracefully contract: this client is "configured" only when it has
 // (1) a Supabase project URL + anon key — read from the app's Info.plist keys `SUPABASE_URL` /
-// `SUPABASE_ANON_KEY` if present (neither exists in project.yml yet; no Supabase project is live)
-// or passed to `configure(...)` — AND (2) a `SupabaseAuthTokenProviding` (nothing implements one
-// yet; Supabase Auth isn't wired). Until both exist `isConfigured` is `false` and every UI caller
+// `SUPABASE_ANON_KEY` (project.yml, fed from build settings; empty by default) or passed to
+// `configure(...)` — AND (2) a signed-in `SupabaseAuthTokenProviding` (session 34:
+// `SupabaseAuthSession`, wired by `BackendConnections.connect()`). Until both exist `isConfigured` is `false` and every UI caller
 // skips straight to manual entry — no network call is ever attempted with a missing key.
 //
 // Local-first: nothing here writes goal events. Logging protein stays `LogProteinIntent`'s job on
@@ -65,13 +65,25 @@ public struct MealVisionConfiguration: Sendable, Equatable {
 
     /// `nil` unless both keys are present and non-empty and the URL parses.
     public static func fromMainBundle() -> MealVisionConfiguration? {
-        let rawURL = (Bundle.main.object(forInfoDictionaryKey: urlInfoKey) as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let key = (Bundle.main.object(forInfoDictionaryKey: anonKeyInfoKey) as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        // An unexpanded build-setting reference ("$(SUPABASE_URL)") counts as absent.
-        guard !rawURL.isEmpty, !key.isEmpty, !rawURL.hasPrefix("$("), !key.hasPrefix("$("),
-              let url = URL(string: rawURL), url.scheme == "https"
+        make(
+            rawURL: Bundle.main.object(forInfoDictionaryKey: urlInfoKey) as? String,
+            rawKey: Bundle.main.object(forInfoDictionaryKey: anonKeyInfoKey) as? String
+        )
+    }
+
+    /// Pure parsing of the two Info.plist values (session 34; unit tested).
+    /// - An empty value or an unexpanded build-setting reference (`$(SUPABASE_URL)`) counts as absent.
+    /// - A bare host (`abcd.supabase.co`) is accepted and given `https://`. That is the safe way to put the
+    ///   URL in an `.xcconfig`, where `//` starts a comment; on the `xcodebuild` command line the full
+    ///   `https://...` URL works too.
+    /// - Only `https` is accepted; a trailing slash is dropped.
+    static func make(rawURL: String?, rawKey: String?) -> MealVisionConfiguration? {
+        var urlString = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let key = rawKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !urlString.isEmpty, !key.isEmpty, !urlString.contains("$("), !key.contains("$(") else { return nil }
+        if !urlString.contains("://") { urlString = "https://" + urlString }
+        while urlString.hasSuffix("/") { urlString.removeLast() }
+        guard let url = URL(string: urlString), url.scheme == "https", let host = url.host(), !host.isEmpty
         else { return nil }
         return MealVisionConfiguration(projectURL: url, anonKey: key)
     }
@@ -173,8 +185,12 @@ public actor MealVisionClient {
     }
 
     /// `false` means: don't show a spinner, go straight to manual entry.
+    /// Configured AND signed in (session 34), so a signed-out person goes straight to manual entry.
     public var isConfigured: Bool {
-        configuration != nil && tokenProvider != nil
+        get async {
+            guard configuration != nil, let tokenProvider else { return false }
+            return await tokenProvider.hasSupabaseSession()
+        }
     }
 
     // MARK: Public calls

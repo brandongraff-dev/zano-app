@@ -61,12 +61,23 @@ jobs:
       # a deduplicated error list so a failing run can be diagnosed from `gh run view --log`.
       - name: Build ZANO app (iOS Simulator; compiles Core and every extension target)
         id: build
+        # Session 34: public service keys come from repository secrets when they exist (empty
+        # otherwise, which is the no-backend / no-RevenueCat path). They are passed on the xcodebuild
+        # command line because project.yml's target-level empty build settings override plain env
+        # vars. Passed through env, never interpolated into the script text.
+        env:
+          REVENUECAT_API_KEY: ${{ secrets.REVENUECAT_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -o pipefail
           xcodebuild -project ZANO.xcodeproj -scheme ZANO \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
+            REVENUECAT_API_KEY="${REVENUECAT_API_KEY:-}" \
+            SUPABASE_URL="${SUPABASE_URL:-}" \
+            SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}" \
             build 2>&1 | tee build.log
 
       # The Apple Watch app (session 13b) and, since session 39, its embedded complication
@@ -107,9 +118,20 @@ jobs:
         id: uitests
         if: always() && steps.build.outcome == 'success'
         continue-on-error: true
+        # Same keys as the build step, so this doesn't rebuild the app with different settings.
+        env:
+          REVENUECAT_API_KEY: ${{ secrets.REVENUECAT_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -o pipefail
-          xcodebuild build-for-testing -project ZANO.xcodeproj -scheme ZANO             -destination 'generic/platform=iOS Simulator'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO 2>&1 | tee uitests.log
+          xcodebuild build-for-testing -project ZANO.xcodeproj -scheme ZANO \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            REVENUECAT_API_KEY="${REVENUECAT_API_KEY:-}" \
+            SUPABASE_URL="${SUPABASE_URL:-}" \
+            SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}" 2>&1 | tee uitests.log
 
       # Boots a simulator, installs the freshly built app, launches it and photographs the result.
       # continue-on-error: a launch crash or a missing screen must never mask the build/test result.
@@ -362,3 +384,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          # Session 34: read by the Fastfile's `build_appstore_ipa` and passed to xcodebuild.
+          REVENUECAT_API_KEY: ${{ secrets.REVENUECAT_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

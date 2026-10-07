@@ -4,7 +4,7 @@
 // The Household API (session 28; docs/spec.md §5.31): PostgREST reads and RPC writes against
 // `0007_household.sql`, over an ephemeral URLSession. Same shape and same blocker as `FamilyLinkClient`:
 // it reuses `MealVisionConfiguration` for the project URL and key, and `SupabaseAuthTokenProviding` for the
-// signed-in user's token, so `isConfigured` is false until sign-in is wired.
+// signed-in user's token (session 34: `SupabaseAuthSession`), so `isConfigured` is false until someone signs in.
 //
 // UNVERIFIED (no live project): PostgREST filter syntax and RPC error bodies are written from memory of the
 // Supabase REST API, like the Family Link client.
@@ -28,7 +28,13 @@ public actor HouseholdClient {
         self.tokenProvider = tokenProvider
     }
 
-    public var isConfigured: Bool { configuration != nil && tokenProvider != nil }
+    /// Configured AND signed in (session 34): a signed-out person gets the offline state, not a failed call.
+    public var isConfigured: Bool {
+        get async {
+            guard configuration != nil, let tokenProvider else { return false }
+            return await tokenProvider.hasSupabaseSession()
+        }
+    }
 
     /// The signed-in person's id (the token's `sub`), so the screen can tell "mine" from "theirs".
     public func currentUserID() async throws -> UUID {

@@ -84,10 +84,12 @@ public struct FamilyProofRecord: Codable, Sendable, Identifiable, Equatable {
 
 // MARK: - JSON
 
-/// Whether this build shows Family Link at all. `false` until the Supabase project is live and sign-in is
-/// wired (`docs/launch/supabase-setup.md`, step 9), so a reviewer never meets a feature that does nothing.
+/// Whether this build shows Family Link at all: only when the build has Supabase keys AND the person is
+/// signed in (session 34, `AccountStatus`). With no keys it is always `false`, so a reviewer never meets a
+/// feature that does nothing. Before shipping it live, re-answer the privacy labels
+/// (`docs/launch/app-privacy-labels.md` section 7).
 public enum FamilyLinkAvailability {
-    public static let isLive = false
+    @MainActor public static var isLive: Bool { AccountStatus.shared.isLive }
 }
 
 public enum FamilyJSON {

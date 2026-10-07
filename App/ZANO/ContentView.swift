@@ -190,7 +190,9 @@ private struct MainTabView: View {
             tab(.fuel) { NavigationStack { FuelView() } }
             // Squad is hidden for v1 (visual direction v2, 2026-10-02): no tab, no container entry.
             // `AppTab.squad` and `SquadHomeView` stay compiled; `selection` is steered off `.squad`
-            // below if a deep link or notification ever selects it.
+            // below if a deep link or notification ever selects it. Session 34: when it goes live
+            // (`SquadAvailability.isLive`) it is a row in Settings, not a sixth tab, because the
+            // floating glass bar is designed for five.
             tab(.progress) { NavigationStack { ProgressView() } }
             tab(.settings) { NavigationStack { SettingsView() } }
         }

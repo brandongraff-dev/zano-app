@@ -305,6 +305,12 @@ Notifications need no plist string (requested in `Screen14FirstWin.swift`).
    the delete-all code comment says "Remote (Supabase) rows are NOT deleted". Before sync goes live,
    add in-app account deletion (Guideline 5.1.1(v) once accounts exist; GDPR Art. 17). It needs
    to cover meal photos in Storage.
+   **Update 2026-10-07 (session 34):** built. Settings > Account > Delete account calls the new
+   `delete-account` Edge Function, which removes the caller's meal photos and Family Link proof
+   photos from Storage and deletes the auth user (every row cascades). Unverified until a live
+   project exists. Sign in with Apple also adds a new collected item when the backend is on: the
+   Apple-provided email (often a private relay address) and the Supabase user ID, linked to the
+   person, used for app functionality. Re-answer the labels when the build ships with Supabase keys.
 3. **The `lock_sets.app_tokens_blob bytea` column exists server-side** (`0001_init.sql`). The sync
    function correctly excludes it (allowedColumns `name, is_default`), and `LockSet.swift` documents
    that tokens never leave the device. Still, drop the column so a future change can't upload Family

@@ -9,6 +9,9 @@ workflows:
     max_build_duration: 40
     environment:
       xcode: latest
+      # Keys (session 34): put REVENUECAT_API_KEY, SUPABASE_URL and SUPABASE_ANON_KEY in the
+      # `github` group (or a new group added to this list). A group that doesn't exist in the
+      # Codemagic team can fail the build, so no extra group is listed until one is created.
       groups:
         - github
     triggering:
@@ -49,10 +52,18 @@ workflows:
       - name: Build ZANO (iOS Simulator; compiles Core and every extension)
         script: |
           set -o pipefail
+          # Session 34: public service keys from the environment when an env group listed above
+          # provides them (empty otherwise = no backend / no RevenueCat, exactly as before). They go
+          # on the command line because project.yml's target-level empty build settings override
+          # plain environment variables.
           if xcodebuild -project ZANO.xcodeproj -scheme ZANO \
                -destination 'generic/platform=iOS Simulator' \
                -derivedDataPath build/DerivedData \
-               CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log; then
+               CODE_SIGNING_ALLOWED=NO \
+               REVENUECAT_API_KEY="${REVENUECAT_API_KEY:-}" \
+               SUPABASE_URL="${SUPABASE_URL:-}" \
+               SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}" \
+               build 2>&1 | tee build.log; then
             echo "success" > .build-status
           else
             echo "build-failed" > .build-status

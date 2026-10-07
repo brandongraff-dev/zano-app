@@ -98,3 +98,14 @@ escape hatch, VoiceOver actions, escalation phases, pulse loop and haptics are u
     `LockStatusView.swift` and `PaywallView.swift` (unrelated to this work, not resolved here).
 - **Needs verification on:** CI compile (never built), simulator screenshots (`alarm-ringing`,
   `wake-moment`, `sun-moods`, `sunrise-setup`), then a real device for haptics and the animation feel.
+
+### 2026-10-07 — verification and merge
+
+- **CI:** focused screenshot runs 141 (05e27b4) and 142 (merged head 783775a, main merged in) green; the
+  `alarm-ringing`, `bedtime-setup` and `sunrise-setup` screenshots were read and show the fixed clock
+  spacing, the always-visible wheel and the Repeat/Sound/Backup rows. Full PR run is 143.
+- **Still needs a real iPhone:** amber Scan Sunrise Tag button (NFC is unavailable in the Simulator),
+  how the six sounds actually sound, AlarmKit `sound:` file location/format, repeat days / one-time /
+  backup alarms firing, haptics and animation feel.
+- **Left over:** remote branches `tmp/sunrise-shots` and `tmp/sunrise-base-check` (delete attempts hit
+  connection resets).

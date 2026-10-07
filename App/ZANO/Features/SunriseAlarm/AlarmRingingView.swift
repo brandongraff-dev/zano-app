@@ -108,7 +108,7 @@ struct AlarmRingingView: View {
     /// length, so the size lives here as a Dynamic-Type-scaled metric. Migrate to a
     /// `Theme.Typography.numeralHero` if/when that token lands
     /// (docs/design/competitive-research.md §0 punch list #2).
-    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 84
+    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 64
 
     /// The container is short (an SE-class phone): tighter layout. Set from the root geometry.
     @State private var isCompact = false
@@ -122,6 +122,10 @@ struct AlarmRingingView: View {
     @State private var now = Date.now
     @State private var isPulsing = false
     @State private var pulseHapticTick = 0
+    /// The "you're up" / "alarm off" payoff laid over the screen while `WakeMoment` holds the cover
+    /// up. Tapping it skips the wait.
+    @State private var wakeKind: WakeMomentKind?
+    @State private var wakeSkipped = false
 
     @State private var dismissVariant: SunriseAlarmManager.DismissVariant = .tag
     @State private var stepsTarget = 40
@@ -159,7 +163,7 @@ struct AlarmRingingView: View {
             sunriseGlow
 
             ScrollView {
-                VStack(spacing: isCompact ? Theme.Spacing.md : Theme.Spacing.lg) {
+                VStack(spacing: Theme.Spacing.md) {
                     header
                     variantContent
                     snoozeControl
@@ -171,8 +175,9 @@ struct AlarmRingingView: View {
                         .padding(.top, Theme.Spacing.xs)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, isCompact ? Theme.Spacing.sm : Theme.Spacing.xl)
-                .padding(.bottom, Theme.Spacing.lg)
+                .padding(.top, isCompact ? Theme.Spacing.sm : Theme.Spacing.md)
+                // Room under the last row so it scrolls clear of the dock's fade.
+                .padding(.bottom, Theme.Spacing.xl)
                 .frame(maxWidth: .infinity)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -180,6 +185,11 @@ struct AlarmRingingView: View {
             // every viewport size (spec §5.10 point 6, CLAUDE.md "never trap the user").
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 escapeDock
+            }
+
+            if let wakeKind {
+                WakeMomentOverlay(kind: wakeKind) { wakeSkipped = true }
+                    .transition(.opacity)
             }
         }
         .background {
@@ -195,7 +205,8 @@ struct AlarmRingingView: View {
         .task { await tickClock() }
         .task { await runPulseLoop() }
         .onChange(of: manager.isRinging) { _, isRinging in
-            if !isRinging { dismiss() }
+            // `WakeMoment` holds the cover up for the payoff after a dismiss from this screen.
+            if !isRinging, !WakeMoment.shared.isPlaying { dismiss() }
         }
         .onDisappear {
             focusTask?.cancel()
@@ -230,22 +241,13 @@ struct AlarmRingingView: View {
     /// animate blur or depth, and this animates neither. See `runPulseLoop()` for the matching gate
     /// on the animation that drives `isPulsing`.
     private var sunriseGlow: some View {
-        ZStack(alignment: .top) {
-            RadialGradient(
-                colors: [phase.tint, phase.tint.opacity(0)],
-                center: UnitPoint(x: 0.5, y: 0.2),
-                startRadius: 0,
-                endRadius: 460
-            )
-            .opacity(reduceMotion ? 0.22 : (isPulsing ? 0.32 : 0.10))
-
-            // The arcade sunrise: a striped retro sun rising behind the clock. Breathes with the
-            // same pulse (opacity only); held still under Reduce Motion.
-            RetroSun(tint: phase.tint)
-                .frame(width: AlarmMetrics.sunDiameter, height: AlarmMetrics.sunDiameter)
-                .offset(y: isCompact ? -AlarmMetrics.sunDiameter * 0.42 : -AlarmMetrics.sunDiameter * 0.28)
-                .opacity(reduceMotion ? 0.42 : (isPulsing ? 0.5 : 0.34))
-        }
+        RadialGradient(
+            colors: [phase.tint, phase.tint.opacity(0)],
+            center: UnitPoint(x: 0.5, y: 0.18),
+            startRadius: 0,
+            endRadius: 460
+        )
+        .opacity(reduceMotion ? 0.22 : (isPulsing ? 0.32 : 0.10))
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -254,16 +256,17 @@ struct AlarmRingingView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: Theme.Spacing.sm) {
+        VStack(spacing: Theme.Spacing.xs) {
             phaseChip
 
-            Text(now, format: .dateTime.hour().minute())
-                // The arcade score face; a little smaller on short phones.
-                .font(Theme.Typography.score(size: isCompact ? clockSize * 0.78 : clockSize))
+            sunHero
+
+            // The arcade score face. Below the sun, not in front of it: the sun's stripes used to
+            // run through the digits. "AM"/"PM" is a small second run so the digits can be big
+            // without the line reaching the screen edges (`ClockDigitsText`).
+            ClockDigitsText(date: now, size: isCompact ? clockSize * 0.8 : clockSize)
                 .foregroundStyle(Theme.Colors.text)
                 .shadow(color: phase.tint.opacity(0.45), radius: 18)
-                .minimumScaleFactor(0.45)
-                .lineLimit(1)
 
             // `text`, not `muted`: this is the one instruction the screen exists to deliver, and it
             // sits close to the glow's peak (typography-color-findings C4).
@@ -274,13 +277,50 @@ struct AlarmRingingView: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-        // No `.scaleEffect`/`.animation` on `isPulsing` here — see
-        // `docs/design/animation-opportunities.md` Sunrise Alarm Part 1, refinement #2. The clock
-        // used to wobble on a spring while the background pulsed on its own easeInOut, two curves
-        // keyed off one boolean that fell out of phase at the `.critical` cadence. The clock is the
-        // one piece of information this screen must stay perfectly legible under stress (deciding
-        // whether there's time to snooze); the chip, the glow pulse and the escalating haptics
-        // already carry the urgency signal without it.
+        // No `.scaleEffect`/`.animation` on `isPulsing` for the clock — see
+        // `docs/design/animation-opportunities.md` Sunrise Alarm Part 1, refinement #2. The clock is
+        // the one piece of information this screen must stay perfectly legible under stress; the chip,
+        // the glow pulse, the sun's mood and the escalating haptics carry the urgency instead.
+    }
+
+    /// The sun sitting on a horizon line. It climbs a step each phase (half-risen while waking, nearly
+    /// full when critical), so how long the alarm has gone unanswered shows as height. Its face is
+    /// `sunMood`. Reduce Motion: it jumps to the phase's height and the face is still.
+    private var sunHero: some View {
+        let diameter = isCompact ? AlarmMetrics.sunDiameterCompact : AlarmMetrics.sunDiameter
+        let window = diameter * AlarmMetrics.sunWindow
+        let sink = wakeKind == nil ? phase.sunSink : 0
+        return SunCharacter(mood: sunMood, pulse: isPulsing, animated: !reduceMotion, halo: false)
+            .frame(width: diameter, height: diameter)
+            .offset(y: diameter * sink)
+            .frame(width: diameter, height: window, alignment: .top)
+            .clipped()
+            .overlay(alignment: .bottom) {
+                Capsule()
+                    .fill(phase.tint.opacity(0.6))
+                    .frame(width: diameter * 1.5, height: 2)
+                    .shadow(color: phase.tint.opacity(0.7), radius: 6)
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 1.8), value: sink)
+            .accessibilityHidden(true)
+    }
+
+    /// The sun's face for what is happening right now. Decoration: the chip, headline and controls
+    /// already say all of it.
+    private var sunMood: SunMood {
+        switch wakeKind {
+        case .verified: return .beaming
+        case .escaped: return .sad
+        case nil: break
+        }
+        if isHoldingEscapeHatch { return .worried }
+        if isScanningTag { return .hopeful }
+        let snoozed = manager.snoozesRemainingToday == 0
+        switch phase {
+        case .waking: return snoozed ? .grumpy : .yawning
+        case .urgent: return snoozed ? .disappointed : .alarmed
+        case .critical: return .frantic
+        }
     }
 
     /// Phase label as a tint-filled capsule with a dark label. Dark-on-tint is 14:1 (waking), 10.8:1
@@ -288,7 +328,9 @@ struct AlarmRingingView: View {
     /// means the phase is not carried by hue alone.
     private var phaseChip: some View {
         HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: phase.symbol)
+            // The waking chip shows the sky for the hour (a moon at 3 a.m., a sunrise at 6:30); the
+            // urgent and critical chips keep their warning glyphs.
+            Image(systemName: phase == .waking ? TimeOfDay(date: now).symbol : phase.symbol)
                 .font(Theme.Typography.icon(.small, weight: .bold))
             // Sentence case, no tracking (premium pass 2026-09-24: no all-caps labels).
             Text(eyebrowText)
@@ -345,7 +387,10 @@ struct AlarmRingingView: View {
             PrimaryButton(
                 title: Copy.alarmRinging.tagScanButtonLabel,
                 systemImage: "wave.3.right",
-                isEnabled: !isScanningTag && NFCReader.isAvailable
+                isEnabled: !isScanningTag && NFCReader.isAvailable,
+                // The one main action on this screen, in the alarm's amber rather than the blue that
+                // the quiet Snooze and the setup screens use.
+                tint: .warning
             ) {
                 scanTagAndDismiss()
             }
@@ -471,7 +516,7 @@ struct AlarmRingingView: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .padding(isCompact ? Theme.Spacing.md : Theme.Spacing.lg)
+        .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity)
         .zanoCard(radius: Theme.Radius.large, tint: Theme.Colors.Ring.sunriseAlarm)
     }
@@ -488,11 +533,11 @@ struct AlarmRingingView: View {
                     Copy.alarmRinging.snoozeButtonLabel(remaining: manager.snoozesRemainingToday),
                     systemImage: "zzz"
                 )
-                .font(Theme.Typography.headline)
-                .foregroundStyle(Theme.Colors.text)
+                .font(Theme.Typography.captionEmphasized)
+                // Secondary to Scan: quiet, no fill, still a 44pt target.
+                .foregroundStyle(Theme.Colors.muted)
                 .padding(.horizontal, Theme.Spacing.lg)
                 .frame(minHeight: Theme.Metrics.minTapTarget)
-                .background(Theme.Colors.surface2, in: Capsule())
                 .overlay(Capsule().strokeBorder(Theme.Colors.hairline, lineWidth: Theme.Metrics.edgeWidth))
             }
             .buttonStyle(.pressable(scale: 0.96))
@@ -704,12 +749,28 @@ struct AlarmRingingView: View {
         guard !didDismiss else { return }
         didDismiss = true
         dismissError = nil
+        // Keep the cover up past `isRinging` going false so the payoff can play.
+        WakeMoment.shared.begin()
         do {
             try await action()
+            await playWakeMoment(.verified)
         } catch {
+            WakeMoment.shared.cancel()
             didDismiss = false
             dismissError = Copy.alarmRinging.dismissErrorText
         }
+    }
+
+    /// Shows the payoff, holds it long enough to read (tap to skip), then lets the cover go. The
+    /// animated part is about 1.1s (spec §15: "unlock celebration <= 1.2s"); the rest is reading time.
+    private func playWakeMoment(_ kind: WakeMomentKind) async {
+        wakeSkipped = false
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { wakeKind = kind }
+        for _ in 0..<(reduceMotion ? 15 : 20) where !wakeSkipped {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        WakeMoment.shared.finish()
+        dismiss()
     }
 
     /// The Tag variant's two-step handshake — see file header. Also covers a tag that hasn't been
@@ -834,9 +895,12 @@ struct AlarmRingingView: View {
 
     private func completeEscapeHatchHold() async {
         isHoldingEscapeHatch = false
+        WakeMoment.shared.begin()
         do {
             try await manager.triggerEscapeHatch(reason: isNotHome ? .imNotHome : .other)
+            await playWakeMoment(.escaped)
         } catch {
+            WakeMoment.shared.cancel()
             escapeError = Copy.alarmRinging.escapeHatchErrorText
             // Same gate as `endEscapeHatchHold()` above — see that call's comment.
             withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
@@ -883,6 +947,16 @@ private enum RingingPhase: Sendable, Equatable {
         }
     }
 
+    /// How far the sun still sits below the horizon, as a fraction of its diameter: half-risen while
+    /// waking, nearly full when critical.
+    var sunSink: CGFloat {
+        switch self {
+        case .waking: 0.20
+        case .urgent: 0.09
+        case .critical: 0
+        }
+    }
+
     var pulseDuration: Double {
         switch self {
         case .waking: 1.6
@@ -904,13 +978,15 @@ private enum AlarmMetrics {
     /// Reserve for the loading state so the card doesn't pop in from nothing.
     static let loadingHeight: CGFloat = 160
     /// Tag glyph: filled disc, inner ring, outer ring.
-    static let glyphDisc: CGFloat = 64
-    static let glyphInnerRing: CGFloat = 92
-    static let glyphOuterRing: CGFloat = 120
+    static let glyphDisc: CGFloat = 56
+    static let glyphInnerRing: CGFloat = 80
+    static let glyphOuterRing: CGFloat = 104
     /// Below this container height the screen uses its compact layout (SE-class phones).
     static let compactHeight: CGFloat = 700
-    /// The retro sun behind the clock.
-    static let sunDiameter: CGFloat = 340
+    /// The sun above the clock, and the share of it that shows above the horizon line.
+    static let sunDiameter: CGFloat = 136
+    static let sunDiameterCompact: CGFloat = 110
+    static let sunWindow: CGFloat = 0.86
 }
 
 /// A retro arcade sun: a disc in a vertical gradient (tint at the top, ember, then pink) with
@@ -919,12 +995,15 @@ private enum AlarmMetrics {
 /// of the wake-time card (`SleepTimeCard`).
 struct RetroSun: View {
     let tint: Color
+    /// Gradient stops top to bottom. `nil` is the default sun -> ember -> pink; `SunCharacter` passes
+    /// each mood's own.
+    var colors: [Color]?
 
     var body: some View {
         Circle()
             .fill(
                 LinearGradient(
-                    colors: [tint, Theme.Colors.ember, Theme.Colors.Ring.creatine],
+                    colors: colors ?? [tint, Theme.Colors.ember, Theme.Colors.Ring.creatine],
                     startPoint: .top,
                     endPoint: .bottom
                 )

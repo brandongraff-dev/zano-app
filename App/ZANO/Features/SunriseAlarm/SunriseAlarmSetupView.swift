@@ -97,12 +97,17 @@ struct SunriseAlarmSetupView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 SleepTimeCard(
-                    systemImage: "sunrise.fill",
-                    tint: Theme.Colors.Ring.sunriseAlarm,
+                    // A moon at night, a sunrise at dawn, a sun by day: the hour you are looking.
+                    systemImage: TimeOfDay().symbol,
+                    tint: TimeOfDay().tint,
                     label: Copy.sunriseAlarm.wakeTimeLabel,
                     time: $settings.wakeTime,
-                    art: .sun
+                    art: .sun,
+                    alwaysShowsPicker: true
                 )
+
+                // Repeat, Sound and the backup alarm, laid out like the Clock app's alarm editor.
+                AlarmOptionsCard(settings: $settings)
 
                 dismissMethodSection
 
@@ -175,15 +180,20 @@ struct SunriseAlarmSetupView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
 
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: Theme.Spacing.sm),
-                    GridItem(.flexible(), spacing: Theme.Spacing.sm),
-                ],
-                spacing: Theme.Spacing.sm
-            ) {
-                ForEach(Self.visibleVariants, id: \.self) { variant in
-                    variantTile(variant)
+            // Two per row; an odd last tile spans the row instead of sitting alone at half width
+            // (squad is hidden, which leaves three).
+            let variants = Self.visibleVariants
+            Grid(horizontalSpacing: Theme.Spacing.sm, verticalSpacing: Theme.Spacing.sm) {
+                ForEach(Array(stride(from: 0, to: variants.count, by: 2)), id: \.self) { index in
+                    GridRow {
+                        if index + 1 < variants.count {
+                            variantTile(variants[index])
+                            variantTile(variants[index + 1])
+                        } else {
+                            variantTile(variants[index])
+                                .gridCellColumns(2)
+                        }
+                    }
                 }
             }
 
@@ -513,6 +523,9 @@ struct SunriseAlarmSetupView: View {
     private func save() {
         guard !isSaving else { return }
         isSaving = true
+        // Saving turns the alarm on, as creating an alarm in the Clock app does. It matters for a
+        // "Never repeat" alarm, which switches itself off after it rings.
+        settings.enabled = true
         Task {
             do {
                 try await SunriseAlarmManager.shared.saveSettings(settings)
@@ -745,51 +758,112 @@ struct SleepTimeCard: View {
     private let tint: Color
     private let label: String
     private let art: Art
+    /// The Clock app's editor shows the wheel straight away; the bedtime card keeps the big numeral
+    /// and reveals the wheel on tap.
+    private let alwaysShowsPicker: Bool
     @Binding private var time: Date
 
     @State private var isEditing = false
+    /// Drives the sleeping sun's slow breath (`SunCharacter.pulse`).
+    @State private var breathe = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Hero time size; scales with Dynamic Type (Theme has no numeral step this large yet).
     @ScaledMetric(relativeTo: .largeTitle) private var timeSize: CGFloat = 64
 
-    init(systemImage: String, tint: Color, label: String, time: Binding<Date>, art: Art = .none) {
+    init(
+        systemImage: String,
+        tint: Color,
+        label: String,
+        time: Binding<Date>,
+        art: Art = .none,
+        alwaysShowsPicker: Bool = false
+    ) {
         self.systemImage = systemImage
         self.tint = tint
         self.label = label
         self.art = art
+        self.alwaysShowsPicker = alwaysShowsPicker
         self._time = time
     }
 
     var body: some View {
+        if alwaysShowsPicker {
+            pickerCard
+        } else {
+            tapToEditCard
+        }
+    }
+
+    /// The Clock-style card: the label and the sleeping sun on one row, the time wheel under them.
+    private var pickerCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            HStack(spacing: Theme.Spacing.xs) {
+                IconBadge(systemName: systemImage, tint: tint, size: .small)
+
+                Text(label)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.muted)
+
+                Spacer(minLength: Theme.Spacing.sm)
+
+                if art == .sun {
+                    SunCharacter(mood: .asleep, pulse: breathe, animated: !reduceMotion)
+                        .frame(width: 52, height: 52)
+                }
+            }
+
+            DatePicker(label, selection: $time, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zanoHero(tint: tint)
+        .onAppear {
+            guard art == .sun, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { breathe = true }
+        }
+    }
+
+    private var tapToEditCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Button {
                 withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Theme.Motion.springStandard) {
                     isEditing.toggle()
                 }
             } label: {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    HStack(spacing: Theme.Spacing.xs) {
-                        IconBadge(systemName: systemImage, tint: tint, size: .small)
+                HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        HStack(spacing: Theme.Spacing.xs) {
+                            IconBadge(systemName: systemImage, tint: tint, size: .small)
 
-                        Text(label)
-                            .font(Theme.Typography.captionEmphasized)
-                            .foregroundStyle(Theme.Colors.muted)
+                            Text(label)
+                                .font(Theme.Typography.captionEmphasized)
+                                .foregroundStyle(Theme.Colors.muted)
 
-                        Spacer(minLength: 0)
+                            Image(systemName: "chevron.down")
+                                .font(Theme.Typography.icon(.small))
+                                .foregroundStyle(Theme.Colors.muted)
+                                .rotationEffect(.degrees(isEditing ? 180 : 0))
+                                .accessibilityHidden(true)
 
-                        Image(systemName: "chevron.down")
-                            .font(Theme.Typography.icon(.small))
-                            .foregroundStyle(Theme.Colors.muted)
-                            .rotationEffect(.degrees(isEditing ? 180 : 0))
-                            .accessibilityHidden(true)
+                            Spacer(minLength: 0)
+                        }
+
+                        // Proportional digits plus a small AM/PM: the shared score face left a hole after
+                        // a "1" ("1 0:30") and ran into the moon art.
+                        ClockDigitsText(date: time, size: art == .sun ? timeSize * 0.84 : timeSize * 0.9)
+                            .foregroundStyle(Theme.Colors.text)
+                            .shadow(color: tint.opacity(0.35), radius: 14)
                     }
 
-                    Text(time, format: .dateTime.hour().minute())
-                        .font(Theme.Typography.score(size: timeSize))
-                        .foregroundStyle(Theme.Colors.text)
-                        .shadow(color: tint.opacity(0.35), radius: 14)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
+                    // The sun beside the time, not behind it (its stripes ran through the digits).
+                    // Asleep: this is the alarm at rest. Still under Reduce Motion.
+                    if art == .sun {
+                        SunCharacter(mood: .asleep, pulse: breathe, animated: !reduceMotion)
+                            .frame(width: 76, height: 76)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -808,6 +882,10 @@ struct SleepTimeCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { cornerArt }
         .zanoHero(tint: tint)
+        .onAppear {
+            guard art == .sun, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { breathe = true }
+        }
     }
 
     /// The decorative corner piece, clipped to the card so it reads as a window onto the sky.
@@ -818,10 +896,8 @@ struct SleepTimeCard: View {
             case .none:
                 EmptyView()
             case .sun:
-                RetroSun(tint: tint)
-                    .frame(width: 150, height: 150)
-                    .opacity(0.5)
-                    .offset(x: 38, y: 34)
+                // Drawn beside the time as `SunCharacter` (see `body`), not as corner art.
+                EmptyView()
             case .moon:
                 MoonAndStars(tint: tint)
                     .frame(width: 130, height: 110)
@@ -876,9 +952,25 @@ struct SleepSetupSaveBar: View {
     let action: () -> Void
 
     var body: some View {
-        StickyActionBar {
-            PrimaryButton(title: title, isEnabled: isEnabled, action: action)
-        }
+        // Not `StickyActionBar`: its ground is 92% opaque, so the text scrolling underneath showed
+        // through behind the button. Same fade and gutters, fully opaque below the fade.
+        PrimaryButton(title: title, isEnabled: isEnabled, action: action)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.lg)
+            .padding(.bottom, Theme.Spacing.sm)
+            .frame(maxWidth: .infinity)
+            .background {
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [Theme.Colors.backgroundDeep.opacity(0), Theme.Colors.backgroundDeep],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Theme.Spacing.lg)
+                    Theme.Colors.backgroundDeep
+                }
+                .ignoresSafeArea(edges: .bottom)
+            }
     }
 }
 

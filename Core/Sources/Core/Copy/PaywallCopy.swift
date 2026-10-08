@@ -65,6 +65,10 @@ extension Copy {
         public static let monthlyPlanTitle = "Monthly"
         public static let weeklyPlanTitle = "Weekly"
         public static let lifetimePlanTitle = "Lifetime"
+        /// Spec §21 Family annual plan (decision 2026-10-06).
+        public static let familyPlanTitle = "Family"
+        /// Apple Family Sharing covers the buyer plus up to 5 family members.
+        public static let familyPeopleLabel = "Up to 6 people"
 
         public static func annualPriceLine(price: String) -> String {
             "\(price)/yr"

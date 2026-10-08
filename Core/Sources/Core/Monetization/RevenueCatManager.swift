@@ -128,6 +128,10 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
     /// (`StoreProductDiscount.paymentMode == .freeTrial`) — spec §21: "7-day trial... (test
     /// 3-day vs 7-day)". `nil` if this package has no trial.
     public let introductoryTrialDays: Int?
+    /// Whether the App Store product has Family Sharing turned on (`StoreProduct.isFamilyShareable`).
+    /// Spec §21 (decision 2026-10-06): the Family annual plan is its own product with Family
+    /// Sharing on, so this is how the paywall tells it apart from the individual annual plan.
+    public let isFamilyShareable: Bool
 
     public init(
         id: String,
@@ -135,7 +139,8 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
         period: Period,
         priceString: String,
         pricePerMonthString: String? = nil,
-        introductoryTrialDays: Int? = nil
+        introductoryTrialDays: Int? = nil,
+        isFamilyShareable: Bool = false
     ) {
         self.id = id
         self.productIdentifier = productIdentifier
@@ -143,6 +148,7 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
         self.priceString = priceString
         self.pricePerMonthString = pricePerMonthString
         self.introductoryTrialDays = introductoryTrialDays
+        self.isFamilyShareable = isFamilyShareable
     }
 }
 
@@ -412,7 +418,8 @@ public final class RevenueCatManager {
             period: period(for: package.packageType),
             priceString: product.localizedPriceString,
             pricePerMonthString: pricePerMonthString(for: product),
-            introductoryTrialDays: trialDays(for: product)
+            introductoryTrialDays: trialDays(for: product),
+            isFamilyShareable: product.isFamilyShareable
         )
     }
 

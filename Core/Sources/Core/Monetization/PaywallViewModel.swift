@@ -177,7 +177,7 @@ public final class PaywallViewModel {
             let offerings = try await revenueCat.fetchOfferings()
             packages = offerings.packages
             if selectedPackageID == nil || !packages.contains(where: { $0.id == selectedPackageID }) {
-                selectedPackageID = defaultSelection(in: packages)
+                selectedPackageID = Self.defaultSelection(in: packages)
             }
             loadState = .loaded
         } catch {
@@ -196,13 +196,35 @@ public final class PaywallViewModel {
     public func loadDemoOfferings(_ packages: [SubscriptionPackage]) {
         loadBuiltPlanAndLocalProStatus()
         self.packages = packages
-        selectedPackageID = defaultSelection(in: packages)
+        selectedPackageID = Self.defaultSelection(in: packages)
         loadState = .loaded
     }
     #endif
 
-    private func defaultSelection(in packages: [SubscriptionPackage]) -> String? {
-        (packages.first { $0.period == .annual } ?? packages.first)?.id
+    /// The individual annual plan (spec §21: highlighted, default selection). The Family annual
+    /// plan is also `.annual`, so it is skipped here; it only becomes the default if it is the
+    /// sole annual plan in the offering.
+    static func defaultSelection(in packages: [SubscriptionPackage]) -> String? {
+        (packages.first { $0.period == .annual && !$0.isFamilyShareable }
+            ?? packages.first { $0.period == .annual }
+            ?? packages.first)?.id
+    }
+
+    /// The order `PaywallView` lays plans out in (spec §21): monthly then individual annual (the
+    /// first row, annual on the right where the eye ends), then Family annual, then anything else
+    /// (lifetime, etc.) in the offering's own order.
+    public static func displayOrder(_ packages: [SubscriptionPackage]) -> [SubscriptionPackage] {
+        func rank(_ package: SubscriptionPackage) -> Int {
+            switch package.period {
+            case .monthly: 0
+            case .annual: package.isFamilyShareable ? 2 : 1
+            default: 3
+            }
+        }
+        // `enumerated` keeps the offering's order within a rank (a plain sort isn't stable).
+        return packages.enumerated()
+            .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }
+            .map(\.element)
     }
 
     // MARK: - Selection

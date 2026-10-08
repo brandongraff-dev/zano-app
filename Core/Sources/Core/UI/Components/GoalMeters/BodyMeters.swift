@@ -8,19 +8,20 @@ import SwiftUI
 
 // MARK: - Workout: barbell
 
-/// A barbell with five plate slots a side. Plate pairs load from the middle out, biggest first.
+/// A barbell with four plate slots a side. Plate pairs load from the middle out, biggest first.
 struct BarbellMeter: View {
     let progress: Double
     let color: Color
 
-    private let plates = 5
+    private let plates = 4
 
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width
             let h = proxy.size.height
-            let plateW = max(4, min(9, w * 0.055))
-            let gap: CGFloat = 2
+            let gap: CGFloat = 3
+            // Plates take about two thirds of each half, the rest is grip and collar.
+            let plateW = max(4, min(10, (w * 0.32) / CGFloat(plates) - gap))
             let collarW: CGFloat = 4
             let step = plateW + gap
             // Half the grip: whatever is left once both sides' plates and collars fit.
@@ -36,7 +37,7 @@ struct BarbellMeter: View {
                     .frame(width: max(0, 2 * grip - 4), height: max(4, h * 0.2))
                 ForEach(0..<plates, id: \.self) { index in
                     let fill = MeterItemRow<EmptyView>.fill(index: index, count: plates, progress: progress)
-                    let plateH = h * (1 - CGFloat(index) * 0.11)
+                    let plateH = h * (1 - CGFloat(index) * 0.13)
                     let x = w / 2 - grip - CGFloat(index) * step - plateW / 2
                     plate(fill: fill, width: plateW, height: plateH)
                         .position(x: x, y: h / 2)
@@ -58,7 +59,9 @@ struct BarbellMeter: View {
     private func plate(fill: Double, width: CGFloat, height: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: 2, style: .continuous)
         return MeterReveal(fill: fill, axis: .vertical) {
-            shape.meterGhost(color, lineWidth: 1.2)
+            // A faint solid slot (dashes on eight narrow plates read as noise).
+            shape.fill(color.opacity(0.18))
+                .overlay(shape.strokeBorder(color.opacity(0.35), lineWidth: 1))
         } filled: {
             shape.meterGloss(color)
         }
@@ -90,20 +93,21 @@ struct FootprintsMeter: View {
     }
 }
 
-/// A footprint pointing right: the sole, the heel and four toes.
+/// A footprint pointing right: a heel, the ball of the foot and four toes fanned out in front.
 struct FootprintShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width
         let h = rect.height
         var path = Path()
         // Heel.
-        path.addEllipse(in: CGRect(x: rect.minX, y: rect.minY + h * 0.3, width: w * 0.34, height: h * 0.5))
-        // Ball of the foot.
-        path.addEllipse(in: CGRect(x: rect.minX + w * 0.26, y: rect.minY + h * 0.22, width: w * 0.46, height: h * 0.66))
-        // Toes, biggest at the top.
-        let toes: [(x: CGFloat, y: CGFloat, d: CGFloat)] = [(0.74, 0.12, 0.26), (0.84, 0.36, 0.2), (0.84, 0.58, 0.18), (0.76, 0.78, 0.16)]
+        path.addEllipse(in: CGRect(x: rect.minX, y: rect.minY + h * 0.3, width: w * 0.3, height: h * 0.42))
+        // Ball of the foot, joined to the heel by the arch.
+        path.addEllipse(in: CGRect(x: rect.minX + w * 0.22, y: rect.minY + h * 0.2, width: w * 0.42, height: h * 0.6))
+        path.addRect(CGRect(x: rect.minX + w * 0.14, y: rect.minY + h * 0.36, width: w * 0.2, height: h * 0.26))
+        // Toes: the big toe at the top, getting smaller toward the bottom.
+        let toes: [(x: CGFloat, y: CGFloat, d: CGFloat)] = [(0.68, 0.02, 0.3), (0.78, 0.3, 0.22), (0.78, 0.53, 0.19), (0.72, 0.74, 0.17)]
         for toe in toes {
-            let d = min(w, h) * toe.d * 1.6
+            let d = h * toe.d
             path.addEllipse(in: CGRect(x: rect.minX + w * toe.x, y: rect.minY + h * toe.y, width: d, height: d))
         }
         return path

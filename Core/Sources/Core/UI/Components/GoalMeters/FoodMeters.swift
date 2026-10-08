@@ -333,8 +333,9 @@ struct ScoopsMeter: View {
                     GeometryReader { proxy in
                         Ellipse()
                             .fill(Color.white.opacity(0.85))
-                            .frame(width: proxy.size.width * 0.5, height: proxy.size.height * 0.28)
-                            .position(x: proxy.size.width * 0.32, y: proxy.size.height * 0.42)
+                            .frame(width: min(proxy.size.width * 0.62, proxy.size.height * 0.9) * 0.9, height: proxy.size.height * 0.24)
+                            .position(x: min(proxy.size.width * 0.62, proxy.size.height * 0.9) / 2,
+                                      y: proxy.size.height / 2 - min(proxy.size.width * 0.62, proxy.size.height * 0.9) * 0.2)
                     }
                 }
             }
@@ -342,23 +343,27 @@ struct ScoopsMeter: View {
     }
 }
 
-/// A measuring scoop: a round bowl on the left, a handle out to the right.
+/// A measuring scoop seen from the side: a round bowl and a straight handle out to the right.
 struct ScoopShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let bowlW = rect.width * 0.64
-        let bowlTop = rect.minY + rect.height * 0.42
-        let bowlH = rect.height * 0.5
-        path.move(to: CGPoint(x: rect.minX, y: bowlTop))
-        path.addQuadCurve(to: CGPoint(x: rect.minX + bowlW, y: bowlTop),
-                          control: CGPoint(x: rect.minX + bowlW / 2, y: bowlTop + bowlH * 2))
-        // Handle.
-        let handleH = rect.height * 0.14
-        path.addLine(to: CGPoint(x: rect.maxX, y: bowlTop - rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.maxX, y: bowlTop - rect.height * 0.12 + handleH))
-        path.addLine(to: CGPoint(x: rect.minX + bowlW - 1, y: bowlTop + handleH))
-        path.addLine(to: CGPoint(x: rect.minX + bowlW, y: bowlTop))
+        let bowl = min(rect.width * 0.62, rect.height * 0.9)
+        let top = rect.midY - bowl * 0.2
+        // The bowl: a half disc under its rim.
+        // Points along the lower half of the circle, left rim to right rim through the bottom.
+        let r = bowl / 2
+        let cx = rect.minX + r
+        path.move(to: CGPoint(x: rect.minX, y: top))
+        for step in 1...16 {
+            let angle = Double.pi - Double.pi * Double(step) / 16
+            path.addLine(to: CGPoint(x: cx + r * CGFloat(cos(angle)), y: top + r * CGFloat(sin(angle))))
+        }
         path.closeSubpath()
+        // The handle, level with the rim.
+        let handleH = max(2.5, rect.height * 0.12)
+        path.addRoundedRect(in: CGRect(x: rect.minX + bowl - 1, y: top - handleH / 2,
+                                       width: rect.width - bowl + 1, height: handleH),
+                            cornerSize: CGSize(width: handleH / 2, height: handleH / 2))
         return path
     }
 }

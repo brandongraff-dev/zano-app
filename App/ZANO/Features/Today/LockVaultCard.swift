@@ -464,9 +464,19 @@ struct VaultBadgeRow: View {
                             .frame(height: Self.side * fraction)
                             .frame(maxHeight: .infinity, alignment: .bottom)
                     }
+                // The glyph in the goal colour over the empty part and white over the fill, so
+                // it stays whole at any level.
                 Image(systemName: icon)
                     .font(.system(size: Self.side * 0.46, weight: .heavy))
-                    .foregroundStyle(fraction >= 0.5 ? Color.white : segment.color)
+                    .foregroundStyle(segment.color)
+                Image(systemName: icon)
+                    .font(.system(size: Self.side * 0.46, weight: .heavy))
+                    .foregroundStyle(Color.white)
+                    .mask {
+                        Rectangle()
+                            .frame(height: Self.side * fraction)
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                    }
                 shape.strokeBorder(segment.color.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 2.5]))
             }
             .frame(width: Self.side, height: Self.side)

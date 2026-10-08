@@ -710,7 +710,8 @@ struct LockStatusView: View {
             progress: p.fraction,
             primaryLine: primary,
             isRequired: true,
-            trailing: p.isComplete ? .done : .none
+            trailing: p.isComplete ? .done : .none,
+            meterGoal: goal.type
         )
     }
 

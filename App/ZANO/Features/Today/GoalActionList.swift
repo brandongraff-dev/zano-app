@@ -47,6 +47,9 @@ struct GoalActionItem: Identifiable, Equatable {
     let trailing: Trailing
     /// The goal's own type, so the tile can show the buddy's face for it (nil for rows with no goal).
     var goalType: GoalType? = nil
+    /// The goal whose meter to draw when `goalType` is nil (Lock's tiles keep their glossy badge
+    /// instead of the buddy face, but still show the meter).
+    var meterGoal: GoalType? = nil
 }
 
 struct GoalActionList: View {
@@ -268,7 +271,7 @@ struct GoalTile: View {
     /// no goal behind them have none.
     @ViewBuilder
     private var meter: some View {
-        if let type = item.goalType {
+        if let type = item.goalType ?? item.meterGoal {
             ZanoGoalMeter(
                 goal: type,
                 progress: isDone ? 1 : item.progress,

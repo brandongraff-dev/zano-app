@@ -15,7 +15,7 @@ intent or copy changes. The emergency unlock stays in its calm look on purpose (
 
 ### 2026-10-08 — Vault card, facts, coins
 
-- **Files touched:** `App/ZANO/Features/Today/LockVaultCard.swift`,
+- **Files touched:** `App/ZANO/Features/Today/LockVaultCard.swift`, `App/ZANO/Features/Today/GoalActionList.swift`,
   `App/ZANO/Features/Lock/LockStatusView.swift`, `App/ZANO/ScreenshotGallery.swift`
 - **What changed:**
   - Vault card: the lock medallion is a `ZanoPopBadge` (steel while locked, ZANO Blue with a
@@ -29,4 +29,9 @@ intent or copy changes. The emergency unlock stays in its calm look on purpose (
   - Gallery: `lock-bottom` (Lock scrolled to the end).
 - **Decisions made and why:** emergency unlock bar untouched (it must read as serious and always
   available). The locked state stays steel grey rather than a colour: red is reserved for emergency.
-- **Needs verification on:** CI compile + screenshots (run 164); motion on a device.
+- **CI:** run 164 failed on a `? :` type mismatch in the padlock rim (fixed with `AnyShapeStyle`);
+  run 165 green but showed Lock's required tiles had no meters (Lock builds its items without
+  `goalType`, which would also switch them to buddy faces). Added `GoalActionItem.meterGoal` so Lock
+  shows the meter and keeps its badge; run 166 green, screenshots read. Run 165's dark `tab-lock`
+  shot caught the home screen (launch didn't foreground); run 166's is correct.
+- **Needs verification on:** motion on a device.

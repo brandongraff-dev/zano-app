@@ -42,6 +42,7 @@ private enum RewardFixture {
 }
 
 @Suite("Family reward rules")
+@MainActor
 struct FamilyRewardRulesTests {
     private let now = Date(timeIntervalSince1970: 1_790_000_000)
 

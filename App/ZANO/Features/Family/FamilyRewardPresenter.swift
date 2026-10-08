@@ -146,7 +146,7 @@ struct FamilyRewardCardView: View {
                 Text(Copy.family.rewardCardTitle)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.muted)
-                Text(presenter.addedMinutes.map { Copy.family.rewardAdded($0) } ??Copy.family.rewardWaiting(reward.minutes))
+                Text(presenter.addedMinutes.map { Copy.family.rewardAdded($0) } ?? Copy.family.rewardWaiting(reward.minutes))
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Colors.text)
                     .multilineTextAlignment(.center)

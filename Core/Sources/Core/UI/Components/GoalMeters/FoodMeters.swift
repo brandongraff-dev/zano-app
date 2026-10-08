@@ -317,13 +317,13 @@ struct GlassShape: Shape {
 
 // MARK: - Creatine: scoops
 
-/// Five scoops; each fills with a mound of powder.
+/// Four scoops; each fills with a mound of powder.
 struct ScoopsMeter: View {
     let progress: Double
     let color: Color
 
     var body: some View {
-        MeterItemRow(count: 5, progress: progress, spacing: 6) { _, fill in
+        MeterItemRow(count: 4, progress: progress, spacing: 6) { _, fill in
             MeterReveal(fill: fill) {
                 ScoopShape().meterGhost(color, lineWidth: 1.3)
             } filled: {
@@ -333,9 +333,9 @@ struct ScoopsMeter: View {
                     GeometryReader { proxy in
                         Ellipse()
                             .fill(Color.white.opacity(0.85))
-                            .frame(width: min(proxy.size.width * 0.62, proxy.size.height * 0.9) * 0.9, height: proxy.size.height * 0.24)
-                            .position(x: min(proxy.size.width * 0.62, proxy.size.height * 0.9) / 2,
-                                      y: proxy.size.height / 2 - min(proxy.size.width * 0.62, proxy.size.height * 0.9) * 0.2)
+                            .frame(width: ScoopShape.bowl(in: proxy.size) * 0.9, height: proxy.size.height * 0.24)
+                            .position(x: ScoopShape.bowl(in: proxy.size) / 2,
+                                      y: proxy.size.height / 2 - ScoopShape.bowl(in: proxy.size) * 0.2)
                     }
                 }
             }
@@ -345,9 +345,14 @@ struct ScoopsMeter: View {
 
 /// A measuring scoop seen from the side: a round bowl and a straight handle out to the right.
 struct ScoopShape: Shape {
+    /// The bowl's diameter: most of the item, leaving room for the handle.
+    static func bowl(in size: CGSize) -> CGFloat {
+        min(size.width * 0.72, size.height * 0.85)
+    }
+
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let bowl = min(rect.width * 0.62, rect.height * 0.9)
+        let bowl = Self.bowl(in: rect.size)
         let top = rect.midY - bowl * 0.2
         // The bowl: a half disc under its rim.
         // Points along the lower half of the circle, left rim to right rim through the bottom.

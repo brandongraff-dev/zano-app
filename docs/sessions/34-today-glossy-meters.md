@@ -46,4 +46,5 @@ data, intent or copy changes.
   commit.
 - **Known issues / TODOs left behind:** Lock's hero, Progress and Settings still in the older look
   (next sessions).
-- **Needs verification on:** CI screenshots of the second pass; motion feel on a device.
+- **CI:** runs 158 and 159 green; second-pass screenshots read. Creatine scoops enlarged (4 instead of 5) after run 159.
+- **Needs verification on:** motion feel on a device.

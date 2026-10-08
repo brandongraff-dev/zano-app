@@ -30,8 +30,8 @@ extension Copy {
         /// One line under the goal name in the picker.
         public static func description(for type: GoalType) -> String {
             switch type {
-            case .workoutGym: "Get to the gym and stay for a real session."
-            case .workoutHomeOutdoor: "Train anywhere. Your watch or fitness app logs it."
+            case .workoutGym: "Get to the gym and stay for a real session. Working out at home? Log your minutes by hand."
+            case .workoutHomeOutdoor: "Train anywhere. Your watch or fitness app logs it, or log your minutes by hand."
             case .steps: "Walk your step count."
             case .stretchMobility: "A few minutes of mobility work."
             case .protein: "Hit your protein for the day."
@@ -50,8 +50,9 @@ extension Copy {
         /// The "how it's verified" chip.
         public static func verification(for type: GoalType) -> String {
             switch type {
-            case .workoutGym: "Verified by gym location"
-            case .workoutHomeOutdoor, .steps, .sleepOnTime: "Verified by Apple Health"
+            case .workoutGym: "Gym location, or log minutes"
+            case .workoutHomeOutdoor: "Apple Health, or log minutes"
+            case .steps, .sleepOnTime: "Verified by Apple Health"
             case .focusSession: "Timer on this phone"
             case .protein: "NFC tap, barcode, or one tap"
             case .water, .creatine: "NFC tap or one tap"
@@ -94,7 +95,7 @@ extension Copy {
         public static let doneButton = "Done"
 
         public static let setupGymTitle = "Save your gym"
-        public static let setupGymMessage = "Workouts count when you arrive at your gym and stay for a session. Save its location once."
+        public static let setupGymMessage = "Save your gym once and workouts count when you arrive and stay for a session. It's optional: working out at home? Log your minutes by hand."
         public static let setupGymButton = "Set up gym"
 
         public static let setupTagTitle = "Set up a tag"

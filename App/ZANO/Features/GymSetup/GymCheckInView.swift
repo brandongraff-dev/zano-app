@@ -13,7 +13,9 @@
 //   * a dwell ended short → "You left at 22 min" + resume;
 //   * otherwise → "Head to <gym>" + Start check-in.
 // "Can't verify? Check in manually" (`ManualCheckInSheet`) is available in every state that isn't
-// already complete.
+// already complete. Session 42: "Worked out somewhere else? Log minutes" (`LogWorkoutMinutesSheet`)
+// sits beside it while not at the gym, including when no gym is saved, so the gym goal never needs
+// one; a day completed that way shows as "Logged by hand".
 //
 // Pass 2 (2026-10-03, "make it more playful"): the dwell is an arcade charge meter
 // (`GymChargeMeter`, `GymArcade.swift`) in the workout volt instead of a ring; "no gym" shows the
@@ -34,6 +36,8 @@ public struct GymCheckInView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @State private var isManualPresented = false
+    /// "Log minutes" (session 42), with today's tracked workouts read on open.
+    @State private var minutesLogTracked: ManualWorkoutMinutes.Tracked?
     @State private var isStarting = false
     @State private var startNote: String?
     @State private var manualTick = 0
@@ -143,6 +147,32 @@ public struct GymCheckInView: View {
                 manualTick += 1
             }
         }
+        .sheet(isPresented: isMinutesLogPresented) {
+            if let goal = gymGoal, let tracked = minutesLogTracked {
+                LogWorkoutMinutesSheet(
+                    goalID: goal.id,
+                    requiredMinutes: HomeWorkoutVerifier.manualRequiredMinutes(for: .workoutGym, target: goal.targetValue),
+                    tracked: tracked,
+                    manualMinutesSoFar: ManualWorkoutMinutes.loggedMinutes(in: todaysEvents.filter { $0.goal?.id == goal.id })
+                )
+            }
+        }
+    }
+
+    private var isMinutesLogPresented: Binding<Bool> {
+        Binding(
+            get: { minutesLogTracked != nil },
+            set: { if !$0 { minutesLogTracked = nil } }
+        )
+    }
+
+    /// Today's completion was written from minutes logged by hand (session 42), not the honor check-in.
+    private var completedFromMinutes: Bool {
+        todaysCompletion.map(ManualWorkoutMinutes.isCompletion) ?? false
+    }
+
+    private var minutesLoggedToday: Int {
+        todaysCompletion.flatMap(ManualWorkoutMinutes.completionTotalMinutes) ?? 0
     }
 
     private var ambient: ZanoAmbientState {
@@ -168,9 +198,11 @@ public struct GymCheckInView: View {
         case .manual:
             completeState(
                 icon: "hand.raised.fill",
-                title: Copy.gym.manualDoneTitle,
-                detail: Copy.gym.manualDoneDetail,
-                badge: Copy.gym.manualTierBadge
+                title: completedFromMinutes ? Copy.workoutMinutes.gymDoneTitle : Copy.gym.manualDoneTitle,
+                detail: completedFromMinutes
+                    ? Copy.workoutMinutes.gymDoneDetail(minutes: minutesLoggedToday)
+                    : Copy.gym.manualDoneDetail,
+                badge: completedFromMinutes ? Copy.workoutMinutes.tierBadge : Copy.gym.manualTierBadge
             )
         case .dwelling(let enteredAt):
             dwellingState(enteredAt: enteredAt)
@@ -348,6 +380,7 @@ public struct GymCheckInView: View {
                         .background(Theme.Colors.accentFill, in: Capsule())
                 }
                 .buttonStyle(.plain)
+                logMinutesLink
             case .away, .leftEarly:
                 PrimaryButton(
                     title: phase == .away ? Copy.gym.startCheckInButton : Copy.gym.resumeCheckInButton,
@@ -357,6 +390,7 @@ public struct GymCheckInView: View {
                     Task { await startCheckIn() }
                 }
                 manualLink
+                logMinutesLink
             case .dwelling:
                 manualLink
             case .verified, .manual:
@@ -376,6 +410,26 @@ public struct GymCheckInView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// Session 42: minutes by hand for a workout done somewhere else (home, a park). No gym needed.
+    @ViewBuilder
+    private var logMinutesLink: some View {
+        if gymGoal != nil {
+            Button {
+                Analytics.shared.capture(event: "gym_log_workout_minutes_tapped")
+                Task {
+                    minutesLogTracked = await HomeWorkoutVerifier.shared.trackedMinutesToday()
+                }
+            } label: {
+                Text(Copy.workoutMinutes.gymLogInsteadLink)
+                    .font(Theme.Typography.captionEmphasized)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func startCheckIn() async {

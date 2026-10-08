@@ -91,8 +91,8 @@ Rule: **Auto-verify if possible. One tap if not. Never a form.** Every goal has 
 
 | Goal | Tier | How it's verified | Anti-cheat |
 |---|---|---|---|
-| Workout (gym) | A | Geofence arrival at saved gym + minimum dwell (default 35 min) + HealthKit workout OR elevated HR during dwell | Dwell time; HR/motion check; can't be in car (Core Motion automotive); parking-lot detection via GPS accuracy radius |
-| Workout (home/outdoor) | A | HealthKit workout logged (Apple Watch, Strava, Nike Run Club, etc.) OR Core Motion active minutes | Min 20 min; HR if Watch present |
+| Workout (gym) | A (C by hand) | Geofence arrival at saved gym + minimum dwell (default 35 min) + HealthKit workout OR elevated HR during dwell. A saved gym is optional: minutes logged by hand are accepted as Tier C (hold to confirm), and so is the one-a-day honor check-in (§24) | Dwell time; HR/motion check; can't be in car (Core Motion automotive); parking-lot detection via GPS accuracy radius. By hand: shown as "logged by hand", never questioned (§9.8) |
+| Workout (home/outdoor) | A (C by hand) | HealthKit workout logged (Apple Watch, Strava, Nike Run Club, etc.) OR Core Motion active minutes. Minutes logged by hand are accepted as Tier C (hold to confirm), no location or Health needed; they add up through the day, and once any are logged the day's total (tracked workouts, deduped, + minutes by hand) has to reach the target | Min 20 min; HR if Watch present. By hand: shown as "logged by hand" (§9.8) |
 | Focus session | A | In-app timer (25/50/90 min) with shields active; Live Activity shows countdown | Leaving the app pauses timer; phone pickup count logged |
 | Protein | B | NFC tap on shaker/tub (+ preset grams), meal photo → vision model estimate, barcode scan, quick-repeat of recent meals | Daily cap on identical NFC taps; photo dedupe |
 | Water | B | NFC tap on bottle (+ bottle size), widget button | Tap rate limit (no 8 taps in a minute) |
@@ -568,6 +568,7 @@ Each is one Swift struct used by widgets, Controls, Siri, Shortcuts, NFC, and th
 | `LogWaterIntent` | ml, source | Writes goal_event |
 | `LogCreatineIntent` | — | 1/day |
 | `LogCustomGoalIntent` | goalId | Tier C with friction |
+| `LogWorkoutMinutesIntent` | minutes, source | Workout minutes by hand (Tier C, no daily cap); completes the workout goal when the day's total reaches it |
 | `SunriseKeyIntent` | tagId | Verifies morning routine before cutoff |
 | `CheckStatusIntent` | — | Returns spoken/summary status for Siri |
 | `QuickRepeatMealIntent` | mealId | Logs remembered meal |

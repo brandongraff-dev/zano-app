@@ -106,7 +106,7 @@ extension Copy {
         public static let heartRateSteady = "Heart rate steady"
         public static let manualLink = "Can't verify? Check in manually"
         public static let noGymTitle = "Set up your gym first"
-        public static let noGymMessage = "Save your gym once and workouts verify when you show up."
+        public static let noGymMessage = "Save your gym once and workouts verify when you show up. Working out at home? Log your minutes by hand."
         public static let setUpGymButton = "Set up gym"
         public static let doneButton = "Done"
         public static let ringLabel = "Gym check-in progress"

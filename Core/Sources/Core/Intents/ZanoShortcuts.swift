@@ -11,9 +11,9 @@
 // invocation (e.g. `source: .siri`) rather than the in-app/widget default — see each intent's own
 // `@Parameter(default:)` for what a programmatic (widget/NFC) caller gets instead.
 //
-// Apple's documented limit is 10 `AppShortcut`s per provider; this file declares 4, matching
-// spec §6's phrase list exactly. `EmergencyUnlockIntent` and `EndFocusIntent` are intentionally
-// absent — see their own file headers for why.
+// Apple's documented limit is 10 `AppShortcut`s per provider; this file declares 5: spec §6's phrase
+// list, plus "Log a workout" (session 42: workout minutes logged by hand, `LogWorkoutMinutesIntent`).
+// `EmergencyUnlockIntent` and `EndFocusIntent` are intentionally absent — see their own file headers for why.
 
 import AppIntents
 
@@ -49,6 +49,16 @@ public struct ZanoShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Log Water",
             systemImageName: "drop.fill"
+        )
+
+        AppShortcut(
+            intent: LogWorkoutMinutesIntent(source: .siri),
+            phrases: [
+                "Log a workout with \(.applicationName)",
+                "Log workout minutes in \(.applicationName)",
+            ],
+            shortTitle: "Log a Workout",
+            systemImageName: "figure.run"
         )
 
         AppShortcut(

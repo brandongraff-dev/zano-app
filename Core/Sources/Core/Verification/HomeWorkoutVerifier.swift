@@ -233,6 +233,46 @@ public final class HomeWorkoutVerifier: Sendable {
         await state.longestWorkoutMinutesIncludingStrava(in: Self.defaultWindow())
     }
 
+    /// Today's tracked workout minutes (Health + Strava, deduped): the longest single workout and the
+    /// sum. With minutes logged by hand, the sum is what counts (`ManualWorkoutMinutes`, session 42).
+    public func trackedMinutesToday() async -> ManualWorkoutMinutes.Tracked {
+        await state.trackedMinutes(in: Self.defaultWindow())
+    }
+
+    /// The minutes a day's total must reach when minutes are logged by hand (session 42): a home
+    /// workout's minutes (`requiredMinutes(target:)`), or a gym goal's dwell minutes (never under
+    /// 20, the same bar a Health workout meets for it in travel mode). `target` is today's planned
+    /// value, else the goal's target. One rule for Today's ring and the write path.
+    public static func manualRequiredMinutes(for type: GoalType, target: Double?) -> Int {
+        type == .workoutGym ? travelGymRequiredMinutes(target: target) : requiredMinutes(target: target)
+    }
+
+    /// Logs workout minutes by hand for a `.workoutHomeOutdoor` or `.workoutGym` goal (spec §3, Tier C;
+    /// session 42). Writes a verified `.log` `GoalEvent` (`value: nil`, the minutes in
+    /// `meta["loggedMinutes"]`, `meta["tier"] = "C"`). Entries add up across the day with no daily
+    /// cap. When today's total (tracked workouts deduped + every entry by hand) reaches the goal's
+    /// minutes, also writes one verified `.complete` with `source: .manual`. Then calls
+    /// `GoalCompletionCoordinator`. Needs no location, Health or Strava. `LogWorkoutMinutesIntent` is
+    /// the user-facing entry point (Today, the gym screen, Siri).
+    @discardableResult
+    public func logManualMinutes(
+        goalID: UUID,
+        minutes: Int,
+        source: GoalEventSource = .manual
+    ) async throws -> ManualWorkoutLogResult {
+        let target = await AdaptiveGoalEngine.shared.effectiveTarget(forGoalID: goalID, on: .now)
+        let result = try await state.logManualMinutes(
+            goalID: goalID,
+            minutes: ManualWorkoutMinutes.clamped(minutes),
+            source: source,
+            homeRequiredMinutes: Self.requiredMinutes(target: target),
+            gymRequiredMinutes: Self.travelGymRequiredMinutes(target: target),
+            window: Self.defaultWindow()
+        )
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID)
+        return result
+    }
+
     /// The minutes one workout must reach for `goalID`: today's planned value (else the goal's
     /// target), never below spec §3's 20-minute floor.
     public func requiredMinutes(forGoalID goalID: UUID) async -> Int {
@@ -353,7 +393,15 @@ actor HomeWorkoutQueryState {
             source = .strava
             stravaActivityID = strava.externalID
         } else {
-            return .notYet
+            // No single tracked workout is long enough. Minutes logged by hand (session 42) can still
+            // complete it with today's total.
+            let tracked = await trackedMinutes(in: window)
+            let manual = manualMinutes(goalID: goalID, since: window.start)
+            guard ManualWorkoutMinutes.completesWithManual(tracked: tracked, manualMinutes: manual, requiredMinutes: requiredMinutes),
+                  !hasVerifiedCompletion(goalID: goalID, since: window.start)
+            else { return .notYet }
+            try writeManualTotalCompletion(goal: goal, tracked: tracked, manualMinutes: manual, requiredMinutes: requiredMinutes)
+            return .wroteCompletion
         }
 
         // Re-check after the HealthKit await: another call may have written it meanwhile.
@@ -390,6 +438,101 @@ actor HomeWorkoutQueryState {
             WorkoutCandidate(start: $0.startDate, end: $0.endDate, activeSeconds: $0.duration, source: .healthKit)
         }
         return WorkoutDedupe.qualifyingStravaWorkout(health: health, strava: strava, requiredMinutes: requiredMinutes)
+    }
+
+    // MARK: Minutes logged by hand (session 42)
+
+    func logManualMinutes(
+        goalID: UUID,
+        minutes: Int,
+        source: GoalEventSource,
+        homeRequiredMinutes: Int,
+        gymRequiredMinutes: Int,
+        window: DateInterval
+    ) async throws -> ManualWorkoutLogResult {
+        guard let goal = fetchGoal(id: goalID) else { throw HomeWorkoutVerifierError.goalNotFound(goalID) }
+        let requiredMinutes: Int
+        switch goal.type {
+        case .workoutHomeOutdoor: requiredMinutes = homeRequiredMinutes
+        case .workoutGym: requiredMinutes = gymRequiredMinutes
+        default: throw HomeWorkoutVerifierError.wrongGoalType(goal.type)
+        }
+
+        let entry = GoalEvent(
+            kind: .log,
+            value: nil,
+            source: source,
+            verified: true,
+            meta: .object([
+                "tier": .string(VerificationTier.c.rawValue),
+                ManualWorkoutMinutes.loggedMinutesMetaKey: .number(Double(minutes)),
+            ]),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(entry)
+        try context.save()
+
+        let tracked = await trackedMinutes(in: window)
+        let manual = manualMinutes(goalID: goalID, since: window.start)
+        let total = ManualWorkoutMinutes.progressMinutes(tracked: tracked, manualMinutes: manual)
+        // After the HealthKit await: another call may have completed the day meanwhile.
+        if hasVerifiedCompletion(goalID: goalID, since: window.start) {
+            return .loggedAfterDone(totalMinutes: total)
+        }
+        guard ManualWorkoutMinutes.completesWithManual(tracked: tracked, manualMinutes: manual, requiredMinutes: requiredMinutes) else {
+            return .logged(totalMinutes: total, requiredMinutes: requiredMinutes)
+        }
+        try writeManualTotalCompletion(goal: goal, tracked: tracked, manualMinutes: manual, requiredMinutes: requiredMinutes)
+        return .completed(totalMinutes: total)
+    }
+
+    /// One verified Tier C `.complete` from today's total. `value: nil` so `GoalDayProgress` doesn't add
+    /// minutes to a goal whose target is a weekly workout count.
+    private func writeManualTotalCompletion(
+        goal: Goal,
+        tracked: ManualWorkoutMinutes.Tracked,
+        manualMinutes: Int,
+        requiredMinutes: Int
+    ) throws {
+        let total = tracked.totalMinutes + manualMinutes
+        let event = GoalEvent(
+            kind: .complete,
+            value: nil,
+            source: .manual,
+            verified: true,
+            meta: .object([
+                "tier": .string(VerificationTier.c.rawValue),
+                ManualWorkoutMinutes.totalMetaKey: .number(Double(total)),
+                "manualMinutes": .number(Double(manualMinutes)),
+                "trackedMinutes": .number(Double(tracked.totalMinutes)),
+                "requiredMinutes": .number(Double(requiredMinutes)),
+            ]),
+            user: goal.user,
+            goal: goal
+        )
+        context.insert(event)
+        try context.save()
+        let goalIDString = goal.id.uuidString
+        logger.notice("Workout goal \(goalIDString, privacy: .public) completed from minutes logged by hand: \(total, privacy: .public) min.")
+    }
+
+    /// Today's minutes by hand for `goalID` (relationship filtered in Swift, as elsewhere here).
+    private func manualMinutes(goalID: UUID, since start: Date) -> Int {
+        let descriptor = FetchDescriptor<GoalEvent>(
+            predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= start }
+        )
+        let events = ((try? context.fetch(descriptor)) ?? []).filter { $0.goal?.id == goalID }
+        return ManualWorkoutMinutes.loggedMinutes(in: events)
+    }
+
+    /// Today's tracked workouts from Health and Strava, deduped.
+    func trackedMinutes(in window: DateInterval) async -> ManualWorkoutMinutes.Tracked {
+        let health = await fetchWorkouts(in: window).map {
+            WorkoutCandidate(start: $0.startDate, end: $0.endDate, activeSeconds: $0.duration, source: .healthKit)
+        }
+        let strava = StravaWorkoutMapping.countedCandidates(StravaActivityStore.activities(in: window))
+        return ManualWorkoutMinutes.Tracked(health: health, strava: strava)
     }
 
     /// Today's longest workout from either source, deduped, in whole minutes (live progress ring).

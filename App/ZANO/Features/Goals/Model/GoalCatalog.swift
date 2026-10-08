@@ -98,12 +98,15 @@ enum GoalCatalog {
     }
 
     /// Whether the goal can't verify at all without its setup step. A tag is optional for protein,
-    /// water, and creatine (one tap logs them too) but is how the Sunrise Alarm turns off.
+    /// water, and creatine (one tap logs them too) but is how the Sunrise Alarm turns off. Neither
+    /// workout needs its step (session 42): minutes logged by hand complete them with no gym saved,
+    /// location off and Health not connected, so a saved gym or Health is offered, not demanded.
     static func setupIsRequired(for type: GoalType) -> Bool {
+        if type == .workoutGym || type == .workoutHomeOutdoor { return false }
         switch setupStep(for: type) {
-        case .gym, .health: true
-        case .tag: type == .sunriseAlarm
-        case nil: false
+        case .gym, .health: return true
+        case .tag: return type == .sunriseAlarm
+        case nil: return false
         }
     }
 

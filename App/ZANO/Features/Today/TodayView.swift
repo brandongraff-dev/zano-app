@@ -20,8 +20,10 @@
 // - Begin-lock is a plain tap (holds are for commitment and the 60-second emergency unlock).
 // - Red means emergency only: a running lock is cool navy/grey, never `danger`.
 // - A quick-log shows a 5-second undo toast (longer under VoiceOver). Goals that verify on their own
-//   say so in their row; honor-system goals get a "Log" with one confirmation; a gym goal with no
-//   saved gym says "Set up your gym" and pushes `GymSetupView`.
+//   say so in their row; honor-system goals get a "Log" with one confirmation. Session 42: both
+//   workout rows (a gym goal with no saved gym, and every home/outdoor workout) say "Log minutes" and
+//   open `LogWorkoutMinutesSheet`; saving a gym or connecting Health is its secondary link, never
+//   required.
 // - Wave 1D (docs/design/buildout-plan.md, 2026-09-25): steps and home/outdoor workout rows show live
 //   Health progress (and "Connect Apple Health" until the permission sheet has been shown); stretch
 //   opens a guided timer (`StretchTimerSheet`); undo corrects a rollup completion the undone log
@@ -147,6 +149,8 @@ struct TodayView: View {
     @State private var showHealthPrimer = false
     @State private var showWidgetHowTo = false
     @State private var stretchTarget: StretchTarget?
+    /// The workout goal whose "Log minutes" sheet is open (session 42).
+    @State private var workoutLogTarget: WorkoutLogTarget?
     @State private var mealPrepTarget: MealPrepTarget?
 
     /// Suggestion slot (Wave 2F): async signals, reloaded on foreground, goal changes and actions.
@@ -160,6 +164,9 @@ struct TodayView: View {
     /// Live Health progress for steps and home/outdoor workout rows, keyed by goal id.
     @State private var liveSteps: [UUID: Int] = [:]
     @State private var liveWorkoutMinutes: [UUID: Int] = [:]
+    /// Today's tracked workouts (Health + Strava, deduped) per workout goal: with minutes logged by
+    /// hand, the sum counts toward the goal (session 42, `ManualWorkoutMinutes`).
+    @State private var trackedWorkout: [UUID: ManualWorkoutMinutes.Tracked] = [:]
     /// `true` while the Health permission sheet was never shown for that row's data (the rows then
     /// say "Connect Apple Health"). `nil` until checked.
     @State private var stepsNeedsHealth: Bool?
@@ -300,6 +307,17 @@ struct TodayView: View {
             }
             .sheet(item: $stretchTarget) { target in
                 StretchTimerSheet(goalID: target.id)
+            }
+            .sheet(item: $workoutLogTarget) { target in
+                LogWorkoutMinutesSheet(
+                    goalID: target.id,
+                    requiredMinutes: target.requiredMinutes,
+                    tracked: target.tracked,
+                    manualMinutesSoFar: target.manualMinutesSoFar,
+                    secondaryLink: target.secondaryLink
+                ) {
+                    openWorkoutSecondary(target.secondaryLink)
+                }
             }
             .sheet(item: $mealPrepTarget) { target in
                 MealPrepCaptureSheet(goalID: target.id)
@@ -1088,6 +1106,11 @@ struct TodayView: View {
         } else {
             primary = p.isComplete ? Copy.today.statusDone : Copy.today.ringNotYet
         }
+        // A workout completed from minutes logged by hand says so (session 42), like the gym's
+        // "checked in manually".
+        if p.isComplete, todaysEvents(for: goal).contains(where: ManualWorkoutMinutes.isCompletion) {
+            secondary = Copy.workoutMinutes.loggedByHand
+        }
 
         return GoalActionItem(
             id: goal.id,
@@ -1116,15 +1139,33 @@ struct TodayView: View {
                 min(1, Double(steps) / Double(target))
             )
         case .workoutHomeOutdoor:
-            guard workoutNeedsHealth == false else { return nil }
+            // Minutes logged by hand (session 42) count with or without Health.
+            let manual = manualWorkoutMinutes(for: goal)
             let target = homeWorkoutRequiredMinutes(for: goal)
-            let minutes = liveWorkoutMinutes[goal.id] ?? 0
+            let minutes = workoutProgressMinutes(for: goal)
+            let source: String?
+            if manual > 0 {
+                source = (trackedWorkout[goal.id]?.totalMinutes ?? 0) > 0
+                    ? Copy.workoutMinutes.trackedAndByHand
+                    : Copy.workoutMinutes.loggedByHand
+            } else {
+                source = workoutNeedsHealth == false ? Copy.today.workoutFromHealth : nil
+            }
             return (
                 Copy.today.workoutProgressLine(minutes: minutes, target: target),
-                Copy.today.workoutFromHealth,
+                source,
                 min(1, Double(minutes) / Double(max(1, target)))
             )
         case .workoutGym:
+            if gymDwellMinutes == 0, manualWorkoutMinutes(for: goal) > 0 {
+                let target = workoutManualRequiredMinutes(for: goal)
+                let minutes = workoutProgressMinutes(for: goal)
+                return (
+                    Copy.today.workoutProgressLine(minutes: minutes, target: target),
+                    Copy.workoutMinutes.loggedByHand,
+                    min(1, Double(minutes) / Double(max(1, target)))
+                )
+            }
             guard gymDwellMinutes > 0 else { return nil }
             let target = gymRequiredMinutes
             return (
@@ -1134,6 +1175,64 @@ struct TodayView: View {
             )
         default:
             return nil
+        }
+    }
+
+    /// Today's workout minutes logged by hand for `goal` (session 42).
+    private func manualWorkoutMinutes(for goal: Goal) -> Int {
+        ManualWorkoutMinutes.loggedMinutes(in: todaysEvents(for: goal))
+    }
+
+    /// The day's workout minutes as the goal counts them: the longest tracked workout, or, once minutes
+    /// were logged by hand, every tracked minute plus every minute by hand.
+    private func workoutProgressMinutes(for goal: Goal) -> Int {
+        ManualWorkoutMinutes.progressMinutes(
+            tracked: trackedWorkout[goal.id] ?? .zero,
+            manualMinutes: manualWorkoutMinutes(for: goal)
+        )
+    }
+
+    /// The minutes a day's total by hand has to reach, same rule as the write path
+    /// (`HomeWorkoutVerifier.manualRequiredMinutes`).
+    private func workoutManualRequiredMinutes(for goal: Goal) -> Int {
+        let target = todaysPlan(for: goal)?.plannedValue ?? goal.targetValue
+        return HomeWorkoutVerifier.manualRequiredMinutes(for: goal.type, target: target)
+    }
+
+    /// Opens "Log minutes" for a workout goal (session 42). Reads today's tracked workouts first so
+    /// the sheet's total and its suggested amount include them.
+    private func openWorkoutLog(_ goal: Goal) {
+        Analytics.shared.capture(event: "today_log_workout_minutes_tapped", properties: ["goal_type": goal.type.rawValue])
+        let goalID = goal.id
+        let required = workoutManualRequiredMinutes(for: goal)
+        let manual = manualWorkoutMinutes(for: goal)
+        let secondary: LogWorkoutMinutesSheet.SecondaryLink?
+        if goal.type == .workoutGym {
+            secondary = primaryGym == nil ? .setUpGym : nil
+        } else {
+            secondary = workoutNeedsHealth == true ? .connectHealth : nil
+        }
+        Task {
+            let tracked = await HomeWorkoutVerifier.shared.trackedMinutesToday()
+            workoutLogTarget = WorkoutLogTarget(
+                id: goalID,
+                requiredMinutes: required,
+                tracked: tracked,
+                manualMinutesSoFar: manual,
+                secondaryLink: secondary
+            )
+        }
+    }
+
+    /// The sheet's optional automatic route, opened once the sheet is gone.
+    private func openWorkoutSecondary(_ link: LogWorkoutMinutesSheet.SecondaryLink?) {
+        guard let link else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            switch link {
+            case .connectHealth: openHealthPrimer()
+            case .setUpGym: showGymSetup = true
+            }
         }
     }
 
@@ -1164,7 +1263,9 @@ struct TodayView: View {
                 ? .status(Copy.today.statusRunning, isLive: true)
                 : .start(label: Copy.today.actionStart)
         case .workoutGym:
-            guard primaryGym != nil else { return .start(label: Copy.today.actionSetUpGym) }
+            // No gym saved: minutes by hand are the way (session 42); saving a gym stays on offer in
+            // the sheet and the finish-setup card, never required.
+            guard primaryGym != nil else { return .start(label: Copy.workoutMinutes.todayAction) }
             return gymDwellMinutes > 0
                 ? .start(label: Copy.today.actionOpenCheckIn)
                 : .start(label: Copy.today.actionGo)
@@ -1173,9 +1274,9 @@ struct TodayView: View {
                 ? .start(label: Copy.today.actionConnectHealth)
                 : .status(Copy.today.statusVerifiesAutomatically, isLive: false)
         case .workoutHomeOutdoor:
-            return workoutNeedsHealth == true
-                ? .start(label: Copy.today.actionConnectHealth)
-                : .status(Copy.today.statusVerifiesAutomatically, isLive: false)
+            // Health/Strava still complete it on their own; "Log minutes" works with or without them
+            // (session 42). "Connect Apple Health" is the sheet's secondary link.
+            return .start(label: Copy.workoutMinutes.todayAction)
         case .sleepOnTime, .sunriseAlarm:
             // The bedtime gate and the alarm verify these on their own.
             return .status(Copy.today.statusVerifiesAutomatically, isLive: false)
@@ -1204,8 +1305,7 @@ struct TodayView: View {
             startFocus(goalID: goal.id, minutes: max(1, minutes))
         case .workoutGym:
             if primaryGym == nil {
-                Analytics.shared.capture(event: "today_set_up_gym_tapped")
-                showGymSetup = true
+                openWorkoutLog(goal)
             } else {
                 Analytics.shared.capture(event: "today_verify_at_gym_tapped")
                 showGymCheckIn = true
@@ -1225,7 +1325,7 @@ struct TodayView: View {
         case .steps:
             if stepsNeedsHealth == true { openHealthPrimer() }
         case .workoutHomeOutdoor:
-            if workoutNeedsHealth == true { openHealthPrimer() }
+            openWorkoutLog(goal)
         case .sleepOnTime, .sunriseAlarm:
             break
         }
@@ -1687,9 +1787,10 @@ struct TodayView: View {
                 let needs = await HomeWorkoutVerifier.shared.needsAuthorizationRequest() && !StravaActivityStore.isLinked
                 workoutNeedsHealth = needs
                 if !needs {
-                    let minutes = await HomeWorkoutVerifier.shared.longestWorkoutMinutesToday()
+                    let tracked = await HomeWorkoutVerifier.shared.trackedMinutesToday()
                     for goalID in workoutGoalIDs {
-                        liveWorkoutMinutes[goalID] = minutes
+                        liveWorkoutMinutes[goalID] = tracked.longestMinutes
+                        trackedWorkout[goalID] = tracked
                         _ = try? await HomeWorkoutVerifier.shared.checkToday(goalID: goalID)
                     }
                 }
@@ -1981,12 +2082,12 @@ struct TodayView: View {
         case .workoutGym:
             full = gymRequiredMinutes
             reduced = min(HomeWorkoutVerificationDefaults.requiredMinutes, full)
-            current = max(suggestionSignals.healthWorkoutMinutes ?? 0, gymDwellMinutes)
+            current = max(suggestionSignals.healthWorkoutMinutes ?? 0, gymDwellMinutes, workoutProgressMinutes(for: goal))
             unit = "min"
         case .workoutHomeOutdoor:
             full = homeWorkoutRequiredMinutes(for: goal)
             reduced = Self.planBReduced(full)
-            current = liveWorkoutMinutes[goal.id] ?? 0
+            current = workoutProgressMinutes(for: goal)
             unit = "min"
         case .steps:
             guard let target = p.fullTarget else { return nil }
@@ -2032,9 +2133,9 @@ struct TodayView: View {
         case .steps:
             return stepsNeedsHealth == true ? Copy.today.actionConnectHealth : nil
         case .workoutHomeOutdoor:
-            return workoutNeedsHealth == true ? Copy.today.actionConnectHealth : nil
+            return Copy.workoutMinutes.todayAction
         case .workoutGym:
-            return suggestionSignals.healthWorkoutMinutes == nil && gymDwellMinutes == 0 ? Copy.today.actionConnectHealth : nil
+            return suggestionSignals.healthWorkoutMinutes == nil && gymDwellMinutes == 0 ? Copy.workoutMinutes.todayAction : nil
         default:
             return nil
         }
@@ -2065,8 +2166,10 @@ struct TodayView: View {
             runRowAction(goalID: goal.id)
         case .focusSession:
             startFocus(goalID: goal.id, minutes: state.reduced, isPlanB: true)
-        case .steps, .workoutHomeOutdoor, .workoutGym:
+        case .steps:
             openHealthPrimer()
+        case .workoutHomeOutdoor, .workoutGym:
+            openWorkoutLog(goal)
         default:
             break
         }
@@ -2543,6 +2646,15 @@ private struct QuickLogUndo: Identifiable, Equatable {
 /// The stretch goal whose guided timer is open (`sheet(item:)` needs an `Identifiable`).
 private struct StretchTarget: Identifiable {
     let id: UUID
+}
+
+/// The workout goal whose "Log minutes" sheet is open, with what the sheet shows (session 42).
+private struct WorkoutLogTarget: Identifiable {
+    let id: UUID
+    let requiredMinutes: Int
+    let tracked: ManualWorkoutMinutes.Tracked
+    let manualMinutesSoFar: Int
+    let secondaryLink: LogWorkoutMinutesSheet.SecondaryLink?
 }
 
 /// The meal-prep goal whose photo sheet is open.

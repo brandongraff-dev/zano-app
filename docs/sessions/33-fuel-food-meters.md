@@ -36,4 +36,5 @@ of the Fuel page. Visual only: no data, intent or copy changes.
   "Pass 3 (restraint)" flat look for this screen only, at the founder's request. All motion is still
   a reply to a log and is off under Reduce Motion.
 - **Known issues / TODOs left behind:** none known.
-- **Needs verification on:** CI compile + screenshots (focused run 149); crumbs/bounce motion feel on a device.
+- **CI:** focused run 149 green (compile); `tab-fuel`, `fuel-bottom` and their `light-` versions read.
+- **Needs verification on:** crumbs/bounce motion feel on a device.

@@ -95,6 +95,13 @@ extension Copy {
         public static let planStatusTrial = "Free trial"
         public static let planManagedByAppleNote = "Billing is handled by Apple. Change or cancel your plan in your Apple Account."
         public static let manageSubscriptionButtonLabel = "Manage subscription"
+        // Session 43: Family Sharing.
+        /// Appended to the plan's info note when `PaywallFamilySharing.isEnabled`.
+        public static let planFamilySharingNote = "Your plan can be shared with up to 5 other people through Apple Family Sharing."
+        /// Status when RevenueCat reports the entitlement as family-shared.
+        public static let planStatusFamilyShared = "Shared with you by your family"
+        /// Shown instead of "Manage subscription" for a family-shared plan: only the buyer can change it.
+        public static let planFamilySharedManageNote = "Someone in your Family Sharing group bought this plan, so they manage its billing. You don't need to pay for your own."
         public static let restorePurchasesButtonLabel = "Restore purchases"
         public static let restoreFailedTitle = "Couldn't restore purchases"
         public static let restoreFailedMessage = "Check your connection and try again."

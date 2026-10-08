@@ -65,6 +65,16 @@ Legend: **[YOU]** only you can do it · **[ME]** I can build it next · **[BOTH]
   offering, the public SDK key as `REVENUECAT_API_KEY` in Codemagic. Create the same products in App Store
   Connect, then sandbox-buy each one. Without a key the paywall only offers "Continue for now" (3 days), which
   reviewers can pass but which is not a business.
+- **[YOU] Family Sharing (session 43), per product, in App Store Connect:** open each subscription
+  (monthly, annual) → *Family Sharing* → *Turn On*, and the lifetime non-consumable too if you want it shared.
+  **This can't be turned off again for that product** (Apple: "Turn on Family Sharing for in-app purchases"),
+  so decide first: one purchase then covers the buyer plus up to 5 others in their Family Sharing group, which
+  means fewer paid subscriptions per household. After ticking it, set `PaywallFamilySharing.isEnabled = true`
+  (`Core/Sources/Core/Monetization/PaywallFamilySharing.swift`) so the paywall and Settings say so; the paywall
+  line also checks StoreKit's `isFamilyShareable` per product, so a product you skipped is never advertised.
+  Then resolve `[CONFIRM: Family Sharing]` in `docs/launch/terms-of-use.md` §3. Test in sandbox with a second
+  Apple Account in the same family group: Settings should read "Shared with you by your family" and hide
+  "Manage subscription". Leave the flag `false` if you don't turn it on.
 - **[YOU] App Store Connect:** create the app record (`com.zano.app`), name, subtitle, primary language,
   category, price tier, banking and tax forms (paid apps and subscriptions will not go live without them).
 - **[YOU] Support and privacy email**, a domain mailbox, and `zano.app` DNS pointing at the landing site.

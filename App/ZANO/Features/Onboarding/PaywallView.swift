@@ -322,6 +322,7 @@ struct PaywallView: View {
                         reminderToggle
                     }
                     reassurance
+                    familySharingLine
                     ctaButton
                     termsParagraph
                 }
@@ -493,6 +494,26 @@ struct PaywallView: View {
         .foregroundStyle(Theme.Colors.text)
         .padding(.top, Theme.Spacing.xs)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Session 43: "Share it with your family" under the reassurance, only when the selected plan has
+    /// Family Sharing on in App Store Connect and the founder has switched the claim on
+    /// (`PaywallFamilySharing`). Draws nothing otherwise.
+    @ViewBuilder
+    private var familySharingLine: some View {
+        if PaywallFamilySharing.applies(to: viewModel.selectedPackage) {
+            HStack(spacing: Theme.Spacing.xs) {
+                Image(systemName: "person.3.fill")
+                    .accessibilityHidden(true)
+                Text(Copy.paywall.familySharingLine)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(Theme.Typography.caption)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .multilineTextAlignment(.center)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.paywall.familySharingSpoken)
+        }
     }
 
     private var ctaButton: some View {

@@ -35,7 +35,9 @@
 //   SubscriptionPeriod.numberOfUnitsAs(unit:) -> Decimal (public extension),
 //   StoreProductDiscount.paymentMode (.freeTrial) / subscriptionPeriod, CustomerInfo.entitlements,
 //   EntitlementInfos.all: [String: EntitlementInfo], EntitlementInfo.isActive / periodType
-//   (.normal/.intro/.trial) / expirationDate: Date?. Offerings, Offering, Package, CustomerInfo and
+//   (.normal/.intro/.trial) / expirationDate: Date?. Session 43 adds EntitlementInfo.ownershipType:
+//   PurchaseOwnershipType (.purchased/.familyShared/.unknown) and StoreProduct.isFamilyShareable: Bool,
+//   both checked against purchases-ios `main` source on 2026-10-08 (not the 5.92.0 tag). Offerings, Offering, Package, CustomerInfo and
 //   StoreTransaction are all Sendable in 5.x, so the async results cross onto the main actor
 //   cleanly. Still unverified: an actual compile against the SDK (CI does that), and the dashboard
 //   side (entitlement id "pro", offering, products) which only exists once the founder creates it.
@@ -128,6 +130,10 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
     /// (`StoreProductDiscount.paymentMode == .freeTrial`) — spec §21: "7-day trial... (test
     /// 3-day vs 7-day)". `nil` if this package has no trial.
     public let introductoryTrialDays: Int?
+    /// `StoreProduct.isFamilyShareable` (StoreKit's `Product.isFamilyShareable`): Family Sharing is
+    /// turned on for this product in App Store Connect (session 43). The paywall only mentions
+    /// Family Sharing for a package where this is `true` (see `PaywallFamilySharing`).
+    public let isFamilyShareable: Bool
 
     public init(
         id: String,
@@ -135,7 +141,8 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
         period: Period,
         priceString: String,
         pricePerMonthString: String? = nil,
-        introductoryTrialDays: Int? = nil
+        introductoryTrialDays: Int? = nil,
+        isFamilyShareable: Bool = false
     ) {
         self.id = id
         self.productIdentifier = productIdentifier
@@ -143,6 +150,7 @@ public struct SubscriptionPackage: Sendable, Identifiable, Hashable {
         self.priceString = priceString
         self.pricePerMonthString = pricePerMonthString
         self.introductoryTrialDays = introductoryTrialDays
+        self.isFamilyShareable = isFamilyShareable
     }
 }
 
@@ -159,6 +167,16 @@ public struct SubscriptionOfferings: Sendable, Equatable {
     }
 }
 
+/// Who paid for the entitlement, mapped from RevenueCat's `PurchaseOwnershipType` (session 43).
+public enum SubscriptionOwnership: String, Sendable, Equatable {
+    /// This Apple Account bought it.
+    case purchased
+    /// Someone in this person's Apple Family Sharing group bought it and shares it.
+    case familyShared
+    /// RevenueCat couldn't tell (older receipts, or a purchase made outside the App Store).
+    case unknown
+}
+
 /// The Pro entitlement's state, mapped from RevenueCat's `EntitlementInfo`.
 public struct ProEntitlementInfo: Sendable, Equatable {
     public let isActive: Bool
@@ -167,12 +185,21 @@ public struct ProEntitlementInfo: Sendable, Equatable {
     /// When the current period ends: for a trial, the moment the first charge happens.
     public let expirationDate: Date?
     public let willRenew: Bool
+    /// `EntitlementInfo.ownershipType`: bought by this person, or shared by their family.
+    public let ownership: SubscriptionOwnership
 
-    public init(isActive: Bool, isTrial: Bool, expirationDate: Date?, willRenew: Bool) {
+    public init(
+        isActive: Bool,
+        isTrial: Bool,
+        expirationDate: Date?,
+        willRenew: Bool,
+        ownership: SubscriptionOwnership = .purchased
+    ) {
         self.isActive = isActive
         self.isTrial = isTrial
         self.expirationDate = expirationDate
         self.willRenew = willRenew
+        self.ownership = ownership
     }
 }
 
@@ -400,8 +427,19 @@ public final class RevenueCatManager {
             isActive: entitlement.isActive,
             isTrial: entitlement.periodType == .trial,
             expirationDate: entitlement.expirationDate,
-            willRenew: entitlement.willRenew
+            willRenew: entitlement.willRenew,
+            ownership: ownership(entitlement.ownershipType)
         )
+    }
+
+    /// `PurchaseOwnershipType` (purchases-ios: `.purchased`, `.familyShared`, `.unknown`; an `@objc`
+    /// Int enum, so a `default` keeps this compiling if a case is ever added).
+    private static func ownership(_ type: PurchaseOwnershipType) -> SubscriptionOwnership {
+        switch type {
+        case .purchased: .purchased
+        case .familyShared: .familyShared
+        default: .unknown
+        }
     }
 
     private static func mapPackage(_ package: Package) -> SubscriptionPackage {
@@ -412,7 +450,8 @@ public final class RevenueCatManager {
             period: period(for: package.packageType),
             priceString: product.localizedPriceString,
             pricePerMonthString: pricePerMonthString(for: product),
-            introductoryTrialDays: trialDays(for: product)
+            introductoryTrialDays: trialDays(for: product),
+            isFamilyShareable: product.isFamilyShareable
         )
     }
 

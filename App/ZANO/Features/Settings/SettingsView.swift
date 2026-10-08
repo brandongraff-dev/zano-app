@@ -160,6 +160,8 @@ struct SettingsView: View {
     // past session doesn't see it again this session either — see `alwaysAllowedSection` below.
     @State private var alwaysAllowedWarningDismissed = AlwaysAllowedCheck.hasAcknowledgedWarning
     @State private var isRestoringPurchases = false
+    /// Session 43: Pro came from someone else's purchase through Family Sharing (RevenueCat ownership).
+    @State private var isFamilySharedPlan = false
     @State private var isConfirmingDeleteAll = false
     @State private var isDeletingData = false
     /// Founder Series card dismissed (spec §5.22: optional, never annoying). Per-device.
@@ -329,7 +331,7 @@ struct SettingsView: View {
                 .layoutPriority(1)
             // The Apple-billing sentence lives here now instead of under the card.
             ZanoInfoButton(
-                Copy.settings.planManagedByAppleNote,
+                planInfoNote,
                 accessibilityLabel: Copy.settings.sectionInfoLabel(Copy.settings.planProLabel)
             )
             Spacer(minLength: Theme.Spacing.xs)
@@ -356,8 +358,8 @@ struct SettingsView: View {
                     planTitleRow
                     ZanoStatusCapsule(
                         dotColor: Theme.Colors.Ring.steps,
-                        text: isOnTrial ? Copy.settings.planStatusTrial : Copy.settings.planStatusActive,
-                        systemImage: "checkmark.seal.fill"
+                        text: planStatusText,
+                        systemImage: isFamilySharedPlan ? "person.3.fill" : "checkmark.seal.fill"
                     )
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -378,17 +380,44 @@ struct SettingsView: View {
                 .accessibilityElement(children: .combine)
             }
 
-            PrimaryButton(
-                title: Copy.settings.manageSubscriptionButtonLabel,
-                systemImage: "arrow.up.right",
-                style: .secondary
-            ) {
-                openURL(SettingsReferenceData.manageSubscriptionsURL)
+            // A family member can't change a plan someone else bought, so the button would only confuse.
+            if isFamilySharedPlan {
+                Text(Copy.settings.planFamilySharedManageNote)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                PrimaryButton(
+                    title: Copy.settings.manageSubscriptionButtonLabel,
+                    systemImage: "arrow.up.right",
+                    style: .secondary
+                ) {
+                    openURL(SettingsReferenceData.manageSubscriptionsURL)
+                }
             }
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zanoHero(radius: Theme.Radius.large, tint: Theme.Colors.Aurora.violet)
+        .task {
+            // `lastProEntitlement` is filled by the foreground entitlement check; refresh it if it's missing.
+            if RevenueCatManager.shared.lastProEntitlement == nil {
+                _ = await RevenueCatManager.shared.entitlementCheck()
+            }
+            isFamilySharedPlan = PaywallFamilySharing.isSharedWithYou(RevenueCatManager.shared.lastProEntitlement)
+        }
+    }
+
+    /// Session 43: "Shared with you by your family" beats trial/active when the plan is family-shared.
+    private var planStatusText: String {
+        if isFamilySharedPlan { return Copy.settings.planStatusFamilyShared }
+        return isOnTrial ? Copy.settings.planStatusTrial : Copy.settings.planStatusActive
+    }
+
+    /// The plan's info note, plus the Family Sharing sentence once it's switched on (`PaywallFamilySharing`).
+    private var planInfoNote: String {
+        guard PaywallFamilySharing.isEnabled, !isFamilySharedPlan else { return Copy.settings.planManagedByAppleNote }
+        return Copy.settings.planManagedByAppleNote + " " + Copy.settings.planFamilySharingNote
     }
 
     // MARK: - Setup: goals, lock sets, gyms, tags (spec §3, §6, §9.4, §25.1)

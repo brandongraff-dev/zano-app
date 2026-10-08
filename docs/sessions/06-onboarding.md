@@ -91,3 +91,11 @@ was merged with `main` on 2026-10-08; see the next entry.
   trial pill to people who already used their trial (needs RevenueCat's eligibility check).
 - **Needs verification on:** CI build + `FamilyPlanTests` + the paywall screenshot (three tiles); device sandbox
   purchase and Family Sharing once Apple enrollment and the products exist.
+
+### 2026-10-08 — Family plan as a full-width bar
+
+- **Files touched:** `App/ZANO/Features/Onboarding/PaywallView.swift`, `Core/Sources/Core/Monetization/PaywallViewModel.swift`
+  (`displayOrder` puts Family last), `Core/Tests/CoreTests/FamilyPlanTests.swift`, `docs/spec.md` (§21, §7, §16 wording).
+- **What changed:** founder request: the Family tile is now one full-width bar at the bottom of the plans, under the
+  Monthly / Annual pair, instead of a half-width tile with an empty space beside it.
+- **Needs verification on:** CI screenshot of the paywall.

@@ -3,7 +3,7 @@
 //
 // docs/spec.md §21 (decision 2026-10-06): the Family annual plan never takes the individual annual
 // plan's place as the default selection, and the paywall lays plans out as monthly, individual
-// annual, Family, then anything else. Pure logic: nothing here touches RevenueCat.
+// annual, anything else, then Family as the full-width bar at the bottom. Pure logic: nothing here touches RevenueCat.
 
 import Testing
 @testable import Core
@@ -40,7 +40,7 @@ struct FamilyPlanTests {
         #expect(PaywallViewModel.defaultSelection(in: []) == nil)
     }
 
-    @MainActor @Test func displayOrderIsMonthlyAnnualFamilyThenRest() {
+    @MainActor @Test func displayOrderIsMonthlyAnnualRestThenFamily() {
         let packages = [
             package("lifetime", .lifetime),
             package("family", .annual, family: true),
@@ -48,7 +48,7 @@ struct FamilyPlanTests {
             package("weekly", .weekly),
             package("monthly", .monthly),
         ]
-        #expect(PaywallViewModel.displayOrder(packages).map(\.id) == ["monthly", "annual", "family", "lifetime", "weekly"])
+        #expect(PaywallViewModel.displayOrder(packages).map(\.id) == ["monthly", "annual", "lifetime", "weekly", "family"])
     }
 
     @Test func packagesAreNotFamilyShareableByDefault() {

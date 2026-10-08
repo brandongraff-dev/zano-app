@@ -158,14 +158,16 @@ struct LockVaultCard: View {
         }
     }
 
-    /// The lock medallion: the state's glyph as a sticker, filled ZANO Blue once earned.
+    /// The lock medallion: the state's glyph as a glossy badge (session 35). Steel while locked,
+    /// ZANO Blue with a sparkle once earned.
     private var statusDot: some View {
-        ZanoSticker(
+        ZanoPopBadge(
             systemImage: statusSymbol,
-            color: status == .earned ? Theme.Colors.accent : Theme.Colors.textSecondary,
-            style: status == .earned ? .filled : .tinted,
-            size: .regular,
-            bounceTrigger: status == .earned ? 1 : 0
+            color: status == .earned ? Theme.Colors.accentFill : Theme.Colors.textSecondary,
+            size: 40,
+            tilt: status == .earned ? -6 : 0,
+            sparkle: status == .earned,
+            bounce: status == .earned ? 1 : 0
         )
         .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
     }
@@ -306,13 +308,21 @@ struct ConcentricGoalRings: View {
         return ZStack {
             Circle()
                 .stroke(segment.color.opacity(0.16), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: progress)
-                // Pass 3 (restraint): one flat stroke per ring, no sweep, no glow.
-                .stroke(segment.color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .opacity(progress > 0.001 ? 1 : 0)
-                .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: progress)
+            // Session 35 (glossy): the ring is a lit tube: the colour, a thin white highlight
+            // along its inner edge, and a soft glow in its colour once it's done.
+            ZStack {
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(segment.color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: max(1.5, lineWidth * 0.22), lineCap: .round))
+                    .padding(lineWidth * 0.22)
+            }
+            .rotationEffect(.degrees(-90))
+            .shadow(color: segment.isDone ? segment.color.opacity(0.6) : .clear, radius: 6)
+            .opacity(progress > 0.001 ? 1 : 0)
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: progress)
         }
         .overlay(alignment: .top) {
             // Pass 2: a lit ring wears a sparkle where it starts (12 o'clock).
@@ -349,15 +359,25 @@ struct VaultLockCharacter: View {
             .symbolEffect(.bounce, value: reduceMotion ? 0 : (mood == .open ? 1 : 0))
             .frame(width: size, height: size)
             .background {
-                if mood == .open {
-                    Circle().fill(Theme.Colors.accentFill)
-                } else if reduceTransparency {
-                    Circle().fill(Theme.Colors.surface2)
-                } else {
-                    Circle().fill(Theme.Colors.glassFillTop)
+                // Session 35 (glossy): a lit disc, steel while locked, ZANO Blue once open.
+                ZStack {
+                    if mood == .open {
+                        Circle().fill(Theme.Colors.accentFill)
+                    } else if reduceTransparency {
+                        Circle().fill(Theme.Colors.surface2)
+                    } else {
+                        Circle().fill(Theme.Colors.glassFillTop)
+                    }
+                    Circle().fill(LinearGradient(
+                        colors: [Color.white.opacity(0.3), Color.white.opacity(0), Color.black.opacity(0.14)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
                 }
+                .shadow(color: mood == .open ? Theme.Colors.accentFill.opacity(0.5) : .clear, radius: 8)
             }
-            .overlay(Circle().strokeBorder(Theme.Colors.glassEdge, lineWidth: Theme.Metrics.edgeWidth))
+            .overlay(Circle().strokeBorder(mood == .open ? Color.white.opacity(0.85) : Theme.Colors.glassEdge,
+                                           lineWidth: mood == .open ? 2 : Theme.Metrics.edgeWidth))
             .rotationEffect(.degrees(mood == .resting ? -12 : 0), anchor: .bottom)
             .offset(y: mood == .resting ? size * 0.04 : 0)
             .opacity(mood == .resting ? 0.8 : 1)

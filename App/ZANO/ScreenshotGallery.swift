@@ -185,6 +185,11 @@ struct ScreenshotHost: View {
                 .padding(.top, 60)
             }
             .background(Theme.Colors.background)
+        case "lock-bottom":
+            // The Lock tab scrolled to its end (the required goals, the borrow/spend card), which
+            // `tab-lock` can't reach past the pinned emergency bar.
+            NavigationStack { LockStatusView() }
+                .defaultScrollAnchor(.bottom)
         case "fuel-bottom":
             // The Fuel tab scrolled to its end (Top-ups and staples), which `tab-fuel` can't reach.
             NavigationStack { FuelView() }

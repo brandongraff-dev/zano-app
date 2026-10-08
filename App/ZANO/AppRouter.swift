@@ -85,6 +85,9 @@ enum AppDeepLink: Equatable, Sendable {
     /// `zano://invite/<CODE>` — a friend's referral code (the link `ReferralView` shares, spec §4
     /// v2). Opens Settings → Invite friends with the code filled in.
     case invite(code: String)
+    /// `zano://family` — the Family page (session 47), pushed on the Settings tab. Lands on Today instead
+    /// when the page isn't available (`FamilyHubAvailability`), so a link never opens controls that can't work.
+    case family
     /// `zano://tag/<uuid>` — dispatched to `NFCTagMapper`. `url` is kept so the mapper re-parses
     /// the exact URL it was given rather than one rebuilt from `id`.
     case tag(id: UUID, url: URL)
@@ -116,6 +119,7 @@ enum AppDeepLink: Equatable, Sendable {
         case "gym": self = .gymSetup
         case "fuel": self = .fuel
         case "progress": self = .progress
+        case "family": self = .family
         case "squad":
             // `zano://squad/join/CODE` → host "squad", path ["join", "CODE"];
             // `zano:squad/join/CODE` → no host, path ["squad", "join", "CODE"].
@@ -210,6 +214,10 @@ final class AppRouter {
     /// `openGymSetup()`; SwiftUI sets it back to `false` when the pushed screen is popped.
     var isGymSetupPresented = false
 
+    /// Drives `SettingsView`'s `.navigationDestination(isPresented:)` for `FamilyView` (session 47). Set by
+    /// `openFamily()`; SwiftUI sets it back to `false` when the pushed screen is popped.
+    var isFamilyPresented = false
+
     /// An invite code from `zano://squad/join/<CODE>`, waiting for `SquadHomeView` to open its join
     /// sheet with it. Cleared by `consumeSquadJoinCode()`.
     private(set) var pendingSquadJoinCode: String?
@@ -302,7 +310,7 @@ final class AppRouter {
                 // The onboarding first-win screen runs its own session controls; a stale Live
                 // Activity link must not end that session behind its back.
                 logger.notice("Dropping a focus-end link received before onboarding finished.")
-            case .today, .goals, .emergency, .timeBank, .settings, .gymSetup, .fuel, .progress, .squad, .invite:
+            case .today, .goals, .emergency, .timeBank, .settings, .gymSetup, .fuel, .progress, .squad, .invite, .family:
                 pendingDeepLink = link
             }
             return
@@ -354,6 +362,8 @@ final class AppRouter {
             selectedTab = .fuel
         case .progress:
             selectedTab = .progress
+        case .family:
+            openFamily()
         case .endFocus:
             selectedTab = .today
             Task {
@@ -421,6 +431,17 @@ final class AppRouter {
     func openGymSetup() {
         selectedTab = .settings
         isGymSetupPresented = true
+    }
+
+    /// Selects Settings and pushes the Family page (`zano://family`, session 47), or lands on Today when the page
+    /// isn't available for this person.
+    func openFamily() {
+        guard FamilyHubAvailability.isVisible else {
+            selectedTab = .today
+            return
+        }
+        selectedTab = .settings
+        isFamilyPresented = true
     }
 
     /// `ReferralView`'s `@AppStorage` key for a friend's invite code, kept until it's redeemed.

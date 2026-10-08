@@ -5,7 +5,8 @@
 // Start one or join with a code; then one list with "Assigned to you", "Not taken yet", "Everyone else" and
 // "Done lately", a circle to tick anything off, and a sheet to add a task and give it to someone. Hidden
 // from the app (`HouseholdAvailability.isLive`) until the backend and sign-in exist. Wording: `Copy.household`.
-// Session 44 adds "Screen-free times" (`HouseholdQuietTimesSection`) under the list.
+// Session 44 adds "Screen-free times" (`HouseholdQuietTimesSection`) under the list. Session 47: reached from the
+// Family page (`FamilyView`), which links here for the full list, screen-free times, the invite code and leaving.
 
 import SwiftUI
 import Core
@@ -258,6 +259,8 @@ struct HouseholdView: View {
                 name: householdName.trimmingCharacters(in: .whitespaces),
                 displayName: yourName.trimmingCharacters(in: .whitespaces)
             )
+            // Session 47: my buddy on the new membership row, for the family portrait.
+            await HouseholdBuddySync.syncIfNeeded(force: true)
             await refresh()
         }
     }
@@ -268,6 +271,8 @@ struct HouseholdView: View {
                 code: code.trimmingCharacters(in: .whitespaces).uppercased(),
                 displayName: yourName.trimmingCharacters(in: .whitespaces)
             )
+            // Session 47: my buddy on the new membership row, for the family portrait.
+            await HouseholdBuddySync.syncIfNeeded(force: true)
             await refresh()
         }
     }

@@ -73,6 +73,8 @@ struct BuddyClosetView: View {
         .zanoBackdrop(glow: buddy.color)
         .navigationTitle(Copy.buddyStyle.screenTitle)
         .navigationBarTitleDisplayMode(.inline)
+        // Session 47: the family portrait shows this outfit on everyone's phone (does nothing unless Household is live).
+        .onDisappear { Task { await HouseholdBuddySync.syncIfNeeded() } }
         .task {
             worn = BuddyOutfit.stored(for: buddy)
             await store.refresh()

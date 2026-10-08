@@ -35,14 +35,44 @@ public struct HouseholdMember: Codable, Sendable, Identifiable, Equatable {
     public let userId: UUID
     public let displayName: String
     public let joinedAt: Date?
+    /// Session 47 (`0012_household_member_buddy.sql`): the buddy this member picked (`Buddy.rawValue`), `nil` =
+    /// the default. Display only.
+    public let buddy: String?
+    /// What that buddy is wearing. `nil` = bare (also when it was written by a newer app with items this one
+    /// doesn't know). Display only.
+    public let outfit: BuddyOutfit?
 
     public var id: UUID { userId }
 
-    public init(householdId: UUID, userId: UUID, displayName: String, joinedAt: Date? = nil) {
+    /// The buddy to draw for this member.
+    public var buddyChoice: Buddy { buddy.flatMap(Buddy.init(rawValue:)) ?? .default }
+
+    public init(
+        householdId: UUID, userId: UUID, displayName: String, joinedAt: Date? = nil,
+        buddy: String? = nil, outfit: BuddyOutfit? = nil
+    ) {
         self.householdId = householdId
         self.userId = userId
         self.displayName = displayName
         self.joinedAt = joinedAt
+        self.buddy = buddy
+        self.outfit = outfit
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case householdId, userId, displayName, joinedAt, buddy, outfit
+    }
+
+    /// Lenient about the two session-47 columns, so a project without 0012 (or an outfit item from a newer
+    /// version) never breaks the member list.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        householdId = try c.decode(UUID.self, forKey: .householdId)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        joinedAt = try c.decodeIfPresent(Date.self, forKey: .joinedAt)
+        buddy = try? c.decodeIfPresent(String.self, forKey: .buddy)
+        outfit = try? c.decodeIfPresent(BuddyOutfit.self, forKey: .outfit)
     }
 }
 

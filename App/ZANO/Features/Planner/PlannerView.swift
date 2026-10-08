@@ -406,16 +406,23 @@ struct PlannerView: View {
         }
     }
 
-    /// The small owner/visibility mark: a lock for "Only me", people for a shared event. Decorative; the row's
-    /// accessibility value says the same in words.
+    /// The small owner/visibility mark: a lock for "Only me", people and the creator's buddy for a shared event
+    /// (session 47 added the buddy). Decorative; the row's accessibility value says the same in words.
     @ViewBuilder
     private func eventMark(_ event: PlannerEvent) -> some View {
         if let glyph = PlannerEventOwnership.glyph(event.origin) {
-            Image(systemName: glyph)
-                .font(Theme.Typography.icon(.xsmall, weight: .bold))
-                .foregroundStyle(Theme.Colors.muted)
-                .padding(.top, 4)
-                .accessibilityHidden(true)
+            HStack(spacing: Theme.Spacing.xxs) {
+                Image(systemName: glyph)
+                    .font(Theme.Typography.icon(.xsmall, weight: .bold))
+                    .foregroundStyle(Theme.Colors.muted)
+                if case .household(_, let createdBy, _, _) = event.origin {
+                    HouseholdMemberBuddy(
+                        member: members.first { $0.userId == createdBy },
+                        isMe: createdBy != nil && createdBy == me, size: 32
+                    )
+                }
+            }
+            .accessibilityHidden(true)
         }
     }
 

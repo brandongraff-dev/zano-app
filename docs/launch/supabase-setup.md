@@ -33,8 +33,8 @@ things in agreement").
    `supabase login`, then from `backend/`: `supabase link --project-ref <ref>` (the ref is in the project
    URL). The repo has no `config.toml`; if the CLI asks, run `supabase init` first and keep the folders.
 
-3. **Apply the database.** `supabase db push` applies `migrations/0001` to `0011` (schema, RLS, auth/storage,
-   waitlist, ML feature job, staples, Family Link, Household, Strava link, Household screen-free times, Family Link reward minutes, the family calendar). Then open Table Editor and confirm RLS shows as enabled
+3. **Apply the database.** `supabase db push` applies `migrations/0001` to `0012` (schema, RLS, auth/storage,
+   waitlist, ML feature job, staples, Family Link, Household, Strava link, Household screen-free times, Family Link reward minutes, the family calendar, members' buddies for the Family page). Then open Table Editor and confirm RLS shows as enabled
    on every table. 0006 also creates the private `family-proofs` bucket; confirm it is **private** in Storage.
 
 4. **Turn on the extensions** (Database > Extensions): `pg_cron` and `pg_net`. They are needed for the

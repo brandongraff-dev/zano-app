@@ -96,6 +96,8 @@ struct TodayView: View {
 
     @State private var showPlanner = false
     @State private var plannerReloadToken = 0
+    /// Session 47: the Family page, pushed from `FamilyTodayCard`.
+    @State private var showFamily = false
     @Query private var users: [User]
     @Query private var goals: [Goal]
     @Query private var goalEvents: [GoalEvent]
@@ -248,6 +250,8 @@ struct TodayView: View {
                     BreakCoachCard()
                     // Open tasks due today or earlier (draws nothing when there are none).
                     PlannerTodayCard(reloadToken: plannerReloadToken) { showPlanner = true }
+                    // Session 47: in a household, a small card to the Family page (hideable; draws nothing otherwise).
+                    FamilyTodayCard { showFamily = true }
                     suggestionSlot
                     if showsFirstDayChecklist {
                         firstDayChecklist
@@ -294,6 +298,9 @@ struct TodayView: View {
             }
             .navigationDestination(isPresented: $showNFCTags) {
                 NFCTagsView()
+            }
+            .navigationDestination(isPresented: $showFamily) {
+                FamilyView()
             }
             .sheet(isPresented: $showPlanner, onDismiss: { plannerReloadToken += 1 }) {
                 PlannerView()

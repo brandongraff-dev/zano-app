@@ -170,6 +170,9 @@ struct ScreenshotHost: View {
             NavigationStack { BuddyClosetView() }
         case "planner":
             PlannerView()
+        case "family":
+            // Session 47: the Family page with a four-person demo household (no backend in CI).
+            NavigationStack { FamilyView(model: FamilyDemo.model()) }
         case "characters":
             CharacterSheet()
         case "locksetup":
@@ -466,6 +469,55 @@ private struct AlarmSoundPreviewHost: View {
 }
 
 #if DEBUG
+/// The Family page's demo household (session 47): four people, four different buddies (mine is the stored one,
+/// the default Stash unless `-ZANOBuddy` says otherwise), a few chores, two shared events, a joined screen-free
+/// time, a Family-Sharing plan and a Family Link. Rendered from values; nothing is written anywhere.
+@MainActor
+enum FamilyDemo {
+    static func model() -> FamilyHubModel {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        func at(_ dayOffset: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            let day = cal.date(byAdding: .day, value: dayOffset, to: today) ?? today
+            return cal.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+        }
+        let home = UUID()
+        let maya = UUID(), sam = UUID(), me = UUID(), leo = UUID()
+        let members = [
+            HouseholdMember(householdId: home, userId: maya, displayName: "Maya", joinedAt: at(-30, 9),
+                            buddy: Buddy.lox.rawValue, outfit: BuddyOutfit(neck: .neckBowtie)),
+            HouseholdMember(householdId: home, userId: sam, displayName: "Sam", joinedAt: at(-29, 9),
+                            buddy: Buddy.brick.rawValue, outfit: BuddyOutfit(eyewear: .eyewearRoundGlasses)),
+            HouseholdMember(householdId: home, userId: me, displayName: "Alex", joinedAt: at(-29, 10)),
+            HouseholdMember(householdId: home, userId: leo, displayName: "Leo", joinedAt: at(-28, 9),
+                            buddy: Buddy.pip.rawValue, outfit: BuddyOutfit(hat: .hatWizard)),
+        ]
+        let household = Household(id: home, name: "The Parks", ownerId: maya, inviteCode: "K7Q2M9XD")
+        let tasks = [
+            HouseholdTask(id: UUID(), householdId: home, title: "Take out the bins", dueAt: at(0, 19), assigneeId: me, createdBy: maya),
+            HouseholdTask(id: UUID(), householdId: home, title: "Walk Biscuit", createdBy: sam),
+            HouseholdTask(id: UUID(), householdId: home, title: "Unload the dishwasher", assigneeId: sam, createdBy: maya),
+        ]
+        let events = [
+            HouseholdEvent(householdId: home, createdBy: sam, title: "Leo's soccer practice",
+                           startsAt: at(1, 17, 30), endsAt: at(1, 19)),
+            HouseholdEvent(householdId: home, createdBy: maya, title: "Grandma's birthday dinner",
+                           startsAt: at(3, 18), endsAt: at(3, 21), visibility: .members, audience: [me, sam]),
+        ]
+        let dinner = HouseholdQuietTime(householdId: home, name: "Dinner", startMinute: 18 * 60, endMinute: 19 * 60,
+                                        weekdays: [1, 2, 3, 4, 5, 6, 7], createdBy: maya)
+        let model = FamilyHubModel(
+            household: household, members: members, me: me, tasks: tasks, events: events,
+            quietWindows: [dinner], optIns: [HouseholdQuietTimeOptIn(windowID: dinner.id)],
+            familyLink: FamilyLink(id: UUID(), parentId: me, teenId: leo, inviteCode: "LINK0001", status: .active),
+            entitlement: ProEntitlementInfo(isActive: true, isTrial: false, expirationDate: nil, willRenew: true, ownership: .familyShared),
+            isPreview: true
+        )
+        model.familyLinkMe = me
+        return model
+    }
+}
+
 /// Every new page companion on one screen: Cal's four moods, the streak's fire and ice faces, and the
 /// four tab buddies (session 29). Screenshot runs only.
 private struct CharacterSheet: View {

@@ -218,16 +218,21 @@ struct PlannerZanoEventEditor: View {
                         if isOn { picked.remove(member.userId) } else { picked.insert(member.userId) }
                         message = nil
                     } label: {
-                        Text(member.displayName)
-                            .font(Theme.Typography.captionEmphasized)
-                            .foregroundStyle(Theme.Colors.text)
-                            .padding(.horizontal, Theme.Spacing.sm)
-                            .frame(minHeight: Theme.Metrics.minTapTarget)
-                            .background(Capsule(style: .continuous).fill(isOn ? Theme.Colors.interactiveWash : Color.clear))
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .strokeBorder(isOn ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: Theme.Metrics.selectedStroke)
-                            )
+                        HStack(spacing: Theme.Spacing.xxs) {
+                            // Session 47: each member's own buddy (decorative; the name is the label).
+                            HouseholdMemberBuddy(member: member, isMe: false, size: 32)
+                            Text(member.displayName)
+                                .font(Theme.Typography.captionEmphasized)
+                                .foregroundStyle(Theme.Colors.text)
+                        }
+                        .padding(.leading, Theme.Spacing.xxs)
+                        .padding(.trailing, Theme.Spacing.sm)
+                        .frame(minHeight: Theme.Metrics.minTapTarget)
+                        .background(Capsule(style: .continuous).fill(isOn ? Theme.Colors.interactiveWash : Color.clear))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(isOn ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: Theme.Metrics.selectedStroke)
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isOn ? .isSelected : [])

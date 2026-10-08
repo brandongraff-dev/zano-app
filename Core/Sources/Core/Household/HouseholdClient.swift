@@ -91,6 +91,29 @@ public actor HouseholdClient {
         _ = try await rpc("leave_household", body: ["p_household_id": householdID.uuidString])
     }
 
+    // MARK: Members (session 47, `0012_household_member_buddy.sql`)
+
+    /// Shows `buddy` wearing `outfit` for me in every household I'm in (display only).
+    public func setBuddy(_ buddy: Buddy, outfit: BuddyOutfit) async throws {
+        var body: [String: Any] = ["p_buddy": buddy.rawValue]
+        if !outfit.isBare,
+           let data = try? JSONEncoder().encode(outfit),
+           let object = try? JSONSerialization.jsonObject(with: data) {
+            body["p_outfit"] = object
+        } else {
+            body["p_outfit"] = NSNull()
+        }
+        _ = try await rpc("set_household_buddy", body: body)
+    }
+
+    /// Changes the name I show in `householdID`.
+    public func rename(householdID: UUID, displayName: String) async throws {
+        _ = try await rpc("rename_household_member", body: [
+            "p_household_id": householdID.uuidString,
+            "p_display_name": displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+        ])
+    }
+
     // MARK: Tasks
 
     public func tasks(householdID: UUID) async throws -> [HouseholdTask] {

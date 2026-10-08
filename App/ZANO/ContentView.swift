@@ -121,6 +121,8 @@ struct ContentView: View {
         // Does nothing unless Household is live. Not awaited: it's a network call.
         Task {
             if await HouseholdEventStore.refresh() { await PlannerReminders.refresh() }
+            // Session 47: my buddy and outfit on my household rows, if they changed (the family portrait).
+            await HouseholdBuddySync.syncIfNeeded()
         }
         // Keep the unlock rules' wake-ups registered (cheap; they can be lost after a restore).
         ContextRuleScheduler.shared.sync()

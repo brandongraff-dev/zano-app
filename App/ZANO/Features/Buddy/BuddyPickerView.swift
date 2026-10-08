@@ -56,7 +56,11 @@ struct BuddyPickerView: View {
             .zanoActionBar { teamUpButton }
             .sensoryFeedback(.impact(weight: .light), trigger: buddy)
             .sensoryFeedback(.success, trigger: teamUpTick)
-            .onDisappear { poseTask?.cancel() }
+            .onDisappear {
+                poseTask?.cancel()
+                // Session 47: the family portrait shows this buddy on everyone's phone (does nothing unless Household is live).
+                Task { await HouseholdBuddySync.syncIfNeeded() }
+            }
             .onChange(of: buddy) { _, _ in WidgetRefresh.reloadAll() }
             .modifier(BuddyPickerChrome(isSettings: context == .settings))
     }

@@ -218,6 +218,7 @@ struct SettingsView: View {
                 planCard
                 verificationSetupSection
                 buddySection
+                familySection
                 coachVoiceSection
                 appearanceSection
                 dailyRhythmSection
@@ -498,29 +499,7 @@ struct SettingsView: View {
                     }
                 }
 
-                if HouseholdAvailability.isLive {
-                    SettingsRowDivider()
-
-                    SettingsNavRow(
-                        Copy.household.rowLabel,
-                        systemImage: "house.fill",
-                        tint: SettingsPalette.goals
-                    ) {
-                        HouseholdView()
-                    }
-                }
-
-                if FamilyLinkAvailability.isLive {
-                    SettingsRowDivider()
-
-                    SettingsNavRow(
-                        Copy.family.rowLabel,
-                        systemImage: "person.2.fill",
-                        tint: SettingsPalette.goals
-                    ) {
-                        FamilyLinkView()
-                    }
-                }
+                // Session 47: Household and Family Link are reached from the Family page (`familySection`).
 
                 // Session 34: Squad lives here rather than as a sixth tab (the floating glass bar is
                 // designed for five). Hidden until the build has a backend, the person is signed in,
@@ -586,6 +565,33 @@ struct SettingsView: View {
                     SettingsBuddyRowLabel(buddy: buddy)
                 }
                 .buttonStyle(SettingsRowButtonStyle())
+            }
+        }
+    }
+
+    // MARK: - Family (session 47)
+
+    /// The Family page's card: the family's buddies side by side, "Family", a chevron. Only when the page can
+    /// work (`FamilyHubAvailability`: Household live, or a family plan). `zano://family` pushes it from here.
+    @ViewBuilder
+    private var familySection: some View {
+        if FamilyHubAvailability.isVisible(householdLive: HouseholdAvailability.isLive, entitlement: RevenueCatManager.shared.lastProEntitlement)
+            || isFamilySharedPlan {
+            SettingsSection {
+                SettingsGroupCard {
+                    NavigationLink {
+                        FamilyView()
+                    } label: {
+                        SettingsFamilyRowLabel()
+                    }
+                    .buttonStyle(SettingsRowButtonStyle())
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { appRouter.isFamilyPresented },
+                set: { appRouter.isFamilyPresented = $0 }
+            )) {
+                FamilyView()
             }
         }
     }
@@ -1510,6 +1516,47 @@ private struct SettingsBuddyRowLabel: View {
             Text(Copy.buddy.name(buddy))
                 .font(Theme.Typography.body)
                 .foregroundStyle(Theme.Colors.muted)
+            Image(systemName: "chevron.forward")
+                .font(Theme.Typography.icon(.small))
+                .foregroundStyle(Theme.Colors.muted)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(minHeight: Theme.Metrics.minTapTarget)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The Family row (session 47): up to four of the household's buddies overlapping like a group photo (just my
+/// buddy without a household), "Family", a short line, a chevron.
+private struct SettingsFamilyRowLabel: View {
+    private let members = HouseholdEventStore.members
+    private let me = HouseholdEventStore.me
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            HStack(spacing: -Theme.Spacing.sm) {
+                if members.isEmpty || !HouseholdAvailability.isLive {
+                    HouseholdMemberBuddy(member: nil, isMe: true, size: 32)
+                } else {
+                    ForEach(FamilyPortrait.ordered(members).prefix(4)) { member in
+                        HouseholdMemberBuddy(member: member, isMe: member.userId == me, size: 32)
+                    }
+                }
+            }
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Copy.familyHub.settingsRow)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.text)
+                Text(Copy.familyHub.settingsRowDetail)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.muted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "chevron.forward")
                 .font(Theme.Typography.icon(.small))
                 .foregroundStyle(Theme.Colors.muted)

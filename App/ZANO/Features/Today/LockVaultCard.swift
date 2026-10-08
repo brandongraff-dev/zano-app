@@ -376,8 +376,10 @@ struct VaultLockCharacter: View {
                 }
                 .shadow(color: mood == .open ? Theme.Colors.accentFill.opacity(0.5) : .clear, radius: 8)
             }
-            .overlay(Circle().strokeBorder(mood == .open ? Color.white.opacity(0.85) : Theme.Colors.glassEdge,
-                                           lineWidth: mood == .open ? 2 : Theme.Metrics.edgeWidth))
+            .overlay(Circle().strokeBorder(
+                mood == .open ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(Theme.Colors.glassEdge),
+                lineWidth: mood == .open ? 2 : Theme.Metrics.edgeWidth
+            ))
             .rotationEffect(.degrees(mood == .resting ? -12 : 0), anchor: .bottom)
             .offset(y: mood == .resting ? size * 0.04 : 0)
             .opacity(mood == .resting ? 0.8 : 1)

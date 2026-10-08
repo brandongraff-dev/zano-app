@@ -153,6 +153,9 @@ public final class TimeBankEngine {
     private let modelContainer: ModelContainer
     private let context: ModelContext
     private let logger = Logger(subsystem: "com.zano.app.Core", category: "TimeBankEngine")
+    /// Family rewards being deposited right now: `deposit` suspends, so two overlapping calls for the
+    /// same reward (a double tap) must not both get past the ledger check.
+    private var familyRewardsInFlight: Set<UUID> = []
 
     /// - Parameter modelContainer: Defaults to the shared App Group container (spec §11).
     ///   Overridable for unit tests (an in-memory container).
@@ -304,6 +307,37 @@ public final class TimeBankEngine {
         guard let minutes = TimeBankEarnRates.minutes(for: goalType) else { return false }
         try await deposit(minutes: minutes, for: date)
         return true
+    }
+
+    // MARK: - Family reward minutes (session 45, spec §5.23)
+
+    /// Deposits a parent's reward (already claimed on the server) into `date`'s Time Bank, once.
+    ///
+    /// The minutes go into the same per-day row as goal minutes, so they spend the same way and expire at
+    /// midnight (spec §5.2: no hoarding). `FamilyRewardLedger` records the reward's id (a second call for the
+    /// same reward deposits nothing) and how much of the day came from family, so it is shown as "from
+    /// family" and never counted as earned by goals. The amount is clamped to the server's per-reward cap.
+    ///
+    /// - Throws: `TimeBankEngineError.invalidMinutes` (`minutes <= 0`), `.noSignedInUser`, or whatever
+    ///   `ModelContext.save()` throws. Nothing is recorded in the ledger when the deposit throws.
+    @discardableResult
+    public func depositFamilyReward(
+        rewardID: UUID,
+        minutes: Int,
+        on date: Date = .now,
+        calendar: Calendar = .current,
+        ledger defaults: UserDefaults = SharedDefaults.store
+    ) async throws -> FamilyRewardDepositResult {
+        guard minutes > 0 else { throw TimeBankEngineError.invalidMinutes(minutes) }
+        guard !FamilyRewardLedger.hasDeposited(rewardID, defaults: defaults),
+              !familyRewardsInFlight.contains(rewardID) else { return .alreadyDeposited }
+        familyRewardsInFlight.insert(rewardID)
+        defer { familyRewardsInFlight.remove(rewardID) }
+        let amount = min(minutes, FamilyRewardRules.maxMinutesPerReward)
+        try await deposit(minutes: amount, for: date)
+        FamilyRewardLedger.record(rewardID, minutes: amount, on: date, calendar: calendar, defaults: defaults)
+        Analytics.shared.capture(event: "family_reward_deposited", properties: ["minutes": amount])
+        return .deposited(minutes: amount)
     }
 
     // MARK: - Private

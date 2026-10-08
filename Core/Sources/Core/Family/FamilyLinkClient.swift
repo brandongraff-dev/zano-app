@@ -2,7 +2,7 @@
 // Core / Family
 //
 // The app's side of Family Link (session 23; docs/spec.md §5.23): talks to Supabase PostgREST (links,
-// tasks), the RPCs in `0006_family_link.sql` (every state change), Storage (the teen's proof upload) and the
+// tasks, reward minutes from session 45's `0010_family_rewards.sql`),the RPCs in `0006_family_link.sql` (every state change), Storage (the teen's proof upload) and the
 // `family-proof-open` Edge Function (the parent's one view of a photo).
 //
 // Honest about availability: it follows `MealVisionClient`'s shape and uses its configuration, and like it
@@ -146,7 +146,75 @@ public actor FamilyLinkClient {
         return (image, deletedAt)
     }
 
+    // MARK: Reward minutes (session 45, `0010_family_rewards.sql`)
+
+    /// The parent sends their teen bonus Time Bank minutes with an optional plain-text note. Inserted straight
+    /// into `family_rewards`: row-level security only lets the parent of an active link insert for its teen,
+    /// and the server's trigger enforces the caps (`reward_too_large`, `reward_daily_cap`).
+    @discardableResult
+    public func sendReward(link: FamilyLink, minutes: Int, note: String?) async throws -> FamilyReward {
+        guard let teenID = link.teenId, link.status == .active else { throw FamilyLinkError.server(code: "not_found") }
+        guard FamilyRewardRules.isValidAmount(minutes) else { throw FamilyLinkError.server(code: "reward_too_large") }
+        var body: [String: Any] = [
+            "link_id": link.id.uuidString,
+            "from_user": link.parentId.uuidString,
+            "to_user": teenID.uuidString,
+            "minutes": minutes,
+        ]
+        body["note"] = note.flatMap { FamilyRewardRules.sanitizedNote($0) } ?? NSNull()
+        let data = try await insert("family_rewards", body: body)
+        guard let reward = try? FamilyJSON.decoder.decode([FamilyReward].self, from: data).first else { throw FamilyLinkError.badResponse }
+        return reward
+    }
+
+    /// Every reward on a link, newest first. Both sides see the same rows.
+    public func rewards(linkID: UUID) async throws -> [FamilyReward] {
+        let data = try await get("family_rewards", query: "select=*&link_id=eq.\(linkID.uuidString)&order=created_at.desc&limit=100")
+        return try FamilyJSON.decoder.decode([FamilyReward].self, from: data)
+    }
+
+    /// The teen claims a reward. Returns the minutes to deposit. Throws `.server(code: "already_claimed")`
+    /// for a reward claimed before (deposit nothing) and `.server(code: "void")` when the link was left.
+    public func claimReward(rewardID: UUID) async throws -> Int {
+        let data = try await rpc("claim_family_reward", body: ["p_reward_id": rewardID.uuidString])
+        guard let minutes = try? JSONDecoder().decode(Int.self, from: data) else { throw FamilyLinkError.badResponse }
+        return minutes
+    }
+
+    /// The signed-in person's user id (the access token's `sub` claim), so a screen can tell whether this
+    /// device is the parent or the teen of a link. `nil` when signed out or the token can't be read.
+    public func currentUserID() async -> UUID? {
+        guard let tokenProvider, let token = try? await tokenProvider.supabaseAccessToken() else { return nil }
+        return Self.userID(fromJWT: token)
+    }
+
+    /// Reads `sub` from a JWT's payload without verifying it (the server verifies every call; this only picks
+    /// which side of the screen to show).
+    static func userID(fromJWT token: String) -> UUID? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var base64 = parts[1].replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64 += "=" }
+        guard let data = Data(base64Encoded: base64),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let sub = object["sub"] as? String else { return nil }
+        return UUID(uuidString: sub)
+    }
+
     // MARK: HTTP
+
+    private func insert(_ table: String, body: [String: Any]) async throws -> Data {
+        guard let configuration, let tokenProvider else { throw FamilyLinkError.notConfigured }
+        let token = try await tokenProvider.supabaseAccessToken()
+        var request = URLRequest(url: configuration.projectURL.appendingPathComponent("rest/v1/\(table)"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(configuration.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await run(request)
+    }
 
     private func get(_ table: String, query: String) async throws -> Data {
         guard let configuration, let tokenProvider else { throw FamilyLinkError.notConfigured }

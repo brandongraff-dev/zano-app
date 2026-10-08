@@ -281,6 +281,8 @@ A "Building ZANO" feed card (optional) linking to your content. Founder-led bran
 
 **Privacy: proof photos are view-once.** A proof photo can be opened one time by the parent, and is deleted for good 10 minutes after it is first opened (sooner if the parent closes it); a photo nobody opens is deleted after 24 hours. It is visible only to the linked family, is never used for model training, and is kept in private storage only until it is deleted. What stays is the answer (approved, not yet, or asked to redo, with a time), never the picture. ZANO cannot stop a screenshot, but it tells the teen when one is taken of their photo. Screen Time data stays on the device (§24). The teen can flag any parent decision.
 
+**Reward minutes (session 45).** A linked parent can send their teen bonus Time Bank minutes (§5.2) with an optional short note ("+30 min, nice work on the homework"): 10, 15, 30 or 60 minutes at a time, at most 120 per reward and 240 per link in any 24 hours (enforced on the server), note plain text and at most 80 characters. The teen sees a card the next time they open ZANO and adds the minutes to today's Time Bank, where they run out at midnight like every other Time Bank minute. They are shown as "from family", never counted as earned by goals. Both sides see the same list of what was sent. It only ever adds: a parent cannot take minutes back, there is no penalty path, and emergency unlock is untouched. Leaving the link voids any reward not yet added. Hidden whenever Family Link isn't live.
+
 **Not in scope:** under-13 accounts (§24), parents seeing a teen's app usage, location sharing, messaging.
 
 ### 5.24 Focus Lock (work hours and calendar)

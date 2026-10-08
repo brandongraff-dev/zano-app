@@ -50,10 +50,42 @@ extension Copy {
         public static let statusRedo = "Redo"
         public static let noTasks = "No tasks yet."
 
+        // Reward minutes (session 45). Only ever added, never taken back.
+        public static let sendMinutesTitle = "Send minutes"
+        public static let sendMinutesIntro = "Add bonus minutes to your teen's Time Bank. They can't be taken back, and they run out at midnight like all Time Bank minutes."
+        public static let rewardNotePlaceholder = "Add a note (optional)"
+        public static let rewardSent = "Sent. Your teen will see it next time they open ZANO."
+        public static let rewardLimitReached = "That's the most you can send for now. You can send up to 240 minutes a day."
+        public static let rewardsSentTitle = "Minutes sent"
+        public static let rewardsReceivedTitle = "Minutes from family"
+        public static let rewardStatusAdded = "Added"
+        public static let rewardStatusWaiting = "Not opened yet"
+        public static let rewardStatusVoid = "Void, the link ended"
+        public static let rewardCardTitle = "From your family"
+        public static let rewardCardClaim = "Add to my Time Bank"
+        public static let rewardCardLater = "Later"
+        public static let rewardCardExpiry = "Like all Time Bank minutes, these run out at midnight."
+
+        public static func rewardChip(_ minutes: Int) -> String { "+\(minutes) min" }
+        public static func sendRewardButton(_ minutes: Int) -> String { "Send +\(minutes) min" }
+        public static func rewardAdded(_ minutes: Int) -> String { "+\(minutes) min added to your Time Bank" }
+        public static func rewardWaiting(_ minutes: Int) -> String { "+\(minutes) min for your Time Bank" }
+        public static func rewardsLeftToday(_ minutes: Int) -> String { "You can send \(minutes) more minutes today." }
+        /// The Lock tab's Time Bank card: family minutes are shown as what they are, not as goals earned.
+        public static func fromFamilyToday(_ minutes: Int) -> String { "Includes \(minutes) min from family, not from goals." }
+
+        public static func rewardStatus(_ reward: FamilyReward, link: FamilyLink?) -> String {
+            if reward.claimedAt != nil { return rewardStatusAdded }
+            if FamilyRewardRules.isVoid(reward, link: link) { return rewardStatusVoid }
+            return rewardStatusWaiting
+        }
+
         // Errors
         public static let genericError = "That didn't work. Try again in a moment."
         public static let invalidInvite = "That code isn't valid, or it was already used."
         public static let alreadyOpened = "That photo was already opened once, so it's gone."
+        public static let rewardVoid = "That link has ended, so those minutes can't be added."
+        public static let rewardAlreadyAdded = "Those minutes were already added."
 
         public static func status(_ status: FamilyTaskStatus) -> String {
             switch status {
@@ -67,6 +99,9 @@ extension Copy {
         public static func error(_ error: Error) -> String {
             switch error as? FamilyLinkError {
             case .server(let code) where code == "invalid_invite": return invalidInvite
+            case .server(let code) where code == "reward_daily_cap" || code == "reward_too_large": return rewardLimitReached
+            case .server(let code) where code == "void": return rewardVoid
+            case .server(let code) where code == "already_claimed": return rewardAlreadyAdded
             case .gone: return alreadyOpened
             case .notConfigured: return notAvailable
             default: return genericError

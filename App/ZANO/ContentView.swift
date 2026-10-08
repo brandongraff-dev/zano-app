@@ -18,6 +18,8 @@
 //      `LockEngineManager.lastUnlockedSessionID` (docs/spec.md §16 P3). Held back while the alarm
 //      is ringing (one full-screen presentation at a time; the alarm always wins) and shown once it
 //      clears. See `AppRouter.handleUnlock` for when it is deliberately *not* shown.
+//   4b. Family reward minutes (session 45) — `.zanoFamilyRewards()`, a card for minutes a linked parent
+//      sent, checked on every foreground; does nothing unless Family Link is live.
 //   5. Foreground work — while the scene is active, keeps checking whether an alarm is due, since
 //      `isRinging` is only ever turned on by `SunriseAlarmManager.beginRingingIfDue`.
 //
@@ -138,6 +140,9 @@ struct ContentView: View {
         await router.beginAlarmIfDue()
         await router.reconcileAlarmIfNeeded()
         MilestonePresenter.shared.checkForNewMilestones()
+        // Session 45: minutes a linked parent sent (teen side). Does nothing unless Family Link is live.
+        // Not awaited: it's a network call, and the alarm poll below must not wait on it.
+        Task { await FamilyRewardPresenter.shared.check() }
 
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(5))
@@ -241,6 +246,8 @@ private struct MainTabView: View {
         // Milestone share moments (streaks, hours locked in, earned unlocks, monthly story): at most
         // one per session, never over the unlock celebration or the alarm.
         .zanoMilestoneMoments()
+        // Reward minutes from a linked parent (session 45), never over the moments above or the alarm.
+        .zanoFamilyRewards()
         // A tapped tag with no mapping yet: map it right here, over whatever tab is showing
         // (Wave 1B). Held back while the alarm rings, like the celebration above.
         .sheet(item: Binding(

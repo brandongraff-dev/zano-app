@@ -538,6 +538,14 @@ struct LockStatusView: View {
                         .foregroundStyle(Theme.Colors.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // Session 45: minutes a linked parent sent are shown as what they are, not as goals earned.
+                let fromFamily = FamilyRewardLedger.minutes(on: .now)
+                if fromFamily > 0 {
+                    Text(Copy.family.fromFamilyToday(fromFamily))
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
         case .goals(let remaining, let total):

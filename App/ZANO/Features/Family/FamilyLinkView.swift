@@ -4,7 +4,9 @@
 // Settings > Family Link (session 23; docs/spec.md §5.23). One screen, two sides: a parent makes an
 // invite and sets tasks; a teen accepts (the consent), hands tasks in, and can leave. A proof photo is
 // view-once: it is held in memory only while the parent looks at it, never saved, and dropped at its
-// deletion time. When there is no backend yet (`FamilyLinkClient.isConfigured` is false) the screen
+// deletion time. A parent can also send reward minutes (session 45): chips + an optional plain-text note;
+// both sides see the same list of what was sent. The teen adds them from a card (`FamilyRewardPresenter`).
+// When there is no backend yet (`FamilyLinkClient.isConfigured` is false) the screen
 // says so and does nothing else.
 
 import SwiftUI
@@ -31,6 +33,10 @@ struct FamilyLinkView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var photoTaskID: UUID?
     @State private var viewing: (image: UIImage, deletedAt: Date)?
+    @State private var rewards: [FamilyReward] = []
+    @State private var rewardMinutes = FamilyRewardRules.chipMinutes[2]
+    @State private var rewardNote = ""
+    @State private var myID: UUID?
 
     private var activeLink: FamilyLink? { links.first { $0.status != .left } }
 
@@ -91,6 +97,8 @@ struct FamilyLinkView: View {
                 Text(link.inviteCode).font(Theme.Typography.title).textSelection(.enabled)
                 note(Copy.family.waitingForTeen)
             } else {
+                if side != .teen { sendMinutes(link: link) }
+                rewardList(link: link)
                 taskList(link: link)
                 PrimaryButton(title: Copy.family.leave, style: .secondary) { Task { await leave(link) } }
                 note(Copy.family.leaveNote)
@@ -128,6 +136,68 @@ struct FamilyLinkView: View {
                     } else {
                         PrimaryButton(title: Copy.family.handIn) { Task { await handIn(taskID: task.id, link: link, item: nil) } }
                     }
+                }
+            }
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Colors.surface2, in: RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    // MARK: - Reward minutes (session 45)
+
+    /// Parent only. Chips the daily allowance still fits, an optional note, one send button. Minutes are
+    /// only ever added; there is no way to take them back.
+    @ViewBuilder
+    private func sendMinutes(link: FamilyLink) -> some View {
+        let chips = FamilyRewardRules.availableChips(rewards, now: .now)
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(Copy.family.sendMinutesTitle).font(Theme.Typography.headline)
+            note(Copy.family.sendMinutesIntro)
+            if chips.isEmpty {
+                note(Copy.family.rewardLimitReached)
+            } else {
+                HStack(spacing: Theme.Spacing.xs) {
+                    ForEach(chips, id: \.self) { minutes in
+                        PrimaryButton(
+                            title: Copy.family.rewardChip(minutes),
+                            style: minutes == rewardMinutes ? .standard : .secondary
+                        ) { rewardMinutes = minutes }
+                        .accessibilityAddTraits(minutes == rewardMinutes ? .isSelected : [])
+                    }
+                }
+                TextField(Copy.family.rewardNotePlaceholder, text: $rewardNote)
+                    .onChange(of: rewardNote) { _, value in
+                        if value.count > FamilyRewardRules.noteMaxLength {
+                            rewardNote = String(value.prefix(FamilyRewardRules.noteMaxLength))
+                        }
+                    }
+                PrimaryButton(
+                    title: Copy.family.sendRewardButton(rewardMinutes),
+                    systemImage: "gift.fill",
+                    isEnabled: chips.contains(rewardMinutes)
+                ) { Task { await sendReward(link) } }
+                note(Copy.family.rewardsLeftToday(FamilyRewardRules.remainingAllowance(rewards, now: .now)))
+            }
+        }
+    }
+
+    /// Both sides see the same list: what was sent, the note, and whether it was added.
+    @ViewBuilder
+    private func rewardList(link: FamilyLink) -> some View {
+        if !rewards.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(side == .teen ? Copy.family.rewardsReceivedTitle : Copy.family.rewardsSentTitle)
+                    .font(Theme.Typography.headline)
+                ForEach(rewards) { reward in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(Copy.family.rewardChip(reward.minutes)).font(Theme.Typography.captionEmphasized)
+                        if let text = reward.note { Text(verbatim: text).font(Theme.Typography.caption) }
+                        Text(Copy.family.rewardStatus(reward, link: link))
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.muted)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
             .padding(Theme.Spacing.md)
@@ -174,6 +244,11 @@ struct FamilyLinkView: View {
             links = try await FamilyLinkClient.shared.links()
             if let link = activeLink, link.status == .active {
                 tasks = try await FamilyLinkClient.shared.tasks(linkID: link.id)
+                rewards = try await FamilyLinkClient.shared.rewards(linkID: link.id)
+                // Session 45: the signed-in id says which side this device is, so a teen never sees the
+                // parent's "Send minutes" after a relaunch.
+                if myID == nil { myID = await FamilyLinkClient.shared.currentUserID() }
+                if let myID { side = myID == link.parentId ? .parent : .teen }
                 if side == nil { side = link.teenId == nil ? .parent : side }
                 recordFamilyGoalIfDone()
             }
@@ -203,6 +278,7 @@ struct FamilyLinkView: View {
         await run {
             try await FamilyLinkClient.shared.leave(linkID: link.id)
             tasks = []
+            rewards = []
             side = nil
             await refresh()
         }
@@ -213,6 +289,15 @@ struct FamilyLinkView: View {
             _ = try await FamilyLinkClient.shared.createTask(linkID: link.id, title: newTitle, dueAt: nil, requiresPhoto: newRequiresPhoto)
             newTitle = ""
             await refresh()
+        }
+    }
+
+    private func sendReward(_ link: FamilyLink) async {
+        await run {
+            try await FamilyLinkClient.shared.sendReward(link: link, minutes: rewardMinutes, note: rewardNote)
+            rewardNote = ""
+            await refresh()
+            message = Copy.family.rewardSent
         }
     }
 

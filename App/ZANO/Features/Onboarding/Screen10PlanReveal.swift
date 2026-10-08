@@ -254,6 +254,7 @@ struct Screen10PlanReveal: View {
             Text(Copy.onboardingReveal.planBuildingTitle)
                 .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Colors.text)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 ForEach(buildRows) { row in

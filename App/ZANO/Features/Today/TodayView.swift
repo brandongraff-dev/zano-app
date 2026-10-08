@@ -2514,6 +2514,9 @@ private struct TodayStatusRow: View {
                 Image(systemName: icon)
                     .font(Theme.Typography.icon(.medium))
                     .foregroundStyle(Theme.Colors.accent)
+                    // Decorative: the row combines its children, so the symbol's name would be
+                    // read before the title (session 41).
+                    .accessibilityHidden(true)
             }
             Text(title)
                 .font(Theme.Typography.headline)

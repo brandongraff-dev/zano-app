@@ -216,6 +216,7 @@ private struct GoalTargetStep: View {
     @State private var customTitle = ""
     @State private var stepTick = 0
     @FocusState private var nameFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let rule: GoalTargetRule
 
@@ -410,7 +411,7 @@ private struct GoalTargetStep: View {
     private func set(_ newValue: Int) {
         let clamped = rule.clamped(newValue)
         guard clamped != value else { return }
-        withAnimation(Theme.Motion.springStandard) { value = clamped }
+        withAnimation(reduceMotion ? nil : Theme.Motion.springStandard) { value = clamped }
         stepTick += 1
     }
 }

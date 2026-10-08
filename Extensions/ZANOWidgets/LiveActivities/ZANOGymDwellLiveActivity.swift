@@ -38,6 +38,8 @@ struct ZANOGymDwellLiveActivity: Widget {
                             total: Double(max(context.state.verifiedAtMinutes, 1))
                         )
                         .tint(ZANOWidgetColor.ringWorkout)
+                        // The status line below says the same minutes in words.
+                        .accessibilityHidden(true)
                         Text(WidgetCopy.gymDwellStatus(
                             elapsedMinutes: context.state.elapsedMinutes,
                             verifiedAtMinutes: context.state.verifiedAtMinutes
@@ -95,6 +97,8 @@ private struct ZANOGymDwellLockScreenView: View {
                 total: Double(max(state.verifiedAtMinutes, 1))
             )
             .tint(ZANOWidgetColor.ringWorkout)
+            // The status line above says the same minutes in words.
+            .accessibilityHidden(true)
         }
         .padding()
     }

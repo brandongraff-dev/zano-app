@@ -362,6 +362,8 @@ enum OnboardingKit {
                 .multilineTextAlignment(alignment)
                 .fixedSize(horizontal: false, vertical: true)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                // The screen's heading, for VoiceOver's headings rotor (like `OnboardingQuestion`).
+                .accessibilityAddTraits(.isHeader)
                 .onboardingEntrance()
         }
     }

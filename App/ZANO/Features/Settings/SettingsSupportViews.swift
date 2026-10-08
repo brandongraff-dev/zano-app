@@ -209,6 +209,8 @@ struct PauseForHealthView: View {
                                     .font(Theme.Typography.icon(.medium, weight: .bold))
                                     .foregroundStyle(SettingsPalette.health)
                                     .transition(.scale.combined(with: .opacity))
+                                    // The `.isSelected` trait on the row says it.
+                                    .accessibilityHidden(true)
                             }
                         }
                         .frame(minHeight: Theme.Metrics.minTapTarget)

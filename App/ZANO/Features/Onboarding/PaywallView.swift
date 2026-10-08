@@ -916,6 +916,8 @@ private struct PaywallPlanTile: View {
                     .font(Theme.Typography.icon(.large, weight: .regular))
                     .foregroundStyle(isSelected ? Theme.Colors.interactive : Theme.Colors.hairlineStrong)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                    // The `.isSelected` trait below says it; the radio glyph would repeat it.
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, Theme.Spacing.md)
             // Room for the pill on top and for larger text; the tile grows instead of clipping.

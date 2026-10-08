@@ -129,6 +129,8 @@ struct EmergencyUnlockControl: View {
         .accessibilityValue(phase == .holding ? Copy.lockStatus.emergencyUnlockSecondsLeftSpoken(secondsRemaining) : "")
         .accessibilityHint(Copy.lockStatus.emergencyUnlockHint)
         .accessibilityAddTraits(.isButton)
+        // While the countdown runs, VoiceOver re-reads the value ("42 seconds left") as it changes.
+        .accessibilityAddTraits(phase == .holding ? .updatesFrequently : [])
         .accessibilityAction {
             guard !isBusy else { return }
             if phase == .holding {

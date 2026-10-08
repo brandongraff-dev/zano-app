@@ -332,19 +332,24 @@ struct PaywallView: View {
     }
 
     /// Monthly and annual side by side, annual on the right and pre-selected (the reference's
-    /// order: the eye ends on the recommended plan). The Family plan and anything else the offering
-    /// adds follow, two to a row (`PaywallViewModel.displayOrder`). Each row is an `HStack` fixed to its tallest tile, so a pair is always one height
+    /// order: the eye ends on the recommended plan). Anything else the offering adds follows, two to
+    /// a row, and the Family plan is a full-width bar at the bottom (`PaywallViewModel.displayOrder`). Each row is an `HStack` fixed to its tallest tile, so a pair is always one height
     /// however Dynamic Type grows either tile.
     private var planTiles: some View {
         let ordered = PaywallViewModel.displayOrder(viewModel.packages)
-        let rows = stride(from: 0, to: ordered.count, by: 2).map { Array(ordered[$0..<min($0 + 2, ordered.count)]) }
+        let paired = ordered.filter { !$0.isFamilyShareable }
+        // The Family plan is one full-width bar under the pairs, so it reads as a different kind of
+        // plan (who it covers), not a third price to compare.
+        let family = ordered.filter(\.isFamilyShareable).map { [$0] }
+        let rows = stride(from: 0, to: paired.count, by: 2).map { Array(paired[$0..<min($0 + 2, paired.count)]) }
+            + family
         return VStack(spacing: Theme.Spacing.lg) {
             ForEach(rows, id: \.first?.id) { row in
                 HStack(spacing: Theme.Spacing.sm) {
                     ForEach(row) { package in
                         planTile(for: package)
                     }
-                    if row.count == 1 {
+                    if row.count == 1, row.first?.isFamilyShareable == false {
                         Color.clear.frame(maxWidth: .infinity)
                     }
                 }

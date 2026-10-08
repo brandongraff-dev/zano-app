@@ -211,14 +211,15 @@ public final class PaywallViewModel {
     }
 
     /// The order `PaywallView` lays plans out in (spec §21): monthly then individual annual (the
-    /// first row, annual on the right where the eye ends), then Family annual, then anything else
-    /// (lifetime, etc.) in the offering's own order.
+    /// first row, annual on the right where the eye ends), then anything else (lifetime, etc.) in
+    /// the offering's own order, and the Family plan last, as the full-width bar at the bottom.
     public static func displayOrder(_ packages: [SubscriptionPackage]) -> [SubscriptionPackage] {
         func rank(_ package: SubscriptionPackage) -> Int {
+            if package.isFamilyShareable { return 3 }
             switch package.period {
-            case .monthly: 0
-            case .annual: package.isFamilyShareable ? 2 : 1
-            default: 3
+            case .monthly: return 0
+            case .annual: return 1
+            default: return 2
             }
         }
         // `enumerated` keeps the offering's order within a rank (a plain sort isn't stable).

@@ -27,19 +27,27 @@ import Foundation
 
 extension Copy {
     public enum alarmRinging {
-        public static let headline = "Get up to turn this off."
+        public static let headline = "Rise and shine. Up you get."
+        public static let wakeTitle = "You're up."
+        public static let wakeSubtitle = "Morning goal done. Go get your day."
+        public static let escapedTitle = "Alarm off."
+        public static let escapedSubtitle = "Your morning goal didn't count. Tomorrow is a fresh start."
         public static let eyebrowWaking = "Wake up"
         public static let eyebrowUrgent = "Still asleep?"
-        public static let eyebrowCritical = "Get up"
+        public static let eyebrowCritical = "Seriously, get up"
 
         // Tag
-        public static let tagPromptLabel = "Tap your Sunrise Tag to turn off the alarm."
+        public static let tagPromptLabel = "Walk to your Sunrise Tag and tap it."
         public static let tagScanButtonLabel = "Scan Sunrise Tag"
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
         // While the alarm is ringing, never tell a half-asleep user to add a new tag: the only
-        // useful instruction is to find the one they already set up.
-        public static let tagScanNoMatchMessage = "This isn't your Sunrise Tag. Find the one you set up."
-        public static let wrongTagErrorText = "That's a different ZANO tag — find your Sunrise Tag instead."
+        // useful instruction is to find the one they already set up. One sentence for both the
+        // scan sheet's no-match message and the wrong-tag error, so the two never disagree.
+        public static let wrongTagErrorText = "That's a different tag. Scan your Sunrise Tag to turn off the alarm."
+        public static let tagScanNoMatchMessage = wrongTagErrorText
+        public static let tagScanErrorText = "Couldn't read the tag. Try again."
+        public static let dismissErrorText = "Couldn't turn off the alarm. Try again."
+        public static let snoozeErrorText = "Couldn't snooze. Try again."
 
         // Steps
         public static func stepsPromptLabel(target: Int) -> String {
@@ -62,9 +70,12 @@ extension Copy {
 
         // Escape hatch — spec §5.10 point 6 / §24, voice-invariant. Reuses SunriseAlarmCopy's
         // escape-hatch/standard-alarm strings directly rather than re-authoring the same promise.
-        public static let escapeHatchSectionLabel = "Emergency"
+        public static let escapeHatchSectionLabel = "Emergency off"
         public static let escapeHatchHoldLabel = "Hold to turn off the alarm without verifying your morning goal"
         public static let escapeHatchHoldHint = SunriseAlarmCopy.escapeHatchExplanation
+        /// The one-line version under the hold bar; `escapeHatchHoldHint` is the full text (VoiceOver).
+        public static let escapeHatchFootnote = "Hold 60 seconds. Your morning goal won't count."
+        public static let escapeHatchErrorText = "Couldn't turn off the alarm. Hold again."
         public static let imNotHomeToggleLabel = SunriseAlarmCopy.escapeHatchLabel
         public static let standardAlarmFootnote = SunriseAlarmCopy.standardAlarmReminder
     }
@@ -77,6 +88,7 @@ extension Copy {
         public static let screenTitle = "Sunrise Alarm"
         public static let saveButtonLabel = "Save"
         public static let saveErrorTitle = "Couldn't save"
+        public static let saveErrorMessage = "Your alarm settings weren't saved. Try again."
 
         // Wake time
         public static let wakeTimeSectionHeader = "Wake time"
@@ -120,6 +132,8 @@ extension Copy {
         public static let tagScanAlertMessage = "Hold your phone near your Sunrise Tag."
         public static let tagScanNoMatchMessage = "That tag isn't added yet. Scan it again to add it."
         public static let tagScanErrorTitle = "Couldn't read tag"
+        public static let tagScanErrorMessage = "Couldn't read the tag. Hold your phone still near it and try again."
+        public static let tagReaderUnavailableText = "This iPhone can't read tags."
         public static let tagPlacementHeader =
             "Put it somewhere you have to get up for — bathroom mirror, kitchen, coffee machine."
         public static let tagBackgroundReadHeader = "Turn it off without opening ZANO"
@@ -139,7 +153,8 @@ extension Copy {
         public static let focusSectionHeader = "Wake-up timer"
         public static let focusHelperText = "A 3-minute timer you have to stay in the app for."
 
-        // Squad
+        // Squad (the Squad dismiss method is hidden in setup until squads exist; kept for the
+        // ringing screen and for when it returns)
         public static let squadSectionHeader = "Squad"
         public static let squadPickerLabel = "Notify"
         public static let squadNoneOption = "None"
@@ -166,6 +181,7 @@ extension Copy {
         public static let screenTitle = "Bedtime Gate"
         public static let saveButtonLabel = "Save"
         public static let saveErrorTitle = "Couldn't save"
+        public static let saveErrorMessage = "Your bedtime settings weren't saved. Try again."
 
         public static let bedtimeSectionHeader = "Bedtime"
         public static let bedtimeLabel = "Lock at"
@@ -181,4 +197,48 @@ extension Copy {
         public static let wakeAlarmLinkLabel = "Sunrise Alarm"
         public static let wakeAlarmLinkDetail = "Set how you turn off tomorrow's alarm"
     }
+}
+
+// MARK: - Repeat days, sounds, backup alarm (session 32)
+//
+// The three rows of the alarm editor, worded the way the iOS Clock app words them.
+
+extension Copy.sunriseAlarm {
+    // Repeat
+    public static let repeatRowLabel = "Repeat"
+    public static let repeatScreenTitle = "Repeat"
+    public static let repeatNever = "Never"
+    public static let repeatEveryDay = "Every day"
+    public static let repeatWeekdays = "Weekdays"
+    public static let repeatWeekends = "Weekends"
+    public static func repeatRowTitle(weekdayName: String) -> String { "Every \(weekdayName)" }
+    public static let repeatFooterOnce = "This alarm rings once, then turns itself off."
+    public static let repeatFooterRepeating = "The alarm rings on the days you check."
+
+    // Sound
+    public static let soundRowLabel = "Sound"
+    public static let soundScreenTitle = "Sound"
+    public static let soundSectionHeader = "Wake-up sounds"
+    public static let soundFooter = "Every sound starts soft and gets louder."
+    public static func soundName(_ sound: AlarmSoundChoice) -> String {
+        switch sound {
+        case .daybreak: "Daybreak"
+        case .chimes: "Chimes"
+        case .marimba: "Marimba"
+        case .pulse: "Pulse"
+        case .bells: "Bells"
+        case .ripple: "Ripple"
+        }
+    }
+
+    // Backup alarm
+    public static let backupRowLabel = "Backup alarm"
+    public static let backupAfterLabel = "Ring again after"
+    public static func backupMinutesLabel(_ minutes: Int) -> String { "\(minutes) min" }
+    public static let backupFooter = "A plain alarm that rings if you still haven't got up. Getting up with the Sunrise Alarm cancels it."
+    public static let backupNotificationTitle = "Backup alarm"
+    public static func backupNotificationBody(minutes: Int) -> String {
+        "Your Sunrise Alarm rang \(minutes) minutes ago. Time to get up."
+    }
+    public static let backupStopButtonLabel = "Stop"
 }

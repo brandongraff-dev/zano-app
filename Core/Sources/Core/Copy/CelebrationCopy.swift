@@ -48,6 +48,10 @@ extension Copy {
             return "\(goalName) verified · \(detail)"
         }
 
+        /// The first chip under the stamp ("Workout verified"); the detail gets its own chip, so
+        /// the screen never shows the middle-dot sentence (`subline` stays as the spoken form).
+        public static func verifiedChip(goalName: String) -> String { "\(goalName) verified" }
+
         /// Spec §16 P3 verbatim shape: "a Time Bank bar filling to '2h 10m unlocked'" — the same
         /// wording `WidgetCopy.minutesRemaining(_:)` (`Core/Sources/Core/Copy/WidgetCopy.swift`)
         /// produces. Reimplemented here rather than calling that function: `WidgetCopy`'s own file
@@ -55,7 +59,9 @@ extension Copy {
         /// surfaces), and this is a different, in-app feature area that happens to want the exact
         /// same sentence shape — not a shared dependency on that file.
         public static func timeBankUnlockedLabel(minutes: Int) -> String {
-            guard minutes > 0 else { return "0 min unlocked" }
+            // Never "0 min unlocked": with nothing banked the moment is still an unlock, so it
+            // says that with no figure.
+            guard minutes > 0 else { return appsUnlockedEyebrow }
             let hours = minutes / 60
             let mins = minutes % 60
             if hours > 0 && mins > 0 { return "\(hours)h \(mins)m unlocked" }
@@ -73,6 +79,14 @@ extension Copy {
             "Bonus badge earned: \(title)"
         }
 
+        /// The small eyebrow above "Earned." on the unlock moment: what just happened, in plain
+        /// words, before the brand word lands.
+        public static let appsUnlockedEyebrow = "Apps unlocked"
+
+        /// The caption beside the Time Bank figure on the unlock moment ("2h 10m  in your Time
+        /// Bank"). The figure itself is formatted by the view with the system `Duration` style.
+        public static let timeBankFigureCaption = "in your Time Bank"
+
         /// Dismiss control for the celebration once it's played. Deliberately not `Copy.common.
         /// continueButtonLabel` (`CommonCopy.swift`, same directory): this screen is closing a
         /// moment, not advancing an onboarding step. "Done" (was "Nice"): a button label should be a
@@ -81,4 +95,51 @@ extension Copy {
         /// voice parameter (docs/design/writing-findings.md §3.6).
         public static let dismissButtonLabel = "Done"
     }
+}
+
+// MARK: - Variable reward reveal (spec §8 rule 4, `Retention/VariableReward.swift`)
+
+extension Copy.celebration {
+    /// The reveal's eyebrow.
+    public static let surpriseEyebrow = "Bonus round!"
+    /// "+50 coins".
+    public static func surpriseCoinsTitle(_ coins: Int) -> String { "+\(coins) coins" }
+    public static let surpriseCoinsDetail = "Banked. Spend them later."
+    /// The one-time badge. Matches `Copy.badges.title(forKey: "lucky_unlock")`'s fallback.
+    public static let surpriseBadgeTitle = "Lucky Unlock badge"
+    public static let surpriseBadgeDetail = "It's in your Trophy Case."
+    public static func surpriseAccessibilityLabel(_ text: String) -> String { "Surprise. \(text)" }
+
+    /// A bonus coach line, `VariableReward.coachLineCount` per voice.
+    public static func surpriseCoachLine(voice: CoachVoice, index: Int) -> String {
+        let lines: [String]
+        switch voice {
+        case .hype:
+            lines = [
+                "THAT'S how it's done. Enjoy every minute.",
+                "Earned, not given. You're on a roll.",
+                "Another one in the books. Let's keep it moving.",
+            ]
+        case .toughLove:
+            lines = [
+                "You said you'd do it. You did. Good.",
+                "No shortcuts today. That's the point.",
+                "Earned the hard way. Keep that standard.",
+            ]
+        case .chill:
+            lines = [
+                "Nice work. Take it easy for a bit.",
+                "Done and dusted. Enjoy the break.",
+                "Steady wins it. Go enjoy your apps.",
+            ]
+        case .data:
+            lines = [
+                "Goals verified. Unlock logged. Consistency up.",
+                "Another earned day on the chart.",
+                "Plan met. That's a data point you made.",
+            ]
+        }
+        return lines[((index % lines.count) + lines.count) % lines.count]
+    }
+    public static let surpriseCoachDetail = "A bonus word from your coach."
 }

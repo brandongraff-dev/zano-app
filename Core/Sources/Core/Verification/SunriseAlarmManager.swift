@@ -161,6 +161,18 @@ public final class SunriseAlarmManager {
         /// `decisions` note. Trailing + defaulted so `Settings()` (both setup screens' exact call)
         /// keeps compiling unchanged.
         public var enabled: Bool
+        /// Weekdays the alarm rings (`Calendar` weekday numbers, 1 = Sunday). Empty = "Never": it
+        /// rings once, at the next wake time, then switches itself off (like the Clock app).
+        public var repeatDays: Set<Int>
+        /// The wake-up sound (bundled tones, `AlarmSoundChoice`).
+        public var sound: AlarmSoundChoice
+        /// A plain second alarm that rings `backupMinutes` after the Sunrise Alarm if you haven't
+        /// got up. Cancelled by a verified dismiss or the escape hatch. Off by default.
+        public var backupAlarmEnabled: Bool
+        public var backupMinutes: Int
+
+        /// The backup delays offered in the picker.
+        public static let backupMinuteOptions = [5, 10, 15]
 
         public init(
             bedtime: Date = Settings.defaultTime(hour: 22, minute: 30),
@@ -169,8 +181,16 @@ public final class SunriseAlarmManager {
             windDownReminderEnabled: Bool = true,
             stepsTarget: Int = 40,
             squadIDToNotify: UUID? = nil,
-            enabled: Bool = true
+            enabled: Bool = true,
+            repeatDays: Set<Int> = RepeatDays.everyDay,
+            sound: AlarmSoundChoice = .daybreak,
+            backupAlarmEnabled: Bool = false,
+            backupMinutes: Int = 10
         ) {
+            self.repeatDays = repeatDays
+            self.sound = sound
+            self.backupAlarmEnabled = backupAlarmEnabled
+            self.backupMinutes = backupMinutes
             self.bedtime = bedtime
             self.wakeTime = wakeTime
             self.dismissVariant = dismissVariant
@@ -178,6 +198,30 @@ public final class SunriseAlarmManager {
             self.stepsTarget = stepsTarget
             self.squadIDToNotify = squadIDToNotify
             self.enabled = enabled
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case bedtime, wakeTime, dismissVariant, windDownReminderEnabled, stepsTarget
+            case squadIDToNotify, enabled, repeatDays, sound, backupAlarmEnabled, backupMinutes
+        }
+
+        /// Custom decoding so a row saved before repeat days, sounds and the backup alarm existed
+        /// still loads: the new keys are optional and fall back to the old behaviour (every day,
+        /// the first sound, no backup). Synthesized decoding would throw on the missing keys, and
+        /// `currentSettings()` would silently hand back defaults, wiping the person's alarm.
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            bedtime = try container.decode(Date.self, forKey: .bedtime)
+            wakeTime = try container.decode(Date.self, forKey: .wakeTime)
+            dismissVariant = try container.decode(DismissVariant.self, forKey: .dismissVariant)
+            windDownReminderEnabled = try container.decode(Bool.self, forKey: .windDownReminderEnabled)
+            stepsTarget = try container.decode(Int.self, forKey: .stepsTarget)
+            squadIDToNotify = try container.decodeIfPresent(UUID.self, forKey: .squadIDToNotify)
+            enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+            repeatDays = try container.decodeIfPresent(Set<Int>.self, forKey: .repeatDays) ?? RepeatDays.everyDay
+            sound = try container.decodeIfPresent(AlarmSoundChoice.self, forKey: .sound) ?? .daybreak
+            backupAlarmEnabled = try container.decodeIfPresent(Bool.self, forKey: .backupAlarmEnabled) ?? false
+            backupMinutes = try container.decodeIfPresent(Int.self, forKey: .backupMinutes) ?? 10
         }
 
         public static func defaultTime(hour: Int, minute: Int) -> Date {
@@ -219,6 +263,15 @@ public final class SunriseAlarmManager {
     }
 
     // MARK: - Settings (ASSUMED API)
+
+    /// Whether the person ever saved Sunrise Alarm / Bedtime Gate settings (`saveSettings`).
+    /// `Settings.enabled` defaults to `true`, so this — not `enabled` — is what tells an app
+    /// foreground hook it may keep the alarm scheduled: someone who never opened the setup screen
+    /// never gets a surprise 06:30 alarm (spec §5.10 frames the feature as opt-in). Reads one App
+    /// Group key; `nonisolated` so any caller can ask without a hop. Cleared by `resetAll()`.
+    public nonisolated static var hasBeenConfigured: Bool {
+        defaults.data(forKey: settingsKey) != nil
+    }
 
     public func currentSettings() async -> Settings {
         guard
@@ -264,10 +317,16 @@ public final class SunriseAlarmManager {
         }
 
         let wakeComponents = Calendar.current.dateComponents([.hour, .minute], from: settings.wakeTime)
-        let fireDate = Self.nextFireDate(hour: wakeComponents.hour ?? 6, minute: wakeComponents.minute ?? 30, after: now)
+        let fireDate = Self.nextFireDate(
+            hour: wakeComponents.hour ?? 6,
+            minute: wakeComponents.minute ?? 30,
+            after: now,
+            repeatDays: settings.repeatDays
+        )
         let dayKey = Self.dayKey(for: fireDate)
 
         await cancelPendingNotifications()
+        await cancelBackupAlarm()
         if #available(iOS 26.0, *) { await stopAlarmKitAlarmIfNeeded() }
         await endRingingActivity(now: now)
         stopStepsDismissMonitoring()
@@ -279,7 +338,7 @@ public final class SunriseAlarmManager {
         var scheduledViaAlarmKit = false
         if #available(iOS 26.0, *) {
             do {
-                try await scheduleViaAlarmKit(fireDate: fireDate, variant: settings.dismissVariant)
+                try await scheduleViaAlarmKit(fireDate: fireDate, variant: settings.dismissVariant, sound: settings.sound)
                 tier = .alarmKit
                 scheduledViaAlarmKit = true
             } catch {
@@ -287,7 +346,10 @@ public final class SunriseAlarmManager {
             }
         }
         if !scheduledViaAlarmKit {
-            await scheduleNotificationFallback(fireDate: fireDate, dayKey: dayKey, variant: settings.dismissVariant)
+            await scheduleNotificationFallback(fireDate: fireDate, dayKey: dayKey, variant: settings.dismissVariant, sound: settings.sound)
+        }
+        if settings.backupAlarmEnabled {
+            await scheduleBackupAlarm(after: fireDate, minutes: settings.backupMinutes, sound: settings.sound)
         }
 
         saveDailyState(DailyState(dayKey: dayKey, fireDate: fireDate, tier: tier, snoozeCount: 0, dismissedAt: nil))
@@ -318,7 +380,7 @@ public final class SunriseAlarmManager {
     // ============================================================================================
 
     @available(iOS 26.0, *)
-    private func scheduleViaAlarmKit(fireDate: Date, variant: DismissVariant) async throws {
+    private func scheduleViaAlarmKit(fireDate: Date, variant: DismissVariant, sound: AlarmSoundChoice) async throws {
         #if canImport(AlarmKit)
         let manager = AlarmManager.shared
         _ = try await manager.requestAuthorization()
@@ -332,7 +394,11 @@ public final class SunriseAlarmManager {
         let configuration = AlarmManager.AlarmConfiguration<SunriseAlarmMetadata>(
             schedule: .fixed(fireDate),
             attributes: attributes,
-            stopIntent: SunriseAlarmOpenAppIntent()
+            stopIntent: SunriseAlarmOpenAppIntent(),
+            // Custom sound by file name (the `sound:` parameter and `.named(_:)` are in Apple's
+            // AlarmKit docs). UNVERIFIED: where the file must live and its format limits — the
+            // docs pages read didn't say; it is bundled the same way as the notification sounds.
+            sound: .named(sound.fileName)
         )
         try await manager.schedule(id: Self.alarmKitID, configuration: configuration)
         #else
@@ -348,14 +414,86 @@ public final class SunriseAlarmManager {
     }
 
     @available(iOS 26.0, *)
-    private func rescheduleAlarmKitForSnooze(fireDate: Date, variant: DismissVariant) async {
+    private func rescheduleAlarmKitForSnooze(fireDate: Date, variant: DismissVariant, sound: AlarmSoundChoice) async {
         #if canImport(AlarmKit)
         try? await AlarmManager.shared.stop(id: Self.alarmKitID)
-        try? await scheduleViaAlarmKit(fireDate: fireDate, variant: variant)
+        try? await scheduleViaAlarmKit(fireDate: fireDate, variant: variant, sound: sound)
         #endif
     }
 
     private static let alarmKitID = UUID(uuidString: "5A171550-A1A2-4A1A-9000-000000005A17") ?? UUID()
+
+    // MARK: - Backup alarm (a plain second alarm after the Sunrise Alarm)
+
+    private static let backupNotificationPrefix = "zano.sunriseBackup."
+    private static let backupAlarmKitID = UUID(uuidString: "5A171550-A1A2-4A1A-9000-000000005B0B") ?? UUID()
+
+    /// Schedules the backup `minutes` after `fireDate` on the same tier the main alarm uses (AlarmKit
+    /// on iOS 26+, a notification chain otherwise). It is a plain alarm: no tag, no verification;
+    /// it rings until stopped. A verified dismiss or the escape hatch cancels it (both end in
+    /// `scheduleAlarm`, which starts with `cancelBackupAlarm()`), so it only rings if you are
+    /// still not up. Spec §5.10 / §27: a backup is the honest answer to "never promise it will
+    /// always wake you".
+    private func scheduleBackupAlarm(after fireDate: Date, minutes: Int, sound: AlarmSoundChoice) async {
+        let backupFire = fireDate.addingTimeInterval(Double(max(1, minutes)) * 60)
+        if #available(iOS 26.0, *) {
+            if (try? await scheduleBackupViaAlarmKit(fireDate: backupFire, sound: sound)) != nil { return }
+        }
+        let center = UNUserNotificationCenter.current()
+        let maxCount = max(1, Int(SunriseAlarmEngineDefaults.escalationWindow / SunriseAlarmEngineDefaults.notificationInterval))
+        let dayKey = Self.dayKey(for: fireDate)
+        for index in 0..<maxCount {
+            let content = UNMutableNotificationContent()
+            content.title = Copy.sunriseAlarm.backupNotificationTitle
+            content.body = Copy.sunriseAlarm.backupNotificationBody(minutes: minutes)
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(sound.fileName))
+            content.interruptionLevel = .timeSensitive
+            let fire = backupFire.addingTimeInterval(Double(index) * SunriseAlarmEngineDefaults.notificationInterval)
+            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fire)
+            let request = UNNotificationRequest(
+                identifier: "\(Self.backupNotificationPrefix)\(dayKey).\(index)",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            )
+            try? await center.add(request)
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func scheduleBackupViaAlarmKit(fireDate: Date, sound: AlarmSoundChoice) async throws {
+        #if canImport(AlarmKit)
+        let alert = AlarmPresentation.Alert(
+            title: LocalizedStringResource(stringLiteral: Copy.sunriseAlarm.backupNotificationTitle),
+            stopButton: AlarmButton(text: LocalizedStringResource(stringLiteral: Copy.sunriseAlarm.backupStopButtonLabel))
+        )
+        let attributes = AlarmAttributes<SunriseAlarmMetadata>(
+            presentation: AlarmPresentation(alert: alert),
+            metadata: SunriseAlarmMetadata()
+        )
+        let configuration = AlarmManager.AlarmConfiguration<SunriseAlarmMetadata>(
+            schedule: .fixed(fireDate),
+            attributes: attributes,
+            stopIntent: SunriseAlarmOpenAppIntent(),
+            sound: .named(sound.fileName)
+        )
+        try await AlarmManager.shared.schedule(id: Self.backupAlarmKitID, configuration: configuration)
+        #else
+        throw SunriseAlarmError.dismissConditionNotMet(reason: "AlarmKit not available in this SDK build")
+        #endif
+    }
+
+    private func cancelBackupAlarm() async {
+        if #available(iOS 26.0, *) {
+            #if canImport(AlarmKit)
+            try? await AlarmManager.shared.stop(id: Self.backupAlarmKitID)
+            #endif
+        }
+        let center = UNUserNotificationCenter.current()
+        let pendingIDs = await NotificationCenterQueries.pendingIdentifiers()
+        center.removePendingNotificationRequests(withIdentifiers: pendingIDs.filter { $0.hasPrefix(Self.backupNotificationPrefix) })
+        let deliveredIDs = await NotificationCenterQueries.deliveredIdentifiers()
+        center.removeDeliveredNotifications(withIdentifiers: deliveredIDs.filter { $0.hasPrefix(Self.backupNotificationPrefix) })
+    }
 
     // MARK: - Notification fallback (iOS 17–18 — spec §5.10, fully verified UserNotifications API)
 
@@ -368,7 +506,7 @@ public final class SunriseAlarmManager {
     /// claim without Apple's separate Critical Alerts entitlement; spec §5.10 itself frames this
     /// whole tier as "weaker, but acceptable as a fallback," so this doesn't try to fake
     /// AlarmKit's silent-mode-breaking behavior.
-    private func scheduleNotificationFallback(fireDate: Date, dayKey: String, variant: DismissVariant) async {
+    private func scheduleNotificationFallback(fireDate: Date, dayKey: String, variant: DismissVariant, sound: AlarmSoundChoice) async {
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
         registerNotificationCategories()
@@ -381,7 +519,7 @@ public final class SunriseAlarmManager {
             let content = UNMutableNotificationContent()
             content.title = copy.title
             content.body = copy.body
-            content.sound = .default
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(sound.fileName))
             content.interruptionLevel = .timeSensitive
             content.categoryIdentifier = Self.notificationCategoryIdentifier
             content.userInfo = ["zano.sunriseAlarm": true, "escalationIndex": index]
@@ -399,24 +537,14 @@ public final class SunriseAlarmManager {
 
     private func cancelPendingNotifications() async {
         let center = UNUserNotificationCenter.current()
-        // The async `pendingNotificationRequests()` / `deliveredNotifications()` return arrays of
-        // non-Sendable UIKit-era objects, which Swift 6 refuses to send out of the center's
-        // isolation. The callback forms let us map to plain `[String]` identifiers inside the
-        // callback, so only Sendable values ever cross.
-        let pendingIDs: [String] = await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { requests in
-                continuation.resume(returning: requests.map(\.identifier))
-            }
-        }
+        // Identifiers only, read through `NotificationCenterQueries` (nonisolated callbacks: a
+        // callback written in this main-actor type would trap when called off the main queue).
+        let pendingIDs = await NotificationCenterQueries.pendingIdentifiers()
         center.removePendingNotificationRequests(
             withIdentifiers: pendingIDs.filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
         )
 
-        let deliveredIDs: [String] = await withCheckedContinuation { continuation in
-            center.getDeliveredNotifications { notifications in
-                continuation.resume(returning: notifications.map { $0.request.identifier })
-            }
-        }
+        let deliveredIDs = await NotificationCenterQueries.deliveredIdentifiers()
         center.removeDeliveredNotifications(
             withIdentifiers: deliveredIDs.filter { $0.hasPrefix(Self.notificationIdentifierPrefix) }
         )
@@ -484,6 +612,15 @@ public final class SunriseAlarmManager {
     /// foreground hook as `beginRingingIfDue`/`reconcileIfDismissedElsewhere` so a normal daily
     /// "open the app in the morning" cadence keeps tonight's/tomorrow's cycle alive on its own;
     /// flagged in knownIssues as the honest limit of what's achievable without that hook.
+    ///
+    /// Recurrence (audit V1): the alarm is scheduled one occurrence at a time (AlarmKit `.fixed`,
+    /// or one notification chain), so each occurrence must be followed by the next. That happens
+    /// right after a dismiss or the escape hatch (`completeDismiss`, `triggerEscapeHatch`), and
+    /// here for everything else: an occurrence whose ringing window passed with nobody dismissing
+    /// it, or one that was already dismissed. The alarm repeats every day — `Settings` has no
+    /// weekday selection, and no setup screen offers one.
+    ///
+    /// The app calls this on every foreground, but only when `hasBeenConfigured` is true.
     public func ensureScheduledIfNeeded(now: Date = .now) async {
         let settings = await currentSettings()
         guard settings.enabled else { return }
@@ -491,10 +628,46 @@ public final class SunriseAlarmManager {
             _ = await scheduleAlarm(now: now)
             return
         }
-        let staleness = now.timeIntervalSince(state.fireDate)
-        if staleness > 24 * 60 * 60 {
-            _ = await scheduleAlarm(now: now)
+        if Self.needsNextOccurrence(fireDate: state.fireDate, dismissedAt: state.dismissedAt, now: now) {
+            if settings.repeatDays.isEmpty {
+                await switchOffOneTimeAlarm(settings)
+            } else {
+                _ = await scheduleAlarm(now: now)
+            }
         }
+    }
+
+    /// Pure rule behind `ensureScheduledIfNeeded`: schedule the next occurrence once this one is
+    /// over — dismissed (and its fire time passed), or past its ringing window plus a minute of
+    /// grace (the same window `beginRingingIfDue` honours). An upcoming or still-ringing occurrence
+    /// is left alone.
+    nonisolated static func needsNextOccurrence(fireDate: Date, dismissedAt: Date?, now: Date) -> Bool {
+        guard now >= fireDate else { return false }
+        if dismissedAt != nil { return true }
+        return now > fireDate.addingTimeInterval(SunriseAlarmEngineDefaults.escalationWindow + 60)
+    }
+
+    /// Schedules tomorrow's occurrence after this one ended (dismiss or escape hatch), so the
+    /// alarm recurs even if the app isn't opened again before the next wake time (audit V1).
+    private func scheduleNextOccurrence(after now: Date) async {
+        let settings = await currentSettings()
+        guard settings.enabled else { return }
+        if settings.repeatDays.isEmpty {
+            await switchOffOneTimeAlarm(settings)
+            return
+        }
+        _ = await scheduleAlarm(now: now)
+    }
+
+    /// "Never" repeat: the one occurrence has run, so the alarm turns itself off, as in the Clock
+    /// app. Saving the setup screen again turns it back on.
+    private func switchOffOneTimeAlarm(_ settings: Settings) async {
+        var updated = settings
+        updated.enabled = false
+        if let data = try? JSONEncoder().encode(updated) {
+            Self.defaults.set(data, forKey: Self.settingsKey)
+        }
+        _ = await scheduleAlarm()
     }
 
     /// Defensive-only reconciliation for a Tag dismiss that happened via `SunriseKeyIntent`
@@ -696,9 +869,9 @@ public final class SunriseAlarmManager {
         let settings = await currentSettings()
         await cancelPendingNotifications()
         if state.tier == .alarmKit, #available(iOS 26.0, *) {
-            await rescheduleAlarmKitForSnooze(fireDate: state.fireDate, variant: settings.dismissVariant)
+            await rescheduleAlarmKitForSnooze(fireDate: state.fireDate, variant: settings.dismissVariant, sound: settings.sound)
         } else {
-            await scheduleNotificationFallback(fireDate: state.fireDate, dayKey: state.dayKey, variant: settings.dismissVariant)
+            await scheduleNotificationFallback(fireDate: state.fireDate, dayKey: state.dayKey, variant: settings.dismissVariant, sound: settings.sound)
         }
         await endRingingActivity(now: .now)
         stopStepsDismissMonitoring()
@@ -718,7 +891,8 @@ public final class SunriseAlarmManager {
     private func completeDismiss(variant: DismissVariant, writeGoalEvent: Bool, meta: [String: JSONValue], now: Date = .now) async {
         if writeGoalEvent {
             do {
-                try logGoalEvent(kind: .complete, verified: true, source: sourceFor(variant), meta: .object(meta), now: now)
+                let event = try logGoalEvent(kind: .complete, verified: true, source: sourceFor(variant), meta: .object(meta), now: now)
+                if let goalID = event.goal?.id { await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: goalID) }
             } catch {
                 logger.error("completeDismiss: failed to log GoalEvent: \(String(describing: error), privacy: .public)")
             }
@@ -734,6 +908,8 @@ public final class SunriseAlarmManager {
         // lock arms automatically" — applies identically to every variant that actually verifies
         // the morning goal, not just Tag.
         _ = await BedtimeGateManager.shared.armDayLockAfterWake(now: now)
+        // Recurrence (audit V1): the next wake time is scheduled now, not on some later app open.
+        await scheduleNextOccurrence(after: now)
 
         Analytics.shared.capture(event: "sunrise_alarm_dismissed", properties: ["variant": variant.rawValue])
         logger.notice("Sunrise alarm dismissed via \(variant.rawValue, privacy: .public).")
@@ -760,9 +936,23 @@ public final class SunriseAlarmManager {
         squadNotifyTask?.cancel(); squadNotifyTask = nil
         stopStepsDismissMonitoring()
         await cancelPendingNotifications()
+        await cancelBackupAlarm()
         if #available(iOS 26.0, *) { await stopAlarmKitAlarmIfNeeded() }
         await endRingingActivity(now: .now)
         logger.notice("Cancelled sunrise alarm: \(String(describing: reason), privacy: .public).")
+    }
+
+    /// "Delete all my data": stops the alarm on every tier (AlarmKit + notification chain + the
+    /// ringing Live Activity) and forgets the settings and today's state, so `hasBeenConfigured`
+    /// is `false` again and no foreground hook reschedules it.
+    public func resetAll() async {
+        await cancelAlarm(reason: .disabled)
+        Self.defaults.removeObject(forKey: Self.settingsKey)
+        clearDailyState()
+        isRinging = false
+        ringingSince = nil
+        snoozesRemainingToday = SunriseAlarmEngineDefaults.maxSnoozes
+        stepsWalked = 0
     }
 
     // MARK: - Escape hatch (spec §5.10 point 6 / §24 point 2 — never trap the user)
@@ -796,6 +986,8 @@ public final class SunriseAlarmManager {
         isRinging = false
         ringingSince = nil
         await cancelAlarm(reason: .escapeHatch)
+        // The escape hatch ends today's alarm, not the feature: tomorrow's still rings (audit V1).
+        await scheduleNextOccurrence(after: .now)
         Analytics.shared.capture(event: "sunrise_alarm_escape_hatch", properties: ["reason": reason.rawValue])
     }
 
@@ -837,14 +1029,27 @@ public final class SunriseAlarmManager {
 
     // MARK: - Time helpers
 
-    private static func nextFireDate(hour: Int, minute: Int, after date: Date, calendar: Calendar = .current) -> Date {
-        var components = calendar.dateComponents([.year, .month, .day], from: date)
-        components.hour = hour
-        components.minute = minute
-        components.second = 0
-        guard let candidate = calendar.date(from: components) else { return date.addingTimeInterval(86_400) }
-        if candidate > date { return candidate }
-        return calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate.addingTimeInterval(86_400)
+    /// The next time the alarm should ring: the first day on or after `date` whose weekday is in
+    /// `repeatDays` (`Calendar` weekday numbers) at `hour:minute`, strictly after `date`. An empty
+    /// set means "Never": just the next occurrence of that time, any day.
+    nonisolated static func nextFireDate(
+        hour: Int,
+        minute: Int,
+        after date: Date,
+        repeatDays: Set<Int> = RepeatDays.everyDay,
+        calendar: Calendar = .current
+    ) -> Date {
+        for offset in 0...8 {
+            guard
+                let day = calendar.date(byAdding: .day, value: offset, to: date),
+                let candidate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day),
+                candidate > date
+            else { continue }
+            if repeatDays.isEmpty || repeatDays.contains(calendar.component(.weekday, from: candidate)) {
+                return candidate
+            }
+        }
+        return date.addingTimeInterval(86_400)
     }
 
     private static func timeLabel(for date: Date) -> String {
@@ -894,7 +1099,7 @@ public final class SunriseAlarmManager {
     nonisolated(unsafe) private static let defaults: UserDefaults =
         UserDefaults(suiteName: AppGroup.identifier) ?? .standard
 
-    private static let settingsKey = "core.sunriseAlarm.settings.v1"
+    nonisolated private static let settingsKey = "core.sunriseAlarm.settings.v1"
     private static let dailyStateKey = "core.sunriseAlarm.dailyState.v1"
 }
 

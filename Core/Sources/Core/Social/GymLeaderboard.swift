@@ -341,6 +341,10 @@ public actor GymLeaderboardManager {
         self.backend = backend
     }
 
+    /// Whether a `GymLeaderboardBackend` is wired in yet. The Gym Home Turf screen reads this to
+    /// show its offline state (local consistency only) instead of a failed fetch.
+    public var isBackendConfigured: Bool { backend != nil }
+
     // MARK: - Opt-in (spec §5.8: "opt-in... Optional handle")
 
     /// This device's current opt-in state. Never throws — an unreadable/missing local value is

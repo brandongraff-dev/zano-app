@@ -52,10 +52,30 @@ extension Copy {
         /// (spec §8 rule 1).
         public static let planEasyStartTag = "Starting easy on purpose"
 
+        // The Lock-In Plan card's three section labels (sentence case, not tracked caps).
+        public static let planTicketAppsLabel = "Locked until earned"
+        public static let planTicketGoalsLabel = "Your goals"
+        public static let planTicketScheduleLabel = "Schedule"
+
+        /// The card's footer: the coach the user picked on screen 8, and an honest provenance line
+        /// (no fabricated "built in 2:14").
+        /// The last tile in the locked-apps row when more apps are picked than it shows: "+3".
+        public static func planAppOverflow(_ count: Int) -> String {
+            "+\(count)"
+        }
+
+        public static func planTicketCoachLine(voiceName: String) -> String {
+            "\(voiceName) coach · built from your answers"
+        }
+
         // MARK: Screen 12 — mock notification
 
         /// The app name shown on the mock notification banner.
         public static let notificationPreviewAppName = "ZANO"
+        /// The banner's timestamp, as iOS prints it for a notification that just arrived.
+        public static let notificationPreviewTime = "now"
+        /// The letter on the mock app icon (the real icon is a "Z" on near-black).
+        public static let notificationPreviewAppMonogram = "Z"
 
         // MARK: Screen 14 — first win
 
@@ -79,11 +99,16 @@ extension Copy {
         // Three nodes; dates are real calendar dates formatted by the system, not "Day 7".
 
         public static let timelineToday = "Today"
-        public static let timelineStartTitle = "Trial starts"
-        public static let timelineStartDetail = "Full access. Nothing due today."
+        public static let timelineStartTitle = "Full access"
+        public static let timelineStartDetail = "Every feature, starting now. Nothing due today."
         public static let timelineReminderTitle = "Reminder"
         // The reminder node's detail is `Copy.paywall.trialReminderNote(daysBefore:)`.
-        public static let timelineChargeTitle = "Trial ends"
+        public static let timelineChargeTitle = "Billing starts"
+
+        /// The day-of-trial label beside each timeline date: "Day 5".
+        public static func timelineDayLabel(_ day: Int) -> String {
+            "Day \(day)"
+        }
 
         public static func timelineChargeDetail(priceLine: String) -> String {
             "\(priceLine) starts unless you cancel."

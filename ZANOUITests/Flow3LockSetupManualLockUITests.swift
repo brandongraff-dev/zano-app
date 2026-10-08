@@ -174,7 +174,7 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
         )
 
         // Use it, so the device is left unlocked. `LockEngineManager.emergencyUnlock`.
-        emergency.holdToCommit()
+        emergency.holdToCommit(for: 62)
         XCTAssertTrue(
             app.anyElement(labelContaining: T.unlocked).waitForExistence(timeout: 20),
             "After the emergency unlock the Lock screen never showed '\(T.unlocked)'."
@@ -189,14 +189,14 @@ final class Flow3LockSetupManualLockUITests: ZANOScenarioTestCase {
 
     /// Gets to `LockSetupView` through the Settings tab's "Lock sets" row (`SettingsView.
     /// verificationSetupSection`), falling back to the Lock tab, and fails loudly if neither has it.
-    /// `ContentView.MainTabView` is a five-tab `TabView` (Today / Lock / Fuel / Progress / Settings),
-    /// which iPhone shows without a "More" tab; a sixth tab would fold Settings into "More" and this
-    /// lookup would need updating.
+    /// `ContentView.MainTabView` is a six-tab `TabView` (Today / Lock / Fuel / Squad / Progress /
+    /// Settings). The system tab bar is hidden and every tab is reached through `ZanoTabBar`'s own
+    /// buttons (`app.zanoTab(_:)`), so the system "More" overflow never appears in this lookup.
     @MainActor
     private func openLockSets(_ app: XCUIApplication) {
         let title = ZANOUILabel.LockSetup.screenTitle
         for tabName in [ZANOUILabel.Shell.settingsTab, ZANOUILabel.Shell.lockTab] {
-            let tab = app.tabBars.buttons[tabName]
+            let tab = app.zanoTab(tabName)
             guard tab.exists else { continue }
             tab.tap()
             // Settings is a `ScrollView` of cards; the row sits under the hero but may start below

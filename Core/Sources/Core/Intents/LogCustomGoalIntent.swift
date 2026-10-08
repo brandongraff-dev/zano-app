@@ -34,8 +34,16 @@ public struct LogCustomGoalIntent: AppIntent {
 
     public init() {}
 
+    /// Where the log came from (not a user-facing parameter). NFC tags pass `.nfc`.
+    public var logSource: GoalLogSource = .manual
+
     public init(goal: GoalEntity) {
         self.goal = goal
+    }
+
+    public init(goal: GoalEntity, source: GoalLogSource) {
+        self.goal = goal
+        self.logSource = source
     }
 
     public static var parameterSummary: some ParameterSummary {
@@ -54,13 +62,14 @@ public struct LogCustomGoalIntent: AppIntent {
         let event = GoalEvent(
             kind: .complete,
             value: nil,
-            source: .manual,
+            source: logSource.eventSource,
             verified: true,
             user: user,
             goal: matchedGoal
         )
         context.insert(event)
         try context.save()
+        await GoalCompletionCoordinator.shared.goalEventRecorded(goalID: matchedGoal.id)
 
         // Instrumentation (spec §23: "Instrument from day one: ... every intent").
         Analytics.shared.capture(

@@ -36,36 +36,42 @@ public enum WatchTheme {
     // MARK: - Colors (mirrors `Theme.Colors`, spec §15's token table)
 
     public enum Colors {
-        /// Mirrors `Theme.Colors.background` (`#0A0A0B`).
-        public static let background = Color(watchThemeHex: 0x0A_0A_0B)
-        /// Mirrors `Theme.Colors.surface` (`#141416`).
-        public static let surface = Color(watchThemeHex: 0x14_14_16)
-        /// Mirrors `Theme.Colors.surface2` (`#1C1C1F`).
-        public static let surface2 = Color(watchThemeHex: 0x1C_1C_1F)
-        /// Mirrors `Theme.Colors.text` (`#F5F5F7`).
-        public static let text = Color(watchThemeHex: 0xF5_F5_F7)
+        /// Mirrors `Theme.Colors.background` (`#050506`).
+        public static let background = Color(watchThemeHex: 0x05_05_06)
+        /// Mirrors `Theme.Colors.surface` (`#111113`).
+        public static let surface = Color(watchThemeHex: 0x11_11_13)
+        /// Mirrors `Theme.Colors.surface2` (`#19191C`).
+        public static let surface2 = Color(watchThemeHex: 0x19_19_1C)
+        /// Mirrors `Theme.Colors.text` (`#F2F1ED`, pearl).
+        public static let text = Color(watchThemeHex: 0xF2_F1_ED)
         /// Mirrors `Theme.Colors.muted` (`#8E8E93`).
         public static let muted = Color(watchThemeHex: 0x8E_8E_93)
-        /// Mirrors `Theme.Colors.accent` (`#B8FF3C`) — the one brand accent (earned/unlock).
-        public static let accent = Color(watchThemeHex: 0xB8_FF_3C)
-        /// Mirrors `Theme.Colors.danger` (`#FF453A`).
-        public static let danger = Color(watchThemeHex: 0xFF_45_3A)
-        /// Mirrors `Theme.Colors.warning` (`#FFB020`).
-        public static let warning = Color(watchThemeHex: 0xFF_B0_20)
+        /// Mirrors `Theme.Colors.accent` (`#5B8DEF`, ZANO Blue, softened 2026-10-06) — the one brand accent. For text,
+        /// strokes and rings; never under a white label (white on it is 3.83:1).
+        public static let accent = Color(watchThemeHex: 0x5B_8D_EF)
+        /// Mirrors `Theme.Colors.accentFill` (`#3366CC`) — the fill of a filled blue button (e.g.
+        /// a `.borderedProminent` tint), so its white label clears AA (5.27:1).
+        public static let accentFill = Color(watchThemeHex: 0x33_66_CC)
+        /// Mirrors `Theme.Colors.danger` (`#DE5A52`).
+        public static let danger = Color(watchThemeHex: 0xDE_5A_52)
+        /// Mirrors `Theme.Colors.warning` (`#D9A55B`).
+        public static let warning = Color(watchThemeHex: 0xD9_A5_5B)
 
         /// Mirrors `Theme.Colors.Ring` — only the four ring colors the watch actually shows
         /// (`WatchRingKind`: workout/protein/focus/water). `Theme.Colors.Ring`'s other,
         /// spec-unassigned ring colors (steps, creatine, ...) are not mirrored — the watch has no
         /// ring for them.
         public enum Ring {
-            /// Spec-exact: workout rings reuse the single brand accent.
+            /// Workout ring. NOTE: `Theme.Colors.Ring.workout` is now cool steel `#A3B1C6` (blue
+            /// means act / earned only); the watch still uses the accent here — sync when the
+            /// watch rings get their design pass.
             public static let workout = Colors.accent
-            /// Spec-exact `#FF7A00`.
-            public static let protein = Color(watchThemeHex: 0xFF_7A_00)
-            /// Spec-exact `#5E5CE6`.
-            public static let focus = Color(watchThemeHex: 0x5E_5C_E6)
-            /// Spec-exact `#32ADE6`.
-            public static let water = Color(watchThemeHex: 0x32_AD_E6)
+            /// Mirrors `Theme.Colors.Ring.protein` (`#C8936A`, bronze).
+            public static let protein = Color(watchThemeHex: 0xC8_93_6A)
+            /// Mirrors `Theme.Colors.Ring.focus` (`#8E96C8`, slate lavender).
+            public static let focus = Color(watchThemeHex: 0x8E_96_C8)
+            /// Mirrors `Theme.Colors.Ring.water` (`#86B4C4`, glacier).
+            public static let water = Color(watchThemeHex: 0x86_B4_C4)
 
             public static func color(for kind: WatchRingKind) -> Color {
                 switch kind {
@@ -75,6 +81,35 @@ public enum WatchTheme {
                 case .water: water
                 }
             }
+        }
+    }
+
+    // MARK: - Buddy colours (mirrors `Theme.BuddyColors`' signature colours)
+
+    public enum Buddy {
+        /// Each buddy's signature colour: its glow and XP bar on the wrist. Copied by hand from
+        /// `Theme.BuddyColors.colors(for:)` (the first value of each trio); keep in sync.
+        static func signature(_ buddy: WatchBuddy) -> Color {
+            switch buddy {
+            case .stash: Color(watchThemeHex: 0x2B_B5_A0)
+            case .zib: Color(watchThemeHex: 0x3F_7B_FF)
+            case .lox: Color(watchThemeHex: 0xFF_8A_3D)
+            case .pip: Color(watchThemeHex: 0x8F_5B_FF)
+            case .moko: Color(watchThemeHex: 0x2F_B8_6B)
+            case .brick: Color(watchThemeHex: 0xE5_48_4D)
+            case .tank: Color(watchThemeHex: 0xC8_F0_4A)
+            case .volt: Color(watchThemeHex: 0x1F_A2_FF)
+            case .howl: Color(watchThemeHex: 0x5B_7B_FF)
+            }
+        }
+
+        /// Mirrors `Theme.Colors.ember` (dark `#FF8A3D`).
+        static let ember = Color(watchThemeHex: 0xFF_8A_3D)
+
+        /// The Scroll Monster's HP bar, as on the phone's Progress tab: danger while it has more
+        /// than half its health, ember after that.
+        static func monsterHP(fraction: Double) -> Color {
+            fraction > 0.5 ? Colors.danger : ember
         }
     }
 

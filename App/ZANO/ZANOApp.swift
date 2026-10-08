@@ -1,12 +1,34 @@
 import Foundation
 import SwiftUI
+import UIKit
 import SwiftData
 import UserNotifications
 import Core
 
 @main
 struct ZANOApp: App {
+    /// Drives the focus-session anti-cheat (spec section 3: "Leaving the app pauses timer").
+    @Environment(\.scenePhase) private var scenePhase
+    /// Set when the shared SwiftData store couldn't be opened (audit W1). The app then shows
+    /// `StoreUnavailableView` instead of running against an empty in-memory fallback whose writes
+    /// would vanish on the next launch (and whose onboarding would start over).
+    private let storeOpenFailure: String?
+    /// Settings > Appearance (System / Light / Dark). Lives in the App Group defaults so widgets and
+    /// the Screen Time report can match; applied once, here at the root, so every screen, sheet and
+    /// cover follows it (the few deliberately dark surfaces force their own scheme).
+    @AppStorage(ZanoAppearance.storageKey, store: SharedDefaults.store)
+    private var appearance: ZanoAppearance = .system
+
     init() {
+        #if DEBUG
+        // Unsigned Simulator builds (CI, previews) get no App Group container at all, so they
+        // always run on the in-memory fallback by design. Only real open failures stop a debug run.
+        let failure = ModelContainer.appGroupOpenFailure
+        storeOpenFailure = (failure?.contains("appGroupContainerUnavailable") ?? false) ? nil : failure
+        #else
+        storeOpenFailure = ModelContainer.appGroupOpenFailure
+        #endif
+
         // docs/spec.md §23 "Instrument from day one": wire analytics/crash reporting at launch so
         // every later session's screen views, intents, unlock kinds, and shield impressions have
         // somewhere to land from day one instead of being retrofitted in later.
@@ -74,41 +96,141 @@ struct ZANOApp: App {
         // never schedules anything or asks for permission.
         SunriseAlarmManager.shared.registerNotificationCategories()
 
-        // Keeps the paywall's "we'll remind you 2 days before" promise across relaunches and a
-        // permission granted after purchase (spec §21). No-op when no trial was recorded.
-        TrialReminderScheduler.shared.rescheduleIfNeeded()
-
         // Apple Watch link (`WatchSyncManager.activate()`: "call once, early at launch (the watch
         // may be waiting on the phone to wake it)"). Safe to call repeatedly and on a device with
         // no watch support; returns immediately (the work runs on the main actor afterwards).
         WatchSyncManager.shared.activate()
 
-        // CI screenshot gallery (ScreenshotGallery.swift). Inert unless `-ZANOScreen <name>` is passed,
-        // which no user launch ever does.
+        // Re-open the gym geofence monitor at launch (Wave 1A). Must run before the first frame:
+        // when iOS relaunches the app in the background for a gym arrival/exit, CLMonitor only
+        // delivers that event to a monitor re-created (same name) early in launch.
+        GymPresenceService.shared.start()
+
+        // Steps / home-workout verification for every active goal, not only while Today is on
+        // screen (audit L6). Early in launch on purpose: when HealthKit relaunches the app in the
+        // background for a step-count delivery, the observer query has to be re-registered right
+        // away to receive it. Never prompts for Health access.
+        Task { await HealthGoalChecks.run() }
+
+        // CI screenshot gallery (ScreenshotGallery.swift). DEBUG builds only, and inert unless
+        // `-ZANOScreen <name>` is passed, which no user launch ever does.
+        #if DEBUG
         if let name = ScreenshotMode.screen { ScreenshotMode.prepare(screen: name) }
+        #endif
+
+        Self.configureNavigationBarTitles()
+    }
+
+    /// Large navigation titles (Fuel, Progress, Settings, Lock sets…) in the app's voice face, so a
+    /// tab with a system large title and a tab that draws its own header (Today) read as one family.
+    /// SwiftUI has no API for the navigation bar's title font, so this is the one place the app
+    /// reaches for UIKit appearance proxies.
+    ///
+    /// Pass 2 "playful" (2026-10-03, docs/design/visual-direction-v2.md): SF Pro Rounded, heavy for
+    /// the large title and bold for the inline one (was condensed heavy), scaled with Dynamic Type.
+    private static func configureNavigationBarTitles() {
+        // Light mode: the title colour is the `text` token as a dynamic UIColor, so it is ink on
+        // the light canvas and pearl on the dark one (the system default label colour is close but
+        // not the palette's ink/pearl).
+        let titleColor = Theme.Tones.text.dynamicUIColor
+        let navigationBar = UINavigationBar.appearance()
+        navigationBar.largeTitleTextAttributes = [
+            .font: roundedFont(size: 34, weight: .heavy, textStyle: .largeTitle),
+            .foregroundColor: titleColor
+        ]
+        navigationBar.titleTextAttributes = [
+            .font: roundedFont(size: 17, weight: .bold, textStyle: .headline),
+            .foregroundColor: titleColor
+        ]
+    }
+
+    /// The scheme the whole app is drawn in: the Settings choice, or (DEBUG screenshot runs only)
+    /// the `-ZANOAppearance` launch argument, which defaults to dark so the main CI tour is unchanged.
+    private var rootColorScheme: ColorScheme? {
+        #if DEBUG
+        if ScreenshotMode.screen != nil { return ScreenshotMode.colorScheme }
+        #endif
+        return appearance.colorScheme
+    }
+
+    /// Belt and braces for `preferredColorScheme`: switching back to "System" (nil) has not always
+    /// released an earlier forced scheme on every iOS version, so the window's own override is set
+    /// to match. Runs on the main actor (the scene's `onChange`).
+    @MainActor
+    private static func applyWindowStyle(_ scheme: ColorScheme?) {
+        let style: UIUserInterfaceStyle = switch scheme {
+        case .light: .light
+        case .dark: .dark
+        default: .unspecified
+        }
+        for case let windowScene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = style
+            }
+        }
+    }
+
+    /// The system font at `size`/`weight` in its rounded design (plain system font if the rounded
+    /// design is unavailable), scaled for `textStyle` so large titles follow Dynamic Type.
+    private static func roundedFont(size: CGFloat, weight: UIFont.Weight, textStyle: UIFont.TextStyle) -> UIFont {
+        let base = UIFont.systemFont(ofSize: size, weight: weight)
+        let rounded = base.fontDescriptor.withDesign(.rounded).map { UIFont(descriptor: $0, size: size) } ?? base
+        return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: rounded)
     }
 
     @ViewBuilder
     private var rootContent: some View {
+        if storeOpenFailure != nil {
+            StoreUnavailableView()
+        } else {
+            appContent
+        }
+    }
+
+    @ViewBuilder
+    private var appContent: some View {
+        #if DEBUG
         if let name = ScreenshotMode.screen {
             ScreenshotHost(name: name)
         } else {
             ContentView()
         }
+        #else
+        ContentView()
+        #endif
     }
 
     var body: some Scene {
         WindowGroup {
             rootContent
+                // Settings > Appearance (light mode, 2026-10-03). Default System.
+                .preferredColorScheme(rootColorScheme)
+                .onChange(of: rootColorScheme, initial: true) { _, scheme in
+                    Self.applyWindowStyle(scheme)
+                }
                 // `AppRouter` is a singleton (see its header for why); views read it from the
                 // environment rather than reaching for the global.
                 .environment(AppRouter.shared)
                 // `zano://tag/<uuid>`, `zano://goals`, `zano://emergency` (+ the widgets'
-                // `zano://today` / `zano://focus/end`) — docs/spec.md §6, §14, §27. NOTE: this
-                // only fires if `project.yml`'s ZANO target registers the `zano` scheme under
-                // `CFBundleURLTypes`, which it does not yet (flagged in this task's knownIssues).
+                // `zano://today` / `zano://focus/end`) — docs/spec.md §6, §14, §27. Delivered
+                // because `project.yml`'s ZANO target registers the `zano` scheme under
+                // `CFBundleURLTypes`.
                 .onOpenURL { url in
                     AppRouter.shared.handle(url: url)
+                }
+                // Focus sessions (audit L3/L4): re-adopt a session persisted before the app was
+                // killed (verifying it if its time already ran), resume the one leaving the app
+                // paused, and pause in-app sessions the moment the app goes to the background.
+                // `.inactive` (Control Center, a notification pull-down) doesn't count as leaving.
+                .onChange(of: scenePhase, initial: true) { _, phase in
+                    switch phase {
+                    case .active:
+                        Task { await FocusSessionVerifier.shared.appDidBecomeActive() }
+                    case .background:
+                        FocusSessionVerifier.shared.appDidEnterBackground()
+                    default:
+                        break
+                    }
                 }
         }
         // The one shared App Group SwiftData store (docs/spec.md §11/§13; `Core/Sources/Core/
@@ -119,6 +241,47 @@ struct ZANOApp: App {
         // entitlement is misconfigured — see that file's doc comment) so there is no `throws`/
         // `try?` to handle at this call site.
         .modelContainer(ModelContainer.appGroup)
+    }
+}
+
+// MARK: - Store unavailable (audit W1)
+
+/// Shown instead of the app when the shared store couldn't be opened
+/// (`ModelContainer.appGroupOpenFailure`). No lock can be read from here, so the usual emergency
+/// unlock can't run: "Unlock my apps" lifts ZANO's shield directly (never trap the user).
+private struct StoreUnavailableView: View {
+    @Environment(\.openURL) private var openURL
+    @State private var didUnlock = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            Spacer(minLength: 0)
+            Text(Copy.storeRecovery.title)
+                .zanoText(.title)
+                .foregroundStyle(Theme.Colors.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(Copy.storeRecovery.body)
+                .font(Theme.Typography.body)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if didUnlock {
+                Text(Copy.storeRecovery.unlockedConfirmation)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.text)
+            }
+            Spacer(minLength: 0)
+            PrimaryButton(title: Copy.storeRecovery.unlockButtonLabel, systemImage: "lock.open") {
+                ScheduledLockMonitor.liftAllShieldsForRecovery()
+                didUnlock = true
+            }
+            PrimaryButton(title: Copy.storeRecovery.contactLabel, systemImage: "envelope", style: .secondary) {
+                if let url = URL(string: "mailto:\(Copy.settings.supportEmail)") { openURL(url) }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .zanoBackdrop()
     }
 }
 

@@ -303,8 +303,10 @@ struct EmergencyUnlockStateMachineTests {
 
     @Test("cancelHold() during a hold returns to idle and resets progress/countdown")
     func cancelHoldDuringHoldResetsProgressAndCountdown() async throws {
-        let unlock = EmergencyUnlock(sessionID: UUID())
+        let clock = ManualHoldClock()
+        let unlock = EmergencyUnlock(sessionID: UUID(), now: { clock.current })
         unlock.beginHold()
+        clock.advance(10)
         try await Task.sleep(nanoseconds: 150_000_000) // let a few ticks land
         #expect(unlock.progress > 0)
 
@@ -316,7 +318,8 @@ struct EmergencyUnlockStateMachineTests {
 
     @Test("releasing a hold early is never a penalty by itself (never punish attempting to leave)")
     func releasingEarlyDoesNotTouchTheStreakPenaltyChoice() async throws {
-        let unlock = EmergencyUnlock(sessionID: UUID())
+        let clock = ManualHoldClock()
+        let unlock = EmergencyUnlock(sessionID: UUID(), now: { clock.current })
         #expect(unlock.appliesStreakPenalty == true)
         unlock.beginHold()
         try await Task.sleep(nanoseconds: 100_000_000)
@@ -326,7 +329,8 @@ struct EmergencyUnlockStateMachineTests {
 
     @Test("a cancelled hold can be restarted from idle")
     func canRestartAfterCancelling() async throws {
-        let unlock = EmergencyUnlock(sessionID: UUID())
+        let clock = ManualHoldClock()
+        let unlock = EmergencyUnlock(sessionID: UUID(), now: { clock.current })
         unlock.beginHold()
         try await Task.sleep(nanoseconds: 100_000_000)
         unlock.cancelHold()
@@ -339,8 +343,10 @@ struct EmergencyUnlockStateMachineTests {
 
     @Test("beginHold() is idempotent while already holding — it does not restart the in-flight hold")
     func beginHoldIsIdempotentWhileAlreadyHolding() async throws {
-        let unlock = EmergencyUnlock(sessionID: UUID())
+        let clock = ManualHoldClock()
+        let unlock = EmergencyUnlock(sessionID: UUID(), now: { clock.current })
         unlock.beginHold()
+        clock.advance(10)
         try await Task.sleep(nanoseconds: 200_000_000)
         let progressBeforeSecondCall = unlock.progress
         #expect(progressBeforeSecondCall > 0)
@@ -348,6 +354,7 @@ struct EmergencyUnlockStateMachineTests {
         unlock.beginHold() // guard: phase == .holding, not .idle/.failed — must no-op
         #expect(unlock.phase == .holding)
 
+        clock.advance(5)
         try await Task.sleep(nanoseconds: 100_000_000)
         // The original hold kept running (progress kept climbing) rather than being reset by
         // the second beginHold() call.
@@ -358,18 +365,17 @@ struct EmergencyUnlockStateMachineTests {
 
     // MARK: progress / secondsRemaining tracking (real elapsed time, well short of completion)
 
-    @Test("progress and secondsRemaining track real elapsed time during a hold")
+    @Test("progress and secondsRemaining track elapsed time during a hold")
     func progressAndSecondsRemainingTrackElapsedTime() async throws {
-        let unlock = EmergencyUnlock(sessionID: UUID())
+        let clock = ManualHoldClock()
+        let unlock = EmergencyUnlock(sessionID: UUID(), now: { clock.current })
         unlock.beginHold()
-        try await Task.sleep(nanoseconds: 300_000_000) // ~0.3s into a 60s hold
+        clock.advance(15) // a quarter of the 60-second hold
+        try await Task.sleep(nanoseconds: 300_000_000) // let a tick land
 
-        // Generous bounds (not a tight equality) so this stays robust against CI scheduler
-        // jitter while still proving the tick loop is live and roughly on-pace.
-        #expect(unlock.progress > 0)
-        #expect(unlock.progress < 0.5)
-        #expect(unlock.secondsRemaining >= 30)
-        #expect(unlock.secondsRemaining <= 60)
+        #expect(abs(unlock.progress - 0.25) < 0.001, "progress \(unlock.progress)")
+        #expect(unlock.secondsRemaining == 45)
+        #expect(unlock.phase == .holding)
 
         unlock.cancelHold()
     }
@@ -392,7 +398,8 @@ struct EmergencyUnlockStateMachineTests {
     func setAppliesStreakPenaltyStillWorksAfterACancel() async throws {
         // Sanity check that the idle/holding guard isn't accidentally sticky across a
         // cancel → restart cycle.
-        let unlock = EmergencyUnlock(sessionID: UUID())
+        let clock = ManualHoldClock()
+        let unlock = EmergencyUnlock(sessionID: UUID(), now: { clock.current })
         unlock.beginHold()
         try await Task.sleep(nanoseconds: 50_000_000)
         unlock.cancelHold()
@@ -414,4 +421,13 @@ struct EmergencyUnlockStateMachineTests {
         let spent = await unlock.useStreakFreezeInstead()
         #expect(unlock.appliesStreakPenalty == !spent)
     }
+}
+
+
+/// A clock that only moves when a test says so, for `EmergencyUnlock`'s hold. Real-time sleeps
+/// made these tests fail whenever a CI runner stalled for over a minute.
+@MainActor
+final class ManualHoldClock {
+    var current = Date(timeIntervalSince1970: 1_800_000_000)
+    func advance(_ seconds: TimeInterval) { current = current.addingTimeInterval(seconds) }
 }

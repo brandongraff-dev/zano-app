@@ -103,6 +103,41 @@ public struct DuelSnapshot: Sendable, Equatable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Solo duel ("Beat last week", spec §5.4 Ghost Mode × §5.7 Duel)
+
+/// A 7-day duel against your own previous week, computed entirely from this device's local
+/// `GoalEvent` history — so it works with no backend at all. Same scoring rule as a head-to-head
+/// duel (one point per verified `.complete`/`.planB` completion), same ISO week (Monday start) as
+/// `SquadManager`'s weekly ring board.
+public struct SoloWeekDuel: Sendable, Equatable {
+    /// Local midnight of this ISO week's Monday.
+    public let weekStart: Date
+    /// Local midnight of next Monday — the duel's countdown target.
+    public let weekEnd: Date
+    /// Points per day, Monday first, 7 entries. Days after `asOf` are 0.
+    public let thisWeekDaily: [Int]
+    /// Last week's points per day, Monday first, 7 entries.
+    public let lastWeekDaily: [Int]
+    /// How many days of this week have started as of `asOf` (1...7).
+    public let elapsedDays: Int
+
+    public init(weekStart: Date, weekEnd: Date, thisWeekDaily: [Int], lastWeekDaily: [Int], elapsedDays: Int) {
+        self.weekStart = weekStart
+        self.weekEnd = weekEnd
+        self.thisWeekDaily = thisWeekDaily
+        self.lastWeekDaily = lastWeekDaily
+        self.elapsedDays = elapsedDays
+    }
+
+    public var thisWeekPoints: Int { thisWeekDaily.reduce(0, +) }
+    public var lastWeekTotal: Int { lastWeekDaily.reduce(0, +) }
+    /// Last week's score at the same point in the week — the fair "pace" comparison.
+    public var lastWeekPointsToDate: Int { lastWeekDaily.prefix(elapsedDays).reduce(0, +) }
+    /// Points still needed to beat last week's full total (0 once beaten).
+    public var pointsToBeatLastWeek: Int { max(0, lastWeekTotal + 1 - thisWeekPoints) }
+    public var hasLastWeek: Bool { lastWeekTotal > 0 }
+}
+
 // MARK: - DuelManager
 
 /// The sole owner of local `Duel` rows: creation, accept/decline, the 7-day lifecycle, and this
@@ -278,6 +313,61 @@ public actor DuelManager {
 
     public func duel(id: UUID) async throws -> DuelSnapshot? {
         try fetchDuel(id: id).map { self.snapshot(of: $0) }
+    }
+
+    /// Every local duel `userID` is in except declined ones — pending, active and complete — newest
+    /// first. For the Squad screen's duel list (active duels plus recent results).
+    public func duels(involving userID: UUID) async throws -> [DuelSnapshot] {
+        try context.fetch(FetchDescriptor<Duel>())
+            .filter { $0.status != .declined && ($0.aUser == userID || $0.bUser == userID) }
+            .sorted { $0.startDate > $1.startDate }
+            .map { self.snapshot(of: $0) }
+    }
+
+    /// The signed-in user's id, or `nil` before onboarding has created the local `User` row.
+    public func currentUserID() -> UUID? {
+        try? fetchCurrentUser().id
+    }
+
+    /// "Beat last week": this ISO week's verified-goal points vs. last week's, from local history
+    /// only (works offline). `nil` when there is no signed-in user or the store can't be read.
+    /// Pass a date in an earlier week to get that week's finished result.
+    public func soloWeekDuel(asOf date: Date = .now) async -> SoloWeekDuel? {
+        guard let userID = try? fetchCurrentUser().id else { return nil }
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = .current
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        guard let weekStart = calendar.date(from: components),
+              let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart),
+              let lastWeekStart = calendar.date(byAdding: .day, value: -7, to: weekStart)
+        else { return nil }
+
+        let windowEnd = min(weekEnd, max(date, weekStart))
+        guard let events = try? context.fetch(
+            FetchDescriptor<GoalEvent>(predicate: #Predicate<GoalEvent> { $0.verified == true && $0.ts >= lastWeekStart && $0.ts < windowEnd })
+        ) else { return nil }
+
+        var thisWeek = Array(repeating: 0, count: 7)
+        var lastWeek = Array(repeating: 0, count: 7)
+        for event in events where event.user?.id == userID && (event.kind == .complete || event.kind == .planB) {
+            let dayStart = calendar.startOfDay(for: event.ts)
+            if event.ts >= weekStart {
+                let offset = calendar.dateComponents([.day], from: weekStart, to: dayStart).day ?? 0
+                if (0..<7).contains(offset) { thisWeek[offset] += 1 }
+            } else {
+                let offset = calendar.dateComponents([.day], from: lastWeekStart, to: dayStart).day ?? 0
+                if (0..<7).contains(offset) { lastWeek[offset] += 1 }
+            }
+        }
+
+        let elapsed = (calendar.dateComponents([.day], from: weekStart, to: calendar.startOfDay(for: min(date, weekEnd))).day ?? 0) + 1
+        return SoloWeekDuel(
+            weekStart: weekStart,
+            weekEnd: weekEnd,
+            thisWeekDaily: thisWeek,
+            lastWeekDaily: lastWeek,
+            elapsedDays: min(7, max(1, elapsed))
+        )
     }
 
     // MARK: - SwiftData

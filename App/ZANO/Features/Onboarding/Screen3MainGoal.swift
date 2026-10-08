@@ -11,11 +11,11 @@
 // own stand-ins for it. Those are gone now and everything points at the real Core pieces:
 //   - `OnboardingDerivedColors`  -> `Theme.Colors.hairline / hairlineStrong / track / accentWash`
 //   - `OnboardingCardPressStyle` -> `PressableStyle`
-//   - the bespoke choice row     -> `SelectableCard` (one selected/unselected look app-wide: accent wash
-//                                   + 2pt accent edge + filled check; visible 12% hairline otherwise)
+//   - the bespoke choice row     -> `SelectableCard` (one selected/unselected look app-wide: white
+//                                   selection; visible 12% hairline otherwise)
 //   - the hand-rolled pinned bar -> `zanoActionBar` (`StickyActionBar`)
-// What is still hosted here for screens 1-7 to share: `OnboardingSingleChoiceList` (screens 3 and 7)
-// and `View.onboardingPinnedContinue` (all seven).
+// What is still hosted here for the question steps to share: `View.onboardingPinnedContinue`
+// (pass 2 retired `OnboardingSingleChoiceList`). (Short flow, 2026-10-02: this is step 3 of 8.)
 //
 // Pacing (docs/design/competitive-research.md §3.5, "every input triggers a visible consequence"; Cal
 // AI, Opal, Duolingo): Q1 used to be five text rows and nothing happened when you tapped one. Now a
@@ -29,44 +29,131 @@
 // `.selection` haptic per change. All of it is off under Reduce Motion (rows are simply present, rings
 // snap, no scale/offset).
 
+// VISUAL PASS 2 (2026-10-03, "make it more playful"): a character select. The guide star sits under
+// the question and says one line in a speech bubble; picking an answer makes it react (a charge
+// burst, a new line, a soft haptic) and charges it a little more. The five answers are chunky glass
+// tiles washed in a colour each, two to a row with "All of it" across the bottom (one per row at
+// accessibility text sizes); the picked tile gets a coloured rim, a glow, a check sticker and a
+// bouncing sticker icon. The "Your plan" ring preview row is gone: the star's reaction is the
+// consequence of the tap now, and the plan step shows the rings for real.
+
+// CHARACTER PASS (session 30, 2026-10-06): the guide acts out the answer: lifting for the gym,
+// eating for protein, guarding (its padlock) for doomscrolling, focused for work/school, and for
+// "All of it" it flexes while a confetti burst goes off behind it. Each change is a hop (the guide's
+// own reaction). Reduce Motion: the faces change, the confetti cross-fades in place (Core handles it).
+
 import SwiftUI
 import Core
 
-/// Screen 3 of 14 (spec §7.3) - Q1, single-select main goal.
+/// Step 3 of 8 (spec §7.3) - Q1, single-select main goal.
 struct Screen3MainGoal: View {
     @Bindable var flowState: OnboardingFlowState
 
-    var body: some View {
-        OnboardingQuestion(title: Copy.onboarding.q1Title, subtitle: Copy.onboarding.q1Subtitle) {
-            VStack(spacing: Theme.Spacing.lg) {
-                OnboardingPlanPreview(selection: flowState.mainGoal)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
 
-                OnboardingSingleChoiceList(
-                    options: MainGoal.allCases,
-                    selection: flowState.mainGoal,
-                    title: { $0.displayLabel },
-                    symbol: { symbol(for: $0) },
-                    onSelect: { flowState.mainGoal = $0 }
+    private var guideLine: String {
+        flowState.mainGoal.map { Copy.onboarding.guideMainGoalReaction(rawValue: $0.rawValue) }
+            ?? Copy.onboarding.guideMainGoalPrompt
+    }
+
+    private var guideTint: Color {
+        flowState.mainGoal.map(tint(for:)) ?? Theme.Colors.accent
+    }
+
+    var body: some View {
+        OnboardingQuestion(title: Copy.onboarding.q1Title) {
+            VStack(spacing: Theme.Spacing.lg) {
+                OnboardingGuideStar(
+                    line: guideLine,
+                    charge: flowState.mainGoal == nil ? 0.3 : 0.55,
+                    tint: guideTint,
+                    mood: flowState.mainGoal == nil ? .idle : .perky,
+                    pose: flowState.mainGoal.map(pose(for:)) ?? .idle
                 )
+                .overlay(alignment: .leading) {
+                    if flowState.mainGoal == .allOfIt {
+                        // Mounted on the pick, so it fires once per "All of it".
+                        CelebrationBurst(trigger: 0)
+                            .frame(width: 200, height: 200)
+                            .offset(x: -68)
+                            .allowsHitTesting(false)
+                    }
+                }
+                tiles
             }
         }
+        .onboardingEntrance()
         .onboardingPinnedContinue(
             title: Copy.common.continueButtonLabel,
             isEnabled: flowState.mainGoal != nil
         ) {
             flowState.advance()
         }
-        .preferredColorScheme(.dark)
+        .sensoryFeedback(.selection, trigger: flowState.mainGoal)
         .onAppear {
+            appeared = true
             Analytics.shared.capture(
                 event: "onboarding_screen_viewed",
-                properties: ["screen": "main_goal", "screen_number": 3]
+                properties: OnboardingStep.mainGoal.viewedProperties
             )
         }
     }
 
-    /// SF Symbol identifiers (not user-facing copy). Chosen so each answer is recognizable from the
-    /// glyph alone before the label is read.
+    // MARK: - Tiles
+
+    private var isSingleColumn: Bool { dynamicTypeSize.isAccessibilitySize }
+
+    /// The first four answers two to a row, the last ("All of it") across the bottom.
+    private var tiles: some View {
+        let options = MainGoal.allCases
+        let gridOptions = isSingleColumn ? options : Array(options.dropLast())
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm),
+            count: isSingleColumn ? 1 : 2
+        )
+        return VStack(spacing: Theme.Spacing.sm) {
+            LazyVGrid(columns: columns, spacing: Theme.Spacing.sm) {
+                ForEach(Array(gridOptions.enumerated()), id: \.element) { index, goal in
+                    tile(goal, index: index, isWide: isSingleColumn)
+                        .frame(minHeight: isSingleColumn ? nil : 136)
+                }
+            }
+            if !isSingleColumn, let last = options.last {
+                tile(last, index: options.count - 1, isWide: true)
+            }
+        }
+    }
+
+    private func tile(_ goal: MainGoal, index: Int, isWide: Bool) -> some View {
+        OnboardingPickTile(
+            title: goal.displayLabel,
+            systemImage: symbol(for: goal),
+            tint: tint(for: goal),
+            isSelected: flowState.mainGoal == goal,
+            isWide: isWide
+        ) {
+            flowState.mainGoal = goal
+        }
+        // A short one-shot stagger; never gates input (the tiles are tappable from frame one).
+        .opacity(appeared || reduceMotion ? 1 : 0)
+        .offset(y: appeared || reduceMotion ? 0 : Theme.Spacing.sm)
+        .animation(reduceMotion ? nil : Theme.Motion.springStandard.delay(0.15 + Double(index) * 0.05), value: appeared)
+    }
+
+    /// The face the guide pulls for each answer.
+    private func pose(for goal: MainGoal) -> BuddyPose {
+        switch goal {
+        case .gymConsistency: .lifting
+        case .protein: .eating
+        case .stopDoomscrolling: .guarding
+        case .lockInWorkSchool: .focused
+        case .allOfIt: .flexing
+        }
+    }
+
+    /// SF Symbol identifiers (not user-facing copy).
     private func symbol(for goal: MainGoal) -> String {
         switch goal {
         case .gymConsistency: "dumbbell.fill"
@@ -74,6 +161,18 @@ struct Screen3MainGoal: View {
         case .stopDoomscrolling: "iphone.slash"
         case .lockInWorkSchool: "book.closed.fill"
         case .allOfIt: "sparkles"
+        }
+    }
+
+    /// Each answer wears the colour of the goal it builds (gym volt, protein apricot, focus violet);
+    /// the two focus answers split violet and periwinkle so they read apart; "All of it" is sun.
+    private func tint(for goal: MainGoal) -> Color {
+        switch goal {
+        case .gymConsistency: Theme.Colors.Ring.workout
+        case .protein: Theme.Colors.Ring.protein
+        case .stopDoomscrolling: Theme.Colors.Ring.sleepOnTime
+        case .lockInWorkSchool: Theme.Colors.Ring.focus
+        case .allOfIt: Theme.Colors.Ring.sunriseAlarm
         }
     }
 }
@@ -97,100 +196,7 @@ extension MainGoal {
     }
 }
 
-/// "Your plan" card: the three core rings, dim until the chosen answer makes them part of the plan.
-/// Order matches Today (spec §16 P1: workout, protein, focus) and screen 2's ring trio.
-private struct OnboardingPlanPreview: View {
-    let selection: MainGoal?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private struct Slot: Identifiable {
-        let type: GoalType
-        let icon: String
-        var id: String { type.rawValue }
-    }
-
-    private let slots: [Slot] = [
-        Slot(type: .workoutGym, icon: "dumbbell.fill"),
-        Slot(type: .protein, icon: "fork.knife"),
-        Slot(type: .focusSession, icon: "timer"),
-    ]
-
-    /// How full a lit ring is drawn. Partial on purpose (spec §8 rule 2: progress is always partially
-    /// filled); it is a picture of "a ring you will fill", not a claim about the user's progress.
-    private let litProgress = 0.62
-
-    /// One compact row (eyebrow left, rings right, ~72pt) rather than a stacked card: the five options
-    /// below need ~370pt, and a taller preview pushed the last one under the pinned Continue on a
-    /// 393x852 phone (arithmetic, not a render).
-    var body: some View {
-        HStack(spacing: Theme.Spacing.md) {
-            Text(Copy.onboarding.planRevealEyebrow)
-                .zanoText(.eyebrow)
-                .foregroundStyle(Theme.Colors.muted)
-
-            Spacer(minLength: Theme.Spacing.sm)
-
-            HStack(spacing: Theme.Spacing.sm) {
-                ForEach(slots) { slot in
-                    let isLit = selection?.previewGoalTypes.contains(slot.type) ?? false
-                    GoalRing(
-                        progress: isLit ? litProgress : 0,
-                        color: isLit ? Theme.Colors.Ring.color(for: slot.type) : Theme.Colors.muted,
-                        size: .custom(48),
-                        center: .icon(systemName: slot.icon)
-                    )
-                }
-            }
-        }
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.sm)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zanoCard()
-        .animation(Theme.Motion.standard(reduceMotion: reduceMotion), value: selection)
-        .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Shared by screens 1-7
-
-/// A vertical list of single-select options, each a `SelectableCard` with a leading SF Symbol. Used by
-/// Q1 (screen 3) and Q5 (screen 7). Titles come from the caller (spec-verbatim `displayLabel`s);
-/// symbols are identifiers, not copy.
-struct OnboardingSingleChoiceList<Option: Hashable>: View {
-    let options: [Option]
-    let selection: Option?
-    let title: (Option) -> String
-    let symbol: (Option) -> String
-    let onSelect: (Option) -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = false
-
-    var body: some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
-                SelectableCard(
-                    title: title(option),
-                    icon: symbol(option),
-                    isSelected: selection == option
-                ) {
-                    onSelect(option)
-                }
-                // A short, one-shot stagger (onboarding is once-ever, so the sequence can carry
-                // hierarchy). Never gates input: the cards are tappable from the first frame.
-                .opacity(appeared || reduceMotion ? 1 : 0)
-                .offset(y: appeared || reduceMotion ? 0 : Theme.Spacing.xs)
-                .animation(
-                    reduceMotion ? nil : Animation.easeOut(duration: 0.35).delay(Double(index) * 0.06),
-                    value: appeared
-                )
-            }
-        }
-        .sensoryFeedback(.selection, trigger: selection)
-        .onAppear { appeared = true }
-    }
-}
+// MARK: - Shared by the question steps
 
 extension View {
     /// Pins the onboarding "Continue" CTA to the bottom safe area in the shared `StickyActionBar`:

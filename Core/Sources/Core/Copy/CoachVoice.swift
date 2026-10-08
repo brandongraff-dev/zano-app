@@ -106,6 +106,30 @@ public enum CoachVoiceTone: Sendable {
         }
     }
 
+    /// Pass 2 (playful, 2026-10-03): what the star "says" in a speech bubble when it is poked on
+    /// Today. Short, never shaming (a sleepy star is napping, not disappointed), and every sleepy
+    /// line points at the next step. Today cycles through the list, one line per poke.
+    public static func mascotLines(_ voice: CoachVoice, mood: ZanoMascotMood) -> [String] {
+        switch (voice, mood) {
+        case (.hype, .sleepy): ["Five more minutes… or one goal.", "Wake me up! One goal does it.", "Zzz. Poke harder. Kidding."]
+        case (.hype, .idle): ["Ready when you are!", "What are we crushing first?", "Spin me again. I dare you."]
+        case (.hype, .perky): ["WE'RE COOKING!", "Look at those colours!", "Keep stacking!"]
+        case (.hype, .charged): ["FULLY CHARGED!", "Go enjoy it. You earned it.", "Victory lap? Victory spin."]
+        case (.toughLove, .sleepy): ["Napping until you move.", "One goal wakes me up.", "Still here. Still waiting."]
+        case (.toughLove, .idle): ["Pick one. Start.", "Spinning isn't a goal.", "Ready."]
+        case (.toughLove, .perky): ["Good. Keep going.", "That's the pace.", "Don't stop now."]
+        case (.toughLove, .charged): ["Earned. Nicely done.", "That's how it's done.", "Same again tomorrow."]
+        case (.chill, .sleepy): ["Zzz. No rush.", "Wake me whenever.", "Napping. Your call."]
+        case (.chill, .idle): ["Hey.", "Just floating.", "Whee."]
+        case (.chill, .perky): ["Look at us go.", "Nice and easy.", "Feeling good."]
+        case (.chill, .charged): ["All done. Breathe.", "Glowing a bit.", "Good day."]
+        case (.data, .sleepy): ["Charge: idle.", "0 goals logged.", "Low power mode."]
+        case (.data, .idle): ["Status: standing by.", "Rotation: 360°.", "Awaiting input."]
+        case (.data, .perky): ["Progress: rising.", "Momentum detected.", "Charge climbing."]
+        case (.data, .charged): ["Completion: 100%.", "All goals verified.", "Peak charge."]
+        }
+    }
+
     /// How each voice acknowledges a slip without being punishing (docs/spec.md §5.6 "the app
     /// makes the comeback day feel special... shield copy that acknowledges it" and §8 rules 9 and
     /// 10: a slip is "slipped", never "missed", is never followed by a threat, and is always

@@ -23,6 +23,10 @@
 //     not collide with the options beneath it.
 //   * The title is a heading for VoiceOver, and the scroll view does not rubber-band when its content
 //     already fits (a two-option question has nowhere to scroll to).
+//   * Premium pass (2026-09-24, the Nike reference): the question is set in `display` — condensed
+//     heavy now, so a two-line question still fits — against a quiet paragraph subtitle. That size
+//     contrast is the hierarchy. Held at the first accessibility size so a question can never push
+//     the options off a small phone.
 
 import SwiftUI
 
@@ -65,10 +69,11 @@ public struct OnboardingQuestion<Content: View>: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text(title)
-                .zanoText(.titleLarge)
+                .zanoText(.display)
                 .foregroundStyle(Theme.Colors.text)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .accessibilityAddTraits(.isHeader)
             if let subtitle {
                 Text(subtitle)

@@ -64,28 +64,30 @@ key and offering.
   Needs a follow-up coding task (proposed, awaiting approval).
 - **Needs verification on:** N/A (docs). App Store Connect + RevenueCat product setup once enrolled.
 
-### 2026-10-06 — Family plan + trial reminders + day-5 card (code)
+### 2026-10-06 — Family plan + trial reminder + day-5 card (code, superseded on merge)
+
+First built on a branch cut from an older `main`. Its trial reminder (`TrialReminderScheduler`) and
+day-5 card (`TrialValueCard`) duplicated `TrialReminder` and `TrialEarnedCard`, which `main` had
+already shipped in session 5b, down to the same notification id. Both were dropped when the branch
+was merged with `main` on 2026-10-08; see the next entry.
+
+### 2026-10-08 — Merge with main; Family plan on main's paywall
 
 - **Files touched:** `Core/Sources/Core/Monetization/RevenueCatManager.swift` (`SubscriptionPackage.isFamilyShareable`,
-  `isInTrialPeriod()`), `Core/Sources/Core/Monetization/PaywallViewModel.swift` (default selection skips Family,
-  `displayOrder`, records the trial after purchase), `Core/Sources/Core/Monetization/TrialReminderScheduler.swift` (new),
-  `Core/Sources/Core/Copy/PaywallCopy.swift` (family + `Copy.trial` strings, shared `priceLine(for:)`),
-  `App/ZANO/Features/Onboarding/PaywallView.swift` (Family compact card), `App/ZANO/Features/Today/TrialValueCard.swift` (new),
-  `App/ZANO/Features/Today/TodayView.swift`, `App/ZANO/Features/Onboarding/Screen12PermissionPriming.swift`,
-  `App/ZANO/ZANOApp.swift`, `Core/Tests/CoreTests/MonetizationTests.swift` (new).
-- **What changed:** the paywall identifies the Family plan by the product's Family Sharing flag and shows it as a
-  compact "Family · Up to 6 people" card under the highlighted individual annual. The individual annual stays the
-  default even if the offering lists Family first. After a purchase that RevenueCat confirms is in a trial, the trial
-  is recorded locally and one notification is scheduled at 10 AM on the reminder date the paywall's timeline shows
-  (re-added at launch and right after the notification permission prompt). Today shows a hideable "What your trial
-  earned you" card from day 5 to the end of the trial (time reclaimed, streak, goals hit since the trial began).
-- **Decisions made and why:** Family detected via `StoreProduct.isFamilyShareable` instead of a package-ID naming
-  convention, since Family Sharing is the thing that defines the plan. Reminder only when RevenueCat reports
-  `periodType == .trial`, because a product's intro offer is still listed for people who already used their trial.
-  Restored purchases schedule nothing (no trial info), erring toward no wrong "you'll be charged" message.
-- **Known issues / TODOs left behind:** RevenueCat isn't linked, so the `#if canImport(RevenueCat)` code
-  (`isFamilyShareable`, `periodType`) is not compile-checked. Pre-existing: the paywall shows a trial to
-  people who aren't eligible for one (needs RevenueCat's trial-eligibility check). If a user cancels during the
-  trial, the reminder still fires; its copy is worded to be correct either way.
-- **Needs verification on:** CI build + `MonetizationTests`; device with sandbox purchase for the notification and
-  Family Sharing flow, once Apple enrollment + RevenueCat exist.
+  mapped from `StoreProduct.isFamilyShareable`), `Core/Sources/Core/Monetization/PaywallViewModel.swift` (default
+  selection skips Family, `displayOrder`), `Core/Sources/Core/Copy/PaywallCopy.swift` (`familyPlanTitle`,
+  `familyPeopleLabel`), `App/ZANO/Features/Onboarding/PaywallView.swift` (tiles laid out by `displayOrder`, Family
+  title and "Up to 6 people" detail, Family in the DEBUG demo offering for CI screenshots),
+  `Core/Tests/CoreTests/FamilyPlanTests.swift` (new), `docs/spec.md` (§21, §7, §16, §28, version 2.2).
+- **What changed:** main's paywall shows monthly and annual side by side; the Family plan now follows as a tile with
+  its own trial pill. The individual annual stays the default even if the offering lists Family first. Trial
+  reminders and the "What your trial earned you" card are main's existing `TrialReminder`/`TrialEarnedCard`,
+  unchanged; §21 now describes them.
+- **Decisions made and why:** on overlap, main's code wins: it uses the store's real trial end date and
+  refreshes on every launch, which the branch's version didn't. Family detected by the product's Family Sharing
+  flag rather than a package-ID naming convention.
+- **Known issues / TODOs left behind:** App Store Connect needs a `zano_pro_family_annual`-style product with
+  Family Sharing on, in the same subscription group, plus a RevenueCat package for it. The paywall still shows a
+  trial pill to people who already used their trial (needs RevenueCat's eligibility check).
+- **Needs verification on:** CI build + `FamilyPlanTests` + the paywall screenshot (three tiles); device sandbox
+  purchase and Family Sharing once Apple enrollment and the products exist.

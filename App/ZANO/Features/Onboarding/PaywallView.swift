@@ -332,14 +332,11 @@ struct PaywallView: View {
     }
 
     /// Monthly and annual side by side, annual on the right and pre-selected (the reference's
-    /// order: the eye ends on the recommended plan). Anything else the offering adds follows, two
-    /// to a row. Each row is an `HStack` fixed to its tallest tile, so a pair is always one height
+    /// order: the eye ends on the recommended plan). The Family plan and anything else the offering
+    /// adds follow, two to a row (`PaywallViewModel.displayOrder`). Each row is an `HStack` fixed to its tallest tile, so a pair is always one height
     /// however Dynamic Type grows either tile.
     private var planTiles: some View {
-        let annual = viewModel.packages.filter { $0.period == .annual }
-        let monthly = viewModel.packages.filter { $0.period == .monthly }
-        let rest = viewModel.packages.filter { $0.period != .annual && $0.period != .monthly }
-        let ordered = monthly + annual + rest
+        let ordered = PaywallViewModel.displayOrder(viewModel.packages)
         let rows = stride(from: 0, to: ordered.count, by: 2).map { Array(ordered[$0..<min($0 + 2, ordered.count)]) }
         return VStack(spacing: Theme.Spacing.lg) {
             ForEach(rows, id: \.first?.id) { row in
@@ -363,7 +360,10 @@ struct PaywallView: View {
             price: package.priceString,
             // The billed amount, as billed: "$39.99/year", "$6.99/month" (Apple 3.1.2).
             priceSuffix: priceSuffix(for: package.period),
-            detail: package.period == .annual ? package.pricePerMonthString : nil,
+            // Family names who it covers; the individual annual shows its monthly equivalent.
+            detail: package.isFamilyShareable
+                ? Copy.paywall.familyPeopleLabel
+                : (package.period == .annual ? package.pricePerMonthString : nil),
             pill: package.introductoryTrialDays.flatMap { $0 > 0 ? Copy.paywall.trialPill(days: $0) : nil },
             isSelected: viewModel.selectedPackageID == package.id,
             action: { viewModel.selectPackage(id: package.id) }
@@ -544,7 +544,8 @@ struct PaywallView: View {
     }
 
     private func planTitle(for package: SubscriptionPackage) -> String {
-        switch package.period {
+        if package.isFamilyShareable { return Copy.paywall.familyPlanTitle }
+        return switch package.period {
         case .annual: Copy.paywall.annualPlanTitle
         case .monthly: Copy.paywall.monthlyPlanTitle
         case .weekly: Copy.paywall.weeklyPlanTitle
@@ -956,6 +957,9 @@ enum PaywallDemo {
                             priceString: "$39.99", pricePerMonthString: "$3.33/mo", introductoryTrialDays: 7),
         SubscriptionPackage(id: "demo_monthly", productIdentifier: "zano_pro_monthly", period: .monthly,
                             priceString: "$6.99", pricePerMonthString: "$6.99/mo", introductoryTrialDays: nil),
+        SubscriptionPackage(id: "demo_family", productIdentifier: "zano_pro_family_annual", period: .annual,
+                            priceString: "$69.99", pricePerMonthString: "$5.83/mo", introductoryTrialDays: 7,
+                            isFamilyShareable: true),
     ]
 }
 #endif

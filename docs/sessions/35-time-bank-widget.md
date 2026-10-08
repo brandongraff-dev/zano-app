@@ -94,3 +94,7 @@ accessibility labels on everything, Core tests for the pure logic.
 - [ ] Verified where the spec requires real-device/Mac verification (not just "should work")
 - [ ] `docs/PROGRESS.md` row updated to match this file's Status
 - [ ] No secrets committed (check `.gitignore` coverage if you added new config/env files)
+
+### 2026-10-08 — CI
+
+- Merged into `claude/dazzling-hypatia-ed6q5d` with sessions 33-40. GitHub Actions run 147 (head 49a2e4c): the app with every extension, the Watch app, the embedded Watch build and the Core unit tests all pass. Device checks above still open.

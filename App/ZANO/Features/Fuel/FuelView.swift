@@ -754,7 +754,7 @@ struct FuelView: View {
 
     private func gapOptionIcon(for tier: ProteinGapTier) -> String {
         switch tier {
-        case .kitchenStaple: "refrigerator"
+        case .kitchenStaple: "refrigerator.fill"
         case .restaurant: "mappin.and.ellipse"
         case .quickSnack: "takeoutbag.and.cup.and.straw.fill"
         }
@@ -872,7 +872,7 @@ struct FuelView: View {
             Task { await logQuickRepeat(meal) }
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: "arrow.counterclockwise", tint: Theme.Colors.Ring.protein)
+                FuelPopBadge(systemImage: "arrow.counterclockwise", color: Theme.Colors.Ring.protein, size: 42, tilt: -5)
 
                 Text(prompt)
                     .font(Theme.Typography.headline)
@@ -1345,7 +1345,7 @@ private struct FuelOptionRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.sm) {
-                IconBadge(systemName: systemImage, tint: Theme.Colors.Ring.protein, size: .small)
+                FuelPopBadge(systemImage: systemImage, color: Theme.Colors.Ring.protein, size: 34, tilt: -4, sparkle: false)
 
                 // The tier ("Quick snack") is the badge glyph and the VoiceOver label; the row shows
                 // only the food (playful pass: no caption under every row).
@@ -1395,12 +1395,7 @@ private struct FuelEmptyStapleRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: "plus")
-                    .font(Theme.Typography.icon(.small, weight: .bold))
-                    .foregroundStyle(Theme.Colors.Ring.protein)
-                    .frame(width: Theme.Metrics.iconBadgeSmall, height: Theme.Metrics.iconBadgeSmall)
-                    .background(Theme.Colors.Ring.protein.opacity(0.18), in: Circle())
-                    .accessibilityHidden(true)
+                FuelPopBadge(systemImage: "plus", color: Theme.Colors.Ring.protein, size: 34, tilt: -4, sparkle: false)
                 Text(title)
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.text)
@@ -1574,7 +1569,7 @@ private struct FuelKitchenStapleRow: View {
         HStack(spacing: 0) {
             Button(action: onLog) {
                 HStack(spacing: Theme.Spacing.sm) {
-                    IconBadge(systemName: "refrigerator", tint: Theme.Colors.Ring.protein, size: .small)
+                    FuelPopBadge(systemImage: "refrigerator.fill", color: Theme.Colors.Ring.protein, size: 34, tilt: 4, sparkle: false)
 
                     Text(staple.name)
                         .font(Theme.Typography.body)

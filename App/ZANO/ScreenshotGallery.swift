@@ -32,8 +32,11 @@ enum ScreenshotMode {
     /// The requested screen name, or nil on every normal launch. Always nil in Release.
     static var screen: String? {
         #if DEBUG
-        let value = UserDefaults.standard.string(forKey: "ZANOScreen")
-        return (value?.isEmpty == false) ? value : nil
+        // A "light-" prefix (e.g. `light-tab-fuel`) only picks the scheme (see `colorScheme`), so a
+        // focused CI run (the workflow's `screens` input) can shoot light mode too.
+        guard var value = UserDefaults.standard.string(forKey: "ZANOScreen") else { return nil }
+        if value.hasPrefix("light-") { value.removeFirst("light-".count) }
+        return value.isEmpty ? nil : value
         #else
         return nil
         #endif
@@ -44,7 +47,8 @@ enum ScreenshotMode {
     /// the main tour stays comparable with earlier runs. Applied at the root by `ZANOApp`.
     static var colorScheme: ColorScheme {
         #if DEBUG
-        return UserDefaults.standard.string(forKey: "ZANOAppearance") == "light" ? .light : .dark
+        let lightScreen = UserDefaults.standard.string(forKey: "ZANOScreen")?.hasPrefix("light-") == true
+        return UserDefaults.standard.string(forKey: "ZANOAppearance") == "light" || lightScreen ? .light : .dark
         #else
         return .dark
         #endif
@@ -160,6 +164,10 @@ struct ScreenshotHost: View {
             NavigationStack { BuddyClosetView() }
         case "planner":
             PlannerView()
+        case "fuel-bottom":
+            // The Fuel tab scrolled to its end (Top-ups and staples), which `tab-fuel` can't reach.
+            NavigationStack { FuelView() }
+                .defaultScrollAnchor(.bottom)
         case "characters":
             CharacterSheet()
         case "locksetup":

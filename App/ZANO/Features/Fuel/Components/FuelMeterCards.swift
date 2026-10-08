@@ -4,7 +4,7 @@
 // Playful pass (2026-10-03, docs/design/visual-direction-v2.md, second pass on Fuel). The protein
 // and water cards as game meters:
 //
-//   Protein  header (glyph + name + % chip) / score "72 / 150 g" / segmented power bar /
+//   Protein  header (glyph + name + % chip) / score "72 / 150 g" / protein bar (chocolate + bite) /
 //            chunky quick-add chips / two sticker buttons (Snap a meal, Scan it).
 //   Water    header / a liquid tank beside the score / chunky quick-add chips.
 //
@@ -114,7 +114,7 @@ struct FuelMeterCard: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 header
                 score
-                FuelSegmentMeter(progress: progress, color: color)
+                FuelProteinBar(progress: progress, color: color, crumbs: gainTick)
             }
         case .water:
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
@@ -126,17 +126,16 @@ struct FuelMeterCard: View {
 
     private var header: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            Image(systemName: isComplete ? "checkmark" : systemImage)
-                .font(Theme.Typography.icon(.medium, weight: .bold))
-                .foregroundStyle(color)
-                .padding(Theme.Spacing.xxs)
-                .frame(minWidth: 36, minHeight: 36)
-                .background(color.opacity(0.2), in: Circle())
-                .symbolEffect(.bounce, value: gainTick)
-                .zanoChargeBurst(trigger: completeTick, color: color)
+            FuelPopBadge(
+                systemImage: isComplete ? "checkmark" : systemImage,
+                color: color,
+                tilt: kind == .protein ? -6 : 5,
+                bounce: gainTick
+            )
+            .zanoChargeBurst(trigger: completeTick, color: color)
 
             Text(title)
-                .font(Theme.Typography.headline)
+                .font(.system(.title3, design: .rounded, weight: .heavy))
                 .foregroundStyle(color)
                 .lineLimit(1)
 

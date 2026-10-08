@@ -872,7 +872,7 @@ struct FuelView: View {
             Task { await logQuickRepeat(meal) }
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
-                FuelPopBadge(systemImage: "arrow.counterclockwise", color: Theme.Colors.Ring.protein, size: 42, tilt: -5)
+                ZanoPopBadge(systemImage: "arrow.counterclockwise", color: Theme.Colors.Ring.protein, size: 42, tilt: -5)
 
                 Text(prompt)
                     .font(Theme.Typography.headline)
@@ -1345,7 +1345,7 @@ private struct FuelOptionRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.sm) {
-                FuelPopBadge(systemImage: systemImage, color: Theme.Colors.Ring.protein, size: 34, tilt: -4, sparkle: false)
+                ZanoPopBadge(systemImage: systemImage, color: Theme.Colors.Ring.protein, size: 34, tilt: -4, sparkle: false)
 
                 // The tier ("Quick snack") is the badge glyph and the VoiceOver label; the row shows
                 // only the food (playful pass: no caption under every row).
@@ -1395,7 +1395,7 @@ private struct FuelEmptyStapleRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.sm) {
-                FuelPopBadge(systemImage: "plus", color: Theme.Colors.Ring.protein, size: 34, tilt: -4, sparkle: false)
+                ZanoPopBadge(systemImage: "plus", color: Theme.Colors.Ring.protein, size: 34, tilt: -4, sparkle: false)
                 Text(title)
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.text)
@@ -1569,7 +1569,7 @@ private struct FuelKitchenStapleRow: View {
         HStack(spacing: 0) {
             Button(action: onLog) {
                 HStack(spacing: Theme.Spacing.sm) {
-                    FuelPopBadge(systemImage: "refrigerator.fill", color: Theme.Colors.Ring.protein, size: 34, tilt: 4, sparkle: false)
+                    ZanoPopBadge(systemImage: "refrigerator.fill", color: Theme.Colors.Ring.protein, size: 34, tilt: 4, sparkle: false)
 
                     Text(staple.name)
                         .font(Theme.Typography.body)

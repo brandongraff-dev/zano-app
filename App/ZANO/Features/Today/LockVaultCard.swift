@@ -37,6 +37,8 @@ struct VaultSegment: Identifiable, Equatable {
     let isDone: Bool
     /// `0...1`, today's progress toward the goal.
     var progress: Double = 0
+    /// The goal's glyph, for the badge row on Today's hero (session 34).
+    var icon: String? = nil
 }
 
 struct LockVaultCard: View {
@@ -417,6 +419,59 @@ struct VaultSegmentBar: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Badge row
+
+/// Today's hero (session 34): one small glossy tile per goal instead of a plain bar segment. The
+/// tile fills from the bottom with the goal's progress and turns into a full glossy badge with a
+/// sparkle once that goal is done. Decorative: the hero's spoken label carries the count.
+struct VaultBadgeRow: View {
+    let segments: [VaultSegment]
+
+    private static let side: CGFloat = 30
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
+                badge(segment, tilt: index.isMultiple(of: 2) ? -6 : 5)
+            }
+        }
+        .padding(.top, Theme.Spacing.xxs)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func badge(_ segment: VaultSegment, tilt: Double) -> some View {
+        let icon = segment.icon ?? "star.fill"
+        if segment.isDone {
+            ZanoPopBadge(systemImage: icon, color: segment.color, size: Self.side, tilt: tilt)
+        } else {
+            let fraction = min(1, max(0, segment.progress))
+            let shape = RoundedRectangle(cornerRadius: Self.side * 0.32, style: .continuous)
+            ZStack {
+                shape.fill(segment.color.opacity(0.16))
+                // The goal's progress, rising from the bottom in glossy paint.
+                shape
+                    .fill(LinearGradient(
+                        colors: [segment.color.opacity(0.85), segment.color],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
+                    .mask {
+                        Rectangle()
+                            .frame(height: Self.side * fraction)
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                    }
+                Image(systemName: icon)
+                    .font(.system(size: Self.side * 0.46, weight: .heavy))
+                    .foregroundStyle(fraction >= 0.5 ? Color.white : segment.color)
+                shape.strokeBorder(segment.color.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 2.5]))
+            }
+            .frame(width: Self.side, height: Self.side)
+            .rotationEffect(.degrees(tilt))
+        }
     }
 }
 

@@ -488,3 +488,24 @@ the app (cross-process `@AppStorage` on App Group defaults); widget rendering mo
   (gear, level up, perfect day, boss beaten) are glass capsule toasts with pixel art, one at a time.
   The weekly Scroll Monster is pixel art in the buddies' style (phone-shaped, face on the screen);
   its HP bar is danger-red above half, ember below. One glow per screen still applies.
+
+## 12. Pass 4: glossy and goal-shaped meters (2026-10-08, sessions 33–34)
+
+The founder asked for more fun after seeing the Fuel redesign and chose **glossy** over a flatter
+look or pixel-art meters. This pass reverses part of §9 (restraint) on purpose:
+
+- **Glossy is allowed again on goal glyphs, goal meters and action capsules**: the colour, a lit top
+  (white ~35–40% fading out by the middle), a shaded bottom lip (black ~15%), a white rim, and a soft
+  glow in the item's own colour. `ZanoPopBadge` (Core/UI) is the reference paint; reuse it rather
+  than hand-rolling gloss.
+- **Every goal's progress is drawn as the goal** (`ZanoGoalMeter`, Core/UI/Components/GoalMeters):
+  a barbell for workouts, a protein bar, glasses of water, footprints, a battery for focus, the sun
+  rising, moon phases, book spines, scoops, meal-prep containers, a resistance band, a thermometer,
+  stars for custom goals. Use it wherever a goal's progress appears on a tile or card; plain bars
+  are for non-goal values only.
+- **Still calm**: emergency unlock, the shield, payments and plain Settings rows keep the quiet
+  §9 look. One playful element per card. Motion is still a reply to progress (no idle loops), and
+  Reduce Motion turns it off.
+- Rolled out page by page with screenshots: Fuel (session 33), Today (session 34; Lock's
+  "Required to unlock" tiles share Today's tile, so they changed too), then Lock, Progress,
+  Settings.

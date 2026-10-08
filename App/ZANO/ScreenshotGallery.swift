@@ -164,6 +164,27 @@ struct ScreenshotHost: View {
             NavigationStack { BuddyClosetView() }
         case "planner":
             PlannerView()
+        case "goal-meters":
+            // Every goal's meter (session 34) at empty, part-way and full, for review.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(GoalType.allCases.filter { $0 != .workoutHomeOutdoor }, id: \.self) { goal in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(goal.rawValue)
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                            HStack(spacing: 12) {
+                                ForEach([0.0, 0.45, 1.0], id: \.self) { value in
+                                    ZanoGoalMeter(goal: goal, progress: value, height: 28)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 60)
+            }
+            .background(Theme.Colors.background)
         case "fuel-bottom":
             // The Fuel tab scrolled to its end (Top-ups and staples), which `tab-fuel` can't reach.
             NavigationStack { FuelView() }

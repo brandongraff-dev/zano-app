@@ -180,6 +180,9 @@ extension Copy {
             return "\(price) per \(unit). \(renew)"
         }
         public static func trialPill(days: Int) -> String { days == 1 ? "1 day free" : "\(days) days free" }
+        /// Session 43: under the price, only for a plan with Family Sharing on (`PaywallFamilySharing`).
+        public static let familySharingLine = "Share it with your family through Family Sharing, up to 6 people."
+        public static let familySharingSpoken = "This plan can be shared with up to 6 people in your Family Sharing group."
 
         public static let termsLinkLabel = "Terms of use"
         public static let privacyLinkLabel = "Privacy policy"

@@ -114,6 +114,9 @@ struct ContentView: View {
         // Re-plan calendar focus locks against the next two days (no-op unless turned on).
         FocusLockScheduler.shared.refresh()
         await PlannerReminders.refresh()
+        // Household screen-free times this phone joined (session 44): fetch, re-register if changed, plan the
+        // heads-ups. Stands everything down when Household isn't live. Not awaited: it's a network call.
+        Task { await HouseholdQuietTimeScheduler.shared.refreshOnForeground() }
         // Keep the unlock rules' wake-ups registered (cheap; they can be lost after a restore).
         ContextRuleScheduler.shared.sync()
         // Last known location only (never prompts): feeds travel-mode city detection.

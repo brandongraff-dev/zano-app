@@ -61,6 +61,84 @@ extension Copy {
         public static func assignedTo(_ name: String) -> String { "For \(name)" }
         public static func memberCount(_ count: Int) -> String { count == 1 ? "1 person" : "\(count) people" }
 
+        // Screen-free times (session 44): shared windows each person can join for their own phone.
+        public static let quietTitle = "Screen-free times"
+        public static let quietIntro = "Times your household puts phones down together, like dinner or bedtime. Join the ones you want and ZANO locks your own apps during them, on your phone only. Nobody can lock anyone else's phone, you can leave any time, and emergency unlock works as always."
+        public static let quietEmpty = "No screen-free times yet. Add one, like dinner."
+        public static let quietAdd = "Add a screen-free time"
+        public static let quietNew = "New screen-free time"
+        public static let quietEdit = "Edit screen-free time"
+        public static let quietNamePlaceholder = "Name (for example, Dinner)"
+        public static let quietStarts = "Starts"
+        public static let quietEnds = "Ends"
+        public static let quietDays = "Days"
+        public static let quietSave = "Save"
+        public static let quietDelete = "Delete this time"
+        public static let quietDeleteNote = "Deleting it stops the lock on every phone that joined, the next time each one opens ZANO."
+        public static let quietOvernightNote = "Ends the next morning."
+        public static let quietJoin = "Join"
+        public static let quietAppsLabel = "Apps to lock"
+        public static let quietDefaultApps = "My default lock set"
+        public static let quietJoinedNote = "You're in. Your apps lock during this time, with no goals to earn. Leave any time."
+        public static let quietStartsNextTime = "This one is already under way, so your lock starts next time."
+        public static let quietTooMany = "You've joined as many screen-free times as this phone can schedule. Leave one to join this."
+        public static let quietPrivacyNote = "Your household sees each time's name and hours. Whether you join, and which apps lock, stays on your phone."
+        public static let quietTooShort = "Make it at least 15 minutes."
+        public static let quietNoDays = "Pick at least one day."
+        public static let quietNameMissing = "Give it a name."
+        public static let quietTooManyInHousehold = "This household already has 20 screen-free times."
+
+        public static func quietCreatedBy(_ name: String) -> String { "Added by \(name)" }
+
+        /// "6:00 PM – 7:00 PM · Every day".
+        public static func quietWindowLine(startMinute: Int, endMinute: Int, weekdays: Set<Int>, calendar: Calendar = .current) -> String {
+            "\(clock(startMinute, calendar: calendar)) – \(clock(endMinute, calendar: calendar)) · \(daysSummary(weekdays, calendar: calendar))"
+        }
+
+        /// "Every day", "Weekdays", "Weekends", or the short day names in week order.
+        public static func daysSummary(_ weekdays: Set<Int>, calendar: Calendar = .current) -> String {
+            if weekdays == [1, 2, 3, 4, 5, 6, 7] { return "Every day" }
+            if weekdays == [2, 3, 4, 5, 6] { return "Weekdays" }
+            if weekdays == [1, 7] { return "Weekends" }
+            if weekdays == [1, 2, 3, 4, 5] { return "School nights" }
+            let symbols = calendar.shortWeekdaySymbols
+            let order = (0..<7).map { (calendar.firstWeekday - 1 + $0) % 7 + 1 }
+            return order.filter { weekdays.contains($0) }.map { symbols[$0 - 1] }.joined(separator: ", ")
+        }
+
+        /// One-letter day buttons for the editor, in the calendar's week order.
+        public static func dayLetter(_ weekday: Int, calendar: Calendar = .current) -> String {
+            calendar.veryShortWeekdaySymbols[weekday - 1]
+        }
+
+        public static func dayName(_ weekday: Int, calendar: Calendar = .current) -> String {
+            calendar.weekdaySymbols[weekday - 1]
+        }
+
+        // The heads-up (notification and Today chip). Positive, together, never a warning.
+        public static func quietReminderTitle(name: String, minutes: Int) -> String { "\(name) in \(minutes) min" }
+        public static func quietReminderBody(start: Date, end: Date) -> String {
+            "Phones down together. Your apps rest from \(start.formatted(date: .omitted, time: .shortened)) to \(end.formatted(date: .omitted, time: .shortened))."
+        }
+        public static func quietChipSoon(name: String, minutes: Int) -> String { "\(name) in \(max(1, minutes)) min · phones down together" }
+        public static func quietChipRunning(name: String, end: Date) -> String {
+            "\(name) · phones down until \(end.formatted(date: .omitted, time: .shortened))"
+        }
+
+        private static func clock(_ minute: Int, calendar: Calendar) -> String {
+            let day = calendar.startOfDay(for: .now)
+            let date = calendar.date(bySettingHour: minute / 60, minute: minute % 60, second: 0, of: day) ?? day
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+
+        public static func quietValidation(_ error: HouseholdQuietTime.ValidationError) -> String {
+            switch error {
+            case .emptyName, .nameTooLong: quietNameMissing
+            case .noDays: quietNoDays
+            case .timeOutOfRange, .tooShort: quietTooShort
+            }
+        }
+
         // Errors
         public static let genericError = "That didn't work. Try again in a moment."
         public static let invalidInvite = "That code isn't valid."
@@ -72,6 +150,7 @@ extension Copy {
             case .server(let code) where code == "invalid_invite": return invalidInvite
             case .server(let code) where code == "household_full": return full
             case .server(let code) where code == "too_many_households": return tooMany
+            case .server(let code) where code == "too_many_quiet_times": return quietTooManyInHousehold
             case .notConfigured: return notAvailable
             default: return genericError
             }

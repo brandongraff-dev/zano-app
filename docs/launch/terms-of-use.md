@@ -68,6 +68,11 @@ Sharing controls and isn't designed to manage another person's device.
   required, ask for your consent before the new price applies.
 - **Restore purchases.** Use "Restore purchases" in the App to recover a subscription on a new
   device signed in with the same Apple ID.
+- **Family Sharing.** [CONFIRM: Family Sharing — keep this bullet only if Family Sharing is turned on for
+  the products in App Store Connect, and list which ones.] Where a plan supports Apple Family Sharing, the
+  person who buys it can share it with up to five other members of their Family Sharing group at no extra
+  cost. The buyer manages billing and cancellation; if they cancel, or someone leaves the group or stops
+  sharing, the shared access ends under Apple's rules.
 - **Referral or promotional rewards** (for example free Pro time for inviting a friend) have no cash
   value, can't be transferred, and may be changed or ended at any time. [CONFIRM final referral
   terms.]

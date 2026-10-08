@@ -225,6 +225,9 @@ public struct PendingScheduledLock: Codable, Sendable, Equatable {
         case bedtime
         /// A calendar focus window (`FocusLockScheduler`): lock for exactly that window, no goals.
         case focus
+        /// A household screen-free time this phone joined (`HouseholdQuietTimeScheduler`, session 44):
+        /// lock for exactly that window, no goals, like `.focus`.
+        case household
     }
 
     public var id: UUID
@@ -487,6 +490,11 @@ public enum ScheduledLockMonitor {
             return
         }
 
+        if HouseholdQuietTimeActivity.isQuietTimeActivity(raw) {
+            quietTimeDidStart(activityRawName: raw, now: now)
+            return
+        }
+
         if FocusLockStore.armedWindow(forActivityRawName: raw) != nil {
             // A calendar focus window: shield the apps now, with no goals to earn. It ends at the
             // window's end (`intervalDidEnd`), by emergency unlock, or by hand.
@@ -538,6 +546,12 @@ public enum ScheduledLockMonitor {
         // Wake time: only a bedtime lock with nothing to earn ends here (see `bedtimeNightDidEnd`).
         if BedtimeGateActivity.isBedtimeActivity(raw) {
             bedtimeNightDidEnd(activityRawName: raw, now: now)
+            LockEngineSharedState.refreshNextScheduledLockAt(now: now)
+            return
+        }
+        // A household screen-free time ends with its window (a stray mid-window end changes nothing).
+        if HouseholdQuietTimeActivity.isQuietTimeActivity(raw) {
+            quietTimeDidEnd(activityRawName: raw, now: now)
             LockEngineSharedState.refreshNextScheduledLockAt(now: now)
             return
         }
@@ -622,6 +636,47 @@ public enum ScheduledLockMonitor {
         }
         // Lifts a matching pending lock, or a session the app marked as owned by this window (only
         // ever a bedtime lock with no goals, `BedtimeGateManager.finishArming`).
+        endScheduledLock(activityRawName: raw, now: now)
+    }
+
+    // MARK: Household screen-free times (spec §5.31, session 44)
+
+    /// A joined screen-free time started: shield this phone's chosen lock set (its own, or the default) with
+    /// no goals, for exactly the window. Only for a window this phone joined: the household can't lock anyone.
+    /// One decision per occurrence, like the Bedtime Gate's nights, so a repeated callback (iOS restarts an
+    /// interval when it's re-registered) never re-arms after an emergency unlock. Never stacked on a running
+    /// lock: the occurrence then counts as decided and the running lock carries on.
+    static func quietTimeDidStart(activityRawName raw: String, now: Date) {
+        guard let window = HouseholdQuietTimeStore.joinedWindow(forActivityRawName: raw),
+              let optIn = HouseholdQuietTimeStore.optIn(for: window.id),
+              let occurrence = window.schedule.night(forStartCallbackAt: now)
+        else {
+            logger.notice("Ignoring a screen-free time this phone hasn't joined.")
+            return
+        }
+        guard !HouseholdQuietTimeStore.hasDecided(windowID: window.id, occurrenceStart: occurrence.start) else { return }
+        if SharedDefaults.activeLockSessionID != nil || LockEngineSharedState.pendingStart != nil {
+            HouseholdQuietTimeStore.markDecided(windowID: window.id, occurrenceStart: occurrence.start)
+            return
+        }
+        let armed = arm(
+            source: .household,
+            lockSetID: optIn.lockSetID ?? LockEngineSharedState.defaultLockSetID,
+            activityRawName: raw,
+            mode: .full,
+            requiredGoalIDs: [],
+            now: now
+        )
+        if armed { HouseholdQuietTimeStore.markDecided(windowID: window.id, occurrenceStart: occurrence.start) }
+    }
+
+    /// The window ended: lift its lock (pending or adopted). A stray end while the occurrence is still running
+    /// is ignored; a window that was left or deleted since always lifts.
+    static func quietTimeDidEnd(activityRawName raw: String, now: Date) {
+        if let window = HouseholdQuietTimeStore.joinedWindow(forActivityRawName: raw),
+           !window.schedule.isNightOver(at: now) {
+            return
+        }
         endScheduledLock(activityRawName: raw, now: now)
     }
 
@@ -837,7 +892,9 @@ public final class LockScheduler {
             // Uses the monitor's lock set, mode and start time; owns the session to its night's
             // window when it has no goals to earn. `nil` = couldn't adopt; the caller lifts the shield.
             await BedtimeGateManager.shared.adoptMonitorArmedLock(pending, now: now)
-        case .focus:
+        case .focus, .household:
+            // Calendar focus windows and household screen-free times are the same kind of lock: exactly
+            // the window, nothing to earn.
             guard let lockSetID = pending.lockSetID else { return }
             var sessionID: UUID?
             do {
@@ -853,7 +910,7 @@ public final class LockScheduler {
             } catch LockEngineError.deviceActivitySchedulingFailed {
                 sessionID = SharedDefaults.activeLockSessionID
             } catch {
-                logger.error("Focus lock hand-off failed: \(String(describing: error), privacy: .public)")
+                logger.error("Timed window lock hand-off failed: \(String(describing: error), privacy: .public)")
             }
             guard let sessionID else { return }
             LockEngineSharedState.scheduleOwnedLock = ScheduleOwnedLock(

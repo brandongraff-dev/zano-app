@@ -73,9 +73,17 @@ public enum PlannerReminders {
     @discardableResult
     public static func refresh(now: Date = .now) async -> Int {
         let settings = PlannerStore.settings
-        let events = settings.eventAlerts && PlannerCalendarSource.hasAccess
+        let device = settings.eventAlerts && PlannerCalendarSource.hasAccess
             ? PlannerCalendarSource.events(from: now, to: now.addingTimeInterval(eventHorizon))
             : []
+        // Session 46: private ZANO events and the family calendar follow the same alert rule, locally. Shared
+        // events come from the App Group cache (`HouseholdEventStore`), only while Household is live.
+        let isLive = HouseholdAvailability.isLive
+        let events = settings.eventAlerts ? PlannerAgenda.merge(
+            device: device, privateEvents: PlannerStore.privateEvents,
+            household: isLive ? HouseholdEventStore.events : [], me: HouseholdEventStore.me, householdName: "",
+            filter: PlannerStore.calendarFilter, includeHousehold: isLive
+        ) : []
         let plan = plan(tasks: PlannerStore.tasks + PlannerStore.sharedAssigned, events: events, settings: settings, now: now)
 
         NotificationPermission.cancel(identifiers: PlannerStore.scheduledIdentifiers)

@@ -22,7 +22,7 @@ extension Copy {
         public static let codePlaceholder = "Invite code"
         public static let createButton = "Create household"
         public static let joinButton = "Join"
-        public static let privacyNote = "People in a household see its tasks, who they're given to and who finished them. Nothing else about you."
+        public static let privacyNote = "People in a household see its tasks, who they're given to and who finished them, and the calendar events you share with them. Nothing else about you."
 
         // Invite
         public static let inviteTitle = "Invite code"
@@ -144,6 +144,9 @@ extension Copy {
         public static let invalidInvite = "That code isn't valid."
         public static let full = "That household is full (8 people)."
         public static let tooMany = "You're already in the most households you can join."
+        // Family calendar (session 46)
+        public static let eventsTooMany = "Your family calendar is full (500 upcoming events). Delete a few first."
+        public static let eventsBadAudience = "Someone you picked isn't in this household any more."
 
         public static func error(_ error: Error) -> String {
             switch error as? FamilyLinkError {
@@ -151,6 +154,9 @@ extension Copy {
             case .server(let code) where code == "household_full": return full
             case .server(let code) where code == "too_many_households": return tooMany
             case .server(let code) where code == "too_many_quiet_times": return quietTooManyInHousehold
+            case .server(let code) where code == "too_many_events": return eventsTooMany
+            case .server(let code) where code == "empty_audience": return Copy.planner.pickSomeone
+            case .server(let code) where code == "bad_audience": return eventsBadAudience
             case .notConfigured: return notAvailable
             default: return genericError
             }

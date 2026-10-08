@@ -100,12 +100,22 @@ enum ScreenshotMode {
             PlannerTask(title: "Plan next week", due: day(2, hour: 10), hasTime: true),
             PlannerTask(title: "Renew passport", due: day(5)),
         ]
+        // Session 46: an "Only me" event, so the shot shows the lock mark next to a private event.
+        let start = day(0, hour: 18)
+        PlannerStore.privateEvents = [
+            PlannerPrivateEvent(title: "Therapy", start: start, end: start.addingTimeInterval(3_600)),
+        ]
     }
 
     /// The Buddy Closet shot (and any run with `-ZANOOutfit demo`) shows a dressed buddy; every other
     /// shot clears the saved outfit, so an earlier launch can't leave one behind.
     private static func applyOutfitArgument(screen name: String) {
-        if name == "planner" { seedPlannerDemo() } else { PlannerStore.tasks = [] }
+        if name == "planner" {
+            seedPlannerDemo()
+        } else {
+            PlannerStore.tasks = []
+            PlannerStore.privateEvents = []
+        }
         let buddy = Buddy.stored
         let wantsDemo = name == "buddy-closet" || UserDefaults.standard.string(forKey: "ZANOOutfit") == "demo"
         if wantsDemo {

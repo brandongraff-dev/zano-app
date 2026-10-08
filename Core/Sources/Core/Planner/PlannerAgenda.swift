@@ -46,6 +46,49 @@ public enum PlannerAgenda {
         return events.filter { $0.start < end && $0.end > start }
     }
 
+    // MARK: Merge (session 46)
+
+    /// One list for the month grid and the day agenda: the iPhone's calendars, this person's private ZANO events
+    /// and the family calendar, earliest first. Household events pass `HouseholdEventRules.visible` again here
+    /// (a second line behind the server's row-level security) and are left out entirely unless `includeHousehold`
+    /// (Household live) and the filter shows the family calendar.
+    public static func merge(
+        device: [PlannerEvent],
+        privateEvents: [PlannerPrivateEvent],
+        household: [HouseholdEvent],
+        me: UUID?,
+        householdName: String,
+        filter: PlannerCalendarFilter,
+        includeHousehold: Bool
+    ) -> [PlannerEvent] {
+        var all: [PlannerEvent] = []
+        if filter.showsDeviceCalendars {
+            all = device.map { event -> PlannerEvent in
+                var copy = event
+                copy.origin = .device
+                return copy
+            }
+        }
+        all += privateEvents.map { event -> PlannerEvent in
+            PlannerEvent(
+                id: "p-" + event.id.uuidString, title: event.title, start: event.start, end: event.end,
+                isAllDay: event.isAllDay, calendarTitle: Copy.planner.onlyMeCalendarTitle,
+                colorRGB: PlannerEvent.onlyMeColorRGB, origin: .onlyMe(id: event.id), notes: event.notes
+            )
+        }
+        if includeHousehold && filter.showsFamily {
+            all += HouseholdEventRules.visible(household, me: me).map { event in
+                PlannerEvent(
+                    id: "h-" + event.id.uuidString, title: event.title, start: event.startsAt, end: event.endsAt,
+                    isAllDay: event.allDay, calendarTitle: householdName, colorRGB: PlannerEvent.familyColorRGB,
+                    origin: .household(eventID: event.id, createdBy: event.createdBy, visibility: event.visibility, audience: event.audience),
+                    notes: event.notes
+                )
+            }
+        }
+        return all.sorted { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
+    }
+
     public static func agenda(
         for day: Date, events: [PlannerEvent], tasks: [PlannerTask], now: Date = .now, calendar: Calendar = .current
     ) -> PlannerDayAgenda {

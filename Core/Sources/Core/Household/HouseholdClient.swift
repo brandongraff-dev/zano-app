@@ -146,6 +146,64 @@ public actor HouseholdClient {
         _ = try await rpc("delete_household_quiet_time", body: ["p_id": id.uuidString])
     }
 
+    // MARK: Family calendar (session 46, `0011_household_events.sql`)
+    //
+    // Plain table reads and writes: row-level security decides what comes back and who may change what. "Only me"
+    // events never come through here; they stay in `PlannerStore.privateEvents`.
+
+    /// Events this person may see that end after `endingAfter`, soonest first.
+    public func events(householdID: UUID, endingAfter: Date) async throws -> [HouseholdEvent] {
+        let since = ISO8601DateFormatter().string(from: endingAfter)
+        let data = try await get(
+            "household_events",
+            query: "select=*&household_id=eq.\(householdID.uuidString)&ends_at=gte.\(since)&order=starts_at.asc&limit=600"
+        )
+        return try FamilyJSON.decoder.decode([HouseholdEvent].self, from: data)
+    }
+
+    @discardableResult
+    public func createEvent(
+        householdID: UUID, title: String, notes: String, start: Date, end: Date, allDay: Bool,
+        visibility: HouseholdEventVisibility, audience: [UUID]
+    ) async throws -> HouseholdEvent {
+        var body = Self.eventBody(title: title, notes: notes, start: start, end: end, allDay: allDay, visibility: visibility, audience: audience)
+        body["household_id"] = householdID.uuidString
+        let data = try await send("POST", "household_events", query: nil, body: body)
+        guard let created = try FamilyJSON.decoder.decode([HouseholdEvent].self, from: data).first else { throw FamilyLinkError.badResponse }
+        return created
+    }
+
+    public func updateEvent(
+        id: UUID, title: String, notes: String, start: Date, end: Date, allDay: Bool,
+        visibility: HouseholdEventVisibility, audience: [UUID]
+    ) async throws {
+        let body = Self.eventBody(title: title, notes: notes, start: start, end: end, allDay: allDay, visibility: visibility, audience: audience)
+        let data = try await send("PATCH", "household_events", query: "id=eq.\(id.uuidString)", body: body)
+        // Row-level security turns "not yours" into zero rows changed, not an error.
+        if (try? FamilyJSON.decoder.decode([HouseholdEvent].self, from: data))?.isEmpty ?? true { throw FamilyLinkError.server(code: "not_found") }
+    }
+
+    public func deleteEvent(id: UUID) async throws {
+        let data = try await send("DELETE", "household_events", query: "id=eq.\(id.uuidString)", body: nil)
+        if (try? FamilyJSON.decoder.decode([HouseholdEvent].self, from: data))?.isEmpty ?? true { throw FamilyLinkError.server(code: "not_found") }
+    }
+
+    private nonisolated static func eventBody(
+        title: String, notes: String, start: Date, end: Date, allDay: Bool,
+        visibility: HouseholdEventVisibility, audience: [UUID]
+    ) -> [String: Any] {
+        let iso = ISO8601DateFormatter()
+        return [
+            "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
+            "notes": String(notes.prefix(HouseholdEventRules.notesMaxLength)),
+            "starts_at": iso.string(from: start),
+            "ends_at": iso.string(from: end),
+            "all_day": allDay,
+            "visibility": visibility.rawValue,
+            "audience": visibility == .members ? audience.map(\.uuidString) : [String](),
+        ]
+    }
+
     // MARK: HTTP
 
     private nonisolated static func uuid(from data: Data) throws -> UUID {
@@ -172,6 +230,24 @@ public actor HouseholdClient {
         request.setValue(configuration.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await run(request)
+    }
+
+    /// A PostgREST table write (POST / PATCH / DELETE) that returns the affected rows.
+    private func send(_ method: String, _ table: String, query: String?, body: [String: Any]?) async throws -> Data {
+        guard let configuration, let tokenProvider else { throw FamilyLinkError.notConfigured }
+        let token = try await tokenProvider.supabaseAccessToken()
+        let suffix = query.map { "?\($0)" } ?? ""
+        guard let url = URL(string: configuration.projectURL.absoluteString + "/rest/v1/\(table)\(suffix)") else { throw FamilyLinkError.badResponse }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(configuration.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
         return try await run(request)
     }
 

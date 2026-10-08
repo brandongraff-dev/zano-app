@@ -224,6 +224,8 @@ struct HouseholdView: View {
                 members = try await HouseholdClient.shared.members(householdID: household.id)
                 tasks = try await HouseholdClient.shared.tasks(householdID: household.id)
                 PlannerStore.sharedAssigned = HouseholdBoard.reminderTasks(from: tasks, me: me)
+                // Session 46: keep the family calendar's cache (household, members) in step with this screen.
+                HouseholdEventStore.save(household: household, members: members, me: me, events: HouseholdEventStore.events)
                 await PlannerReminders.refresh()
                 // Separate from the task list so a project without 0009 still shows tasks.
                 if let fresh = try? await HouseholdClient.shared.quietTimes(householdID: household.id) {
@@ -234,6 +236,8 @@ struct HouseholdView: View {
                 members = []
                 tasks = []
                 PlannerStore.sharedAssigned = []
+                // Session 46: no household, no family calendar on this phone.
+                HouseholdEventStore.resetAll()
                 // No household (left, or never joined): nothing to lock for.
                 await HouseholdQuietTimeScheduler.shared.apply([])
                 quietTimes = []

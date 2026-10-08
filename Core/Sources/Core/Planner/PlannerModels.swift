@@ -37,6 +37,19 @@ public struct PlannerTask: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
+/// Where an event on the Planner came from (session 46). Decides the small owner/visibility mark on its row and
+/// whether tapping it edits it.
+public enum PlannerEventOrigin: Equatable, Sendable {
+    /// One of the iPhone's own calendars (EventKit). Read only here; the Calendar app edits it.
+    case device
+    /// A ZANO event only this person sees (`PlannerPrivateEvent`). Never uploaded.
+    case onlyMe(id: UUID)
+    /// A household event (`HouseholdEvent`): everyone in the household, or the creator and chosen members.
+    case household(eventID: UUID, createdBy: UUID?, visibility: HouseholdEventVisibility, audience: [UUID])
+
+    public var isZanoEvent: Bool { self != .device }
+}
+
 /// A calendar event, copied just far enough to draw it. Not stored.
 public struct PlannerEvent: Sendable, Identifiable, Equatable {
     public var id: String
@@ -47,8 +60,14 @@ public struct PlannerEvent: Sendable, Identifiable, Equatable {
     public var calendarTitle: String
     /// The calendar's own colour, as 0xRRGGBB.
     public var colorRGB: UInt32
+    /// Session 46: the iPhone's calendars, a private ZANO event, or the family calendar.
+    public var origin: PlannerEventOrigin
+    public var notes: String
 
-    public init(id: String, title: String, start: Date, end: Date, isAllDay: Bool, calendarTitle: String = "", colorRGB: UInt32 = 0x4F8CFF) {
+    public init(
+        id: String, title: String, start: Date, end: Date, isAllDay: Bool, calendarTitle: String = "",
+        colorRGB: UInt32 = 0x4F8CFF, origin: PlannerEventOrigin = .device, notes: String = ""
+    ) {
         self.id = id
         self.title = title
         self.start = start
@@ -56,6 +75,51 @@ public struct PlannerEvent: Sendable, Identifiable, Equatable {
         self.isAllDay = isAllDay
         self.calendarTitle = calendarTitle
         self.colorRGB = colorRGB
+        self.origin = origin
+        self.notes = notes
+    }
+
+    /// The bar colour of a private ZANO event (ZANO blue) and of the family calendar (a soft violet).
+    public static let onlyMeColorRGB: UInt32 = 0x5B8DEF
+    public static let familyColorRGB: UInt32 = 0x9B7BFF
+}
+
+/// A ZANO event only this person sees (session 46, "Only me"): kept in the Planner's App Group store, like
+/// tasks, and never uploaded anywhere. Works offline and without calendar access.
+public struct PlannerPrivateEvent: Codable, Sendable, Identifiable, Equatable {
+    public var id: UUID
+    public var title: String
+    public var notes: String
+    public var start: Date
+    public var end: Date
+    public var isAllDay: Bool
+    public var createdAt: Date
+
+    public init(
+        id: UUID = UUID(), title: String, notes: String = "", start: Date, end: Date, isAllDay: Bool = false,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.title = title
+        self.notes = notes
+        self.start = start
+        self.end = end
+        self.isAllDay = isAllDay
+        self.createdAt = createdAt
+    }
+}
+
+/// Which calendars the Planner draws (session 46). Private ZANO events are always shown: they are this
+/// person's own.
+public struct PlannerCalendarFilter: Codable, Sendable, Equatable {
+    /// The family calendar (household events). Only offered while Household is live.
+    public var showsFamily: Bool
+    /// The iPhone's own calendars, all of them (the Planner doesn't pick single calendars).
+    public var showsDeviceCalendars: Bool
+
+    public init(showsFamily: Bool = true, showsDeviceCalendars: Bool = true) {
+        self.showsFamily = showsFamily
+        self.showsDeviceCalendars = showsDeviceCalendars
     }
 }
 

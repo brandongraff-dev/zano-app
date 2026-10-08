@@ -117,6 +117,11 @@ struct ContentView: View {
         // Household screen-free times this phone joined (session 44): fetch, re-register if changed, plan the
         // heads-ups. Stands everything down when Household isn't live. Not awaited: it's a network call.
         Task { await HouseholdQuietTimeScheduler.shared.refreshOnForeground() }
+        // Session 46: the family calendar's cache, so alerts for shared events follow the planner's rules.
+        // Does nothing unless Household is live. Not awaited: it's a network call.
+        Task {
+            if await HouseholdEventStore.refresh() { await PlannerReminders.refresh() }
+        }
         // Keep the unlock rules' wake-ups registered (cheap; they can be lost after a restore).
         ContextRuleScheduler.shared.sync()
         // Last known location only (never prompts): feeds travel-mode city detection.

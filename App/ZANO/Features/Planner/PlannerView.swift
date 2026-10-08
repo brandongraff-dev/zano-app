@@ -7,6 +7,12 @@
 // below with a time column and a coloured bar per item. Swipe the grid, or use the arrows, to change month.
 // Tasks live here too (ZANO's own, on the device); events are read from the iPhone's calendars.
 // All wording is `Copy.planner`.
+//
+// Session 46: the grid and agenda merge three sources (`PlannerAgenda.merge`): the iPhone's calendars, private
+// "Only me" ZANO events (on this device), and the family calendar (household events, only while Household is
+// live). ZANO events carry a small mark (a lock for only me, people for shared) and open the editor when they
+// are this person's own, or a read-only sheet ("Added by Sam") when they aren't. A Calendars menu hides the family
+// calendar or the iPhone's calendars.
 
 import SwiftUI
 import Core
@@ -21,11 +27,23 @@ struct PlannerView: View {
     @State private var month: Date = Calendar.current.startOfMonth(for: .now)
     @State private var selected: Date = Calendar.current.startOfDay(for: .now)
     @State private var tasks: [PlannerTask] = PlannerStore.tasks
-    @State private var events: [PlannerEvent] = []
+    /// The iPhone's own calendars (EventKit), for the visible month.
+    @State private var deviceEvents: [PlannerEvent] = []
     @State private var hasAccess = PlannerCalendarSource.hasAccess
     @State private var isDenied = PlannerCalendarSource.isDenied
     @State private var taskTarget: TaskTarget?
     @State private var showEventEditor = false
+    // Session 46: private ZANO events and the family calendar (App Group caches, refreshed on open).
+    @State private var privateEvents: [PlannerPrivateEvent] = PlannerStore.privateEvents
+    @State private var householdEvents: [HouseholdEvent] = HouseholdEventStore.events
+    @State private var household: Household? = HouseholdEventStore.household
+    @State private var members: [HouseholdMember] = HouseholdEventStore.members
+    @State private var me: UUID? = HouseholdEventStore.me
+    @State private var filter = PlannerStore.calendarFilter
+    @State private var eventTarget: EventTarget?
+    @State private var detailEvent: PlannerEvent?
+    /// Set by the ZANO editor's "Add to my iPhone calendar instead"; Apple's editor opens once that sheet is gone.
+    @State private var openAppleEditorAfterDismiss = false
 
     private struct TaskTarget: Identifiable {
         let id = UUID()
@@ -33,11 +51,23 @@ struct PlannerView: View {
         var day: Date
     }
 
-    private var weeks: [[Date]] { PlannerAgenda.weeks(for: month, calendar: calendar) }
-
-    private var markers: [Date: PlannerDayMarkers] {
-        PlannerAgenda.markers(for: weeks.flatMap { $0 }, events: events, tasks: tasks, calendar: calendar)
+    private struct EventTarget: Identifiable {
+        let id = UUID()
+        var existing: PlannerZanoEventEditor.Existing?
+        var day: Date
     }
+
+    /// The family calendar shows only while Household is live and this person is in a household.
+    private var isFamilyLive: Bool { HouseholdAvailability.isLive && household != nil }
+
+    private var events: [PlannerEvent] {
+        PlannerAgenda.merge(
+            device: deviceEvents, privateEvents: privateEvents, household: householdEvents, me: me,
+            householdName: household?.name ?? "", filter: filter, includeHousehold: isFamilyLive
+        )
+    }
+
+    private var weeks: [[Date]] { PlannerAgenda.weeks(for: month, calendar: calendar) }
 
     private var agenda: PlannerDayAgenda {
         PlannerAgenda.agenda(for: selected, events: events, tasks: tasks, calendar: calendar)
@@ -72,7 +102,7 @@ struct PlannerView: View {
                         Button { taskTarget = TaskTarget(task: nil, day: selected) } label: {
                             Label(Copy.planner.newTask, systemImage: "checkmark.circle")
                         }
-                        Button { Task { await startNewEvent() } } label: {
+                        Button { eventTarget = EventTarget(existing: nil, day: selected) } label: {
                             Label(Copy.planner.newEvent, systemImage: "calendar.badge.plus")
                         }
                         ShareLink(item: PlannerShare.text(for: agenda, day: selected)) {
@@ -83,15 +113,50 @@ struct PlannerView: View {
                     }
                     .accessibilityLabel(Copy.planner.addMenuLabel)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isFamilyLive || hasAccess {
+                        Menu {
+                            if isFamilyLive {
+                                Toggle(Copy.planner.filterFamily, isOn: filterBinding(\.showsFamily))
+                            }
+                            if hasAccess {
+                                Toggle(Copy.planner.filterDevice, isOn: filterBinding(\.showsDeviceCalendars))
+                            }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                        }
+                        .accessibilityLabel(Copy.planner.filterMenuLabel)
+                    }
+                }
             }
         }
         .tint(Theme.Colors.accent)
         .task(id: month) { loadEvents() }
+        .task { await refreshFamilyCalendar() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { refreshAccess(); loadEvents() }
+            if phase == .active {
+                refreshAccess()
+                loadEvents()
+                Task { await refreshFamilyCalendar() }
+            }
         }
         .sheet(item: $taskTarget) { target in
             PlannerTaskEditor(task: target.task, day: target.day) { reloadTasks() }
+        }
+        .sheet(item: $eventTarget, onDismiss: {
+            guard openAppleEditorAfterDismiss else { return }
+            openAppleEditorAfterDismiss = false
+            Task { await startNewEvent() }
+        }) { target in
+            PlannerZanoEventEditor(
+                existing: target.existing, day: target.day, household: isFamilyLive ? household : nil,
+                members: members, me: me,
+                onSaved: { reloadZanoEvents() },
+                onUseAppleEditor: target.existing == nil ? { openAppleEditorAfterDismiss = true } : nil
+            )
+        }
+        .sheet(item: $detailEvent) { event in
+            PlannerEventDetailView(event: event, members: members, me: me, householdName: household?.name ?? "")
         }
         .sheet(isPresented: $showEventEditor) {
             PlannerEventEditor(day: selected) {
@@ -144,10 +209,13 @@ struct PlannerView: View {
     }
 
     private var monthGrid: some View {
-        VStack(spacing: 2) {
+        // Merged once per render, not once per day cell.
+        let all = events
+        let marks = PlannerAgenda.markers(for: weeks.flatMap { $0 }, events: all, tasks: tasks, calendar: calendar)
+        return VStack(spacing: 2) {
             ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
                 HStack(spacing: 0) {
-                    ForEach(week, id: \.self) { day in dayCell(day) }
+                    ForEach(week, id: \.self) { day in dayCell(day, events: all, markers: marks) }
                 }
             }
         }
@@ -161,7 +229,7 @@ struct PlannerView: View {
         )
     }
 
-    private func dayCell(_ day: Date) -> some View {
+    private func dayCell(_ day: Date, events: [PlannerEvent], markers: [Date: PlannerDayMarkers]) -> some View {
         let isSelected = calendar.isDate(day, inSameDayAs: selected)
         let isToday = calendar.isDateInToday(day)
         let inMonth = calendar.isDate(day, equalTo: month, toGranularity: .month)
@@ -252,14 +320,19 @@ struct PlannerView: View {
             if !agenda.allDay.isEmpty {
                 section(Copy.planner.allDay) {
                     ForEach(agenda.allDay) { event in
-                        HStack(spacing: Theme.Spacing.sm) {
-                            RoundedRectangle(cornerRadius: 2).fill(Color(rgb: event.colorRGB)).frame(width: 4, height: 24)
-                            Text(event.title.isEmpty ? Copy.planner.untitledEvent : event.title)
-                                .font(Theme.Typography.body)
-                                .foregroundStyle(Theme.Colors.text)
-                            Spacer(minLength: 0)
+                        tappable(event) {
+                            HStack(spacing: Theme.Spacing.sm) {
+                                RoundedRectangle(cornerRadius: 2).fill(Color(rgb: event.colorRGB)).frame(width: 4, height: 24)
+                                Text(event.title.isEmpty ? Copy.planner.untitledEvent : event.title)
+                                    .font(Theme.Typography.body)
+                                    .foregroundStyle(Theme.Colors.text)
+                                Spacer(minLength: 0)
+                                eventMark(event)
+                            }
+                            .frame(minHeight: event.origin.isZanoEvent ? Theme.Metrics.minTapTarget : nil)
                         }
                         .accessibilityElement(children: .combine)
+                        .accessibilityValue(PlannerEventOwnership.accessibilityValue(event.origin, members: members, me: me))
                     }
                 }
             }
@@ -293,24 +366,57 @@ struct PlannerView: View {
     }
 
     private func eventRow(_ event: PlannerEvent) -> some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-            timeColumn(start: event.start, end: event.end)
-            RoundedRectangle(cornerRadius: 2).fill(Color(rgb: event.colorRGB)).frame(width: 4)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.title.isEmpty ? Copy.planner.untitledEvent : event.title)
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(Theme.Colors.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !event.calendarTitle.isEmpty {
-                    Text(event.calendarTitle)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.muted)
+        let subtitle = PlannerEventOwnership.subtitle(event, members: members, me: me)
+        return tappable(event) {
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                timeColumn(start: event.start, end: event.end)
+                RoundedRectangle(cornerRadius: 2).fill(Color(rgb: event.colorRGB)).frame(width: 4)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.title.isEmpty ? Copy.planner.untitledEvent : event.title)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Colors.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.muted)
+                    }
                 }
+                Spacer(minLength: 0)
+                eventMark(event)
             }
-            Spacer(minLength: 0)
+            .padding(.vertical, Theme.Spacing.xs)
         }
-        .padding(.vertical, Theme.Spacing.xs)
         .accessibilityElement(children: .combine)
+        .accessibilityValue(PlannerEventOwnership.accessibilityValue(event.origin, members: members, me: me))
+    }
+
+    /// Session 46: a ZANO event opens (the editor for mine, a read-only sheet for someone else's); an iPhone
+    /// calendar event stays as it was (the Calendar app edits it).
+    @ViewBuilder
+    private func tappable<Content: View>(_ event: PlannerEvent, @ViewBuilder content: () -> Content) -> some View {
+        if event.origin.isZanoEvent {
+            Button { open(event) } label: {
+                content().contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            content()
+        }
+    }
+
+    /// The small owner/visibility mark: a lock for "Only me", people for a shared event. Decorative; the row's
+    /// accessibility value says the same in words.
+    @ViewBuilder
+    private func eventMark(_ event: PlannerEvent) -> some View {
+        if let glyph = PlannerEventOwnership.glyph(event.origin) {
+            Image(systemName: glyph)
+                .font(Theme.Typography.icon(.xsmall, weight: .bold))
+                .foregroundStyle(Theme.Colors.muted)
+                .padding(.top, 4)
+                .accessibilityHidden(true)
+        }
     }
 
     private func taskRow(_ task: PlannerTask, showsDate: Bool) -> some View {
@@ -440,10 +546,55 @@ struct PlannerView: View {
         guard hasAccess, let first = weeks.first?.first, let last = weeks.last?.last,
               let end = calendar.date(byAdding: .day, value: 1, to: last)
         else {
-            events = []
+            deviceEvents = []
             return
         }
-        events = PlannerCalendarSource.events(from: first, to: end)
+        deviceEvents = PlannerCalendarSource.events(from: first, to: end)
+    }
+
+    // MARK: Family calendar and private events (session 46)
+
+    private func reloadZanoEvents() {
+        privateEvents = PlannerStore.privateEvents
+        householdEvents = HouseholdEventStore.events
+        household = HouseholdEventStore.household
+        members = HouseholdEventStore.members
+        me = HouseholdEventStore.me
+    }
+
+    /// Fetches the family calendar into the App Group cache (nothing when Household isn't live), then redraws.
+    private func refreshFamilyCalendar() async {
+        if await HouseholdEventStore.refresh() {
+            await PlannerReminders.refresh()
+        }
+        reloadZanoEvents()
+    }
+
+    private func open(_ event: PlannerEvent) {
+        switch event.origin {
+        case .device:
+            return
+        case .onlyMe(let id):
+            guard let found = privateEvents.first(where: { $0.id == id }) else { return }
+            eventTarget = EventTarget(existing: .onlyMe(found), day: selected)
+        case .household(let id, _, _, _):
+            if PlannerEventOwnership.isEditable(event.origin, me: me), let found = householdEvents.first(where: { $0.id == id }) {
+                eventTarget = EventTarget(existing: .household(found), day: selected)
+            } else {
+                detailEvent = event
+            }
+        }
+    }
+
+    private func filterBinding(_ keyPath: WritableKeyPath<PlannerCalendarFilter, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { filter[keyPath: keyPath] },
+            set: { on in
+                filter[keyPath: keyPath] = on
+                PlannerStore.calendarFilter = filter
+                Task { await PlannerReminders.refresh() }
+            }
+        )
     }
 
     private func requestAccess() async {

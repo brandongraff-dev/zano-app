@@ -16,6 +16,46 @@ public enum PlannerStore {
         static let settings = "planner.settings.v1"
         static let scheduled = "planner.scheduledReminderIDs.v1"
         static let sharedAssigned = "planner.sharedAssigned.v1"
+        static let privateEvents = "planner.privateEvents.v1"
+        static let filter = "planner.calendarFilter.v1"
+    }
+
+    /// Session 46: private ("Only me") events ended longer ago than this are dropped when the list is saved.
+    public static let keepEndedEventDays = 90
+    public static let maxPrivateEvents = 500
+
+    /// Session 46: "Only me" events. On this device only, never uploaded.
+    public static var privateEvents: [PlannerPrivateEvent] {
+        get { read([PlannerPrivateEvent].self, key: Keys.privateEvents) ?? [] }
+        set { write(prunePrivateEvents(newValue), key: Keys.privateEvents) }
+    }
+
+    /// Session 46: which calendars the Planner draws.
+    public static var calendarFilter: PlannerCalendarFilter {
+        get { read(PlannerCalendarFilter.self, key: Keys.filter) ?? PlannerCalendarFilter() }
+        set { write(newValue, key: Keys.filter) }
+    }
+
+    public static func upsertPrivateEvent(_ event: PlannerPrivateEvent) {
+        var all = privateEvents
+        if let index = all.firstIndex(where: { $0.id == event.id }) {
+            all[index] = event
+        } else {
+            all.append(event)
+        }
+        privateEvents = all
+    }
+
+    public static func deletePrivateEvent(id: UUID) {
+        privateEvents = privateEvents.filter { $0.id != id }
+    }
+
+    /// Drops events that ended more than `keepEndedEventDays` ago, sorts by start, caps the list (keeping the
+    /// latest).
+    static func prunePrivateEvents(_ list: [PlannerPrivateEvent], now: Date = .now) -> [PlannerPrivateEvent] {
+        let cutoff = now.addingTimeInterval(-Double(keepEndedEventDays) * 86_400)
+        let kept = list.filter { $0.end >= cutoff }.sorted { $0.start < $1.start }
+        return Array(kept.suffix(maxPrivateEvents))
     }
 
     /// Done tasks older than this are dropped when the list is saved.

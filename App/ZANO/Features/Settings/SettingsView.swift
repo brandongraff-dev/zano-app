@@ -1599,12 +1599,17 @@ private struct SettingsChoiceTile: View {
                             RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint)
                         }
                     }
+                    // Decorative: the button label folds child images into its spoken label.
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(Theme.Typography.captionEmphasized)
                     .foregroundStyle(isSelected && isEnabled ? Theme.Colors.text : Theme.Colors.muted)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.center)
+                    // Four tiles share a ~80pt-wide row; past accessibility1 a word no longer fits
+                    // even at the 0.8 floor (same cap as the onboarding headlines).
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             }
             .padding(.horizontal, Theme.Spacing.xxs)
             .frame(maxWidth: .infinity, minHeight: SettingsMetrics.choiceTileHeight)

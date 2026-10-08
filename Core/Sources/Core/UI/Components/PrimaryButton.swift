@@ -111,6 +111,7 @@ public struct PrimaryButton: View {
     @State private var holdTask: Task<Void, Never>?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// - Parameters:
     ///   - title: Caller-composed button label (from `Copy`).
@@ -164,7 +165,10 @@ public struct PrimaryButton: View {
             }
             Text(title)
                 .font(Theme.Typography.headline.weight(.bold))
-                .lineLimit(1)
+                // One line normally; at accessibility sizes a long title wraps to a second line
+                // (the button grows from `minHeight`) instead of truncating (session 41).
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .multilineTextAlignment(.center)
                 .minimumScaleFactor(0.85)
         }
         .frame(maxWidth: .infinity)

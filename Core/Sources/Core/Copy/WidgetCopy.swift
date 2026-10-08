@@ -204,6 +204,9 @@ public enum WidgetCopy {
     public static let focusPausedLabel = "Paused"
     public static let focusEndButton = "End"
     public static let focusLiveActivityDisplay = "ZANO Focus"
+    /// VoiceOver label for the focus block's progress bar on the Lock Screen banner; the system
+    /// speaks the value as a percentage (session 41).
+    public static let focusProgressAccessibilityLabel = "Focus progress"
 
     public static let gymVerifiedLabel = "Verified"
     public static let gymLiveActivityDisplay = "ZANO Gym"

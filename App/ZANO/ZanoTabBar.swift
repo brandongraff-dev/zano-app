@@ -103,6 +103,9 @@ struct ZanoTabBar: View {
                     .foregroundStyle(Theme.Colors.onAccent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                    // The bar is a fixed height, like the system tab bar; at larger sizes the
+                    // Large Content Viewer (long-press) shows the title instead (session 41).
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .transition(.opacity.combined(with: .scale(scale: 0.6, anchor: .leading)))
             }
         }

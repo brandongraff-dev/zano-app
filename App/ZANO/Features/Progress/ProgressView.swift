@@ -449,7 +449,8 @@ struct ProgressView: View {
             .foregroundStyle(isLit ? Theme.Colors.ember : Theme.Colors.muted)
             .frame(width: 56, height: 56)
             .background(Theme.Colors.ember.opacity(isLit ? 0.18 : 0.06), in: Circle())
-            .symbolEffect(.bounce, value: current)
+            // No bounce under Reduce Motion (the number changing still says it), like `ZanoSticker`.
+            .symbolEffect(.bounce, value: reduceMotion ? 0 : current)
     }
 
     @ViewBuilder

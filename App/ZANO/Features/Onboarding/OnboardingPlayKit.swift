@@ -270,6 +270,9 @@ struct OnboardingChargeButton: View {
 
     var body: some View {
         label
+            // The capsule is a fixed 64pt; past accessibility1 the one-line title would clip even
+            // at its 0.85 floor (same cap as the onboarding headlines). VoiceOver reads `title`.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .frame(maxWidth: .infinity)
             .frame(height: Self.height)
             .background { track }

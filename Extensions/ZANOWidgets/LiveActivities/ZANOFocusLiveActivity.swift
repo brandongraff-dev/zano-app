@@ -108,6 +108,7 @@ private struct ZANOFocusLockScreenView: View {
 
             ProgressView(value: Self.progressFraction(attributes: attributes, state: state))
                 .tint(ZANOWidgetColor.ringFocus)
+                .accessibilityLabel(WidgetCopy.focusProgressAccessibilityLabel)
 
             Link(destination: ZANOFocusLiveActivity.endFocusURL) {
                 Text(WidgetCopy.focusEndButton)

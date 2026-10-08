@@ -179,6 +179,7 @@ public struct RecapCard: View {
                 Text(weekLabel)
                     .font(Theme.Typography.title)
                     .foregroundStyle(Theme.Colors.text)
+                    .accessibilityAddTraits(.isHeader)
                 if let rankLabel {
                     Text(rankLabel)
                         .font(Theme.Typography.caption)
@@ -265,7 +266,9 @@ public struct RecapCard: View {
                     Text(rest)
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.muted)
-                        .lineLimit(1)
+                        // Two cells share the row; "apps stayed locked" wraps at large text sizes
+                        // instead of truncating.
+                        .lineLimit(2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

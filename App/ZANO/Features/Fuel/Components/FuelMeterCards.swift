@@ -57,6 +57,7 @@ struct FuelMeterCard: View {
     var stickers: [FuelStickerConfig] = []
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Bumped when the logged amount goes up (by any path: chip, sheet, NFC, widget).
     @State private var gainTick = 0
     @State private var lastGain = 0
@@ -132,7 +133,7 @@ struct FuelMeterCard: View {
                 .padding(Theme.Spacing.xxs)
                 .frame(minWidth: 36, minHeight: 36)
                 .background(color.opacity(0.2), in: Circle())
-                .symbolEffect(.bounce, value: gainTick)
+                .symbolEffect(.bounce, value: reduceMotion ? 0 : gainTick)
                 .zanoChargeBurst(trigger: completeTick, color: color)
 
             Text(title)
@@ -322,6 +323,7 @@ struct FuelStickerButton: View {
     let sticker: FuelStickerConfig
     let tilted: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var taps = 0
 
     var body: some View {
@@ -333,7 +335,7 @@ struct FuelStickerButton: View {
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: sticker.systemImage)
                     .font(Theme.Typography.icon(.medium, weight: .bold))
-                    .symbolEffect(.bounce, value: taps)
+                    .symbolEffect(.bounce, value: reduceMotion ? 0 : taps)
                 Text(sticker.title)
                     .font(Theme.Typography.label)
                     .lineLimit(1)

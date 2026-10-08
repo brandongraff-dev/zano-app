@@ -8,64 +8,78 @@ import SwiftUI
 
 // MARK: - Workout: barbell
 
-/// A barbell with four plate slots a side. Plate pairs load from the middle out, biggest first.
+/// A barbell seen from the front. It starts bare; plate pairs load onto the sleeves from the
+/// collars outward, biggest first. Only the plate pair being loaded shows a faint outline filling
+/// up; slots still to come aren't drawn, so the bar always reads as a bar.
 struct BarbellMeter: View {
     let progress: Double
     let color: Color
 
-    private let plates = 4
+    /// Plate heights as a share of the meter's height: a big plate, a medium, a small.
+    private let plates: [CGFloat] = [1.0, 0.74, 0.52]
 
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width
             let h = proxy.size.height
-            let gap: CGFloat = 3
-            // Plates take about two thirds of each half, the rest is grip and collar.
-            let plateW = max(4, min(10, (w * 0.32) / CGFloat(plates) - gap))
-            let collarW: CGFloat = 4
-            let step = plateW + gap
-            // Half the grip: whatever is left once both sides' plates and collars fit.
-            let grip = max(6, w / 2 - (CGFloat(plates) * step + collarW + 6))
+            let metal = Theme.Colors.textSecondary
+            let plateW = min(13, max(7, w * 0.075))
+            let gap: CGFloat = 2
+            let collarW: CGFloat = 5
+            let capW: CGFloat = 5
+            let loadW = CGFloat(plates.count) * (plateW + gap)
+            // Half the grip: whatever is left once a side's collar, plates and end cap fit.
+            let grip = max(8, w / 2 - (collarW + loadW + capW + 4))
+            let sleeveStart = grip + collarW
             ZStack {
-                // The bar, end to end.
+                // The shaft, end to end.
                 Capsule()
-                    .fill(Theme.Colors.textSecondary.opacity(0.7))
-                    .frame(height: max(3, h * 0.13))
-                // Knurled grip in the middle.
-                Capsule()
-                    .fill(Theme.Colors.textSecondary)
-                    .frame(width: max(0, 2 * grip - 4), height: max(4, h * 0.2))
-                ForEach(0..<plates, id: \.self) { index in
-                    let fill = MeterItemRow<EmptyView>.fill(index: index, count: plates, progress: progress)
-                    let plateH = h * (1 - CGFloat(index) * 0.13)
-                    let x = w / 2 - grip - CGFloat(index) * step - plateW / 2
-                    plate(fill: fill, width: plateW, height: plateH)
-                        .position(x: x, y: h / 2)
-                    plate(fill: fill, width: plateW, height: plateH)
-                        .position(x: w - x, y: h / 2)
-                }
-                // Collars just outside the last plate slot.
-                let collarX = w / 2 - grip - CGFloat(plates) * step - collarW / 2
-                ForEach([collarX, w - collarX], id: \.self) { x in
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Theme.Colors.textSecondary)
-                        .frame(width: collarW, height: h * 0.36)
-                        .position(x: x, y: h / 2)
+                    .fill(metal.opacity(0.75))
+                    .frame(width: w, height: max(3, h * 0.12))
+                // Sleeves: thicker metal where the plates sit.
+                ForEach([-1.0, 1.0], id: \.self) { side in
+                    let sleeveW = w / 2 - sleeveStart
+                    Capsule()
+                        .fill(metal)
+                        .frame(width: sleeveW, height: max(5, h * 0.2))
+                        .position(x: w / 2 + CGFloat(side) * (sleeveStart + sleeveW / 2), y: h / 2)
+                    // Collar: the stopper the plates sit against.
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(metal)
+                        .frame(width: collarW, height: h * 0.42)
+                        .position(x: w / 2 + CGFloat(side) * (grip + collarW / 2), y: h / 2)
+                    ForEach(plates.indices, id: \.self) { index in
+                        let fill = MeterItemRow<EmptyView>.fill(index: index, count: plates.count, progress: progress)
+                        let x = sleeveStart + gap + CGFloat(index) * (plateW + gap) + plateW / 2
+                        plate(fill: fill, width: plateW, height: h * plates[index])
+                            .position(x: w / 2 + CGFloat(side) * x, y: h / 2)
+                    }
                 }
             }
         }
     }
 
+    @ViewBuilder
     private func plate(fill: Double, width: CGFloat, height: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 2, style: .continuous)
-        return MeterReveal(fill: fill, axis: .vertical) {
-            // A faint solid slot (dashes on eight narrow plates read as noise).
-            shape.fill(color.opacity(0.18))
-                .overlay(shape.strokeBorder(color.opacity(0.35), lineWidth: 1))
-        } filled: {
-            shape.meterGloss(color)
+        let shape = RoundedRectangle(cornerRadius: min(4, width * 0.35), style: .continuous)
+        if fill >= 1 {
+            ZStack {
+                shape.meterGloss(color)
+                // The plate's hub where the sleeve passes through.
+                Capsule()
+                    .fill(Color.black.opacity(0.22))
+                    .frame(width: width * 0.32, height: height * 0.22)
+                shape.strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
+            }
+            .frame(width: width, height: height)
+        } else if fill > 0 {
+            MeterReveal(fill: fill, axis: .vertical) {
+                shape.stroke(color.opacity(0.5), style: StrokeStyle(lineWidth: 1.2, dash: [2.5, 2]))
+            } filled: {
+                shape.meterGloss(color)
+            }
+            .frame(width: width, height: height)
         }
-        .frame(width: width, height: height)
     }
 }
 

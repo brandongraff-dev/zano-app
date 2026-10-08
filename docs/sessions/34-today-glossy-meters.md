@@ -47,4 +47,8 @@ data, intent or copy changes.
 - **Known issues / TODOs left behind:** Lock's hero, Progress and Settings still in the older look
   (next sessions).
 - **CI:** runs 158 and 159 green; second-pass screenshots read. Creatine scoops enlarged (4 instead of 5) after run 159.
+- **Barbell redrawn (founder: "looks a little weird"):** the 4-plates-a-side version with outlined
+  empty slots read like an audio equalizer. Now a bare bar with sleeves, collars and end caps; three
+  chunky plates a side (big, medium, small) appear as progress grows, and only the pair being loaded
+  shows a faint outline filling up.
 - **Needs verification on:** motion feel on a device.

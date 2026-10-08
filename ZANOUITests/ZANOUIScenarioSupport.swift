@@ -221,7 +221,15 @@ extension XCUIApplication {
             .firstMatch
     }
 
-    var todayTab: XCUIElement { tabBars.buttons[ZANOUILabel.Shell.todayTab] }
+    var todayTab: XCUIElement { zanoTab(ZANOUILabel.Shell.todayTab) }
+
+    /// A tab button in the custom glass bar (`ZanoTabBar`: one container identified "zano.tabBar",
+    /// one button per tab labelled with the tab title). The system tab bar is hidden, so its
+    /// `tabBars` query is only a fallback for an older build that still showed it.
+    func zanoTab(_ title: String) -> XCUIElement {
+        let custom = descendants(matching: .any)["zano.tabBar"].buttons[title]
+        return custom.exists ? custom : tabBars.buttons[title]
+    }
 }
 
 extension XCUIElement {

@@ -119,6 +119,33 @@ public actor HouseholdClient {
         _ = try await rpc("delete_household_task", body: ["p_task_id": taskID.uuidString])
     }
 
+    // MARK: Screen-free times (session 44, `0009_household_quiet_times.sql`)
+
+    public func quietTimes(householdID: UUID) async throws -> [HouseholdQuietTime] {
+        let data = try await get("household_quiet_times", query: "select=*&household_id=eq.\(householdID.uuidString)&order=start_minute.asc")
+        return try FamilyJSON.decoder.decode([HouseholdQuietTime].self, from: data)
+    }
+
+    @discardableResult
+    public func createQuietTime(householdID: UUID, name: String, startMinute: Int, endMinute: Int, weekdays: [Int]) async throws -> UUID {
+        let data = try await rpc("create_household_quiet_time", body: [
+            "p_household_id": householdID.uuidString, "p_name": name,
+            "p_start_minute": startMinute, "p_end_minute": endMinute, "p_weekdays": weekdays.sorted(),
+        ])
+        return try Self.uuid(from: data)
+    }
+
+    public func updateQuietTime(id: UUID, name: String, startMinute: Int, endMinute: Int, weekdays: [Int]) async throws {
+        _ = try await rpc("update_household_quiet_time", body: [
+            "p_id": id.uuidString, "p_name": name,
+            "p_start_minute": startMinute, "p_end_minute": endMinute, "p_weekdays": weekdays.sorted(),
+        ])
+    }
+
+    public func deleteQuietTime(id: UUID) async throws {
+        _ = try await rpc("delete_household_quiet_time", body: ["p_id": id.uuidString])
+    }
+
     // MARK: HTTP
 
     private nonisolated static func uuid(from data: Data) throws -> UUID {

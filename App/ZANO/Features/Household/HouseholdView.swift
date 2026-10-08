@@ -5,6 +5,7 @@
 // Start one or join with a code; then one list with "Assigned to you", "Not taken yet", "Everyone else" and
 // "Done lately", a circle to tick anything off, and a sheet to add a task and give it to someone. Hidden
 // from the app (`HouseholdAvailability.isLive`) until the backend and sign-in exist. Wording: `Copy.household`.
+// Session 44 adds "Screen-free times" (`HouseholdQuietTimesSection`) under the list.
 
 import SwiftUI
 import Core
@@ -15,6 +16,8 @@ struct HouseholdView: View {
     @State private var household: Household?
     @State private var members: [HouseholdMember] = []
     @State private var tasks: [HouseholdTask] = []
+    /// Session 44: the household's shared screen-free times (joins stay on this phone).
+    @State private var quietTimes: [HouseholdQuietTime] = HouseholdQuietTimeStore.windows
     @State private var message: String?
     @State private var isLoading = false
     @State private var showNewTask = false
@@ -110,6 +113,12 @@ struct HouseholdView: View {
         group(Copy.household.unassigned, sections.unassigned)
         group(Copy.household.others, sections.others)
         group(Copy.household.doneRecently, sections.doneRecently)
+
+        HouseholdQuietTimesSection(
+            household: household, me: me, members: members, quietTimes: quietTimes
+        ) {
+            Task { await refresh() }
+        }
 
         inviteCard(household)
         PrimaryButton(title: Copy.household.leave, style: .secondary) { Task { await leave(household) } }
@@ -216,10 +225,18 @@ struct HouseholdView: View {
                 tasks = try await HouseholdClient.shared.tasks(householdID: household.id)
                 PlannerStore.sharedAssigned = HouseholdBoard.reminderTasks(from: tasks, me: me)
                 await PlannerReminders.refresh()
+                // Separate from the task list so a project without 0009 still shows tasks.
+                if let fresh = try? await HouseholdClient.shared.quietTimes(householdID: household.id) {
+                    await HouseholdQuietTimeScheduler.shared.apply(fresh)
+                    quietTimes = fresh
+                }
             } else {
                 members = []
                 tasks = []
                 PlannerStore.sharedAssigned = []
+                // No household (left, or never joined): nothing to lock for.
+                await HouseholdQuietTimeScheduler.shared.apply([])
+                quietTimes = []
             }
         } catch {
             message = Copy.household.error(error)

@@ -242,6 +242,8 @@ struct TodayView: View {
                     SleepCheckInCard()
                     // Only while the work-hours focus lock has a question about an upcoming meeting.
                     FocusLockAskCard()
+                    // A joined household screen-free time starting soon or running (draws nothing otherwise).
+                    HouseholdQuietTimeChip()
                     // For 15 minutes after a verified focus block (draws nothing otherwise).
                     BreakCoachCard()
                     // Open tasks due today or earlier (draws nothing when there are none).

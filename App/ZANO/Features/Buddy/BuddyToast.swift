@@ -102,36 +102,21 @@ struct BuddyLevelStrip: View {
                 .foregroundStyle(Theme.BuddyColors.onSignature)
                 .padding(.horizontal, Theme.Spacing.xs)
                 .padding(.vertical, 2)
-                // Session 34 (glossy direction): the level chip and XP bar in the badge's paint.
-                .background(Capsule().fill(color).overlay(Self.gloss(Capsule())))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.8), lineWidth: 1.5))
-                .shadow(color: color.opacity(0.45), radius: 4, y: 2)
+                .background(Capsule().fill(color))
                 .fixedSize()
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.Colors.track)
                     Capsule()
                         .fill(color)
-                        .overlay(Self.gloss(Capsule()))
-                        .frame(width: max(9, proxy.size.width * progress.levelFraction))
-                        .shadow(color: color.opacity(0.5), radius: 4)
+                        .frame(width: max(6, proxy.size.width * progress.levelFraction))
                 }
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
             }
-            .frame(height: 9)
+            .frame(height: 6)
         }
         .animation(Theme.Motion.springStandard, value: progress.xp)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.buddy.levelSpoken(progress.level))
         .accessibilityValue(progress.xpToNextLevel.map { Copy.buddy.toNextLevel($0, next: progress.level + 1) } ?? Copy.buddy.maxLevel)
-    }
-
-    /// A lit top and a shaded bottom over the colour.
-    private static func gloss<S: Shape>(_ shape: S) -> some View {
-        shape.fill(LinearGradient(
-            colors: [Color.white.opacity(0.4), Color.white.opacity(0), Color.black.opacity(0.15)],
-            startPoint: .top,
-            endPoint: .bottom
-        ))
     }
 }

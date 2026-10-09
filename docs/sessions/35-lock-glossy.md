@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/focused-keller-41j9sk` (stacked on sessions 33–34)
 - **Spec sections:** §15 (design system, Lock), §5.1 (lock vault), CLAUDE.md emergency-unlock rule
-- **Status:** Scaffolded — Unverified
+- **Status:** Reverted (2026-10-09)
 - **Started:** 2026-10-08
 - **Last updated:** 2026-10-08
 
@@ -35,3 +35,11 @@ intent or copy changes. The emergency unlock stays in its calm look on purpose (
   shows the meter and keeps its badge; run 166 green, screenshots read. Run 165's dark `tab-lock`
   shot caught the home screen (launch didn't foreground); run 166's is correct.
 - **Needs verification on:** motion on a device.
+
+## Reverted (2026-10-09)
+
+The founder didn't like the new style on Today and Lock and asked for those pages to go back to how
+they were; Fuel (session 33) stays. All code from sessions 34–35 was rolled back to the session 33
+state: `ZanoPopBadge` and the `GoalMeters` files are gone from Core, Fuel uses its own local badge and
+protein bar again, and the design doc's "Pass 4: glossy" section was removed. The pass 3 (restraint)
+rules apply to Today and Lock as before. Kept here as a record of what was tried and rejected.

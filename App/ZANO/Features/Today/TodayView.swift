@@ -534,8 +534,8 @@ struct TodayView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             heroNumber
             if !heroSegments.isEmpty {
-                // Session 34: one glossy tile per goal (was a thin segmented bar).
-                VaultBadgeRow(segments: heroSegments)
+                VaultSegmentBar(segments: heroSegments)
+                    .frame(maxWidth: min(48 * CGFloat(heroSegments.count), 200))
                     .padding(.vertical, Theme.Spacing.xxs)
             }
             ViewThatFits(in: .horizontal) {
@@ -818,7 +818,7 @@ struct TodayView: View {
 
     private func segments(for pool: [Goal]) -> [VaultSegment] {
         sortedByPriority(pool).map {
-            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0), progress: dayProgress(for: $0).fraction, icon: goalIconName(for: $0.type))
+            VaultSegment(id: $0.id, color: Theme.Colors.Ring.color(for: $0.type), isDone: isGoalDoneToday($0), progress: dayProgress(for: $0).fraction)
         }
     }
 

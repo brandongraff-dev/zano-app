@@ -2,7 +2,7 @@
 
 - **Branch:** `claude/focused-keller-41j9sk` (stacked on session 33)
 - **Spec sections:** §15 (design system, Today), §5.17 (buddy faces kept on tiles)
-- **Status:** Scaffolded — Unverified
+- **Status:** Reverted (2026-10-09)
 - **Started:** 2026-10-08
 - **Last updated:** 2026-10-08
 
@@ -52,3 +52,11 @@ data, intent or copy changes.
   chunky plates a side (big, medium, small) appear as progress grows, and only the pair being loaded
   shows a faint outline filling up.
 - **Needs verification on:** motion feel on a device.
+
+## Reverted (2026-10-09)
+
+The founder didn't like the new style on Today and Lock and asked for those pages to go back to how
+they were; Fuel (session 33) stays. All code from sessions 34–35 was rolled back to the session 33
+state: `ZanoPopBadge` and the `GoalMeters` files are gone from Core, Fuel uses its own local badge and
+protein bar again, and the design doc's "Pass 4: glossy" section was removed. The pass 3 (restraint)
+rules apply to Today and Lock as before. Kept here as a record of what was tried and rejected.

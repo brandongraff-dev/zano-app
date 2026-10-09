@@ -114,7 +114,7 @@ struct FuelMeterCard: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 header
                 score
-                ZanoProteinBar(progress: progress, color: color, crumbs: gainTick)
+                FuelProteinBar(progress: progress, color: color, crumbs: gainTick)
             }
         case .water:
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
@@ -126,7 +126,7 @@ struct FuelMeterCard: View {
 
     private var header: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            ZanoPopBadge(
+            FuelPopBadge(
                 systemImage: isComplete ? "checkmark" : systemImage,
                 color: color,
                 tilt: kind == .protein ? -6 : 5,

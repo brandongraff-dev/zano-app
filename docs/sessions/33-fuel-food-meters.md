@@ -38,3 +38,8 @@ of the Fuel page. Visual only: no data, intent or copy changes.
 - **Known issues / TODOs left behind:** none known.
 - **CI:** focused run 149 green (compile); `tab-fuel`, `fuel-bottom` and their `light-` versions read.
 - **Needs verification on:** crumbs/bounce motion feel on a device.
+
+### 2026-10-09 — Still current
+
+Sessions 34–35 extended this style to Today and Lock and were reverted at the founder's request;
+Fuel keeps the protein bar, pop badges and water bottle from this session, unchanged.

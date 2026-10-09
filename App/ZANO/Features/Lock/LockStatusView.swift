@@ -482,7 +482,7 @@ struct LockStatusView: View {
 
     private var heroTopRow: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            ZanoPopBadge(systemImage: heroBadgeSymbol, color: heroBadgeTint, size: 34, tilt: -5, sparkle: false)
+            IconBadge(systemName: heroBadgeSymbol, tint: heroBadgeTint, size: .small)
             Text(heroEyebrow)
                 .zanoText(.eyebrow)
                 .foregroundStyle(Theme.Colors.text)
@@ -710,8 +710,7 @@ struct LockStatusView: View {
             progress: p.fraction,
             primaryLine: primary,
             isRequired: true,
-            trailing: p.isComplete ? .done : .none,
-            meterGoal: goal.type
+            trailing: p.isComplete ? .done : .none
         )
     }
 
@@ -876,16 +875,7 @@ struct LockStatusView: View {
                 .frame(maxWidth: .infinity, minHeight: Theme.Metrics.minTapTarget)
                 .background {
                     if isSelected {
-                        // Session 35 (glossy): the picked amount gets the lit wash and a glow.
-                        ZStack {
-                            Capsule().fill(Theme.Colors.accentWash)
-                            Capsule().fill(LinearGradient(
-                                colors: [Color.white.opacity(0.22), Color.white.opacity(0)],
-                                startPoint: .top,
-                                endPoint: .center
-                            ))
-                        }
-                        .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 6)
+                        Capsule().fill(Theme.Colors.accentWash)
                     } else {
                         ZanoGlass(Capsule(style: .continuous))
                     }
@@ -977,7 +967,7 @@ struct LockStatusView: View {
 
     private func blockingFact(icon: String, tint: Color, text: String) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            ZanoPopBadge(systemImage: icon, color: tint, size: 40, tilt: -6, sparkle: false)
+            ZanoSticker(systemImage: icon, color: tint, size: .regular, tilt: -6)
             Text(text)
                 .font(Theme.Typography.label)
                 .foregroundStyle(Theme.Colors.text)
@@ -1142,19 +1132,12 @@ struct LockStatusView: View {
         let shape = Capsule(style: .continuous)
         return ZStack {
             if isSelected {
-                // Session 35 (glossy): the picked coin is lit, rimmed and glows.
                 shape.fill(Theme.Colors.accent)
-                shape.fill(LinearGradient(
-                    colors: [Color.white.opacity(0.38), Color.white.opacity(0), Color.black.opacity(0.14)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ))
-                shape.strokeBorder(Color.white.opacity(0.8), lineWidth: 2)
             } else {
                 ZanoGlass(shape)
             }
+            // Pass 3 (restraint): a flat coin, no sheen, no glow.
         }
-        .shadow(color: isSelected ? Theme.Colors.accent.opacity(0.45) : .clear, radius: 8, y: 3)
     }
 
     private func borrow(minutes: Int) {

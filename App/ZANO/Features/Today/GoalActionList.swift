@@ -47,9 +47,6 @@ struct GoalActionItem: Identifiable, Equatable {
     let trailing: Trailing
     /// The goal's own type, so the tile can show the buddy's face for it (nil for rows with no goal).
     var goalType: GoalType? = nil
-    /// The goal whose meter to draw when `goalType` is nil (Lock's tiles keep their glossy badge
-    /// instead of the buddy face, but still show the meter).
-    var meterGoal: GoalType? = nil
 }
 
 struct GoalActionList: View {
@@ -99,9 +96,6 @@ struct GoalActionList: View {
 /// itself the button: the whole tile squishes on touch (`PressableStyle`), the sticker bounces on every
 /// log, and completing it pops the tile and flips the sticker to a filled check (pass 3: the win's
 /// one burst is the hero star's, not the tile's). Read-only tiles (Lock) are compact and not buttons.
-///
-/// Session 34 (glossy direction): a goal-shaped meter (`ZanoGoalMeter`) under the numbers, the
-/// glossy badge for goals without a buddy face, and glossy action capsules.
 struct GoalTile: View {
     let item: GoalActionItem
     let isWide: Bool
@@ -196,7 +190,6 @@ struct GoalTile: View {
                 if isDone { doneSparkle }
             }
             words(showsSecondary: false)
-            meter
             Spacer(minLength: 0)
             affordance(fullWidth: true)
         }
@@ -205,10 +198,7 @@ struct GoalTile: View {
     private var wideLayout: some View {
         HStack(spacing: Theme.Spacing.md) {
             sticker
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                words(showsSecondary: true)
-                meter
-            }
+            words(showsSecondary: true)
             Spacer(minLength: Theme.Spacing.xs)
             if isDone {
                 doneSparkle
@@ -255,32 +245,17 @@ struct GoalTile: View {
         .focusSession, .reading, .sunriseAlarm, .stretchMobility,
     ]
 
-    /// Goals without a buddy face get the glossy badge (session 34).
     private var plainSticker: some View {
-        ZanoPopBadge(
+        ZanoSticker(
             systemImage: isDone ? "checkmark" : item.icon,
             color: item.color,
-            size: 44,
+            style: isDone ? .filled : .tinted,
+            size: .large,
             tilt: isDone ? 0 : -6,
-            sparkle: isDone,
-            bounce: progressTick + doneTick
+            bounceTrigger: progressTick + doneTick
         )
-    }
-
-    /// The goal-shaped meter (session 34): a barbell, a protein bar, glasses of water... Rows with
-    /// no goal behind them have none.
-    @ViewBuilder
-    private var meter: some View {
-        if let type = item.goalType ?? item.meterGoal {
-            ZanoGoalMeter(
-                goal: type,
-                progress: isDone ? 1 : item.progress,
-                color: item.color,
-                height: isWide ? 26 : 28,
-                pulse: progressTick
-            )
-            .frame(maxWidth: isWide ? 220 : .infinity)
-        }
+        // Pass 3 (restraint): no burst here; the hero star's burst is the one burst per win.
+        .accessibilityHidden(true)
     }
 
     /// A small sparkle sticker in the corner of a done tile.
@@ -380,18 +355,8 @@ struct GoalTile: View {
         .padding(.horizontal, Theme.Spacing.md)
         .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: Theme.Metrics.minTapTarget)
         .background {
-            // Session 34 (glossy direction): the fill with a lit top, a white rim and a soft glow
-            // in its own colour, the same paint as `ZanoPopBadge`.
-            ZStack {
-                shape.fill(fill)
-                shape.fill(LinearGradient(
-                    colors: [Color.white.opacity(0.34), Color.white.opacity(0), Color.black.opacity(0.14)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ))
-                shape.strokeBorder(Color.white.opacity(0.75), lineWidth: 2)
-            }
-            .shadow(color: fill.opacity(0.45), radius: 8, y: 3)
+            // Pass 3 (restraint): a solid fill, no sheen, no coloured glow.
+            shape.fill(fill)
         }
         .opacity(isBusy ? 0.6 : 1)
     }

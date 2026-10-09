@@ -37,8 +37,6 @@ struct VaultSegment: Identifiable, Equatable {
     let isDone: Bool
     /// `0...1`, today's progress toward the goal.
     var progress: Double = 0
-    /// The goal's glyph, for the badge row on Today's hero (session 34).
-    var icon: String? = nil
 }
 
 struct LockVaultCard: View {
@@ -158,16 +156,14 @@ struct LockVaultCard: View {
         }
     }
 
-    /// The lock medallion: the state's glyph as a glossy badge (session 35). Steel while locked,
-    /// ZANO Blue with a sparkle once earned.
+    /// The lock medallion: the state's glyph as a sticker, filled ZANO Blue once earned.
     private var statusDot: some View {
-        ZanoPopBadge(
+        ZanoSticker(
             systemImage: statusSymbol,
-            color: status == .earned ? Theme.Colors.accentFill : Theme.Colors.textSecondary,
-            size: 40,
-            tilt: status == .earned ? -6 : 0,
-            sparkle: status == .earned,
-            bounce: status == .earned ? 1 : 0
+            color: status == .earned ? Theme.Colors.accent : Theme.Colors.textSecondary,
+            style: status == .earned ? .filled : .tinted,
+            size: .regular,
+            bounceTrigger: status == .earned ? 1 : 0
         )
         .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
     }
@@ -308,21 +304,13 @@ struct ConcentricGoalRings: View {
         return ZStack {
             Circle()
                 .stroke(segment.color.opacity(0.16), lineWidth: lineWidth)
-            // Session 35 (glossy): the ring is a lit tube: the colour, a thin white highlight
-            // along its inner edge, and a soft glow in its colour once it's done.
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(segment.color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: max(1.5, lineWidth * 0.22), lineCap: .round))
-                    .padding(lineWidth * 0.22)
-            }
-            .rotationEffect(.degrees(-90))
-            .shadow(color: segment.isDone ? segment.color.opacity(0.6) : .clear, radius: 6)
-            .opacity(progress > 0.001 ? 1 : 0)
-            .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: progress)
+            Circle()
+                .trim(from: 0, to: progress)
+                // Pass 3 (restraint): one flat stroke per ring, no sweep, no glow.
+                .stroke(segment.color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .opacity(progress > 0.001 ? 1 : 0)
+                .animation(reduceMotion ? .easeOut(duration: 0.2) : Theme.Motion.ringFill, value: progress)
         }
         .overlay(alignment: .top) {
             // Pass 2: a lit ring wears a sparkle where it starts (12 o'clock).
@@ -359,27 +347,15 @@ struct VaultLockCharacter: View {
             .symbolEffect(.bounce, value: reduceMotion ? 0 : (mood == .open ? 1 : 0))
             .frame(width: size, height: size)
             .background {
-                // Session 35 (glossy): a lit disc, steel while locked, ZANO Blue once open.
-                ZStack {
-                    if mood == .open {
-                        Circle().fill(Theme.Colors.accentFill)
-                    } else if reduceTransparency {
-                        Circle().fill(Theme.Colors.surface2)
-                    } else {
-                        Circle().fill(Theme.Colors.glassFillTop)
-                    }
-                    Circle().fill(LinearGradient(
-                        colors: [Color.white.opacity(0.3), Color.white.opacity(0), Color.black.opacity(0.14)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
+                if mood == .open {
+                    Circle().fill(Theme.Colors.accentFill)
+                } else if reduceTransparency {
+                    Circle().fill(Theme.Colors.surface2)
+                } else {
+                    Circle().fill(Theme.Colors.glassFillTop)
                 }
-                .shadow(color: mood == .open ? Theme.Colors.accentFill.opacity(0.5) : .clear, radius: 8)
             }
-            .overlay(Circle().strokeBorder(
-                mood == .open ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(Theme.Colors.glassEdge),
-                lineWidth: mood == .open ? 2 : Theme.Metrics.edgeWidth
-            ))
+            .overlay(Circle().strokeBorder(Theme.Colors.glassEdge, lineWidth: Theme.Metrics.edgeWidth))
             .rotationEffect(.degrees(mood == .resting ? -12 : 0), anchor: .bottom)
             .offset(y: mood == .resting ? size * 0.04 : 0)
             .opacity(mood == .resting ? 0.8 : 1)
@@ -441,69 +417,6 @@ struct VaultSegmentBar: View {
             }
         }
         .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Badge row
-
-/// Today's hero (session 34): one small glossy tile per goal instead of a plain bar segment. The
-/// tile fills from the bottom with the goal's progress and turns into a full glossy badge with a
-/// sparkle once that goal is done. Decorative: the hero's spoken label carries the count.
-struct VaultBadgeRow: View {
-    let segments: [VaultSegment]
-
-    private static let side: CGFloat = 30
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
-                badge(segment, tilt: index.isMultiple(of: 2) ? -6 : 5)
-            }
-        }
-        .padding(.top, Theme.Spacing.xxs)
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func badge(_ segment: VaultSegment, tilt: Double) -> some View {
-        let icon = segment.icon ?? "star.fill"
-        if segment.isDone {
-            ZanoPopBadge(systemImage: icon, color: segment.color, size: Self.side, tilt: tilt)
-        } else {
-            let fraction = min(1, max(0, segment.progress))
-            let shape = RoundedRectangle(cornerRadius: Self.side * 0.32, style: .continuous)
-            ZStack {
-                shape.fill(segment.color.opacity(0.16))
-                // The goal's progress, rising from the bottom in glossy paint.
-                shape
-                    .fill(LinearGradient(
-                        colors: [segment.color.opacity(0.85), segment.color],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
-                    .mask {
-                        Rectangle()
-                            .frame(height: Self.side * fraction)
-                            .frame(maxHeight: .infinity, alignment: .bottom)
-                    }
-                // The glyph in the goal colour over the empty part and white over the fill, so
-                // it stays whole at any level.
-                Image(systemName: icon)
-                    .font(.system(size: Self.side * 0.46, weight: .heavy))
-                    .foregroundStyle(segment.color)
-                Image(systemName: icon)
-                    .font(.system(size: Self.side * 0.46, weight: .heavy))
-                    .foregroundStyle(Color.white)
-                    .mask {
-                        Rectangle()
-                            .frame(height: Self.side * fraction)
-                            .frame(maxHeight: .infinity, alignment: .bottom)
-                    }
-                shape.strokeBorder(segment.color.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 2.5]))
-            }
-            .frame(width: Self.side, height: Self.side)
-            .rotationEffect(.degrees(tilt))
-        }
     }
 }
 

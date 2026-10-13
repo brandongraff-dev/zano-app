@@ -18,4 +18,5 @@
   only, around its centre.
 - **Decisions made and why:** kept the droop/perk/open moods (they carry the "body language"), just
   moved them onto the glyph.
-- **Needs verification on:** CI screenshot of `tab-lock`.
+- **CI:** run 168 green; `tab-lock` and `light-tab-lock` read, disc centred.
+- **Needs verification on:** the wobble on a device.

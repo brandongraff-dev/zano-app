@@ -339,12 +339,17 @@ struct VaultLockCharacter: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
+        // The disc stays centred in the rings; only the glyph droops and wobbles (2026-10-13: the
+        // whole disc used to tilt and drop, which pushed it off centre).
         Image(systemName: mood == .open ? "lock.open.fill" : "lock.fill")
             .symbolRenderingMode(.hierarchical)
             .font(.system(size: size * 0.46, weight: .heavy))
             .foregroundStyle(glyphColor)
             .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
             .symbolEffect(.bounce, value: reduceMotion ? 0 : (mood == .open ? 1 : 0))
+            .rotationEffect(.degrees(mood == .resting ? -12 : 0))
+            .opacity(mood == .resting ? 0.8 : 1)
+            .modifier(VaultLockWobble(trigger: reduceMotion ? 0 : wobble))
             .frame(width: size, height: size)
             .background {
                 if mood == .open {
@@ -356,10 +361,6 @@ struct VaultLockCharacter: View {
                 }
             }
             .overlay(Circle().strokeBorder(Theme.Colors.glassEdge, lineWidth: Theme.Metrics.edgeWidth))
-            .rotationEffect(.degrees(mood == .resting ? -12 : 0), anchor: .bottom)
-            .offset(y: mood == .resting ? size * 0.04 : 0)
-            .opacity(mood == .resting ? 0.8 : 1)
-            .modifier(VaultLockWobble(trigger: reduceMotion ? 0 : wobble))
             .animation(reduceMotion ? nil : Theme.Motion.springPop, value: mood)
     }
 

@@ -78,6 +78,7 @@ below still say `Scaffolded — Unverified` because they describe device-level v
 | 33 | Fuel visuals: protein meter as a chocolate protein bar (bite + crumbs), pop badges on headers and rows, water bottle cap + bubbles | `claude/focused-keller-41j9sk` | §15 | Scaffolded — Unverified. Compiles in CI (run 149, green); Fuel screenshots read in light + dark. Motion feel (crumbs, bounce) needs a device | 2026-10-08 | [33-fuel-food-meters.md](sessions/33-fuel-food-meters.md) |
 | 34 | Today glossy pass + goal-shaped meters | `claude/focused-keller-41j9sk` | §15 | Reverted 2026-10-09 (founder didn't like the style on Today/Lock). Code back to the session 33 state; Today looks as it did before | 2026-10-09 | [34-today-glossy-meters.md](sessions/34-today-glossy-meters.md) |
 | 35 | Lock glossy pass | `claude/focused-keller-41j9sk` | §15, §5.1 | Reverted 2026-10-09 with session 34. Lock looks as it did before | 2026-10-09 | [35-lock-glossy.md](sessions/35-lock-glossy.md) |
+| 36 | Lock: centre the padlock in the vault rings (resting droop moved onto the glyph) | `claude/focused-keller-41j9sk` | §15, §5.1 | Scaffolded — Unverified. Awaiting CI screenshot | 2026-10-13 | [36-lock-padlock-center.md](sessions/36-lock-padlock-center.md) |
 
 **Ordering rule (spec §17):** Session 5 depends on 1 and 4's intents; 6 depends on 5; 7 can run in
 parallel with 2–5 once §13 (data model) is frozen. Session 0 froze §13 as-written — see session doc.
